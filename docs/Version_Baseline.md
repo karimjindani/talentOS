@@ -6,7 +6,7 @@ Version: `v0.2.1`
 
 Baseline name: `Applicant Admin-Link Removal`
 
-Baseline code commit: `pending`
+Baseline code commit: `83fe2cca6ded7cdbf25ae074b092fd14533b9bbd`
 
 Baseline date: `2026-06-27`
 
