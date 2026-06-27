@@ -1,8 +1,10 @@
 # Data Dictionary
 
-Code version: `v0.1.0`
+Code version: `v0.2.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+
+> `v0.2.0` is a module-isolation iteration with no schema change; the dictionary below is unchanged from `v0.1.0`.
 
 ## Tenant
 

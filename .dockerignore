@@ -1,6 +1,7 @@
 node_modules
 .next
-apps/web/.next
+apps/applicant/.next
+apps/admin/.next
 coverage
 .git
 .env

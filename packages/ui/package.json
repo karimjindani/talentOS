@@ -1,0 +1,20 @@
+{
+  "name": "@talentos/ui",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./StatusCard": "./src/StatusCard.tsx",
+    "./tenant": "./src/tenant.ts",
+    "./tailwind-preset": "./tailwind-preset.ts"
+  },
+  "dependencies": {
+    "@talentos/auth": "0.1.1"
+  },
+  "peerDependencies": {
+    "next": "^15.3.0",
+    "react": "^19.0.0"
+  }
+}
