@@ -1,5 +1,9 @@
 # Data Model
 
+Code version: `v0.1.0`
+
+Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+
 ## Entity Relationship Overview
 
 ```mermaid

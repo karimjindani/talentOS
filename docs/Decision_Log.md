@@ -1,5 +1,9 @@
 # Decision Log
 
+Code version: `v0.1.0`
+
+Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+
 ## D-001
 
 Multi-company SaaS
@@ -105,5 +109,17 @@ Status: Approved
 ## D-018
 
 AI mentor service boundary created before AI workflow implementation
+
+Status: Approved
+
+## D-019
+
+`v0.1.0` approved as the first TalentOS code baseline
+
+Status: Approved
+
+## D-020
+
+All future implementation plans and test results must be stored in version-linked Markdown files
 
 Status: Approved

@@ -1,5 +1,9 @@
 # Testing Strategy
 
+Code version: `v0.1.0`
+
+Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+
 ## Goals
 
 Testing must preserve previously committed and tested work on every iteration.

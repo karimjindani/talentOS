@@ -1,5 +1,9 @@
 # TalentOS Architecture
 
+Code version: `v0.1.0`
+
+Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+
 ## Overview
 
 TalentOS is a Dockerized, multi-tenant, white-label SaaS platform for talent discovery, mission-based learning and recruitment.
