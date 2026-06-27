@@ -6,7 +6,7 @@ Version: `v0.3.0`
 
 Baseline name: `Keycloak IAM + RBAC Foundation`
 
-Baseline code commit: `34eac9c510bf60d9dfbb792ed9ba1ed7610d6d1e`
+Baseline code commit: `0987c475a8a3edcf738003bb7c9aa11d5b85e3fe`
 
 Baseline date: `2026-06-27`
 
