@@ -2,27 +2,27 @@
 
 ## Current Baseline
 
-Version: `v0.1.2`
+Version: `v0.2.0`
 
-Baseline name: `Architecture Engineering Backlog Direction`
+Baseline name: `Module Isolation Architecture`
 
-Baseline code commit: `8f21fe647150531ffd21e88952c6b2003bd8a8a9`
+Baseline code commit: `fc0a690b71ef01cc07a3e5711d163040296f6a96`
 
 Baseline date: `2026-06-27`
 
-Previous baseline: `v0.1.1`
+Previous baseline: `v0.1.2`
 
-Previous baseline commit: `3cb7dcf78e56a9c916a02216763e0c0f2cd27c32`
+Previous baseline commit: `18bf41f51832706c68321b97ea2a946d1c43f7be`
 
 ## Baseline Summary
 
-`v0.1.2` is a documentation-only update that establishes the architecture engineering backlog direction.
+`v0.2.0` isolates the applicant and administrator modules into two separate Next.js applications, each
+running in its own Docker container, sharing only the `packages/*` libraries. There is no Prisma
+schema change in this baseline. It realizes the portal-separation direction recorded in `v0.1.2`.
 
-This documentation update records:
-
-- Keycloak as the target IAM system.
-- Separate Applicant Portal and Admin Portal as the target portal architecture.
-- Architecture-level Engineering To-Do tracking mapped from the Product Backlog.
+`v0.1.2` was a documentation-only update that established the architecture engineering backlog
+direction: Keycloak as the target IAM system, separate Applicant and Admin portals, and
+architecture-level Engineering To-Do tracking mapped from the Product Backlog.
 
 `v0.1.1` established local Docker deployment support with configurable host ports.
 
@@ -30,20 +30,22 @@ This documentation update records:
 
 This baseline includes:
 
-- configurable Docker Compose host ports through `WEB_PORT` and `POSTGRES_PORT`,
-- local deployment validation on `http://localhost:3100`,
-- Next.js TypeScript application scaffold in `apps/web`.
-- Public Applicant Portal route shell.
-- Program Admin Portal route shell.
-- Shared PostgreSQL data model using Prisma.
-- Docker Compose services for `web` and `postgres`.
-- Auth/security utilities for password hashing, TOTP 2FA, role checks, tenant resolution, tenant isolation, and application workflow transitions.
-- AI mentor service boundary stub.
-- SSDLC-required documentation for architecture, data model, data dictionary, deployment, and testing.
+- separate applicant (`apps/applicant`) and administrator (`apps/admin`) applications,
+- two isolated containers (`talentos-applicant` on `3100`, `talentos-admin` on `3200`) built from one parameterized root `Dockerfile`,
+- a shared front-end package `packages/ui` (StatusCard, tenant header helper, Tailwind brand preset),
+- administrator routes served at the container root (no `/admin` prefix),
+- verified runtime isolation (each container returns 404 for the other module's routes),
+- Docker Compose services for `applicant`, `admin` and `postgres`,
+- the unchanged `packages/auth` regression suite (9 tests) still passing.
+
+Carried forward from earlier baselines: the shared PostgreSQL data model using Prisma; auth/security
+utilities for password hashing, TOTP 2FA, role checks, tenant resolution, tenant isolation and
+application workflow transitions; the AI mentor service boundary stub; and SSDLC documentation for
+architecture, data model, data dictionary, deployment and testing.
 
 ## Portal Scope
 
-Public Applicant Portal routes included in `v0.1.0`:
+Public Applicant Portal routes (`apps/applicant`, container `talentos-applicant`):
 
 - `/`
 - `/apply`
@@ -52,21 +54,23 @@ Public Applicant Portal routes included in `v0.1.0`:
 - `/2fa/setup`
 - `/application`
 
-Program Admin Portal routes included in `v0.1.0`:
+Program Admin Portal routes (`apps/admin`, container `talentos-admin`, served at root):
 
-- `/admin`
-- `/admin/applications`
-- `/admin/applications/[id]`
-- `/admin/programs`
-- `/admin/settings`
+- `/`
+- `/applications`
+- `/applications/[id]`
+- `/programs`
+- `/settings`
 
 ## Package Scope
 
-Packages included in `v0.1.0`:
+Packages and apps included in `v0.2.0`:
 
-- `apps/web`
+- `apps/applicant`
+- `apps/admin`
 - `packages/auth`
 - `packages/db`
+- `packages/ui`
 
 ## Documentation Rule
 

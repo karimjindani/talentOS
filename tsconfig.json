@@ -14,16 +14,16 @@
     "jsx": "preserve",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["apps/web/*"],
       "@talentos/auth": ["packages/auth/src"],
       "@talentos/auth/*": ["packages/auth/src/*"],
-      "@talentos/db": ["packages/db/src"]
+      "@talentos/db": ["packages/db/src"],
+      "@talentos/ui": ["packages/ui/src"],
+      "@talentos/ui/*": ["packages/ui/*"]
     }
   },
   "include": [
-    "apps/**/*.ts",
-    "apps/**/*.tsx",
     "packages/**/*.ts",
+    "packages/**/*.tsx",
     "vitest.config.ts"
   ],
   "exclude": ["node_modules"]

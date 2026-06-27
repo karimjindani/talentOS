@@ -1,0 +1,41 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ],
+      "@talentos/auth": [
+        "../../packages/auth/src"
+      ],
+      "@talentos/auth/*": [
+        "../../packages/auth/src/*"
+      ],
+      "@talentos/db": [
+        "../../packages/db/src"
+      ],
+      "@talentos/ui": [
+        "../../packages/ui/src"
+      ],
+      "@talentos/ui/*": [
+        "../../packages/ui/*"
+      ]
+    },
+    "incremental": true
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

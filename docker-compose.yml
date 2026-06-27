@@ -17,23 +17,49 @@ services:
       timeout: 5s
       retries: 5
 
-  web:
+  applicant:
     build:
       context: .
-      dockerfile: apps/web/Dockerfile
-    container_name: talentos-web
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: "@talentos/applicant"
+        APP_DIR: apps/applicant
+    container_name: talentos-applicant
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-talentos}:${POSTGRES_PASSWORD:-talentos_dev_password}@postgres:5432/${POSTGRES_DB:-talentos}?schema=public
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3100}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-replace-with-a-long-random-secret}
       APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:-localhost}
       DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-demo}
+      NEXT_PUBLIC_ADMIN_URL: ${NEXT_PUBLIC_ADMIN_URL:-http://localhost:3200}
     ports:
-      - "${WEB_PORT:-3000}:3000"
+      - "${APPLICANT_PORT:-3100}:3000"
+
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: "@talentos/admin"
+        APP_DIR: apps/admin
+    container_name: talentos-admin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-talentos}:${POSTGRES_PASSWORD:-talentos_dev_password}@postgres:5432/${POSTGRES_DB:-talentos}?schema=public
+      NEXTAUTH_URL: ${ADMIN_NEXTAUTH_URL:-http://localhost:3200}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-replace-with-a-long-random-secret}
+      APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:-localhost}
+      DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-demo}
+      NEXT_PUBLIC_APPLICANT_URL: ${NEXT_PUBLIC_APPLICANT_URL:-http://localhost:3100}
+    ports:
+      - "${ADMIN_PORT:-3200}:3000"
 
 volumes:
   postgres-data:

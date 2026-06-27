@@ -1,23 +1,33 @@
 # TalentOS Architecture
 
-Code version: `v0.1.2`
+Code version: `v0.2.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.1.2`
+Current documentation update: `v0.2.0`
 
 ## Overview
 
 TalentOS is a Dockerized, multi-tenant, white-label SaaS platform for talent discovery, mission-based learning and recruitment.
 
-The first implementation creates two portals:
+The platform exposes two portals, and as of `v0.2.0` each portal is an isolated application running in its own container:
 
-- Public Applicant Portal for landing pages, signup, 2FA setup and applications.
-- Program Admin Portal for tenant owners/admins to review applications, manage programs and inspect audit activity.
+- Public Applicant Portal (`apps/applicant`, container `talentos-applicant`) for landing pages, signup, 2FA setup and applications.
+- Program Admin Portal (`apps/admin`, container `talentos-admin`) for tenant owners/admins to review applications, manage programs and inspect audit activity.
 
-In `v0.1.1`, these portal shells are implemented as route groups inside one Next.js app. The target architecture is to split them into two separately deployable portals.
+The two modules share only the `packages/*` libraries (`auth`, `db`, `ui`). They no longer share a process or attack surface, so they can be deployed, scaled and secured independently.
+
+`v0.2.0` realizes this separation at the container level: the applicant and admin modules are built and deployed as independent Next.js containers. A shared platform API and Keycloak IAM remain the forward-looking target described below.
 
 The architecture follows the SSDLC principle that every iteration updates architecture, data model, deployment and testing documentation.
+
+## Container Topology
+
+| Module | App | Container | Host port | Internal port |
+| --- | --- | --- | --- | --- |
+| Applicant | `apps/applicant` | `talentos-applicant` | `3100` (`APPLICANT_PORT`) | `3000` |
+| Administrator | `apps/admin` | `talentos-admin` | `3200` (`ADMIN_PORT`) | `3000` |
+| Database | `packages/db` | `talentos-postgres` | `55432`/`5432` (`POSTGRES_PORT`) | `5432` |
 
 ## Technology Stack
 
@@ -32,11 +42,13 @@ The architecture follows the SSDLC principle that every iteration updates archit
 
 ```mermaid
 flowchart LR
-    Applicant["Applicant Browser"] --> Web["Next.js Web Container"]
-    Admin["Admin Browser"] --> Web
-    Web --> Auth["Auth + 2FA Utilities"]
-    Web --> DB["PostgreSQL"]
-    Web --> AI["AI Service Boundary (Stub)"]
+    Applicant["Applicant Browser"] --> AppWeb["talentos-applicant (Next.js)"]
+    Admin["Admin Browser"] --> AdminWeb["talentos-admin (Next.js)"]
+    AppWeb --> Auth["Auth + 2FA Utilities"]
+    AdminWeb --> Auth
+    AppWeb --> DB["PostgreSQL"]
+    AdminWeb --> DB
+    AppWeb --> AI["AI Service Boundary (Stub)"]
     DB --> Audit["Audit Logs"]
 ```
 
@@ -60,24 +72,32 @@ flowchart LR
 
 ## Portal Layout
 
+The applicant and admin routes live in separate containers. Cross-module navigation crosses host
+boundaries (`NEXT_PUBLIC_ADMIN_URL` / `NEXT_PUBLIC_APPLICANT_URL`), and each container returns 404 for
+the other module's routes.
+
 ```mermaid
 flowchart TD
-    Landing["/"] --> Apply["/apply"]
-    Landing --> Signup["/signup"]
-    Signup --> TwoFA["/2fa/setup"]
-    Signup --> Application["/application"]
-    Login["/login"] --> Application
-    Login --> Admin["/admin"]
-    Admin --> Applications["/admin/applications"]
-    Admin --> Programs["/admin/programs"]
-    Admin --> Settings["/admin/settings"]
+    subgraph Applicant["talentos-applicant :3100"]
+      Landing["/"] --> Apply["/apply"]
+      Landing --> Signup["/signup"]
+      Signup --> TwoFA["/2fa/setup"]
+      Signup --> Application["/application"]
+      Login["/login"] --> Application
+    end
+    subgraph AdminC["talentos-admin :3200"]
+      AdminHome["/"] --> Applications["/applications"]
+      Applications --> Detail["/applications/[id]"]
+      AdminHome --> Programs["/programs"]
+      AdminHome --> Settings["/settings"]
+    end
+    Landing -. NEXT_PUBLIC_ADMIN_URL .-> AdminHome
+    AdminHome -. NEXT_PUBLIC_APPLICANT_URL .-> Landing
 ```
 
 ## Portal Separation Direction
 
-The current `v0.1.1` implementation is a scaffold where applicant and admin routes are served from one Next.js app.
-
-The engineering target is:
+`v0.2.0` separated the applicant and admin routes into two independently deployable containers (`talentos-applicant` and `talentos-admin`). The remaining engineering target is:
 
 - Separate Applicant Portal for public landing, signup, application, learning missions and portfolio experience.
 - Separate Admin Portal for tenant owner/admin operations, program management, application review, mission configuration, knowledge base management and hiring recommendations.
@@ -116,20 +136,25 @@ For 1,000 simultaneous applicants, the first scaling path is:
 
 ## Deployment
 
-The first deployment target is Docker Compose on a VPS with:
+The deployment target is Docker Compose on a VPS with:
 
-- `web` service running the Next.js application,
+- `applicant` service running the applicant Next.js application,
+- `admin` service running the administrator Next.js application,
 - `postgres` service running PostgreSQL,
 - future `worker` service for background processing.
 
+Both web services build from one parameterized root `Dockerfile` (build args `APP_NAME` / `APP_DIR`).
+
 ## Software Design Notes
 
-The first iteration establishes architectural seams rather than all final behavior:
+The architecture establishes clear seams between modules and shared libraries:
 
 - `packages/auth` contains reusable security, tenant and workflow utilities.
 - `packages/db` owns Prisma schema and database access.
-- `apps/web` owns portal routes, UI, middleware and API endpoints.
-- AI mentor integration is represented by a stubbed service boundary.
+- `packages/ui` owns shared front-end pieces (presentational components, tenant header helper, Tailwind brand preset) consumed by both apps.
+- `apps/applicant` owns the public/applicant routes, UI, middleware and API endpoints.
+- `apps/admin` owns the administrator routes, UI and middleware, served at the container root.
+- AI mentor integration is represented by a stubbed service boundary in the applicant app.
 
 ## Engineering To-Do List
 
@@ -142,8 +167,8 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
    - Support tenant-aware roles for `OWNER`, `ADMIN` and `APPLICANT`.
    - Preserve MFA/2FA learning objective through Keycloak-backed authenticator-app setup.
 
-2. Separate Applicant Portal and Admin Portal
-   - Split the current single-app route scaffold into two portal surfaces.
+2. Separate Applicant Portal and Admin Portal — implemented in `v0.2.0`
+   - Done: applicant and admin modules split into independent `apps/applicant` and `apps/admin` containers.
    - Applicant Portal owns public application and participant-facing workflows.
    - Admin Portal owns tenant operations, application review and program management.
 
