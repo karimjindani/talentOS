@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.2.0`
+Code version: `v0.2.1`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.2.0`
+Current documentation update: `v0.2.1`
 
 ## D-001
 
@@ -165,5 +165,11 @@ Status: Approved
 ## D-027
 
 Shared front-end code is extracted into a `packages/ui` workspace consumed by both applications rather than duplicated
+
+Status: Approved
+
+## D-028
+
+The applicant application must expose no administrator navigation; cross-linking is one-directional (admin may link to the applicant portal, not the reverse)
 
 Status: Approved

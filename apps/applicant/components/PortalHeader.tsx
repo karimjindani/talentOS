@@ -4,8 +4,6 @@ type PortalHeaderProps = {
   tenantSlug: string;
 };
 
-const adminUrl = process.env.NEXT_PUBLIC_ADMIN_URL ?? "http://localhost:3200";
-
 export function PortalHeader({ tenantSlug }: PortalHeaderProps) {
   return (
     <header className="border-b border-slate-200 bg-white">
@@ -19,7 +17,6 @@ export function PortalHeader({ tenantSlug }: PortalHeaderProps) {
           </span>
           <Link href="/apply">Apply</Link>
           <Link href="/login">Login</Link>
-          <a href={adminUrl}>Admin</a>
         </nav>
       </div>
     </header>

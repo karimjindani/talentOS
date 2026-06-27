@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.2.0`
+Code version: `v0.2.1`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.2.0`
+Current documentation update: `v0.2.1`
 
 ## Overview
 
@@ -72,9 +72,9 @@ flowchart LR
 
 ## Portal Layout
 
-The applicant and admin routes live in separate containers. Cross-module navigation crosses host
-boundaries (`NEXT_PUBLIC_ADMIN_URL` / `NEXT_PUBLIC_APPLICANT_URL`), and each container returns 404 for
-the other module's routes.
+The applicant and admin routes live in separate containers, and each container returns 404 for the
+other module's routes. As of `v0.2.1` the applicant portal exposes **no** admin navigation; only the
+admin portal links back to the applicant portal (`NEXT_PUBLIC_APPLICANT_URL`).
 
 ```mermaid
 flowchart TD
@@ -91,7 +91,6 @@ flowchart TD
       AdminHome --> Programs["/programs"]
       AdminHome --> Settings["/settings"]
     end
-    Landing -. NEXT_PUBLIC_ADMIN_URL .-> AdminHome
     AdminHome -. NEXT_PUBLIC_APPLICANT_URL .-> Landing
 ```
 

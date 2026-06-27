@@ -2,23 +2,28 @@
 
 ## Current Baseline
 
-Version: `v0.2.0`
+Version: `v0.2.1`
 
-Baseline name: `Module Isolation Architecture`
+Baseline name: `Applicant Admin-Link Removal`
 
-Baseline code commit: `fc0a690b71ef01cc07a3e5711d163040296f6a96`
+Baseline code commit: `pending`
 
 Baseline date: `2026-06-27`
 
-Previous baseline: `v0.1.2`
+Previous baseline: `v0.2.0`
 
-Previous baseline commit: `18bf41f51832706c68321b97ea2a946d1c43f7be`
+Previous baseline commit: `fc0a690b71ef01cc07a3e5711d163040296f6a96`
 
 ## Baseline Summary
 
-`v0.2.0` isolates the applicant and administrator modules into two separate Next.js applications, each
-running in its own Docker container, sharing only the `packages/*` libraries. There is no Prisma
-schema change in this baseline. It realizes the portal-separation direction recorded in `v0.1.2`.
+`v0.2.1` removes all administrator navigation from the applicant application: the applicant portal no
+longer renders an `Admin` link, and the applicant container drops the now-unused `NEXT_PUBLIC_ADMIN_URL`
+configuration. This completes the module isolation so the public applicant surface exposes nothing about
+the administrator module. No schema change.
+
+`v0.2.0` isolated the applicant and administrator modules into two separate Next.js applications, each
+running in its own Docker container, sharing only the `packages/*` libraries. There was no Prisma
+schema change in that baseline. It realized the portal-separation direction recorded in `v0.1.2`.
 
 `v0.1.2` was a documentation-only update that established the architecture engineering backlog
 direction: Keycloak as the target IAM system, separate Applicant and Admin portals, and
