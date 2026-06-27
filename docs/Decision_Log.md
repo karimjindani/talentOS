@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.2.2`
+Code version: `v0.3.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.2.2`
+Current documentation update: `v0.3.0`
 
 ## D-001
 
@@ -183,5 +183,41 @@ Status: Approved
 ## D-030
 
 `docs/README.md` must remain aligned with the root README and current version baseline
+
+Status: Approved
+
+## D-031
+
+`v0.3.0` implements Keycloak as the live IAM (realizing D-022); both portals authenticate via OIDC and Keycloak owns credentials, password policy and MFA
+
+Status: Approved
+
+## D-032
+
+Role model: `SUPER_ADMIN` is platform-scoped; `ORG_ADMIN`, `HR`, `TECH_LEAD` and `APPLICANT` are organization-scoped; authorization is a capability matrix
+
+Status: Approved
+
+## D-033
+
+Organizations map to TalentOS tenants; Keycloak realm roles carry identity/role and the TalentOS DB (`TenantMembership`) carries org scoping (not Keycloak Organizations)
+
+Status: Approved
+
+## D-034
+
+Authentication uses Auth.js (NextAuth v5) with JWT sessions and the Keycloak OIDC provider, via a shared `packages/auth-web` factory
+
+Status: Approved
+
+## D-035
+
+The IAM slice is staged: `v0.3.0` delivers the IAM + RBAC foundation; the Admin Portal user/org/role management UI (Keycloak Admin REST API) is `v0.3.1`
+
+Status: Approved
+
+## D-036
+
+Local Docker uses a single issuer URL `http://host.docker.internal:8080/realms/talentos` for both browser and app containers to avoid the OIDC `iss` mismatch
 
 Status: Approved

@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.2.1`
+Code version: `v0.3.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.2.1`
+Current documentation update: `v0.3.0`
 
 ## Overview
 
@@ -12,12 +12,12 @@ TalentOS is a Dockerized, multi-tenant, white-label SaaS platform for talent dis
 
 The platform exposes two portals, and as of `v0.2.0` each portal is an isolated application running in its own container:
 
-- Public Applicant Portal (`apps/applicant`, container `talentos-applicant`) for landing pages, signup, 2FA setup and applications.
-- Program Admin Portal (`apps/admin`, container `talentos-admin`) for tenant owners/admins to review applications, manage programs and inspect audit activity.
+- Public Applicant Portal (`apps/applicant`, container `talentos-applicant`) for landing pages, applications and applicant workflows.
+- Program Admin Portal (`apps/admin`, container `talentos-admin`) for organization admins, HR, tech leads and platform super admins.
 
-The two modules share only the `packages/*` libraries (`auth`, `db`, `ui`). They no longer share a process or attack surface, so they can be deployed, scaled and secured independently.
+The two modules share only the `packages/*` libraries (`auth`, `auth-web`, `db`, `ui`). They no longer share a process or attack surface, so they can be deployed, scaled and secured independently.
 
-`v0.2.0` realizes this separation at the container level: the applicant and admin modules are built and deployed as independent Next.js containers. A shared platform API and Keycloak IAM remain the forward-looking target described below.
+`v0.2.0` realized this separation at the container level. As of `v0.3.0`, **Keycloak is the live IAM**: both portals authenticate via OIDC (Auth.js / NextAuth v5), and the Admin Portal enforces role-based access. Signup, password policy and authenticator-app 2FA are owned by Keycloak. The full Admin user/org/role management UI (Keycloak Admin REST API) follows in `v0.3.1`.
 
 The architecture follows the SSDLC principle that every iteration updates architecture, data model, deployment and testing documentation.
 
@@ -27,7 +27,9 @@ The architecture follows the SSDLC principle that every iteration updates archit
 | --- | --- | --- | --- | --- |
 | Applicant | `apps/applicant` | `talentos-applicant` | `3100` (`APPLICANT_PORT`) | `3000` |
 | Administrator | `apps/admin` | `talentos-admin` | `3200` (`ADMIN_PORT`) | `3000` |
-| Database | `packages/db` | `talentos-postgres` | `55432`/`5432` (`POSTGRES_PORT`) | `5432` |
+| Identity (IAM) | `keycloak/` | `talentos-keycloak` | `8080` (`KEYCLOAK_PORT`) | `8080` |
+| App database | `packages/db` | `talentos-postgres` | `55432`/`5432` (`POSTGRES_PORT`) | `5432` |
+| Keycloak database | — | `talentos-keycloak-postgres` | — (internal) | `5432` |
 
 ## Technology Stack
 
@@ -44,8 +46,9 @@ The architecture follows the SSDLC principle that every iteration updates archit
 flowchart LR
     Applicant["Applicant Browser"] --> AppWeb["talentos-applicant (Next.js)"]
     Admin["Admin Browser"] --> AdminWeb["talentos-admin (Next.js)"]
-    AppWeb --> Auth["Auth + 2FA Utilities"]
-    AdminWeb --> Auth
+    AppWeb -->|OIDC| KC["Keycloak IAM"]
+    AdminWeb -->|OIDC + RBAC| KC
+    KC --> KCDB["keycloak-postgres"]
     AppWeb --> DB["PostgreSQL"]
     AdminWeb --> DB
     AppWeb --> AI["AI Service Boundary (Stub)"]
@@ -80,17 +83,18 @@ admin portal links back to the applicant portal (`NEXT_PUBLIC_APPLICANT_URL`).
 flowchart TD
     subgraph Applicant["talentos-applicant :3100"]
       Landing["/"] --> Apply["/apply"]
-      Landing --> Signup["/signup"]
-      Signup --> TwoFA["/2fa/setup"]
-      Signup --> Application["/application"]
-      Login["/login"] --> Application
+      Landing --> Login["/login (Keycloak)"]
+      Login --> Application["/application"]
     end
-    subgraph AdminC["talentos-admin :3200"]
+    Login -. OIDC .-> KC["Keycloak :8080"]
+    subgraph AdminC["talentos-admin :3200 (RBAC-gated)"]
       AdminHome["/"] --> Applications["/applications"]
       Applications --> Detail["/applications/[id]"]
       AdminHome --> Programs["/programs"]
       AdminHome --> Settings["/settings"]
+      AdminHome --> Forbidden["/forbidden"]
     end
+    AdminHome -. OIDC .-> KC
     AdminHome -. NEXT_PUBLIC_APPLICANT_URL .-> Landing
 ```
 
@@ -114,12 +118,16 @@ TalentOS uses a shared PostgreSQL database with tenant-scoped records.
 
 ## Security Model
 
-- Passwords are hashed before storage.
-- Applicants and admins are guided toward authenticator-app TOTP setup.
-- Keycloak is the target IAM system for authentication, identity federation, MFA policy and role/session management.
-- Admin access is limited to `OWNER` and `ADMIN` tenant roles.
-- Cross-tenant access is rejected by shared authorization utilities.
-- Sensitive actions are recorded in `AuditLog`.
+- **Keycloak is the live IAM** (as of `v0.3.0`) for authentication, password policy, first-login
+  password change, authenticator-app (TOTP) setup and role/session management. TalentOS does not store
+  raw passwords; `User.passwordHash` is legacy/optional.
+- Both portals authenticate via OIDC (Auth.js / NextAuth v5, JWT sessions); the access token's realm
+  roles are mapped to the application roles.
+- Roles: `SUPER_ADMIN` (platform) and the org-scoped `ORG_ADMIN` / `HR` / `TECH_LEAD` / `APPLICANT`.
+  Admin-portal access requires SUPER_ADMIN or ORG_ADMIN/HR/TECH_LEAD; APPLICANT is denied (redirected to
+  `/forbidden`). Authorization is a capability matrix in `packages/auth/src/permissions.ts`.
+- Cross-tenant access is rejected by shared authorization utilities; sensitive actions are recorded in
+  `AuditLog`.
 - AI workflow boundaries are explicit so future AI mentor activity can be audited.
 
 ## Scalability
@@ -148,11 +156,13 @@ Both web services build from one parameterized root `Dockerfile` (build args `AP
 
 The architecture establishes clear seams between modules and shared libraries:
 
-- `packages/auth` contains reusable security, tenant and workflow utilities.
+- `packages/auth` contains reusable security, RBAC (roles + capability matrix), tenant and workflow utilities.
+- `packages/auth-web` wraps NextAuth v5 + the Keycloak OIDC provider (`createTalentosAuth`), with edge-safe realm-role decoding shared by both apps.
 - `packages/db` owns Prisma schema and database access.
 - `packages/ui` owns shared front-end pieces (presentational components, tenant header helper, Tailwind brand preset) consumed by both apps.
 - `apps/applicant` owns the public/applicant routes, UI, middleware and API endpoints.
-- `apps/admin` owns the administrator routes, UI and middleware, served at the container root.
+- `apps/admin` owns the administrator routes, UI and middleware, served at the container root, gated by RBAC.
+- `keycloak/import` owns the realm definition (roles, clients, password policy, demo users).
 - AI mentor integration is represented by a stubbed service boundary in the applicant app.
 
 ## Engineering To-Do List
@@ -161,10 +171,11 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
 
 ### Platform Foundation
 
-1. IAM with Keycloak
-   - Replace scaffolded custom auth direction with Keycloak as the target IAM.
-   - Support tenant-aware roles for `OWNER`, `ADMIN` and `APPLICANT`.
-   - Preserve MFA/2FA learning objective through Keycloak-backed authenticator-app setup.
+1. IAM with Keycloak — foundation implemented in `v0.3.0`
+   - Done: Keycloak is the IAM; both portals authenticate via OIDC and the admin portal enforces RBAC.
+   - Done: 5-role model (`SUPER_ADMIN` platform; `ORG_ADMIN`/`HR`/`TECH_LEAD`/`APPLICANT` org-scoped),
+     password policy and first-login password/TOTP, seeded Super Admin.
+   - Next (`v0.3.1`): Admin Portal Organizations/Users/Roles management UI via the Keycloak Admin REST API.
 
 2. Separate Applicant Portal and Admin Portal — implemented in `v0.2.0`
    - Done: applicant and admin modules split into independent `apps/applicant` and `apps/admin` containers.

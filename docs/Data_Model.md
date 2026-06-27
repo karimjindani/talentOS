@@ -1,10 +1,13 @@
 # Data Model
 
-Code version: `v0.2.0`
+Code version: `v0.3.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-> `v0.2.0` is a module-isolation iteration with no schema change; the data model below is unchanged from `v0.1.0`.
+> `v0.3.0` (Keycloak IAM) changes the identity model: `User` gains `keycloakSubjectId` (unique link to
+> the Keycloak subject), `emailVerified`, `platformRole` and an optional `passwordHash` (Keycloak owns
+> credentials). New enum `PlatformRole { SUPER_ADMIN }`. `TenantRole` becomes the org-scoped roles
+> `ORG_ADMIN`, `HR`, `TECH_LEAD`, `APPLICANT`. Migration `20260628000000_keycloak_iam_rbac`.
 
 ## Entity Relationship Overview
 

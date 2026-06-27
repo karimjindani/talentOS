@@ -14,9 +14,14 @@ enum UserStatus {
 }
 
 enum TenantRole {
-  OWNER
-  ADMIN
+  ORG_ADMIN
+  HR
+  TECH_LEAD
   APPLICANT
+}
+
+enum PlatformRole {
+  SUPER_ADMIN
 }
 
 enum ProgramStatus {
@@ -76,7 +81,11 @@ model User {
   id                    String             @id @default(cuid())
   email                 String             @unique
   name                  String?
-  passwordHash          String
+  // Optional since Keycloak owns credentials as of v0.3.0; local password is legacy.
+  passwordHash          String?
+  keycloakSubjectId     String?            @unique
+  emailVerified         DateTime?
+  platformRole          PlatformRole?
   status                UserStatus         @default(ACTIVE)
   totpSecretEncrypted   String?
   totpEnabledAt         DateTime?

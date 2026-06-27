@@ -1,6 +1,6 @@
 {
   "name": "@talentos/admin",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,9 +11,11 @@
   },
   "dependencies": {
     "@talentos/auth": "0.1.1",
+    "@talentos/auth-web": "0.3.0",
     "@talentos/db": "0.1.1",
     "@talentos/ui": "0.2.0",
     "next": "^15.3.0",
+    "next-auth": "^5.0.0-beta.25",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

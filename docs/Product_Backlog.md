@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.1.2`
+Code version: `v0.3.0`
 
-Documentation update: `Engineering backlog direction`
+Documentation update: `Keycloak IAM + RBAC foundation delivered`
 
 ## MVP
 
@@ -33,9 +33,9 @@ Documentation update: `Engineering backlog direction`
 
 ### Major Platform Items
 
-- IAM with Keycloak
-  - Keycloak is the target IAM system for authentication, MFA, identity federation, roles and session management.
-  - TalentOS application code should integrate with Keycloak instead of expanding custom authentication as the long-term IAM layer.
+- IAM with Keycloak — foundation delivered in `v0.3.0`
+  - Keycloak is the live IAM for authentication, MFA, password policy, roles and session management; both portals authenticate via OIDC and the admin portal enforces RBAC.
+  - Next (`v0.3.1`): Admin Portal user/org/role management UI via the Keycloak Admin REST API.
 
 - Separate Admin and Applicant Portals
   - The Admin Portal and Applicant Portal should become two separate portal surfaces.

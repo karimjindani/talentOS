@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   assertApplicationStatusTransition,
   assertTenantScopedAccess,
+  can,
   canAccessAdminPortal,
   canTransitionApplicationStatus,
   createTotpEnrollment,
   hashPassword,
-  hasRoleAtLeast,
+  isSuperAdmin,
   resolveTenantFromHost,
   verifyPassword,
   verifyTotpToken
@@ -28,15 +29,40 @@ describe("tenant resolution", () => {
 });
 
 describe("role authorization", () => {
-  it("allows owners and admins into the admin portal", () => {
-    expect(canAccessAdminPortal("OWNER")).toBe(true);
-    expect(canAccessAdminPortal("ADMIN")).toBe(true);
+  it("allows org-admin, HR and tech-lead into the admin portal but not applicants", () => {
+    expect(canAccessAdminPortal("ORG_ADMIN")).toBe(true);
+    expect(canAccessAdminPortal("HR")).toBe(true);
+    expect(canAccessAdminPortal("TECH_LEAD")).toBe(true);
     expect(canAccessAdminPortal("APPLICANT")).toBe(false);
   });
 
-  it("compares role rank", () => {
-    expect(hasRoleAtLeast("OWNER", "ADMIN")).toBe(true);
-    expect(hasRoleAtLeast("ADMIN", "OWNER")).toBe(false);
+  it("recognizes the platform super admin", () => {
+    expect(isSuperAdmin("SUPER_ADMIN")).toBe(true);
+    expect(isSuperAdmin(null)).toBe(false);
+  });
+});
+
+describe("capability matrix", () => {
+  it("grants every capability to the super admin", () => {
+    expect(can("createOrganization", { platformRole: "SUPER_ADMIN" })).toBe(true);
+    expect(can("assignOrgRoles", { platformRole: "SUPER_ADMIN" })).toBe(true);
+  });
+
+  it("scopes org-admin to tenant user and role management", () => {
+    expect(can("manageTenantUsers", { orgRole: "ORG_ADMIN" })).toBe(true);
+    expect(can("createOrganization", { orgRole: "ORG_ADMIN" })).toBe(false);
+  });
+
+  it("limits HR to application review and tech-lead to technical evaluation", () => {
+    expect(can("reviewApplications", { orgRole: "HR" })).toBe(true);
+    expect(can("evaluateTechnical", { orgRole: "HR" })).toBe(false);
+    expect(can("evaluateTechnical", { orgRole: "TECH_LEAD" })).toBe(true);
+    expect(can("reviewApplications", { orgRole: "TECH_LEAD" })).toBe(false);
+  });
+
+  it("restricts applicants to the applicant portal", () => {
+    expect(can("accessApplicantPortal", { orgRole: "APPLICANT" })).toBe(true);
+    expect(can("manageTenantUsers", { orgRole: "APPLICANT" })).toBe(false);
   });
 });
 

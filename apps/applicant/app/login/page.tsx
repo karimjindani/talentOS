@@ -1,23 +1,37 @@
-import { PortalHeader } from "@/components/PortalHeader";
-import { getTenantContext } from "@talentos/ui";
+"use client";
 
-export default async function LoginPage() {
-  const tenant = await getTenantContext();
+import { Suspense } from "react";
+import { signIn } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
+
+function KeycloakSignInButton() {
+  const params = useSearchParams();
+  const callbackUrl = params.get("callbackUrl") ?? "/application";
 
   return (
+    <button
+      type="button"
+      onClick={() => signIn("keycloak", { callbackUrl })}
+      className="w-full rounded-xl bg-brand-blue px-5 py-3 font-semibold text-white"
+    >
+      Sign in with Keycloak
+    </button>
+  );
+}
+
+export default function LoginPage() {
+  return (
     <main>
-      <PortalHeader tenantSlug={tenant.tenantSlug} />
-      <section className="mx-auto max-w-xl px-6 py-14">
+      <section className="mx-auto max-w-xl px-6 py-20">
         <h1 className="text-3xl font-bold">Login</h1>
-        <p className="mt-3 text-slate-600">Email/password login with TOTP verification is the first supported authentication model.</p>
-        <form className="mt-8 space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <input className="w-full rounded-lg border border-slate-300 px-3 py-2" name="email" type="email" placeholder="Email" />
-          <input className="w-full rounded-lg border border-slate-300 px-3 py-2" name="password" type="password" placeholder="Password" />
-          <input className="w-full rounded-lg border border-slate-300 px-3 py-2" name="totp" inputMode="numeric" placeholder="Authenticator code" />
-          <button className="w-full rounded-xl bg-brand-blue px-5 py-3 font-semibold text-white" type="button">
-            Login
-          </button>
-        </form>
+        <p className="mt-3 text-slate-600">
+          TalentOS uses Keycloak for secure sign-in, password policy and authenticator-app 2FA.
+        </p>
+        <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <Suspense fallback={null}>
+            <KeycloakSignInButton />
+          </Suspense>
+        </div>
       </section>
     </main>
   );

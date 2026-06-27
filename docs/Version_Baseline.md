@@ -2,92 +2,108 @@
 
 ## Current Baseline
 
-Version: 0.2.2
+Version: `v0.3.0`
 
-Baseline name: README and Documentation Landing Update
+Baseline name: `Keycloak IAM + RBAC Foundation`
 
-Baseline code commit: $previousCommit
+Baseline code commit: `34eac9c510bf60d9dfbb792ed9ba1ed7610d6d1e`
 
-Baseline date: 2026-06-27
+Baseline date: `2026-06-27`
 
-Previous baseline: 0.2.1
+Previous baseline: `v0.2.2`
 
-Previous baseline commit: $previousCommit
+Previous baseline commit: `c70b3d47665bff499a89533a036695a18a1448e9`
 
 ## Baseline Summary
 
-0.2.2 is a documentation-only update that refreshes the root README and documentation overview after the separated-portal implementation.
+`v0.3.0` establishes Keycloak as the live IAM and wires OIDC authentication + role-based authorization
+into both portals (Auth.js / NextAuth v5). It introduces the 5-role model (`SUPER_ADMIN` platform;
+`ORG_ADMIN`/`HR`/`TECH_LEAD`/`APPLICANT` org-scoped) with a capability matrix, a seeded Super Admin,
+Keycloak password policy and first-login password/TOTP, and admin-portal RBAC gating. Org/role mapping
+uses Keycloak realm roles for identity and the TalentOS DB for org scoping. Schema change: `User` gains
+`keycloakSubjectId`, `emailVerified`, `platformRole`, optional `passwordHash`; new `PlatformRole` enum;
+`TenantRole` becomes the org roles. This is staged — the Admin user/org/role management UI (Keycloak
+Admin REST API) follows in `v0.3.1`.
 
-This documentation update records:
+`v0.2.2` was a documentation-only update that refreshed the root README and documentation overview after
+the separated-portal implementation. No schema change.
 
-- Current implementation status in the root README.
-- Current documentation overview in docs/README.md.
-- Local validation URLs for the applicant portal on 3100 and admin portal on 3200.
-- Keycloak and shared-platform-service direction for upcoming engineering work.
+`v0.2.1` removed all administrator navigation from the applicant application (no `Admin` link, dropped
+`NEXT_PUBLIC_ADMIN_URL`), completing module isolation. No schema change.
 
-0.2.1 removed all administrator navigation from the applicant application: the applicant portal no longer renders an Admin link, and the applicant container drops the now-unused NEXT_PUBLIC_ADMIN_URL configuration. This completes the module isolation so the public applicant surface exposes nothing about the administrator module. No schema change.
+`v0.2.0` isolated the applicant and administrator modules into two separate Next.js applications, each
+running in its own Docker container, sharing only the `packages/*` libraries. There was no Prisma
+schema change in that baseline. It realized the portal-separation direction recorded in `v0.1.2`.
 
-0.2.0 isolated the applicant and administrator modules into two separate Next.js applications, each running in its own Docker container, sharing only the packages/* libraries. There was no Prisma schema change in that baseline. It realized the portal-separation direction recorded in 0.1.2.
+`v0.1.2` was a documentation-only update that established the architecture engineering backlog
+direction: Keycloak as the target IAM system, separate Applicant and Admin portals, and
+architecture-level Engineering To-Do tracking mapped from the Product Backlog.
 
-0.1.2 was a documentation-only update that established the architecture engineering backlog direction: Keycloak as the target IAM system, separate Applicant and Admin portals, and architecture-level Engineering To-Do tracking mapped from the Product Backlog.
+`v0.1.1` established local Docker deployment support with configurable host ports.
 
-0.1.1 established local Docker deployment support with configurable host ports.
-
-0.1.0 remains the first platform architecture baseline.
+`v0.1.0` remains the first platform architecture baseline.
 
 This baseline includes:
 
-- separate applicant (pps/applicant) and administrator (pps/admin) applications,
-- two isolated containers (	alentos-applicant on 3100, 	alentos-admin on 3200) built from one parameterized root Dockerfile,
-- a shared front-end package packages/ui (StatusCard, tenant header helper, Tailwind brand preset),
-- administrator routes served at the container root (no /admin prefix),
-- verified runtime isolation (each container returns 404 for the other module's routes),
-- Docker Compose services for pplicant, dmin and postgres,
-- the unchanged packages/auth regression suite (9 tests) still passing.
+- Keycloak IAM (`talentos-keycloak`) + dedicated `talentos-keycloak-postgres`, realm `talentos`
+  auto-imported with the 5 roles, password policy, first-login password/TOTP and demo users,
+- OIDC authentication on both portals via `packages/auth-web` (Auth.js / NextAuth v5, JWT sessions),
+- the 5-role model and capability matrix in `packages/auth` (`SUPER_ADMIN`; `ORG_ADMIN`/`HR`/`TECH_LEAD`/`APPLICANT`),
+- admin-portal RBAC gating (non-admin roles redirected to `/forbidden`) and applicant `/application` gating,
+- `User` identity fields (`keycloakSubjectId`, `emailVerified`, `platformRole`, optional `passwordHash`) and migration `20260628000000_keycloak_iam_rbac`,
+- the regression suite expanded to 19 tests (RBAC capability matrix + Keycloak role mapping), all passing.
 
-Carried forward from earlier baselines: the shared PostgreSQL data model using Prisma; auth/security utilities for password hashing, TOTP 2FA, role checks, tenant resolution, tenant isolation and application workflow transitions; the AI mentor service boundary stub; and SSDLC documentation for architecture, data model, data dictionary, deployment and testing.
+Carried forward from earlier baselines: the two isolated applicant/admin containers (v0.2.0) with the
+applicant exposing no admin navigation (v0.2.1); the shared `packages/ui`; the PostgreSQL data model via
+Prisma; tenant resolution/isolation utilities; the AI mentor service boundary stub; and SSDLC
+documentation for architecture, data model, data dictionary, deployment and testing.
 
 ## Portal Scope
 
-Public Applicant Portal routes (pps/applicant, container 	alentos-applicant):
+Public Applicant Portal routes (`apps/applicant`, container `talentos-applicant`):
 
-- /
-- /apply
-- /signup
-- /login
-- /2fa/setup
-- /application
+- `/`
+- `/apply`
+- `/login` (Keycloak sign-in)
+- `/application` (authenticated)
+- `/api/auth/[...nextauth]`
 
-Program Admin Portal routes (pps/admin, container 	alentos-admin, served at root):
+(Signup and 2FA setup are owned by Keycloak as of `v0.3.0`.)
 
-- /
-- /applications
-- /applications/[id]
-- /programs
-- /settings
+Program Admin Portal routes (`apps/admin`, container `talentos-admin`, served at root, RBAC-gated):
+
+- `/`
+- `/applications`
+- `/applications/[id]`
+- `/programs`
+- `/settings`
+- `/forbidden`
+- `/api/auth/[...nextauth]`
 
 ## Package Scope
 
-Packages and apps included in 0.2.0 and carried through 0.2.2:
+Packages, apps and infrastructure included as of `v0.3.0`:
 
-- pps/applicant
-- pps/admin
-- packages/auth
-- packages/db
-- packages/ui
+- `apps/applicant`
+- `apps/admin`
+- `packages/auth`
+- `packages/auth-web`
+- `packages/db`
+- `packages/ui`
+- `keycloak/import` (realm definition)
 
 ## Documentation Rule
 
 All future documentation updates must reference the relevant code version.
 
-All future implementation plans must be stored in docs/plans/.
+All future implementation plans must be stored in `docs/plans/`.
 
-All future testing details and results must be stored in docs/testing/.
+All future testing details and results must be stored in `docs/testing/`.
 
 ## Versioning Convention
 
 TalentOS uses semantic versioning:
 
-- Patch versions, such as 0.2.2, are used for documentation fixes or small non-breaking implementation updates.
-- Minor versions, such as 0.3.0, are used for new product capabilities.
-- Major version 1.0.0 is reserved for the first production-ready release.
+- Patch versions, such as `v0.1.1`, are used for documentation fixes or small non-breaking implementation updates.
+- Minor versions, such as `v0.2.0`, are used for new product capabilities.
+- Major version `v1.0.0` is reserved for the first production-ready release.

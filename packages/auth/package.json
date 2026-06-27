@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./password": "./src/password.ts",
+    "./permissions": "./src/permissions.ts",
     "./rbac": "./src/rbac.ts",
     "./tenant": "./src/tenant.ts",
     "./totp": "./src/totp.ts",

@@ -17,6 +17,46 @@ services:
       timeout: 5s
       retries: 5
 
+  keycloak-postgres:
+    image: postgres:16-alpine
+    container_name: talentos-keycloak-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${KC_DB_USER:-keycloak}
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:-keycloak_dev_password}
+      POSTGRES_DB: ${KC_DB_NAME:-keycloak}
+    volumes:
+      - keycloak-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${KC_DB_USER:-keycloak} -d ${KC_DB_NAME:-keycloak}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: talentos-keycloak
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    depends_on:
+      keycloak-postgres:
+        condition: service_healthy
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-admin}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-postgres:5432/${KC_DB_NAME:-keycloak}
+      KC_DB_USERNAME: ${KC_DB_USER:-keycloak}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:-keycloak_dev_password}
+      KC_HOSTNAME: ${KC_HOSTNAME:-http://host.docker.internal:8080}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "${KEYCLOAK_PORT:-8080}:8080"
+    volumes:
+      - ./keycloak/import:/opt/keycloak/data/import:ro
+
   applicant:
     build:
       context: .
@@ -28,11 +68,19 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      keycloak:
+        condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-talentos}:${POSTGRES_PASSWORD:-talentos_dev_password}@postgres:5432/${POSTGRES_DB:-talentos}?schema=public
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3100}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-replace-with-a-long-random-secret}
+      AUTH_SECRET: ${NEXTAUTH_SECRET:-replace-with-a-long-random-secret}
+      AUTH_URL: ${NEXTAUTH_URL:-http://localhost:3100}
+      AUTH_TRUST_HOST: "true"
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://host.docker.internal:8080/realms/talentos}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_APPLICANT_CLIENT_ID:-talentos-applicant}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_APPLICANT_CLIENT_SECRET:-talentos-applicant-secret}
       APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:-localhost}
       DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-demo}
     ports:
@@ -49,11 +97,19 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      keycloak:
+        condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-talentos}:${POSTGRES_PASSWORD:-talentos_dev_password}@postgres:5432/${POSTGRES_DB:-talentos}?schema=public
-      NEXTAUTH_URL: ${ADMIN_NEXTAUTH_URL:-http://localhost:3200}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-replace-with-a-long-random-secret}
+      AUTH_SECRET: ${NEXTAUTH_SECRET:-replace-with-a-long-random-secret}
+      AUTH_URL: ${ADMIN_NEXTAUTH_URL:-http://localhost:3200}
+      AUTH_TRUST_HOST: "true"
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://host.docker.internal:8080/realms/talentos}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-talentos-admin}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-talentos-admin-secret}
       APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:-localhost}
       DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-demo}
       NEXT_PUBLIC_APPLICANT_URL: ${NEXT_PUBLIC_APPLICANT_URL:-http://localhost:3100}
@@ -62,3 +118,4 @@ services:
 
 volumes:
   postgres-data:
+  keycloak-postgres-data:

@@ -1,10 +1,10 @@
 # Data Dictionary
 
-Code version: `v0.2.0`
+Code version: `v0.3.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-> `v0.2.0` is a module-isolation iteration with no schema change; the dictionary below is unchanged from `v0.1.0`.
+> `v0.3.0` (Keycloak IAM) adds identity fields to `User` and changes the role enums (see below).
 
 ## Tenant
 
@@ -22,20 +22,23 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 | Field | Purpose |
 | --- | --- |
 | `id` | Unique user identifier. |
-| `email` | Unique login email. |
+| `email` | Unique login email (matches the Keycloak username/email). |
 | `name` | Display name. |
-| `passwordHash` | Hashed password; raw passwords are never stored. |
+| `keycloakSubjectId` | Unique link to the Keycloak subject (OIDC `sub`); set on first login (v0.3.1). |
+| `emailVerified` | Email verification timestamp. |
+| `platformRole` | Platform role, `SUPER_ADMIN` or null. |
+| `passwordHash` | Optional legacy local hash; Keycloak owns credentials as of `v0.3.0`. |
 | `status` | `ACTIVE`, `INVITED` or `DISABLED`. |
-| `totpSecretEncrypted` | Encrypted TOTP secret for 2FA. |
-| `totpEnabledAt` | Timestamp when authenticator-app 2FA was enabled. |
+| `totpSecretEncrypted` | Legacy TOTP secret; MFA is owned by Keycloak as of `v0.3.0`. |
+| `totpEnabledAt` | Legacy 2FA enablement timestamp. |
 
 ## TenantMembership
 
 | Field | Purpose |
 | --- | --- |
-| `tenantId` | Tenant scope for the membership. |
+| `tenantId` | Tenant (organization) scope for the membership. |
 | `userId` | Member user. |
-| `role` | `OWNER`, `ADMIN` or `APPLICANT`. |
+| `role` | Org-scoped role: `ORG_ADMIN`, `HR`, `TECH_LEAD` or `APPLICANT`. |
 
 ## Program
 
@@ -83,4 +86,4 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
 ## Tenant Isolation
 
-Tenant-owned reads and writes must include the active `tenantId`. Admins can only act inside tenants where they have `OWNER` or `ADMIN` membership.
+Tenant-owned reads and writes must include the active `tenantId`. Org admins can only act inside tenants where they have `ORG_ADMIN` membership; platform `SUPER_ADMIN` acts across organizations.

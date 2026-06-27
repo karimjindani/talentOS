@@ -17,6 +17,12 @@
       "@talentos/auth/*": [
         "../../packages/auth/src/*"
       ],
+      "@talentos/auth-web": [
+        "../../packages/auth-web/src"
+      ],
+      "@talentos/auth-web/*": [
+        "../../packages/auth-web/src/*"
+      ],
       "@talentos/db": [
         "../../packages/db/src"
       ],

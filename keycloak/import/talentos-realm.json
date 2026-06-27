@@ -1,0 +1,117 @@
+{
+  "realm": "talentos",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "passwordPolicy": "length(12) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and notUsername(undefined) and passwordHistory(5)",
+  "otpPolicyType": "totp",
+  "roles": {
+    "realm": [
+      { "name": "SUPER_ADMIN", "description": "Platform super admin: creates organizations and org admins" },
+      { "name": "ORG_ADMIN", "description": "Organization admin: manages org users, roles, programs, settings" },
+      { "name": "HR", "description": "Reviews applicants and hiring pipeline" },
+      { "name": "TECH_LEAD", "description": "Evaluates applicant technical performance" },
+      { "name": "APPLICANT", "description": "Applies, participates, submits work" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "talentos-applicant",
+      "name": "TalentOS Applicant Portal",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "talentos-applicant-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:3100/api/auth/callback/keycloak",
+        "http://localhost:3100/*"
+      ],
+      "webOrigins": ["http://localhost:3100"],
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email"]
+    },
+    {
+      "clientId": "talentos-admin",
+      "name": "TalentOS Admin Portal",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "talentos-admin-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:3200/api/auth/callback/keycloak",
+        "http://localhost:3200/*"
+      ],
+      "webOrigins": ["http://localhost:3200"],
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email"]
+    }
+  ],
+  "users": [
+    {
+      "username": "superadmin@talentos.local",
+      "email": "superadmin@talentos.local",
+      "firstName": "Platform",
+      "lastName": "Super Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "ChangeMeSuper#1", "temporary": true }
+      ],
+      "requiredActions": ["UPDATE_PASSWORD", "CONFIGURE_TOTP"],
+      "realmRoles": ["SUPER_ADMIN"]
+    },
+    {
+      "username": "orgadmin@demo.talentos.local",
+      "email": "orgadmin@demo.talentos.local",
+      "firstName": "Demo",
+      "lastName": "Org Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "ChangeMe123!", "temporary": false }
+      ],
+      "realmRoles": ["ORG_ADMIN"]
+    },
+    {
+      "username": "hr@demo.talentos.local",
+      "email": "hr@demo.talentos.local",
+      "firstName": "Demo",
+      "lastName": "HR",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "ChangeMe123!", "temporary": false }
+      ],
+      "realmRoles": ["HR"]
+    },
+    {
+      "username": "techlead@demo.talentos.local",
+      "email": "techlead@demo.talentos.local",
+      "firstName": "Demo",
+      "lastName": "Tech Lead",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "ChangeMe123!", "temporary": false }
+      ],
+      "realmRoles": ["TECH_LEAD"]
+    },
+    {
+      "username": "applicant@demo.talentos.local",
+      "email": "applicant@demo.talentos.local",
+      "firstName": "Demo",
+      "lastName": "Applicant",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "ChangeMe123!", "temporary": false }
+      ],
+      "realmRoles": ["APPLICANT"]
+    }
+  ]
+}

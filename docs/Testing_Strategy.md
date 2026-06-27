@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.2.0`
+Code version: `v0.3.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -15,11 +15,20 @@ The regression suite starts with security, tenant isolation and application work
 ### Unit Tests
 
 - Tenant resolution from host/subdomain.
-- Role authorization.
+- Role authorization (admin-portal access for SUPER_ADMIN / ORG_ADMIN / HR / TECH_LEAD; APPLICANT denied).
+- Capability matrix (`can(capability, { platformRole, orgRole })`).
+- Keycloak realm-role mapping and access-token decoding (`packages/auth-web`).
 - Cross-tenant access rejection.
 - Password hashing and verification.
 - TOTP generation and verification.
 - Application status transitions.
+
+### Auth / RBAC Tests (v0.3.0)
+
+- Keycloak realm OIDC discovery is reachable.
+- Unauthenticated admin routes redirect to Keycloak sign-in; the applicant `/application` redirects to `/login`.
+- Authenticated APPLICANT is sent to `/forbidden` on the admin portal; admin-capable roles reach admin routes.
+- Super Admin first login forces password change and TOTP setup (Keycloak required actions).
 
 ### Integration Tests
 
@@ -48,3 +57,5 @@ Planned integration tests:
 Every implementation iteration must add or update tests for newly committed behavior and keep the existing suite passing.
 
 From `v0.2.0`, the regression baseline also covers deployment-level module isolation: the applicant and administrator containers must continue to start independently and reject each other's routes.
+
+From `v0.3.0`, the regression baseline also covers IAM/RBAC: Keycloak must start and import the realm, both portals must authenticate via OIDC, and the admin portal must reject non-admin roles.
