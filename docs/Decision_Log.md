@@ -59,3 +59,51 @@ Status: Approved
 Spiral Engineering Method
 
 Status: Approved
+
+## D-011
+
+Next.js TypeScript full-stack architecture
+
+Status: Approved
+
+## D-012
+
+PostgreSQL with Prisma ORM
+
+Status: Approved
+
+## D-013
+
+Docker Compose as first deployment target
+
+Status: Approved
+
+## D-014
+
+Shared database multi-tenancy with tenant-scoped records
+
+Status: Approved
+
+## D-015
+
+Subdomain-based tenant routing
+
+Status: Approved
+
+## D-016
+
+Email/password authentication with authenticator-app 2FA
+
+Status: Approved
+
+## D-017
+
+Applications-first MVP vertical slice
+
+Status: Approved
+
+## D-018
+
+AI mentor service boundary created before AI workflow implementation
+
+Status: Approved

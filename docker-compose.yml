@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: talentos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-talentos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-talentos_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-talentos}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-talentos} -d ${POSTGRES_DB:-talentos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: talentos-web
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-talentos}:${POSTGRES_PASSWORD:-talentos_dev_password}@postgres:5432/${POSTGRES_DB:-talentos}?schema=public
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-replace-with-a-long-random-secret}
+      APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:-localhost}
+      DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-demo}
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres-data:

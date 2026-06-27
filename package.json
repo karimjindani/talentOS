@@ -1,0 +1,30 @@
+{
+  "name": "talentos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TalentOS multi-tenant talent discovery, learning and recruitment platform.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @talentos/web",
+    "build": "npm run build -w @talentos/web",
+    "lint": "npm run lint -w @talentos/web",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "prisma generate --schema packages/db/prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema packages/db/prisma/schema.prisma",
+    "db:seed": "tsx packages/db/prisma/seed.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "es-abstract": "^1.24.2",
+    "prisma": "^6.10.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.62.0",
+    "vitest": "^3.2.0"
+  }
+}

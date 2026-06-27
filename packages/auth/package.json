@@ -1,0 +1,19 @@
+{
+  "name": "@talentos/auth",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./password": "./src/password.ts",
+    "./rbac": "./src/rbac.ts",
+    "./tenant": "./src/tenant.ts",
+    "./totp": "./src/totp.ts",
+    "./workflow": "./src/workflow.ts"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "otplib": "^12.0.1"
+  }
+}
