@@ -6,7 +6,7 @@ Version: `v0.2.0`
 
 Baseline name: `Module Isolation Architecture`
 
-Baseline code commit: `ac90b3744d6ea245a19a019190f5b8aef640579a`
+Baseline code commit: `fc0a690b71ef01cc07a3e5711d163040296f6a96`
 
 Baseline date: `2026-06-27`
 
