@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.2.1`
+Code version: `v0.2.2`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.2.1`
+Current documentation update: `v0.2.2`
 
 ## D-001
 
@@ -171,5 +171,17 @@ Status: Approved
 ## D-028
 
 The applicant application must expose no administrator navigation; cross-linking is one-directional (admin may link to the applicant portal, not the reverse)
+
+Status: Approved
+
+## D-029
+
+Repository root must contain a current README for GitHub landing page visibility
+
+Status: Approved
+
+## D-030
+
+`docs/README.md` must remain aligned with the root README and current version baseline
 
 Status: Approved
