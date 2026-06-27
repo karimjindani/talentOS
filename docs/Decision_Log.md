@@ -123,3 +123,9 @@ Status: Approved
 All future implementation plans and test results must be stored in version-linked Markdown files
 
 Status: Approved
+
+## D-021
+
+`v0.1.1` approved for configurable local Docker ports and local deployment validation
+
+Status: Approved
