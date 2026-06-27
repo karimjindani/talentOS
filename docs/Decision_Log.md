@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.1.2`
+Code version: `v0.2.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.1.2`
+Current documentation update: `v0.2.0`
 
 ## D-001
 
@@ -147,5 +147,23 @@ Status: Approved
 ## D-024
 
 Architecture document must track an Engineering To-Do List mapped from the Product Backlog
+
+Status: Approved
+
+## D-025
+
+`v0.2.0` approved for isolating the applicant and administrator modules into two separate Next.js applications and containers (realizing D-023)
+
+Status: Approved
+
+## D-026
+
+Administrator module is served at the container root with no `/admin` prefix on its dedicated host
+
+Status: Approved
+
+## D-027
+
+Shared front-end code is extracted into a `packages/ui` workspace consumed by both applications rather than duplicated
 
 Status: Approved

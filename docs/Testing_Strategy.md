@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.1.0`
+Code version: `v0.2.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -38,10 +38,13 @@ Planned integration tests:
 
 ### Deployment Tests
 
-- Docker Compose starts PostgreSQL and the web app.
+- Docker Compose starts PostgreSQL and the isolated applicant and admin web containers.
 - Prisma migrations complete.
-- Smoke tests confirm the public portal, login, 2FA setup and admin shell load.
+- Smoke tests confirm the applicant portal (`http://localhost:3100`) and admin portal (`http://localhost:3200`, routes served at root) load.
+- Module isolation: each web container returns 404 for the other module's routes (admin routes on the applicant container and applicant routes on the admin container).
 
 ## Regression Rule
 
 Every implementation iteration must add or update tests for newly committed behavior and keep the existing suite passing.
+
+From `v0.2.0`, the regression baseline also covers deployment-level module isolation: the applicant and administrator containers must continue to start independently and reject each other's routes.
