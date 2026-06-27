@@ -1,8 +1,10 @@
 # Decision Log
 
-Code version: `v0.1.0`
+Code version: `v0.1.2`
 
-Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+
+Current documentation update: `v0.1.2`
 
 ## D-001
 
@@ -127,5 +129,23 @@ Status: Approved
 ## D-021
 
 `v0.1.1` approved for configurable local Docker ports and local deployment validation
+
+Status: Approved
+
+## D-022
+
+Keycloak approved as the target IAM system
+
+Status: Approved
+
+## D-023
+
+Admin Portal and Applicant Portal must become separate portal surfaces
+
+Status: Approved
+
+## D-024
+
+Architecture document must track an Engineering To-Do List mapped from the Product Backlog
 
 Status: Approved

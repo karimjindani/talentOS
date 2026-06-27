@@ -2,21 +2,29 @@
 
 ## Current Baseline
 
-Version: `v0.1.1`
+Version: `v0.1.2`
 
-Baseline name: `Local Docker Deployment Enablement`
+Baseline name: `Architecture Engineering Backlog Direction`
 
-Baseline code commit: `3cb7dcf78e56a9c916a02216763e0c0f2cd27c32`
+Baseline code commit: `8f21fe647150531ffd21e88952c6b2003bd8a8a9`
 
 Baseline date: `2026-06-27`
 
-Previous baseline: `v0.1.0`
+Previous baseline: `v0.1.1`
 
-Previous baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+Previous baseline commit: `3cb7dcf78e56a9c916a02216763e0c0f2cd27c32`
 
 ## Baseline Summary
 
-`v0.1.1` establishes local Docker deployment support with configurable host ports.
+`v0.1.2` is a documentation-only update that establishes the architecture engineering backlog direction.
+
+This documentation update records:
+
+- Keycloak as the target IAM system.
+- Separate Applicant Portal and Admin Portal as the target portal architecture.
+- Architecture-level Engineering To-Do tracking mapped from the Product Backlog.
+
+`v0.1.1` established local Docker deployment support with configurable host ports.
 
 `v0.1.0` remains the first platform architecture baseline.
 
