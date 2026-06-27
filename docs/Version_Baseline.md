@@ -2,20 +2,28 @@
 
 ## Current Baseline
 
-Version: `v0.1.0`
+Version: `v0.1.1`
 
-Baseline name: `Initial Platform Architecture Scaffold`
+Baseline name: `Local Docker Deployment Enablement`
 
-Baseline code commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+Baseline code commit: `3cb7dcf78e56a9c916a02216763e0c0f2cd27c32`
 
 Baseline date: `2026-06-27`
 
+Previous baseline: `v0.1.0`
+
+Previous baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+
 ## Baseline Summary
 
-`v0.1.0` establishes the first code baseline for TalentOS.
+`v0.1.1` establishes local Docker deployment support with configurable host ports.
+
+`v0.1.0` remains the first platform architecture baseline.
 
 This baseline includes:
 
+- configurable Docker Compose host ports through `WEB_PORT` and `POSTGRES_PORT`,
+- local deployment validation on `http://localhost:3100`,
 - Next.js TypeScript application scaffold in `apps/web`.
 - Public Applicant Portal route shell.
 - Program Admin Portal route shell.
