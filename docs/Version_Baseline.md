@@ -6,7 +6,7 @@ Version: `v0.4.0`
 
 Baseline name: `Alibaba Cloud Deployment Baseline`
 
-Baseline code commit: `TBD after v0.4.0 deployment documentation commit`
+Baseline code commit: `48582be01b67839113537ae4bc05c01209b4778a`
 
 Baseline date: `2026-06-28`
 
