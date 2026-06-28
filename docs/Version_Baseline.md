@@ -2,21 +2,27 @@
 
 ## Current Baseline
 
-Version: `v0.3.0`
+Version: `v0.4.0`
 
-Baseline name: `Keycloak IAM + RBAC Foundation`
+Baseline name: `Alibaba Cloud Deployment Baseline`
 
-Baseline code commit: `0987c475a8a3edcf738003bb7c9aa11d5b85e3fe`
+Baseline code commit: `TBD after v0.4.0 deployment documentation commit`
 
-Baseline date: `2026-06-27`
+Baseline date: `2026-06-28`
 
-Previous baseline: `v0.2.2`
+Previous baseline: `v0.3.0`
 
-Previous baseline commit: `c70b3d47665bff499a89533a036695a18a1448e9`
+Previous baseline commit: `0987c475a8a3edcf738003bb7c9aa11d5b85e3fe`
 
 ## Baseline Summary
 
-`v0.3.0` establishes Keycloak as the live IAM and wires OIDC authentication + role-based authorization
+`v0.4.0` establishes the first Alibaba Cloud deployment baseline for TalentOS. It targets a single
+Alibaba Cloud ECS instance in Singapore (`ap-southeast-1`) running the existing Docker Compose topology:
+Applicant Portal, Admin Portal, TalentOS PostgreSQL, Keycloak, and Keycloak PostgreSQL. This baseline is
+for public-IP validation and is not the final production topology. Follow-up hardening includes
+HTTPS/domain routing, Keycloak production mode, backups, monitoring, and managed database evaluation.
+
+`v0.3.0` established Keycloak as the live IAM and wires OIDC authentication + role-based authorization
 into both portals (Auth.js / NextAuth v5). It introduces the 5-role model (`SUPER_ADMIN` platform;
 `ORG_ADMIN`/`HR`/`TECH_LEAD`/`APPLICANT` org-scoped) with a capability matrix, a seeded Super Admin,
 Keycloak password policy and first-login password/TOTP, and admin-portal RBAC gating. Org/role mapping

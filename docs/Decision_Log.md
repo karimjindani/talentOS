@@ -221,3 +221,21 @@ Status: Approved
 Local Docker uses a single issuer URL `http://host.docker.internal:8080/realms/talentos` for both browser and app containers to avoid the OIDC `iss` mismatch
 
 Status: Approved
+
+## D-037
+
+`v0.4.0` approved for the first Alibaba Cloud deployment baseline using a single ECS instance in Singapore and Docker Compose
+
+Status: Approved
+
+## D-038
+
+The first Alibaba Cloud deployment is a public-IP validation environment, not the final production topology
+
+Status: Approved
+
+## D-039
+
+RAM credentials must be stored outside the repository, loaded only into the active shell/session, and never committed or printed in logs
+
+Status: Approved
