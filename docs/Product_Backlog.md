@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.7.0`
+Code version: `v0.7.1`
 
-Documentation update: `Object storage foundation (MinIO) delivered`
+Documentation update: `Applicant self-signup (Keycloak self-registration) delivered`
 
 ## MVP
 
@@ -35,6 +35,7 @@ Documentation update: `Object storage foundation (MinIO) delivered`
 
 - IAM with Keycloak — foundation delivered in `v0.3.0`
   - Keycloak is the live IAM for authentication, MFA, password policy, roles and session management; both portals authenticate via OIDC and the admin portal enforces RBAC.
+  - Applicant self-signup delivered in `v0.7.1` (Keycloak self-registration, default role APPLICANT).
   - Next (`v0.3.1`): Admin Portal user/org/role management UI via the Keycloak Admin REST API.
 
 - Separate Admin and Applicant Portals

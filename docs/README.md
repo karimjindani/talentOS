@@ -1,6 +1,6 @@
 # TalentOS Documentation Overview
 
-Code/documentation version: `v0.7.0`
+Code/documentation version: `v0.7.1`
 
 TalentOS is an AI-powered Talent Discovery, Learning and Recruitment Platform.
 
@@ -25,6 +25,7 @@ Version history:
 - `v0.5.0`: Applications lifecycle — authenticated apply → submit → admin review (accept/reject/waitlist).
 - `v0.6.0`: Programs management — admin CRUD (create/edit/publish/archive); published programs feed the apply form.
 - `v0.7.0`: Object storage foundation — self-hosted MinIO (S3-compatible) with presigned upload/download and tenant-scoped file metadata.
+- `v0.7.1`: Applicant self-signup via Keycloak self-registration (default role APPLICANT) with a portal "Create account" entry.
 
 ## Platform Capabilities
 
@@ -79,8 +80,9 @@ When local Docker deployment is running:
 - Admin settings: http://localhost:3200/settings
 - Keycloak admin console: http://localhost:8080
 
-Signup, password policy and authenticator-app 2FA are owned by Keycloak as of `v0.3.0` (there are no
-`/signup` or `/2fa/setup` pages in the applicant portal).
+Signup, password policy and authenticator-app 2FA are owned by Keycloak. Applicant self-registration is
+enabled (`v0.7.1`) via the portal "Create account" button (OIDC `prompt=create`) / Keycloak's hosted
+form; there is no local `/signup` or `/2fa/setup` page in the applicant portal.
 
 The applicant portal must not expose administrator navigation.
 

@@ -2,19 +2,26 @@
 
 ## Current Baseline
 
-Version: `v0.7.0`
+Version: `v0.7.1`
 
-Baseline name: `Object Storage Foundation Baseline`
+Baseline name: `Applicant Self-Signup`
 
-Baseline code commit: `7d73552`
+Baseline code commit: `TBD (recorded on commit)`
 
 Baseline date: `2026-06-29`
 
-Previous baseline: `v0.6.0`
+Previous baseline: `v0.7.0`
 
-Previous baseline commit: `8b0e11b`
+Previous baseline commit: `7d73552`
 
 ## Baseline Summary
+
+`v0.7.1` is a patch that enables applicant self-signup via Keycloak self-registration
+(`registrationAllowed`, `registrationEmailAsUsername`, default role `APPLICANT`) and adds a
+"Create account" entry to the applicant portal (OIDC `prompt=create`). Keycloak owns the signup form,
+password policy and TOTP. No schema change; the regression suite is unchanged at 33 tests. Applying the
+realm change to an existing environment requires re-importing the realm (recreate the Keycloak DB
+volume) or toggling it in the Keycloak admin console.
 
 `v0.7.0` adds the object-storage foundation using **MinIO** (S3-compatible), self-hosted as a Docker
 Compose service in every environment. Files transfer directly between the browser and MinIO via

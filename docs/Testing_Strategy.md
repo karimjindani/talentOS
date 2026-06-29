@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.7.0`
+Code version: `v0.7.1`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -29,6 +29,8 @@ The regression suite starts with security, tenant isolation and application work
 - Unauthenticated admin routes redirect to Keycloak sign-in; the applicant `/application` redirects to `/login`.
 - Authenticated APPLICANT is sent to `/forbidden` on the admin portal; admin-capable roles reach admin routes.
 - Super Admin first login forces password change and TOTP setup (Keycloak required actions).
+- Applicant self-signup (`v0.7.1`): Keycloak registration is enabled, a new account defaults to APPLICANT,
+  and the new applicant can sign in and reach `/apply`.
 
 ### Application Lifecycle Tests (v0.5.0)
 

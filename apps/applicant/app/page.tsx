@@ -24,7 +24,7 @@ export default async function HomePage() {
             Start application
           </Link>
           <Link className="rounded-xl border border-slate-300 px-5 py-3 font-semibold" href="/login">
-            Applicant login
+            Create account or log in
           </Link>
         </div>
         <div className="mt-14 grid gap-4 md:grid-cols-3">

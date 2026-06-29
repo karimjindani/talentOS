@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.7.0`
+Code version: `v0.7.1`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.7.0`
+Current documentation update: `v0.7.1`
 
 ## Overview
 
@@ -183,6 +183,8 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
    - Done: Keycloak is the IAM; both portals authenticate via OIDC and the admin portal enforces RBAC.
    - Done: 5-role model (`SUPER_ADMIN` platform; `ORG_ADMIN`/`HR`/`TECH_LEAD`/`APPLICANT` org-scoped),
      password policy and first-login password/TOTP, seeded Super Admin.
+   - Done (`v0.7.1`): applicant self-signup via Keycloak self-registration (default role APPLICANT;
+     portal "Create account" using OIDC `prompt=create`).
    - Next (`v0.3.1`): Admin Portal Organizations/Users/Roles management UI via the Keycloak Admin REST API.
 
 2. Separate Applicant Portal and Admin Portal — implemented in `v0.2.0`

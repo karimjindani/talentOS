@@ -1,11 +1,17 @@
 # Deployment
 
-Code version: `v0.7.0`
+Code version: `v0.7.1`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current deployment update: `v0.7.0`
+Current deployment update: `v0.7.1`
 
+> `v0.7.1` (Applicant self-signup) enables Keycloak self-registration in the realm import
+> (`registrationAllowed`, default role `APPLICANT`). No topology change. Applying it to an existing
+> environment requires re-importing the realm (recreate the `talentos-keycloak-postgres` volume) or
+> toggling the setting in the Keycloak admin console, since `--import-realm` only imports a realm that
+> does not yet exist.
+>
 > `v0.7.0` (Object storage) adds a self-hosted **MinIO** service (`talentos-minio`) to the Docker Compose
 > topology — including on the Alibaba ECS box — plus a one-shot `minio-setup` that creates the private
 > bucket. The S3 client/config (`S3_*`) is identical local and cloud.
@@ -148,6 +154,9 @@ and in the containers.
 - Demo org users (permanent password `ChangeMe123!`): `orgadmin@`, `hr@`, `techlead@`,
   `applicant@demo.talentos.local` with the matching realm roles.
 - Password policy: min length 12, upper/lower/digit/special, not equal to username, last-5 history.
+- **Self-registration (v0.7.1):** `registrationAllowed` is on; new accounts default to the `APPLICANT`
+  role with email as username. Applicants self-serve via the portal "Create account" button
+  (OIDC `prompt=create`) or the Register link on the Keycloak login page.
 
 ## Object Storage (MinIO)
 
