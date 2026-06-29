@@ -7,6 +7,7 @@ COPY package.json package-lock.json* ./
 COPY apps/applicant/package.json apps/applicant/package.json
 COPY apps/admin/package.json apps/admin/package.json
 COPY packages/auth/package.json packages/auth/package.json
+COPY packages/auth-web/package.json packages/auth-web/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/ui/package.json packages/ui/package.json
 RUN npm ci
