@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.5.0`
+Code version: `v0.6.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -38,6 +38,14 @@ The regression suite starts with security, tenant isolation and application work
 - Admin review enforces `reviewApplications` (TECH_LEAD denied), valid status transitions only, and
   writes `application.status_changed`; the applicant sees the updated status.
 
+### Programs Management Tests (v0.6.0)
+
+- Program state machine (`canTransitionProgramStatus`/`nextProgramStatuses`) offers only valid
+  `DRAFT ⇄ PUBLISHED ⇄ ARCHIVED` transitions (unit, `workflow.test.ts`).
+- Admin program CRUD enforces `managePrograms` (HR/TECH_LEAD read-only), is tenant-scoped, and writes
+  `program.created`/`program.updated`/`program.status_changed` audit rows.
+- Only `PUBLISHED` programs appear on the applicant apply form; archiving removes them.
+
 ### Integration Tests
 
 Planned integration tests:
@@ -71,3 +79,7 @@ From `v0.3.0`, the regression baseline also covers IAM/RBAC: Keycloak must start
 From `v0.5.0`, the regression baseline also covers the application lifecycle: authenticated apply must
 persist a submitted application, admin review must enforce `reviewApplications` and valid status
 transitions, and every submit/decision must write an `AuditLog` entry.
+
+From `v0.6.0`, the regression baseline also covers programs management: admin program CRUD must enforce
+`managePrograms` and valid status transitions, only published programs may appear on the apply form, and
+every program write must record an `AuditLog` entry.

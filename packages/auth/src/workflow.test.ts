@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { nextStatusesFor, canTransitionApplicationStatus } from "./workflow";
+import {
+  nextStatusesFor,
+  canTransitionApplicationStatus,
+  nextProgramStatuses,
+  canTransitionProgramStatus,
+  assertProgramStatusTransition
+} from "./workflow";
 
 describe("nextStatusesFor", () => {
   it("offers reviewer decisions from a submitted application", () => {
@@ -26,5 +32,26 @@ describe("nextStatusesFor", () => {
     const first = nextStatusesFor("SUBMITTED");
     first.push("DRAFT");
     expect(nextStatusesFor("SUBMITTED")).toEqual(["UNDER_REVIEW", "ACCEPTED", "REJECTED", "WAITLISTED"]);
+  });
+});
+
+describe("program status transitions", () => {
+  it("allows publishing and archiving a draft program", () => {
+    expect(nextProgramStatuses("DRAFT")).toEqual(["PUBLISHED", "ARCHIVED"]);
+    expect(canTransitionProgramStatus("DRAFT", "PUBLISHED")).toBe(true);
+  });
+
+  it("allows a published program to be archived or returned to draft", () => {
+    expect(nextProgramStatuses("PUBLISHED")).toEqual(["ARCHIVED", "DRAFT"]);
+  });
+
+  it("allows an archived program to be restored to draft only", () => {
+    expect(nextProgramStatuses("ARCHIVED")).toEqual(["DRAFT"]);
+    expect(canTransitionProgramStatus("ARCHIVED", "PUBLISHED")).toBe(false);
+  });
+
+  it("asserts and rejects invalid program transitions", () => {
+    expect(() => assertProgramStatusTransition("DRAFT", "PUBLISHED")).not.toThrow();
+    expect(() => assertProgramStatusTransition("ARCHIVED", "PUBLISHED")).toThrow("Invalid program status");
   });
 });

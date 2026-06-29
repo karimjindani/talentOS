@@ -31,6 +31,19 @@ async function main() {
     }
   });
 
+  // A draft program so the admin Programs list shows more than one status out of the box.
+  await prisma.program.upsert({
+    where: { tenantId_slug: { tenantId: tenant.id, slug: "cloud-platform-engineering" } },
+    update: {},
+    create: {
+      tenantId: tenant.id,
+      name: "Cloud Platform Engineering",
+      slug: "cloud-platform-engineering",
+      description: "Draft program for the next TalentOS cohort.",
+      status: "DRAFT"
+    }
+  });
+
   // Platform Super Admin (no tenant membership; identity + credentials live in Keycloak).
   const superAdmin = await prisma.user.upsert({
     where: { email: "superadmin@talentos.local" },

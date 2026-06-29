@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.5.0`
+Code version: `v0.6.0`
 
-Documentation update: `Applications lifecycle (apply → review) delivered`
+Documentation update: `Programs management (admin CRUD) delivered`
 
 ## MVP
 
@@ -44,7 +44,7 @@ Documentation update: `Applications lifecycle (apply → review) delivered`
 ### MVP Engineering Deliverables
 
 - Applications module — delivered in `v0.5.0` (authenticated apply → submit → admin review with accept/reject/under-review/waitlist, tenant-scoped and audited).
-- Programs module
+- Programs module — delivered in `v0.6.0` (admin CRUD: create/edit/publish/archive, `managePrograms`-gated, tenant-scoped and audited; published programs feed the apply form).
 - Missions module
 - AI Mentor boundary
 - Knowledge Base

@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.5.0`
+Code version: `v0.6.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.5.0`
+Current documentation update: `v0.6.0`
 
 ## Overview
 
@@ -192,8 +192,12 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
    - Data-access helpers live in `packages/db/src` (`applications.ts`, `users.ts`, `tenants.ts`,
      `programs.ts`); apply and review are Next.js server actions.
 
-4. Programs
-   - Allow tenant admins to configure programs, cohorts and public application entry points.
+4. Programs — delivered in `v0.6.0`
+   - Done: admin CRUD (create/edit/publish/archive) gated by the `managePrograms` capability, with a
+     `DRAFT ⇄ PUBLISHED ⇄ ARCHIVED` state machine, tenant scoping and `AuditLog` events
+     (`program.created`, `program.updated`, `program.status_changed`). Published programs feed the
+     applicant apply form.
+   - Next: cohorts and public per-program application entry points.
 
 5. Missions
    - Implement mission lifecycle aligned to the Spiral Engineering Method.

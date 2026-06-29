@@ -1,9 +1,12 @@
 # Data Model
 
-Code version: `v0.5.0`
+Code version: `v0.6.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.6.0` (Programs management) begins managing `Program` records through admin CRUD (incl. the
+> `startsAt`/`endsAt` cohort dates) and adds `program.*` `AuditLog` events. No schema change was required.
+>
 > `v0.5.0` (Applications lifecycle) persists `Application`, `ApplicationAnswer` and the related
 > `AuditLog` events for the first time (authenticated apply → review). No schema change was required —
 > these entities already existed.

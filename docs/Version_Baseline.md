@@ -2,19 +2,27 @@
 
 ## Current Baseline
 
-Version: `v0.5.0`
+Version: `v0.6.0`
 
-Baseline name: `Applications Lifecycle & Admin Review Baseline`
+Baseline name: `Programs Management Baseline`
 
-Baseline code commit: `f09e30b`
+Baseline code commit: `TBD (recorded on commit)`
 
 Baseline date: `2026-06-29`
 
-Previous baseline: `v0.4.0`
+Previous baseline: `v0.5.0`
 
-Previous baseline commit: `48582be01b67839113537ae4bc05c01209b4778a`
+Previous baseline commit: `f09e30b`
 
 ## Baseline Summary
+
+`v0.6.0` delivers the Programs MVP module: tenant-scoped, capability-gated, audited admin CRUD for
+programs (create / edit / publish / archive). Admins with `managePrograms` (ORG_ADMIN/SUPER_ADMIN)
+manage programs through a light `DRAFT ⇄ PUBLISHED ⇄ ARCHIVED` state machine; HR/TECH_LEAD may view but
+not mutate. Published programs feed the applicant apply form, closing the apply→review loop from
+`v0.5.0`. Apply/review/program writes are Next.js server actions over `packages/db` helpers; new audit
+actions `program.created`, `program.updated`, `program.status_changed`. No schema change was required.
+The regression suite grew from 24 to 28 tests. Earlier baselines are carried forward unchanged.
 
 `v0.5.0` delivers the Applications-first MVP vertical slice: an authenticated apply → submit → admin
 review lifecycle. Applicants sign in via Keycloak and submit an application (motivation answer) to a

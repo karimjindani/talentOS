@@ -29,3 +29,27 @@ export function assertApplicationStatusTransition(from: ApplicationStatus, to: A
     throw new Error(`Invalid application status transition from ${from} to ${to}.`);
   }
 }
+
+export type ProgramStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+
+// Programs can be published, archived and restored to draft; archive is reversible to draft.
+const ALLOWED_PROGRAM_TRANSITIONS: Record<ProgramStatus, ProgramStatus[]> = {
+  DRAFT: ["PUBLISHED", "ARCHIVED"],
+  PUBLISHED: ["ARCHIVED", "DRAFT"],
+  ARCHIVED: ["DRAFT"]
+};
+
+export function canTransitionProgramStatus(from: ProgramStatus, to: ProgramStatus): boolean {
+  return ALLOWED_PROGRAM_TRANSITIONS[from].includes(to);
+}
+
+/** Valid next statuses for a program (drives the admin's status-action buttons). */
+export function nextProgramStatuses(status: ProgramStatus): ProgramStatus[] {
+  return [...ALLOWED_PROGRAM_TRANSITIONS[status]];
+}
+
+export function assertProgramStatusTransition(from: ProgramStatus, to: ProgramStatus): void {
+  if (!canTransitionProgramStatus(from, to)) {
+    throw new Error(`Invalid program status transition from ${from} to ${to}.`);
+  }
+}

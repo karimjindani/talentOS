@@ -2,7 +2,7 @@
 
 TalentOS is a platform for developing AI-native software engineers through real, production-oriented work rather than passive coursework. Its core learning model is the Spiral Engineering Method (SEM): participants repeatedly complete the full engineering lifecycle — discover, analyze, specify, design, build, test, deploy, present, reflect, and review production readiness — from the very first week, with each cycle increasing in complexity. The platform treats AI as a mentor and accelerator, not a substitute for thinking, and is designed to help learners build secure, maintainable, deployable software while producing a public portfolio that organizations can use for talent discovery and recruitment.
 
-Current documentation version: `v0.5.0`
+Current documentation version: `v0.6.0`
 
 TalentOS is an AI-powered Talent Discovery, Learning and Recruitment Platform designed to bridge the gap between AI-assisted coding and production-grade software engineering.
 
@@ -21,6 +21,7 @@ TalentOS has moved beyond product discovery into an initial platform scaffold wi
 - `v0.3.0`: Keycloak as the live IAM with OIDC authentication and admin-portal RBAC.
 - `v0.4.0`: First Alibaba Cloud ECS deployment baseline (public-IP validation).
 - `v0.5.0`: Applications lifecycle — authenticated apply → submit → admin review (accept/reject/waitlist).
+- `v0.6.0`: Programs management — admin CRUD (create/edit/publish/archive); published programs feed the apply form.
 
 ## Current Implementation
 
@@ -34,6 +35,7 @@ The current scaffold includes:
 - Shared auth/security utilities in `packages/auth`.
 - Shared Prisma/database package in `packages/db` with application-lifecycle data-access helpers.
 - Applications lifecycle: authenticated apply → submit and admin review (accept/reject/under-review/waitlist), tenant-scoped and audited.
+- Programs management: admin CRUD (create/edit/publish/archive) gated by `managePrograms`; published programs feed the apply form.
 - AI mentor service boundary stub.
 - SSDLC documentation for architecture, data model, data dictionary, deployment and testing.
 

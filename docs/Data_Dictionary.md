@@ -1,9 +1,12 @@
 # Data Dictionary
 
-Code version: `v0.5.0`
+Code version: `v0.6.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.6.0` (Programs management) adds admin CRUD over `Program` and the audit actions `program.created`,
+> `program.updated`, `program.status_changed`.
+>
 > `v0.5.0` (Applications lifecycle) begins persisting `Application`, `ApplicationAnswer` and `AuditLog`
 > rows. Audit actions in use: `seed.initialized`, `application.submitted`, `application.status_changed`.
 >
@@ -51,7 +54,9 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 | `name` | Program name. |
 | `slug` | Tenant-unique program slug. |
 | `description` | Public/admin program description. |
-| `status` | `DRAFT`, `PUBLISHED` or `ARCHIVED`. |
+| `status` | `DRAFT`, `PUBLISHED` or `ARCHIVED`. Only `PUBLISHED` programs appear on the apply form. |
+| `startsAt` | Optional cohort start date. |
+| `endsAt` | Optional cohort end date. |
 
 ## Application
 
