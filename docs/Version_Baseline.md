@@ -6,7 +6,7 @@ Version: `v0.7.1`
 
 Baseline name: `Applicant Self-Signup`
 
-Baseline code commit: `TBD (recorded on commit)`
+Baseline code commit: `8e3b45b`
 
 Baseline date: `2026-06-29`
 
