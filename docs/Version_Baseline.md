@@ -6,7 +6,7 @@ Version: `v0.6.0`
 
 Baseline name: `Programs Management Baseline`
 
-Baseline code commit: `TBD (recorded on commit)`
+Baseline code commit: `8b0e11b`
 
 Baseline date: `2026-06-29`
 
