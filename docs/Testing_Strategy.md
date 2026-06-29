@@ -42,7 +42,7 @@ The regression suite starts with security, tenant isolation and application work
 
 Planned integration tests:
 
-- applicant signup to 2FA setup to application submission,
+- applicant Keycloak login to application submission (signup/2FA are owned by Keycloak),
 - admin login to application review to status update,
 - tenant A admin cannot access tenant B application data.
 

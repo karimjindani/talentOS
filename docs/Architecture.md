@@ -82,9 +82,10 @@ admin portal links back to the applicant portal (`NEXT_PUBLIC_APPLICANT_URL`).
 ```mermaid
 flowchart TD
     subgraph Applicant["talentos-applicant :3100"]
-      Landing["/"] --> Apply["/apply"]
-      Landing --> Login["/login (Keycloak)"]
-      Login --> Application["/application"]
+      Landing["/"] --> Login["/login (Keycloak)"]
+      Login --> Apply["/apply (authenticated)"]
+      Login --> Application["/application (authenticated)"]
+      Apply --> Application
     end
     Login -. OIDC .-> KC["Keycloak :8080"]
     subgraph AdminC["talentos-admin :3200 (RBAC-gated)"]

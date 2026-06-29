@@ -1,10 +1,14 @@
 # Deployment
 
-Code version: `v0.4.0`
+Code version: `v0.5.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current deployment update: `v0.4.0`
+Current deployment update: `v0.5.0`
+
+> `v0.5.0` (Applications lifecycle) does not change the deployment topology. It does change behaviour:
+> `/apply` now requires an authenticated applicant session, and the admin portal exposes a working
+> application review workflow. The validation URLs and smoke tests below are updated accordingly.
 
 As of `v0.2.0` the applicant and administrator modules are isolated into two containers
 (`talentos-applicant` and `talentos-admin`). As of `v0.3.0` a Keycloak IAM (`talentos-keycloak`) and its
@@ -149,8 +153,8 @@ Keycloak (`KEYCLOAK_PORT=8080`):
 Applicant container (`APPLICANT_PORT=3100`):
 
 - Public portal: `http://localhost:3100`
-- Apply page: `http://localhost:3100/apply`
 - Login (Keycloak sign-in): `http://localhost:3100/login`
+- Apply page (authenticated): `http://localhost:3100/apply`
 - Applicant application page (authenticated): `http://localhost:3100/application`
 
 Admin container (`ADMIN_PORT=3200`, routes at root, RBAC-gated):
@@ -166,10 +170,14 @@ Admin container (`ADMIN_PORT=3200`, routes at root, RBAC-gated):
 After deployment, verify:
 
 - `http://localhost:8080/realms/talentos/.well-known/openid-configuration` returns HTTP 200.
-- `http://localhost:3100/` and `/apply` load publicly; `http://localhost:3100/application` redirects to
-  `/login` when unauthenticated.
+- `http://localhost:3100/` loads publicly; `http://localhost:3100/apply` and `/application` redirect to
+  `/login` when unauthenticated (both require an applicant session as of `v0.5.0`).
 - `http://localhost:3200/` redirects unauthenticated users to Keycloak sign-in.
 - Sign in to the admin portal as `applicant@demo.talentos.local` → `/forbidden`; as `orgadmin@…` /
   `hr@…` / `techlead@…` / `superadmin@talentos.local` → admin routes load.
 - Module isolation: `http://localhost:3100/applications` returns 404 (admin routes are not served by the
   applicant container).
+- Application lifecycle (`v0.5.0`): sign in as `applicant@demo.talentos.local`, submit `/apply`, and
+  confirm `/application` shows `SUBMITTED`; sign in to the admin portal as `hr@demo.talentos.local`,
+  open the application under `/applications` and accept it; the applicant then sees `ACCEPTED`.
+  `techlead@demo.talentos.local` can open the admin portal but cannot decide (lacks `reviewApplications`).

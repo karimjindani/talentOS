@@ -66,15 +66,17 @@ The target architecture continues toward:
 When local Docker deployment is running:
 
 - Applicant portal: http://localhost:3100
-- Applicant apply page: http://localhost:3100/apply
-- Applicant signup page: http://localhost:3100/signup
-- Applicant login page: http://localhost:3100/login
-- Applicant 2FA setup page: http://localhost:3100/2fa/setup
-- Applicant application page: http://localhost:3100/application
+- Applicant login page (Keycloak sign-in): http://localhost:3100/login
+- Applicant apply page (authenticated): http://localhost:3100/apply
+- Applicant application page (authenticated): http://localhost:3100/application
 - Admin portal: http://localhost:3200
 - Admin applications: http://localhost:3200/applications
 - Admin programs: http://localhost:3200/programs
 - Admin settings: http://localhost:3200/settings
+- Keycloak admin console: http://localhost:8080
+
+Signup, password policy and authenticator-app 2FA are owned by Keycloak as of `v0.3.0` (there are no
+`/signup` or `/2fa/setup` pages in the applicant portal).
 
 The applicant portal must not expose administrator navigation.
 
