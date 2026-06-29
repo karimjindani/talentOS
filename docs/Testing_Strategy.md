@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.6.0`
+Code version: `v0.7.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -46,6 +46,14 @@ The regression suite starts with security, tenant isolation and application work
   `program.created`/`program.updated`/`program.status_changed` audit rows.
 - Only `PUBLISHED` programs appear on the applicant apply form; archiving removes them.
 
+### Object Storage Tests (v0.7.0)
+
+- `sanitizeFilename`/`buildObjectKey` produce safe, tenant-namespaced keys (unit, `keys.test.ts`).
+- Presigned upload then download round-trips the bytes; `StoredFile` rows + `file.created`/`file.deleted`
+  audit entries are written.
+- The bucket is private: unsigned direct object access is denied (403).
+- File access is tenant-scoped: a file id from another tenant is not resolvable.
+
 ### Integration Tests
 
 Planned integration tests:
@@ -83,3 +91,7 @@ transitions, and every submit/decision must write an `AuditLog` entry.
 From `v0.6.0`, the regression baseline also covers programs management: admin program CRUD must enforce
 `managePrograms` and valid status transitions, only published programs may appear on the apply form, and
 every program write must record an `AuditLog` entry.
+
+From `v0.7.0`, the regression baseline also covers object storage: MinIO must start with a private
+bucket, presigned upload/download must round-trip, file metadata must be tenant-scoped, and file
+create/delete must record an `AuditLog` entry.

@@ -54,6 +54,11 @@ enum SubmissionStatus {
   ACCEPTED
 }
 
+enum FileStatus {
+  PENDING
+  READY
+}
+
 model Tenant {
   id              String            @id @default(cuid())
   name            String
@@ -73,6 +78,7 @@ model Tenant {
   certificates    Certificate[]
   knowledgeDocs   KnowledgeBaseDocument[]
   aiInteractions  AIInteraction[]
+  storedFiles     StoredFile[]
 
   @@map("tenants")
 }
@@ -98,6 +104,7 @@ model User {
   auditLogs             AuditLog[]
   submissions           Submission[]
   aiInteractions        AIInteraction[]
+  storedFiles           StoredFile[]
 
   @@map("users")
 }
@@ -297,4 +304,26 @@ model AIInteraction {
   @@index([tenantId, createdAt])
   @@index([userId, createdAt])
   @@map("ai_interactions")
+}
+
+model StoredFile {
+  id           String     @id @default(cuid())
+  tenantId     String
+  ownerUserId  String?
+  bucket       String
+  storageKey   String     @unique
+  originalName String
+  contentType  String
+  size         Int
+  category     String
+  status       FileStatus @default(PENDING)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner        User?      @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, category])
+  @@index([ownerUserId])
+  @@map("stored_files")
 }

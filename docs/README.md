@@ -1,6 +1,6 @@
 # TalentOS Documentation Overview
 
-Code/documentation version: `v0.6.0`
+Code/documentation version: `v0.7.0`
 
 TalentOS is an AI-powered Talent Discovery, Learning and Recruitment Platform.
 
@@ -24,6 +24,7 @@ Version history:
 - `v0.4.0`: First Alibaba Cloud ECS deployment baseline (public-IP validation).
 - `v0.5.0`: Applications lifecycle — authenticated apply → submit → admin review (accept/reject/waitlist).
 - `v0.6.0`: Programs management — admin CRUD (create/edit/publish/archive); published programs feed the apply form.
+- `v0.7.0`: Object storage foundation — self-hosted MinIO (S3-compatible) with presigned upload/download and tenant-scoped file metadata.
 
 ## Platform Capabilities
 
@@ -50,6 +51,7 @@ The current implementation includes:
 - Security utilities for password hashing, TOTP, role checks and tenant isolation.
 - Applications lifecycle: authenticated apply → submit and admin review (accept/reject/under-review/waitlist), tenant-scoped and audited.
 - Programs management: admin CRUD (create/edit/publish/archive) gated by `managePrograms`; published programs feed the apply form.
+- Object storage: self-hosted MinIO (S3-compatible) with presigned upload/download and tenant-scoped `StoredFile` metadata.
 - AI mentor boundary stub.
 
 ## Target Architecture Direction

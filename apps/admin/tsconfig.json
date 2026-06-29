@@ -26,6 +26,9 @@
       "@talentos/db": [
         "../../packages/db/src"
       ],
+      "@talentos/storage": [
+        "../../packages/storage/src"
+      ],
       "@talentos/ui": [
         "../../packages/ui/src"
       ],

@@ -9,6 +9,7 @@ COPY apps/admin/package.json apps/admin/package.json
 COPY packages/auth/package.json packages/auth/package.json
 COPY packages/auth-web/package.json packages/auth-web/package.json
 COPY packages/db/package.json packages/db/package.json
+COPY packages/storage/package.json packages/storage/package.json
 COPY packages/ui/package.json packages/ui/package.json
 RUN npm ci
 RUN npm install --no-save --ignore-scripts @next/swc-linux-x64-gnu@15.5.19

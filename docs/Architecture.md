@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.6.0`
+Code version: `v0.7.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.6.0`
+Current documentation update: `v0.7.0`
 
 ## Overview
 
@@ -30,6 +30,7 @@ The architecture follows the SSDLC principle that every iteration updates archit
 | Identity (IAM) | `keycloak/` | `talentos-keycloak` | `8080` (`KEYCLOAK_PORT`) | `8080` |
 | App database | `packages/db` | `talentos-postgres` | `55432`/`5432` (`POSTGRES_PORT`) | `5432` |
 | Keycloak database | — | `talentos-keycloak-postgres` | — (internal) | `5432` |
+| Object storage | `minio/minio` | `talentos-minio` | `9000`/`9001` (`S3_PORT`/`S3_CONSOLE_PORT`) | `9000`/`9001` |
 
 ## Technology Stack
 
@@ -51,6 +52,7 @@ flowchart LR
     KC --> KCDB["keycloak-postgres"]
     AppWeb --> DB["PostgreSQL"]
     AdminWeb --> DB
+    AdminWeb -->|presigned URLs| MinIO["MinIO (object storage)"]
     AppWeb --> AI["AI Service Boundary (Stub)"]
     DB --> Audit["Audit Logs"]
 ```
@@ -130,6 +132,9 @@ TalentOS uses a shared PostgreSQL database with tenant-scoped records.
 - Cross-tenant access is rejected by shared authorization utilities; sensitive actions are recorded in
   `AuditLog`.
 - AI workflow boundaries are explicit so future AI mentor activity can be audited.
+- **Object storage** (`v0.7.0`, MinIO) keeps the bucket private; files transfer directly between the
+  browser and MinIO via short-lived presigned URLs; object keys are tenant-namespaced
+  (`tenant/{tenantId}/{category}/…`) and `StoredFile` metadata is tenant-scoped and audited.
 
 ## Scalability
 
@@ -160,6 +165,8 @@ The architecture establishes clear seams between modules and shared libraries:
 - `packages/auth` contains reusable security, RBAC (roles + capability matrix), tenant and workflow utilities.
 - `packages/auth-web` wraps NextAuth v5 + the Keycloak OIDC provider (`createTalentosAuth`), with edge-safe realm-role decoding shared by both apps.
 - `packages/db` owns Prisma schema and database access.
+- `packages/storage` (`@talentos/storage`) wraps the S3 API (MinIO) — presigned upload/download,
+  `deleteObject`, and tenant-namespaced key building.
 - `packages/ui` owns shared front-end pieces (presentational components, tenant header helper, Tailwind brand preset) consumed by both apps.
 - `apps/applicant` owns the public/applicant routes, UI, middleware and API endpoints.
 - `apps/admin` owns the administrator routes, UI and middleware, served at the container root, gated by RBAC.

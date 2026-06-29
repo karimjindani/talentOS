@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.6.0`
+Code version: `v0.7.0`
 
-Documentation update: `Programs management (admin CRUD) delivered`
+Documentation update: `Object storage foundation (MinIO) delivered`
 
 ## MVP
 
@@ -40,6 +40,10 @@ Documentation update: `Programs management (admin CRUD) delivered`
 - Separate Admin and Applicant Portals
   - The Admin Portal and Applicant Portal should become two separate portal surfaces.
   - The current `v0.1.1` scaffold serves both portal shells from one Next.js app, but this is not the long-term architecture.
+
+- Object storage foundation — delivered in `v0.7.0`
+  - MinIO (S3-compatible) self-hosted object storage with presigned upload/download and tenant-scoped
+    `StoredFile` metadata. Enables future CV uploads, program materials, certificates and portfolio assets.
 
 ### MVP Engineering Deliverables
 

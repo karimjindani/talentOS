@@ -1,9 +1,12 @@
 # Data Dictionary
 
-Code version: `v0.6.0`
+Code version: `v0.7.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.7.0` (Object storage) adds the `StoredFile` entity and the audit actions `file.created`,
+> `file.deleted` (migration `20260629101218_object_storage`).
+>
 > `v0.6.0` (Programs management) adds admin CRUD over `Program` and the audit actions `program.created`,
 > `program.updated`, `program.status_changed`.
 >
@@ -91,6 +94,20 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 | `metadata` | JSON metadata for audit context. |
 | `ipAddress` | Optional source IP. |
 | `userAgent` | Optional client user agent. |
+
+## StoredFile
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant. |
+| `ownerUserId` | User who uploaded the file (nullable). |
+| `bucket` | Object-storage bucket name. |
+| `storageKey` | Unique object key (`tenant/{tenantId}/{category}/{uuid}-{name}`). |
+| `originalName` | Original filename supplied by the uploader. |
+| `contentType` | MIME type. |
+| `size` | Size in bytes. |
+| `category` | Logical grouping (e.g. `cv`, `program-material`). |
+| `status` | `PENDING` until the upload is confirmed, then `READY`. |
 
 ## Tenant Isolation
 

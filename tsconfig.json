@@ -17,6 +17,8 @@
       "@talentos/auth": ["packages/auth/src"],
       "@talentos/auth/*": ["packages/auth/src/*"],
       "@talentos/db": ["packages/db/src"],
+      "@talentos/storage": ["packages/storage/src"],
+      "@talentos/storage/*": ["packages/storage/src/*"],
       "@talentos/ui": ["packages/ui/src"],
       "@talentos/ui/*": ["packages/ui/*"]
     }

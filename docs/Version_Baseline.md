@@ -2,19 +2,28 @@
 
 ## Current Baseline
 
-Version: `v0.6.0`
+Version: `v0.7.0`
 
-Baseline name: `Programs Management Baseline`
+Baseline name: `Object Storage Foundation Baseline`
 
-Baseline code commit: `8b0e11b`
+Baseline code commit: `TBD (recorded on commit)`
 
 Baseline date: `2026-06-29`
 
-Previous baseline: `v0.5.0`
+Previous baseline: `v0.6.0`
 
-Previous baseline commit: `f09e30b`
+Previous baseline commit: `8b0e11b`
 
 ## Baseline Summary
+
+`v0.7.0` adds the object-storage foundation using **MinIO** (S3-compatible), self-hosted as a Docker
+Compose service in every environment. Files transfer directly between the browser and MinIO via
+short-lived presigned URLs; the bucket is private; object keys are tenant-namespaced; file metadata is
+stored in PostgreSQL (`StoredFile`) so access is tenant-scoped and audited (`file.created`,
+`file.deleted`). A new `@talentos/storage` package wraps the S3 API; the admin app exposes reference
+presign-upload/confirm/download endpoints (reusable later for CV-on-apply and program materials). This is
+the first schema change since `v0.3.0` (migration `20260629101218_object_storage`). The regression suite
+grew from 28 to 33 tests. Earlier baselines are carried forward unchanged.
 
 `v0.6.0` delivers the Programs MVP module: tenant-scoped, capability-gated, audited admin CRUD for
 programs (create / edit / publish / archive). Admins with `managePrograms` (ORG_ADMIN/SUPER_ADMIN)
