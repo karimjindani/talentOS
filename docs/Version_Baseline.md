@@ -6,7 +6,7 @@ Version: `v0.7.0`
 
 Baseline name: `Object Storage Foundation Baseline`
 
-Baseline code commit: `TBD (recorded on commit)`
+Baseline code commit: `7d73552`
 
 Baseline date: `2026-06-29`
 
