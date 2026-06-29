@@ -1,6 +1,6 @@
 # TalentOS Documentation Overview
 
-Code/documentation version: `v0.2.2`
+Code/documentation version: `v0.5.0`
 
 TalentOS is an AI-powered Talent Discovery, Learning and Recruitment Platform.
 
@@ -20,6 +20,9 @@ Version history:
 - `v0.2.0`: Applicant and administrator modules isolated into separate applications and containers.
 - `v0.2.1`: Applicant portal no longer exposes administrator navigation.
 - `v0.2.2`: README and documentation landing update.
+- `v0.3.0`: Keycloak as the live IAM with OIDC authentication and admin-portal RBAC.
+- `v0.4.0`: First Alibaba Cloud ECS deployment baseline (public-IP validation).
+- `v0.5.0`: Applications lifecycle — authenticated apply → submit → admin review (accept/reject/waitlist).
 
 ## Platform Capabilities
 
@@ -44,6 +47,7 @@ The current implementation includes:
 - Tenant-aware data model foundations.
 - Shared UI package in `packages/ui`.
 - Security utilities for password hashing, TOTP, role checks and tenant isolation.
+- Applications lifecycle: authenticated apply → submit and admin review (accept/reject/under-review/waitlist), tenant-scoped and audited.
 - AI mentor boundary stub.
 
 ## Target Architecture Direction

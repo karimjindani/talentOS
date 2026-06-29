@@ -1,9 +1,13 @@
 # Data Model
 
-Code version: `v0.3.0`
+Code version: `v0.5.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.5.0` (Applications lifecycle) persists `Application`, `ApplicationAnswer` and the related
+> `AuditLog` events for the first time (authenticated apply → review). No schema change was required —
+> these entities already existed.
+>
 > `v0.3.0` (Keycloak IAM) changes the identity model: `User` gains `keycloakSubjectId` (unique link to
 > the Keycloak subject), `emailVerified`, `platformRole` and an optional `passwordHash` (Keycloak owns
 > credentials). New enum `PlatformRole { SUPER_ADMIN }`. `TenantRole` becomes the org-scoped roles

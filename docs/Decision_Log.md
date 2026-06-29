@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.3.0`
+Code version: `v0.5.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.3.0`
+Current documentation update: `v0.5.0`
 
 ## D-001
 
@@ -237,5 +237,11 @@ Status: Approved
 ## D-039
 
 RAM credentials must be stored outside the repository, loaded only into the active shell/session, and never committed or printed in logs
+
+Status: Approved
+
+## D-040
+
+`v0.5.0` implements the Applications-first vertical slice (realizing D-017): authenticated apply, applicant-driven submission, and admin review with accept/reject/under-review/waitlist transitions. Apply is authenticated via Keycloak with the DB `User` provisioned/linked by email; reviewing requires the `reviewApplications` capability (ORG_ADMIN/HR/SUPER_ADMIN, not TECH_LEAD); apply and review are implemented as Next.js server actions; all writes are tenant-scoped and recorded in `AuditLog` (`application.submitted`, `application.status_changed`). No schema change was required.
 
 Status: Approved

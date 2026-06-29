@@ -2,19 +2,29 @@
 
 ## Current Baseline
 
-Version: `v0.4.0`
+Version: `v0.5.0`
 
-Baseline name: `Alibaba Cloud Deployment Baseline`
+Baseline name: `Applications Lifecycle & Admin Review Baseline`
 
-Baseline code commit: `48582be01b67839113537ae4bc05c01209b4778a`
+Baseline code commit: `TBD (recorded on commit)`
 
-Baseline date: `2026-06-28`
+Baseline date: `2026-06-29`
 
-Previous baseline: `v0.3.0`
+Previous baseline: `v0.4.0`
 
-Previous baseline commit: `0987c475a8a3edcf738003bb7c9aa11d5b85e3fe`
+Previous baseline commit: `48582be01b67839113537ae4bc05c01209b4778a`
 
 ## Baseline Summary
+
+`v0.5.0` delivers the Applications-first MVP vertical slice: an authenticated apply → submit → admin
+review lifecycle. Applicants sign in via Keycloak and submit an application (motivation answer) to a
+published program; their DB `User` is provisioned/linked by email with an `APPLICANT` membership.
+Admins (ORG_ADMIN/HR/SUPER_ADMIN) review applications and move them through
+`UNDER_REVIEW`/`ACCEPTED`/`REJECTED`/`WAITLISTED` via guarded status transitions; TECH_LEAD may enter
+the portal but cannot decide. All writes are tenant-scoped and audited
+(`application.submitted`, `application.status_changed`). Apply and review are Next.js server actions
+backed by new `packages/db/src` data-access helpers. No schema change was required. The regression
+suite grew from 19 to 24 tests. Earlier baselines are carried forward unchanged.
 
 `v0.4.0` establishes the first Alibaba Cloud deployment baseline for TalentOS. It targets a single
 Alibaba Cloud ECS instance in Singapore (`ap-southeast-1`) running the existing Docker Compose topology:

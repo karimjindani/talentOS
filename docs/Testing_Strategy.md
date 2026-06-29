@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.3.0`
+Code version: `v0.5.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -29,6 +29,14 @@ The regression suite starts with security, tenant isolation and application work
 - Unauthenticated admin routes redirect to Keycloak sign-in; the applicant `/application` redirects to `/login`.
 - Authenticated APPLICANT is sent to `/forbidden` on the admin portal; admin-capable roles reach admin routes.
 - Super Admin first login forces password change and TOTP setup (Keycloak required actions).
+
+### Application Lifecycle Tests (v0.5.0)
+
+- `nextStatusesFor` exposes only valid reviewer transitions per status (unit, `workflow.test.ts`).
+- Authenticated apply creates a `SUBMITTED` application with answers and an `application.submitted`
+  audit row; duplicate active applications per program are blocked.
+- Admin review enforces `reviewApplications` (TECH_LEAD denied), valid status transitions only, and
+  writes `application.status_changed`; the applicant sees the updated status.
 
 ### Integration Tests
 
@@ -59,3 +67,7 @@ Every implementation iteration must add or update tests for newly committed beha
 From `v0.2.0`, the regression baseline also covers deployment-level module isolation: the applicant and administrator containers must continue to start independently and reject each other's routes.
 
 From `v0.3.0`, the regression baseline also covers IAM/RBAC: Keycloak must start and import the realm, both portals must authenticate via OIDC, and the admin portal must reject non-admin roles.
+
+From `v0.5.0`, the regression baseline also covers the application lifecycle: authenticated apply must
+persist a submitted application, admin review must enforce `reviewApplications` and valid status
+transitions, and every submit/decision must write an `AuditLog` entry.

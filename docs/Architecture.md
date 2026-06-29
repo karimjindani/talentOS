@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.3.0`
+Code version: `v0.5.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.3.0`
+Current documentation update: `v0.5.0`
 
 ## Overview
 
@@ -184,8 +184,12 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
 
 ### MVP Product Modules
 
-3. Applications
-   - Persist applicant signup, application draft, submission and review workflows.
+3. Applications — delivered in `v0.5.0`
+   - Done: authenticated apply → submit and admin review (accept/reject/under-review/waitlist) with
+     tenant-scoped persistence, the `reviewApplications` capability gate, status-transition guards and
+     `AuditLog` events (`application.submitted`, `application.status_changed`).
+   - Data-access helpers live in `packages/db/src` (`applications.ts`, `users.ts`, `tenants.ts`,
+     `programs.ts`); apply and review are Next.js server actions.
 
 4. Programs
    - Allow tenant admins to configure programs, cohorts and public application entry points.

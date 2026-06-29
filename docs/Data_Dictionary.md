@@ -1,9 +1,12 @@
 # Data Dictionary
 
-Code version: `v0.3.0`
+Code version: `v0.5.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.5.0` (Applications lifecycle) begins persisting `Application`, `ApplicationAnswer` and `AuditLog`
+> rows. Audit actions in use: `seed.initialized`, `application.submitted`, `application.status_changed`.
+>
 > `v0.3.0` (Keycloak IAM) adds identity fields to `User` and changes the role enums (see below).
 
 ## Tenant

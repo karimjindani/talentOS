@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { resolveTenantFromHost } from "@talentos/auth/tenant";
 import { auth } from "@/auth";
 
-// Applicant-only routes that require an authenticated session. Landing and /apply
-// stay public; only the applicant's own application area is gated.
-const PROTECTED_PREFIXES = ["/application"];
+// Applicant-only routes that require an authenticated session. The landing page stays
+// public; applying and the applicant's own application area require a Keycloak sign-in.
+const PROTECTED_PREFIXES = ["/apply", "/application"];
 
 export default auth((req) => {
   const { nextUrl } = req;

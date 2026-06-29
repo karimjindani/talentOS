@@ -74,6 +74,39 @@ async function main() {
     });
   }
 
+  // Seed one SUBMITTED application so the admin review workflow is demoable out of the box.
+  const applicant = await prisma.user.findUnique({
+    where: { email: "applicant@demo.talentos.local" }
+  });
+
+  if (applicant) {
+    const existingApplication = await prisma.application.findFirst({
+      where: { applicantId: applicant.id, programId: program.id }
+    });
+
+    if (!existingApplication) {
+      await prisma.application.create({
+        data: {
+          tenantId: tenant.id,
+          programId: program.id,
+          applicantId: applicant.id,
+          status: "SUBMITTED",
+          submittedAt: new Date(),
+          answers: {
+            create: [
+              {
+                questionKey: "motivation",
+                questionLabel: "Why do you want to join?",
+                answer:
+                  "I want to build and ship production-grade software with AI mentorship from week one."
+              }
+            ]
+          }
+        }
+      });
+    }
+  }
+
   await prisma.auditLog.create({
     data: {
       tenantId: tenant.id,

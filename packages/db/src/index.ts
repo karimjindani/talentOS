@@ -1,17 +1,9 @@
-import { PrismaClient } from "@prisma/client";
-
-const globalForPrisma = globalThis as unknown as {
-  prisma?: PrismaClient;
-};
-
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"]
-  });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
-
+export * from "./client";
+// Re-export the generated Prisma client types/enums so consumers import them from one place.
 export * from "@prisma/client";
+
+// Application-lifecycle data-access helpers (pure persistence; transition/RBAC guards live in the app layer).
+export * from "./tenants";
+export * from "./programs";
+export * from "./users";
+export * from "./applications";

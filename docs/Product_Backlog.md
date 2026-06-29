@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.3.0`
+Code version: `v0.5.0`
 
-Documentation update: `Keycloak IAM + RBAC foundation delivered`
+Documentation update: `Applications lifecycle (apply → review) delivered`
 
 ## MVP
 
@@ -43,7 +43,7 @@ Documentation update: `Keycloak IAM + RBAC foundation delivered`
 
 ### MVP Engineering Deliverables
 
-- Applications module
+- Applications module — delivered in `v0.5.0` (authenticated apply → submit → admin review with accept/reject/under-review/waitlist, tenant-scoped and audited).
 - Programs module
 - Missions module
 - AI Mentor boundary
