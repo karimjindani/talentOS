@@ -6,7 +6,7 @@ Version: `v0.5.0`
 
 Baseline name: `Applications Lifecycle & Admin Review Baseline`
 
-Baseline code commit: `TBD (recorded on commit)`
+Baseline code commit: `f09e30b`
 
 Baseline date: `2026-06-29`
 
