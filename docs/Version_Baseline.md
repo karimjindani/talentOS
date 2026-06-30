@@ -6,7 +6,7 @@ Version: `v0.7.3`
 
 Baseline name: `Applicant CV & Profile Links`
 
-Baseline code commit: `pending`
+Baseline code commit: `a921fc0`
 
 Baseline date: `2026-06-30`
 
