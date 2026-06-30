@@ -2,7 +2,7 @@
 
 TalentOS is a platform for developing AI-native software engineers through real, production-oriented work rather than passive coursework. Its core learning model is the Spiral Engineering Method (SEM): participants repeatedly complete the full engineering lifecycle — discover, analyze, specify, design, build, test, deploy, present, reflect, and review production readiness — from the very first week, with each cycle increasing in complexity. The platform treats AI as a mentor and accelerator, not a substitute for thinking, and is designed to help learners build secure, maintainable, deployable software while producing a public portfolio that organizations can use for talent discovery and recruitment.
 
-Current documentation version: `v0.7.1`
+Current documentation version: `v0.8.0`
 
 TalentOS is an AI-powered Talent Discovery, Learning and Recruitment Platform designed to bridge the gap between AI-assisted coding and production-grade software engineering.
 
@@ -24,6 +24,7 @@ TalentOS has moved beyond product discovery into an initial platform scaffold wi
 - `v0.6.0`: Programs management — admin CRUD (create/edit/publish/archive); published programs feed the apply form.
 - `v0.7.0`: Object storage foundation — self-hosted MinIO (S3-compatible) with presigned upload/download and tenant-scoped file metadata.
 - `v0.7.1`: Applicant self-signup via Keycloak self-registration (default role APPLICANT) with a portal "Create account" entry.
+- `v0.8.0`: Admin Operations dashboard for local development health, regression cleanup guidance and reset guidance.
 
 ## Current Implementation
 
@@ -42,19 +43,40 @@ The current scaffold includes:
 - AI mentor service boundary stub.
 - SSDLC documentation for architecture, data model, data dictionary, deployment and testing.
 
-## Local Validation URLs
+## Local Startup URLs and Credentials
 
 When the local Docker deployment is running:
 
-- Applicant portal: http://localhost:3100
-- Applicant login page (Keycloak sign-in): http://localhost:3100/login
-- Applicant apply page (authenticated): http://localhost:3100/apply
-- Applicant application page (authenticated): http://localhost:3100/application
-- Admin portal: http://localhost:3200
-- Admin applications: http://localhost:3200/applications
-- Admin programs: http://localhost:3200/programs
-- Admin settings: http://localhost:3200/settings
-- Keycloak admin console: http://localhost:8080
+### Portal and service links
+
+- Applicant Portal: http://localhost:3100
+- Applicant Login: http://localhost:3100/login
+- Applicant Apply: http://localhost:3100/apply
+- Applicant Application: http://localhost:3100/application
+- Admin Portal: http://localhost:3200
+- Admin Applications: http://localhost:3200/applications
+- Admin Programs: http://localhost:3200/programs
+- Admin Settings: http://localhost:3200/settings
+- Admin Operations: http://localhost:3200/operations
+- Keycloak Admin Console: http://localhost:8080
+- MinIO API: http://localhost:9000
+- MinIO Console: http://localhost:9001
+
+### Seeded local credentials
+
+These credentials are for local development only.
+
+| User / Service | Username | Password | Notes |
+| --- | --- | --- | --- |
+| Super Admin | `superadmin@talentos.local` | `ChangeMeSuper#1` | May require password change and authenticator-app TOTP setup depending on current Keycloak state. |
+| Org Admin | `orgadmin@demo.talentos.local` | `ChangeMe123!` | Can access admin portal and Operations. |
+| HR | `hr@demo.talentos.local` | `ChangeMe123!` | Can access admin workflows allowed by role. |
+| Tech Lead | `techlead@demo.talentos.local` | `ChangeMe123!` | Can access admin workflows allowed by role. |
+| Applicant | `applicant@demo.talentos.local` | `ChangeMe123!` | Can access applicant portal workflows. |
+| Keycloak local admin console | `admin` | `admin` | Local Keycloak administration. |
+| MinIO local console | `talentos` | `talentos_dev_password` | Local object storage console. |
+
+The Admin Operations page requires a `SUPER_ADMIN` or `ORG_ADMIN` user.
 
 Signup, password policy and authenticator-app 2FA are owned by Keycloak. Applicant self-registration is
 enabled (`v0.7.1`) via the portal "Create account" button (OIDC `prompt=create`) / Keycloak's hosted
