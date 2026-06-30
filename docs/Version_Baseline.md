@@ -2,19 +2,24 @@
 
 ## Current Baseline
 
-Version: `v0.7.1`
+Version: `v0.7.2`
 
-Baseline name: `Applicant Self-Signup`
+Baseline name: `Local Deployment Validation`
 
-Baseline code commit: `8e3b45b`
+Baseline code commit: `2086e306e4483a7a9910b83cf0bc1d875c52eb08`
 
-Baseline date: `2026-06-29`
+Baseline date: `2026-06-30`
 
-Previous baseline: `v0.7.0`
+Previous baseline: `v0.7.1`
 
-Previous baseline commit: `7d73552`
+Previous baseline commit: `8e3b45b`
 
 ## Baseline Summary
+
+`v0.7.2` is a documentation/test-results baseline that validates latest GitHub `main` locally through
+Docker Compose. It confirms the v0.7.1 runtime runs locally with Applicant Portal, Admin Portal,
+PostgreSQL, Keycloak, Keycloak PostgreSQL, MinIO, and MinIO setup. Alibaba Cloud deployment was skipped
+for this iteration.
 
 `v0.7.1` is a patch that enables applicant self-signup via Keycloak self-registration
 (`registrationAllowed`, `registrationEmailAsUsername`, default role `APPLICANT`) and adds a

@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.7.1`
+Code version: `v0.7.2`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.7.1`
+Current documentation update: `v0.7.2`
 
 ## D-001
 
@@ -261,5 +261,11 @@ Status: Approved
 ## D-043
 
 `v0.7.1` enables applicant self-signup through Keycloak (realizing the signup half of `D-031`): the realm sets `registrationAllowed: true`, `registrationEmailAsUsername: true` and `defaultRoles: ["APPLICANT"]`; the applicant portal adds a "Create account" entry that starts Keycloak registration via OIDC `prompt=create`. Signup is owned by Keycloak (hosted form, password policy, TOTP); a custom branded signup form and admin-driven user management remain deferred to `v0.3.1` (`D-035`). Patch only — no schema change.
+
+Status: Approved
+
+## D-044
+
+`v0.7.2` validates latest TalentOS locally only; Alibaba Cloud deployment is intentionally skipped for this iteration.
 
 Status: Approved
