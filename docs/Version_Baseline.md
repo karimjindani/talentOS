@@ -2,19 +2,29 @@
 
 ## Current Baseline
 
-Version: `v0.7.2`
+Version: `v0.7.3`
 
-Baseline name: `Local Deployment Validation`
+Baseline name: `Applicant CV & Profile Links`
 
-Baseline code commit: `2086e306e4483a7a9910b83cf0bc1d875c52eb08`
+Baseline code commit: `pending`
 
 Baseline date: `2026-06-30`
 
-Previous baseline: `v0.7.1`
+Previous baseline: `v0.7.2`
 
-Previous baseline commit: `8e3b45b`
+Previous baseline commit: `0906ac8`
 
 ## Baseline Summary
+
+`v0.7.3` lets applicants attach a CV (required, PDF, ≤ 5 MB) and provide optional GitHub and LinkedIn
+profile URLs when they apply. It wires the v0.7.0 object-storage foundation into the applicant portal:
+the apply server action validates the CV server-side, streams it to MinIO via the new
+`putObject` helper, records it as a `StoredFile` (status `READY`), and links it to the application
+through new `Application.cvFileId` / `githubUrl` / `linkedinUrl` columns. The admin application-detail
+page surfaces the CV download (reusing the existing tenant-scoped `/api/files/[id]/download` route) and
+the profile links. Profile URLs are host-allowlisted to github.com / linkedin.com. A new migration
+(`20260630120000_application_cv_links`) adds the columns; the regression suite is unchanged at 33 tests.
+Recorded as a patch by explicit choice (it is functionally a new capability). See `D-045`.
 
 `v0.7.2` is a documentation/test-results baseline that validates latest GitHub `main` locally through
 Docker Compose. It confirms the v0.7.1 runtime runs locally with Applicant Portal, Admin Portal,

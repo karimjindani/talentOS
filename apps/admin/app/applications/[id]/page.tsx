@@ -110,6 +110,54 @@ export default async function ApplicationDetailPage({ params }: ApplicationDetai
         </div>
       </section>
 
+      <section className="mt-6 grid gap-4 rounded-2xl border border-slate-200 bg-white p-6 text-sm shadow-sm sm:grid-cols-3">
+        <div>
+          <p className="font-medium text-slate-700">CV</p>
+          {application.cvFile ? (
+            <a
+              className="text-brand-blue underline"
+              href={`/api/files/${application.cvFile.id}/download`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Download CV ({application.cvFile.originalName})
+            </a>
+          ) : (
+            <p className="text-slate-600">—</p>
+          )}
+        </div>
+        <div>
+          <p className="font-medium text-slate-700">GitHub</p>
+          {application.githubUrl ? (
+            <a
+              className="break-all text-brand-blue underline"
+              href={application.githubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {application.githubUrl}
+            </a>
+          ) : (
+            <p className="text-slate-600">—</p>
+          )}
+        </div>
+        <div>
+          <p className="font-medium text-slate-700">LinkedIn</p>
+          {application.linkedinUrl ? (
+            <a
+              className="break-all text-brand-blue underline"
+              href={application.linkedinUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {application.linkedinUrl}
+            </a>
+          ) : (
+            <p className="text-slate-600">—</p>
+          )}
+        </div>
+      </section>
+
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Application answers</h2>
         {application.answers.length === 0 ? (

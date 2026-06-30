@@ -4,14 +4,48 @@ import { PortalHeader } from "@/components/PortalHeader";
 import { auth } from "@/auth";
 import { getTenantContext } from "@talentos/ui";
 import {
+  createStoredFile,
   createSubmittedApplication,
   findActiveApplication,
   getTenantBySlug,
   listPublishedPrograms,
+  markStoredFileReady,
   provisionApplicantUser
 } from "@talentos/db";
+import { buildObjectKey, getBucket, putObject } from "@talentos/storage";
 
 const MOTIVATION_LABEL = "Why do you want to join?";
+const CV_CONTENT_TYPE = "application/pdf";
+const CV_MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+
+// Allow only the two profile hosts so stored links can't be used for phishing/redirects.
+const PROFILE_HOST_SUFFIX: Record<string, string> = {
+  github: "github.com",
+  linkedin: "linkedin.com"
+};
+
+/** Validate an optional profile URL, restricting it to the expected host. Empty → null. */
+function parseProfileUrl(raw: string, kind: "github" | "linkedin"): string | null {
+  const value = raw.trim();
+  if (!value) {
+    return null;
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`Enter a valid ${kind} URL (including https://).`);
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error(`Enter a valid ${kind} URL (including https://).`);
+  }
+  const host = url.hostname.toLowerCase();
+  const suffix = PROFILE_HOST_SUFFIX[kind];
+  if (host !== suffix && !host.endsWith(`.${suffix}`)) {
+    throw new Error(`The ${kind} URL must be a ${suffix} link.`);
+  }
+  return url.toString();
+}
 
 async function submitApplication(formData: FormData) {
   "use server";
@@ -34,6 +68,21 @@ async function submitApplication(formData: FormData) {
     throw new Error("A motivation is required to submit an application.");
   }
 
+  // Validate the CV server-side (the `accept` attribute is only a client-side hint).
+  const cv = formData.get("cv");
+  if (!(cv instanceof File) || cv.size === 0) {
+    throw new Error("A CV (PDF) is required to submit an application.");
+  }
+  if (cv.type !== CV_CONTENT_TYPE) {
+    throw new Error("Your CV must be a PDF file.");
+  }
+  if (cv.size > CV_MAX_SIZE_BYTES) {
+    throw new Error("Your CV must be 5 MB or smaller.");
+  }
+
+  const githubUrl = parseProfileUrl(String(formData.get("githubUrl") ?? ""), "github");
+  const linkedinUrl = parseProfileUrl(String(formData.get("linkedinUrl") ?? ""), "linkedin");
+
   // Only allow applying to a published program owned by the resolved tenant.
   const programs = await listPublishedPrograms(tenant.id);
   const program = programs.find((p) => p.id === programId);
@@ -48,15 +97,41 @@ async function submitApplication(formData: FormData) {
     tenantId: tenant.id
   });
 
+  // Reject duplicates before uploading, so a blocked submission leaves no orphan object.
   const existing = await findActiveApplication(applicant.id, program.id);
-  if (!existing) {
-    await createSubmittedApplication({
-      tenantId: tenant.id,
-      programId: program.id,
-      applicantId: applicant.id,
-      answers: [{ questionKey: "motivation", questionLabel: MOTIVATION_LABEL, answer: motivation }]
-    });
+  if (existing) {
+    redirect("/application");
   }
+
+  // Stream the CV to object storage, then record it and link it to the new application.
+  const storageKey = buildObjectKey({ tenantId: tenant.id, category: "cv", filename: cv.name });
+  await putObject({
+    key: storageKey,
+    body: Buffer.from(await cv.arrayBuffer()),
+    contentType: CV_CONTENT_TYPE
+  });
+  const file = await createStoredFile({
+    tenantId: tenant.id,
+    ownerUserId: applicant.id,
+    bucket: getBucket(),
+    storageKey,
+    originalName: cv.name,
+    contentType: CV_CONTENT_TYPE,
+    size: cv.size,
+    category: "cv",
+    actorUserId: applicant.id
+  });
+  await markStoredFileReady(file.id, tenant.id);
+
+  await createSubmittedApplication({
+    tenantId: tenant.id,
+    programId: program.id,
+    applicantId: applicant.id,
+    answers: [{ questionKey: "motivation", questionLabel: MOTIVATION_LABEL, answer: motivation }],
+    cvFileId: file.id,
+    githubUrl,
+    linkedinUrl
+  });
 
   redirect("/application");
 }
@@ -115,6 +190,36 @@ export default async function ApplyPage() {
                 name="motivation"
                 required
                 placeholder="Tell us why you want to join this program."
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium">CV (PDF, max 5 MB)</span>
+              <input
+                type="file"
+                name="cv"
+                accept="application/pdf"
+                required
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium"
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium">GitHub profile (optional)</span>
+              <input
+                type="url"
+                name="githubUrl"
+                inputMode="url"
+                placeholder="https://github.com/your-username"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium">LinkedIn profile (optional)</span>
+              <input
+                type="url"
+                name="linkedinUrl"
+                inputMode="url"
+                placeholder="https://www.linkedin.com/in/your-name"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
               />
             </label>
             <button className="rounded-xl bg-brand-blue px-5 py-3 font-semibold text-white" type="submit">

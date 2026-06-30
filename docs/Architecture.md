@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.7.1`
+Code version: `v0.7.3`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.7.1`
+Current documentation update: `v0.7.3`
 
 ## Overview
 
@@ -53,6 +53,7 @@ flowchart LR
     AppWeb --> DB["PostgreSQL"]
     AdminWeb --> DB
     AdminWeb -->|presigned URLs| MinIO["MinIO (object storage)"]
+    AppWeb -->|"CV upload (server-action proxy)"| MinIO
     AppWeb --> AI["AI Service Boundary (Stub)"]
     DB --> Audit["Audit Logs"]
 ```
@@ -135,6 +136,10 @@ TalentOS uses a shared PostgreSQL database with tenant-scoped records.
 - **Object storage** (`v0.7.0`, MinIO) keeps the bucket private; files transfer directly between the
   browser and MinIO via short-lived presigned URLs; object keys are tenant-namespaced
   (`tenant/{tenantId}/{category}/…`) and `StoredFile` metadata is tenant-scoped and audited.
+- **CV on apply** (`v0.7.3`) — the applicant apply server action validates the CV server-side
+  (PDF, ≤ 5 MB), streams it to MinIO via `putObject` (`category: "cv"`), records a `READY`
+  `StoredFile`, and links it through `Application.cvFileId`; optional GitHub/LinkedIn URLs are
+  host-allowlisted. Admin downloads the CV through the tenant-scoped `/api/files/[id]/download` route.
 
 ## Scalability
 

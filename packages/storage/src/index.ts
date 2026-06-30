@@ -33,6 +33,21 @@ export function getPresignedDownloadUrl({
   return getSignedUrl(getS3Client(), command, { expiresIn });
 }
 
+/** Server-side upload of bytes straight to MinIO (used when Next.js proxies a small upload). */
+export function putObject({
+  key,
+  body,
+  contentType
+}: {
+  key: string;
+  body: Uint8Array | Buffer;
+  contentType: string;
+}) {
+  return getS3Client().send(
+    new PutObjectCommand({ Bucket: getBucket(), Key: key, Body: body, ContentType: contentType })
+  );
+}
+
 export function deleteObject(key: string) {
   return getS3Client().send(new DeleteObjectCommand({ Bucket: getBucket(), Key: key }));
 }

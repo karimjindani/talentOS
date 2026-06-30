@@ -1,10 +1,10 @@
 # Deployment
 
-Code version: `v0.7.1`
+Code version: `v0.7.3`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current deployment update: `v0.7.1`
+Current deployment update: `v0.7.3`
 
 > `v0.7.1` (Applicant self-signup) enables Keycloak self-registration in the realm import
 > (`registrationAllowed`, default role `APPLICANT`). No topology change. Applying it to an existing
@@ -167,6 +167,8 @@ and in the containers.
 - Config is the same env in every environment: `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`,
   `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE=true`. Locally `S3_ENDPOINT` uses
   `http://host.docker.internal:9000` so presigned URLs resolve in both the browser and the containers.
+- As of `v0.7.3` the **`applicant`** container also receives the `S3_*` env (and `depends_on: minio`)
+  because the apply flow uploads the CV to MinIO server-side; previously only `admin` needed it.
 - **Cloud (Alibaba ECS):** MinIO runs as the same container on a persistent volume. Set `S3_ENDPOINT` to
   the ECS address reachable by the browser (e.g. `http://<ECS_PUBLIC_IP>:9000`) and open `9000/tcp` for
   validation only; keep the console `9001/tcp` closed and set strong root credentials server-side
@@ -210,3 +212,6 @@ After deployment, verify:
   confirm `/application` shows `SUBMITTED`; sign in to the admin portal as `hr@demo.talentos.local`,
   open the application under `/applications` and accept it; the applicant then sees `ACCEPTED`.
   `techlead@demo.talentos.local` can open the admin portal but cannot decide (lacks `reviewApplications`).
+- CV & profile links (`v0.7.3`): on `/apply`, a CV (PDF, ≤ 5 MB) is required and GitHub/LinkedIn URLs
+  are optional; the admin application-detail page shows a working **Download CV** link plus the profile
+  links. Submitting without a CV, a non-PDF/over-size CV, or a non-github.com/linkedin.com URL is rejected.

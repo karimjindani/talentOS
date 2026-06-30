@@ -1,9 +1,12 @@
 # Data Dictionary
 
-Code version: `v0.7.0`
+Code version: `v0.7.3`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.7.3` (Applicant CV & profile links) adds `cvFileId`, `githubUrl` and `linkedinUrl` to
+> `Application` (migration `20260630120000_application_cv_links`).
+>
 > `v0.7.0` (Object storage) adds the `StoredFile` entity and the audit actions `file.created`,
 > `file.deleted` (migration `20260629101218_object_storage`).
 >
@@ -72,6 +75,9 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 | `submittedAt` | Submission timestamp. |
 | `reviewedAt` | Review completion timestamp. |
 | `reviewerNotes` | Internal admin review notes. |
+| `cvFileId` | Optional unique FK to the applicant's CV in `StoredFile` (PDF in MinIO); `null` if no CV. `SetNull` on file delete. |
+| `githubUrl` | Optional applicant GitHub profile URL (host-allowlisted to github.com). |
+| `linkedinUrl` | Optional applicant LinkedIn profile URL (host-allowlisted to linkedin.com). |
 
 ## ApplicationAnswer
 

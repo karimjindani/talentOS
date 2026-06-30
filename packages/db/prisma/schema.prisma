@@ -156,12 +156,16 @@ model Application {
   submittedAt   DateTime?
   reviewedAt    DateTime?
   reviewerNotes String?
+  githubUrl     String?
+  linkedinUrl   String?
+  cvFileId      String?             @unique
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
 
   tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   program       Program             @relation(fields: [programId], references: [id], onDelete: Cascade)
   applicant     User                @relation("ApplicantApplications", fields: [applicantId], references: [id], onDelete: Cascade)
+  cvFile        StoredFile?         @relation("ApplicationCv", fields: [cvFileId], references: [id], onDelete: SetNull)
   answers       ApplicationAnswer[]
 
   @@index([tenantId, status])
@@ -320,8 +324,9 @@ model StoredFile {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  owner        User?      @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner        User?        @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  cvForApplication Application? @relation("ApplicationCv")
 
   @@index([tenantId, category])
   @@index([ownerUserId])

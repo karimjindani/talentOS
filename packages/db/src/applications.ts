@@ -22,6 +22,9 @@ export type CreateSubmittedApplicationInput = {
   programId: string;
   applicantId: string;
   answers: ApplicationAnswerInput[];
+  cvFileId?: string | null;
+  githubUrl?: string | null;
+  linkedinUrl?: string | null;
 };
 
 /** Create a SUBMITTED application with its answers and an audit entry, atomically. */
@@ -29,7 +32,10 @@ export function createSubmittedApplication({
   tenantId,
   programId,
   applicantId,
-  answers
+  answers,
+  cvFileId = null,
+  githubUrl = null,
+  linkedinUrl = null
 }: CreateSubmittedApplicationInput) {
   return prisma.$transaction(async (tx) => {
     const application = await tx.application.create({
@@ -39,6 +45,9 @@ export function createSubmittedApplication({
         applicantId,
         status: "SUBMITTED",
         submittedAt: new Date(),
+        cvFileId,
+        githubUrl,
+        linkedinUrl,
         answers: {
           create: answers.map((a) => ({
             questionKey: a.questionKey,
@@ -77,7 +86,7 @@ export function listTenantApplications(tenantId: string) {
 export function getTenantApplication(id: string, tenantId: string) {
   return prisma.application.findFirst({
     where: { id, tenantId },
-    include: { applicant: true, program: true, answers: { orderBy: { createdAt: "asc" } } }
+    include: { applicant: true, program: true, cvFile: true, answers: { orderBy: { createdAt: "asc" } } }
   });
 }
 
@@ -85,7 +94,7 @@ export function getTenantApplication(id: string, tenantId: string) {
 export function listApplicantApplications(applicantId: string, tenantId: string) {
   return prisma.application.findMany({
     where: { applicantId, tenantId },
-    include: { program: true, answers: { orderBy: { createdAt: "asc" } } },
+    include: { program: true, cvFile: true, answers: { orderBy: { createdAt: "asc" } } },
     orderBy: { createdAt: "desc" }
   });
 }

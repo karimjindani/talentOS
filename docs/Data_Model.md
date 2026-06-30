@@ -1,9 +1,14 @@
 # Data Model
 
-Code version: `v0.7.0`
+Code version: `v0.7.3`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.7.3` (Applicant CV & profile links) adds `cvFileId` (unique, optional FK → `StoredFile`,
+> `onDelete: SetNull`), `githubUrl` and `linkedinUrl` to `Application`, giving each application one
+> optional stored CV and two optional profile links. Schema change — migration
+> `20260630120000_application_cv_links`.
+>
 > `v0.7.0` (Object storage) adds the `StoredFile` model (tenant-scoped file metadata; bytes live in
 > MinIO) and the `FileStatus` enum. Schema change — migration `20260629101218_object_storage`.
 >
@@ -39,6 +44,7 @@ erDiagram
     Tenant ||--o{ AIInteraction : records
     Tenant ||--o{ StoredFile : owns
     User ||--o{ StoredFile : uploads
+    Application |o--o| StoredFile : "CV"
 ```
 
 ## Core Entities
@@ -47,7 +53,7 @@ erDiagram
 - `User`: shared identity for applicants, tenant owners and admins.
 - `TenantMembership`: user role within a tenant.
 - `Program`: tenant-owned learning/recruitment program.
-- `Application`: applicant submission to a program.
+- `Application`: applicant submission to a program; optionally links a CV (`cvFile` → `StoredFile`) and carries optional `githubUrl` / `linkedinUrl`.
 - `ApplicationAnswer`: structured answers inside an application.
 - `AuditLog`: security and business action history.
 - `StoredFile`: tenant-scoped metadata for an object stored in MinIO (bytes live in the object store).
