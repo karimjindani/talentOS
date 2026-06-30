@@ -29,11 +29,21 @@ export default async function OperationsPage() {
     <>
       <h1 className="text-3xl font-bold">Local development operations</h1>
       <p className="mt-2 text-slate-600">
-        Safe dashboard for validating the local TalentOS stack. Commands are shown for copy-paste; the Admin app does
-        not run host Docker or npm commands.
+        The primary control surface is now the out-of-band local Ops console, which runs outside this Admin app so it
+        can still diagnose the stack when Admin or Keycloak is down.
       </p>
 
       <div className="mt-8 grid gap-6">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold">Out-of-band Ops console</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Start it from the repository root with <code>npm.cmd run ops:start</code>, then open{" "}
+            <a className="text-brand-blue underline" href="http://127.0.0.1:3300">
+              http://127.0.0.1:3300
+            </a>
+            . It uses the local <code>OPS_TOKEN</code> from <code>.env</code>, not Keycloak.
+          </p>
+        </section>
         <HealthPanel />
         <CommandSection
           title="Run regression tests"

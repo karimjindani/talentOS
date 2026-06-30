@@ -6,6 +6,45 @@ export type OperationHealthCheck = {
   detail: string;
 };
 
+export type OpsComponentCheck = OperationHealthCheck & {
+  durationMs?: number;
+  source?: "host" | "docker" | "http" | "database" | "browser";
+};
+
+export type OpsHealthResponse = {
+  status: OperationHealthState;
+  checkedAt: string;
+  checks: OpsComponentCheck[];
+};
+
+export type OpsJobKind = "regression" | "cleanup" | "reset";
+
+export type OpsJobStatus = "queued" | "running" | "passed" | "failed";
+
+export type OpsJobStep = {
+  id: string;
+  name: string;
+  command: string;
+  status: OpsJobStatus;
+  startedAt?: string;
+  completedAt?: string;
+  durationMs?: number;
+  exitCode?: number | null;
+  output: string;
+};
+
+export type OpsJob = {
+  id: string;
+  kind: OpsJobKind;
+  status: OpsJobStatus;
+  startedAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  steps: OpsJobStep[];
+  output: string;
+  error?: string;
+};
+
 export const LOCAL_REGRESSION_COMMANDS = {
   runTests: "npm.cmd run test",
   cleanupRegressionData: "npm.cmd run ops:cleanup-regression",

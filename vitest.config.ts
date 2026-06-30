@@ -1,4 +1,8 @@
 import { defineConfig } from "vitest/config";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   test: {
@@ -6,9 +10,11 @@ export default defineConfig({
     include: ["packages/**/*.test.ts", "apps/**/*.test.ts"]
   },
   resolve: {
-    alias: {
-      "@talentos/auth": new URL("./packages/auth/src", import.meta.url).pathname,
-      "@talentos/db": new URL("./packages/db/src", import.meta.url).pathname
-    }
+    alias: [
+      { find: /^@talentos\/auth$/, replacement: resolve(root, "packages/auth/src/index.ts") },
+      { find: /^@talentos\/auth\/(.+)$/, replacement: resolve(root, "packages/auth/src/$1") },
+      { find: /^@talentos\/db$/, replacement: resolve(root, "packages/db/src/index.ts") },
+      { find: /^@talentos\/db\/(.+)$/, replacement: resolve(root, "packages/db/src/$1") }
+    ]
   }
 });

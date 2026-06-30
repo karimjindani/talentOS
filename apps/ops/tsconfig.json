@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@talentos/auth": ["../../packages/auth/src"],
+      "@talentos/auth/*": ["../../packages/auth/src/*"],
+      "@talentos/db": ["../../packages/db/src"],
+      "@talentos/db/*": ["../../packages/db/src/*"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules"]
+}
