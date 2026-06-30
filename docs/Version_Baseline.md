@@ -6,7 +6,7 @@ Version: `v0.8.0`
 
 Baseline name: `Admin Operations Page`
 
-Baseline code commit: `TBD after v0.8.0 implementation commit`
+Baseline code commit: `75e8a1e42b44f04b316fa165b6c232be0f70ab26`
 
 Baseline date: `2026-06-30`
 
