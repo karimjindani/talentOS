@@ -2,19 +2,24 @@
 
 ## Current Baseline
 
-Version: `v0.7.3`
+Version: `v0.8.0`
 
-Baseline name: `Applicant CV & Profile Links`
+Baseline name: `Admin Operations Page`
 
-Baseline code commit: `a921fc0`
+Baseline code commit: `TBD after v0.8.0 implementation commit`
 
 Baseline date: `2026-06-30`
 
-Previous baseline: `v0.7.2`
+Previous baseline: `v0.7.3`
 
-Previous baseline commit: `0906ac8`
+Previous baseline commit: `a921fc0`
 
 ## Baseline Summary
+
+`v0.8.0` adds a local-development Operations page to the Admin Portal. The page provides live
+app-visible health checks, copyable regression/reset commands, and a safe regression data cleanup
+foundation using explicit `RegressionDataMarker` rows. The Admin app does not run Docker or npm commands
+on the host.
 
 `v0.7.3` lets applicants attach a CV (required, PDF, ≤ 5 MB) and provide optional GitHub and LinkedIn
 profile URLs when they apply. It wires the v0.7.0 object-storage foundation into the applicant portal:
@@ -25,7 +30,6 @@ page surfaces the CV download (reusing the existing tenant-scoped `/api/files/[i
 the profile links. Profile URLs are host-allowlisted to github.com / linkedin.com. A new migration
 (`20260630120000_application_cv_links`) adds the columns; the regression suite is unchanged at 33 tests.
 Recorded as a patch by explicit choice (it is functionally a new capability). See `D-045`.
-
 `v0.7.2` is a documentation/test-results baseline that validates latest GitHub `main` locally through
 Docker Compose. It confirms the v0.7.1 runtime runs locally with Applicant Portal, Admin Portal,
 PostgreSQL, Keycloak, Keycloak PostgreSQL, MinIO, and MinIO setup. Alibaba Cloud deployment was skipped

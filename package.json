@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p apps/applicant/tsconfig.json && tsc --noEmit -p apps/admin/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "ops:cleanup-regression": "tsx scripts/cleanup-regression-data.ts",
     "db:generate": "prisma generate --schema packages/db/prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema packages/db/prisma/schema.prisma",
     "db:seed": "tsx packages/db/prisma/seed.ts"

@@ -1,6 +1,6 @@
 # Data Model
 
-Code version: `v0.7.3`
+Code version: `v0.8.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -11,6 +11,9 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 >
 > `v0.7.0` (Object storage) adds the `StoredFile` model (tenant-scoped file metadata; bytes live in
 > MinIO) and the `FileStatus` enum. Schema change — migration `20260629101218_object_storage`.
+>
+> `v0.8.0` adds `RegressionDataMarker`, an explicit local/dev cleanup boundary for regression-generated
+> records.
 >
 > `v0.6.0` (Programs management) begins managing `Program` records through admin CRUD (incl. the
 > `startsAt`/`endsAt` cohort dates) and adds `program.*` `AuditLog` events. No schema change was required.
@@ -57,6 +60,8 @@ erDiagram
 - `ApplicationAnswer`: structured answers inside an application.
 - `AuditLog`: security and business action history.
 - `StoredFile`: tenant-scoped metadata for an object stored in MinIO (bytes live in the object store).
+- `RegressionDataMarker`: local/dev marker rows identifying records created by regression workflows and
+  safe to remove during regression cleanup.
 
 ## Future-Ready Entities
 

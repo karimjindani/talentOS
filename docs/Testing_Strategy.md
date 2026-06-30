@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.7.1`
+Code version: `v0.8.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -97,3 +97,7 @@ every program write must record an `AuditLog` entry.
 From `v0.7.0`, the regression baseline also covers object storage: MinIO must start with a private
 bucket, presigned upload/download must round-trip, file metadata must be tenant-scoped, and file
 create/delete must record an `AuditLog` entry.
+
+From `v0.8.0`, the regression baseline also covers local operations safety: the Admin Operations page
+must not execute host Docker/npm commands, health checks must use app-visible dependencies, and
+regression cleanup must delete only explicitly marked `RegressionDataMarker` records.

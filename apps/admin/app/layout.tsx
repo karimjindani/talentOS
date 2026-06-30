@@ -30,6 +30,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                 <Link href="/">Overview</Link>
                 <Link href="/applications">Applications</Link>
                 <Link href="/programs">Programs</Link>
+                <Link href="/operations">Operations</Link>
                 <Link href="/settings">Settings</Link>
                 <a className="mt-4 text-brand-blue" href={applicantUrl}>
                   Applicant portal

@@ -8,3 +8,4 @@ export * from "./programs";
 export * from "./users";
 export * from "./applications";
 export * from "./files";
+export * from "./regression";

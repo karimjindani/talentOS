@@ -332,3 +332,16 @@ model StoredFile {
   @@index([ownerUserId])
   @@map("stored_files")
 }
+
+model RegressionDataMarker {
+  id          String   @id @default(cuid())
+  runId       String
+  entityType  String
+  entityId    String
+  createdAt   DateTime @default(now())
+
+  @@unique([entityType, entityId])
+  @@index([runId])
+  @@index([entityType, entityId])
+  @@map("regression_data_markers")
+}

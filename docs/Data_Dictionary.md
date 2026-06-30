@@ -1,6 +1,6 @@
 # Data Dictionary
 
-Code version: `v0.7.3`
+Code version: `v0.8.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -9,6 +9,8 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 >
 > `v0.7.0` (Object storage) adds the `StoredFile` entity and the audit actions `file.created`,
 > `file.deleted` (migration `20260629101218_object_storage`).
+>
+> `v0.8.0` adds `RegressionDataMarker` for explicit regression cleanup boundaries.
 >
 > `v0.6.0` (Programs management) adds admin CRUD over `Program` and the audit actions `program.created`,
 > `program.updated`, `program.status_changed`.
@@ -114,6 +116,18 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 | `size` | Size in bytes. |
 | `category` | Logical grouping (e.g. `cv`, `program-material`). |
 | `status` | `PENDING` until the upload is confirmed, then `READY`. |
+
+## RegressionDataMarker
+
+| Field | Purpose |
+| --- | --- |
+| `id` | Unique marker ID. |
+| `runId` | Regression run identifier. |
+| `entityType` | Marked entity type, such as `Application`, `ApplicationAnswer`, `Program`, `User`, `TenantMembership` or `StoredFile`. |
+| `entityId` | ID of the marked entity. |
+| `createdAt` | Marker creation timestamp. |
+
+Cleanup must delete only marked records. Seeded and user-created unmarked records must remain untouched.
 
 ## Tenant Isolation
 
