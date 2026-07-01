@@ -6,7 +6,7 @@ Version: `v0.10.2`
 
 Baseline name: `Keycloak SSO Logout Fix`
 
-Baseline code commit: `pending`
+Baseline code commit: `3381f155698cf4f565b5aeb8d14c061fa6bd169f`
 
 Baseline date: `2026-07-01`
 
