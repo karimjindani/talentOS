@@ -42,6 +42,10 @@ export function createTalentosAuth(options: TalentosAuthOptions): NextAuthResult
           appToken.orgRole = primaryOrgRole(orgRoles);
           appToken.platformRole = extractSuperAdmin(realmRoles);
           appToken.keycloakSubjectId = (profile?.sub as string | undefined) ?? appToken.sub;
+          // Keep the id_token for RP-initiated logout (id_token_hint).
+          if (account.id_token) {
+            appToken.idToken = account.id_token;
+          }
         }
         return token;
       },
@@ -52,6 +56,7 @@ export function createTalentosAuth(options: TalentosAuthOptions): NextAuthResult
         session.user.platformRole = appToken.platformRole ?? null;
         session.user.isSuperAdmin = appToken.platformRole === "SUPER_ADMIN";
         session.user.keycloakSubjectId = appToken.keycloakSubjectId ?? null;
+        session.idToken = appToken.idToken ?? null;
         return session;
       }
     }

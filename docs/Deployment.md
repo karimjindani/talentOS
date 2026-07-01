@@ -1,11 +1,28 @@
 # Deployment
 
-Code version: `v0.10.1`
+Code version: `v0.10.2`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current deployment update: `v0.10.1`
+Current deployment update: `v0.10.2`
 
+> `v0.10.2` (Keycloak SSO logout fix) registers a post-logout redirect on both clients so RP-initiated
+> logout can return to the app. A fresh environment gets this from the realm import
+> (`attributes."post.logout.redirect.uris"`: admin `http://localhost:3200/*`, applicant
+> `http://localhost:3100/*`). For an **already-running** environment, patch the live clients
+> non-destructively:
+> ```
+> docker compose exec keycloak sh -c '
+>   kc=/opt/keycloak/bin/kcadm.sh
+>   $kc config credentials --server http://localhost:8080 --realm master --user admin --password admin
+>   aid=$($kc get clients -r talentos -q clientId=talentos-admin --fields id --format csv --noquotes)
+>   pid=$($kc get clients -r talentos -q clientId=talentos-applicant --fields id --format csv --noquotes)
+>   $kc update clients/$aid -r talentos -s "attributes={\"post.logout.redirect.uris\":\"http://localhost:3200/*\"}"
+>   $kc update clients/$pid -r talentos -s "attributes={\"post.logout.redirect.uris\":\"http://localhost:3100/*\"}"
+> '
+> ```
+> (The apps also now persist the Keycloak `id_token` for `id_token_hint`; no env change required.)
+>
 > `v0.10.1` (Keycloak OTP policy fix) pins the full TOTP policy in the realm import
 > (`otpPolicyType: totp`, `otpPolicyPeriod: 30`, `otpPolicyDigits: 6`, `HmacSHA1`, look-ahead 1).
 > Without a period, first-login authenticator-app setup returned a Keycloak internal server error

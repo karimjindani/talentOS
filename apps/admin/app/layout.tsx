@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SessionProvider } from "next-auth/react";
+import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { getTenantContext, brandStyleBlock } from "@talentos/ui";
+import { buildEndSessionUrl } from "@talentos/auth-web";
 import { getTenantBySlug } from "@talentos/db";
 import "./globals.css";
 
@@ -55,7 +57,15 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                   <form
                     action={async () => {
                       "use server";
-                      await signOut({ redirectTo: "/api/auth/signin" });
+                      const activeSession = await auth();
+                      const logoutUrl = buildEndSessionUrl({
+                        issuer: process.env.KEYCLOAK_ISSUER ?? "http://localhost:8080/realms/talentos",
+                        idToken: activeSession?.idToken,
+                        clientId: process.env.KEYCLOAK_CLIENT_ID ?? "talentos-admin",
+                        postLogoutRedirectUri: `${process.env.AUTH_URL ?? "http://localhost:3200"}/`
+                      });
+                      await signOut({ redirect: false });
+                      redirect(logoutUrl);
                     }}
                     className="mt-2"
                   >

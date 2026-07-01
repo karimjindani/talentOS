@@ -1,9 +1,11 @@
 # Data Model
 
-Code version: `v0.10.1`
+Code version: `v0.10.2`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.10.2` (Keycloak SSO logout fix) makes no schema change — auth/Keycloak configuration only.
+>
 > `v0.10.1` (Keycloak OTP policy fix) and `v0.10.0` (Super Admin Organizations console) make no
 > schema change; `v0.10.0` adds the audit action `organization.created` and reuses `Tenant`, `User`,
 > `TenantMembership`, `AuditLog`.
