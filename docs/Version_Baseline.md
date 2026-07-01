@@ -6,7 +6,7 @@ Version: `v0.10.0`
 
 Baseline name: `Super Admin Organizations Console`
 
-Baseline code commit: `pending`
+Baseline code commit: `1a0b78199ee5130df4564f4605d97d8d38bb6329`
 
 Baseline date: `2026-07-01`
 
