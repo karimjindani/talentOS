@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.10.1`
+Code version: `v0.10.2`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -60,6 +60,13 @@ The regression suite starts with security, tenant isolation and application work
 - The realm import declares `otpPolicyType: "totp"` with a non-zero `otpPolicyPeriod` and
   `otpPolicyDigits` (unit, `realm-otp.test.ts`) — guards against the divide-by-zero that broke
   first-login TOTP enrollment.
+
+### SSO Logout Tests (v0.10.2)
+
+- `buildEndSessionUrl` emits `id_token_hint` when available and falls back to `client_id`, always sets
+  `post_logout_redirect_uri`, and normalizes the issuer (unit, `logout.test.ts`).
+- Manual/endpoint check: a registered `post_logout_redirect_uri` returns 302 from the Keycloak
+  `end_session_endpoint`; an unregistered host returns 400 (no open redirect).
 
 ### Object Storage Tests (v0.7.0)
 

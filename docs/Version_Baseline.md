@@ -2,19 +2,29 @@
 
 ## Current Baseline
 
-Version: `v0.10.1`
+Version: `v0.10.2`
 
-Baseline name: `Keycloak OTP Policy Fix`
+Baseline name: `Keycloak SSO Logout Fix`
 
-Baseline code commit: `604c7bbe0979424641ce130c4e61decaf8012eaf`
+Baseline code commit: `3381f155698cf4f565b5aeb8d14c061fa6bd169f`
 
 Baseline date: `2026-07-01`
 
-Previous baseline: `v0.10.0`
+Previous baseline: `v0.10.1`
 
-Previous baseline commit: `1a0b78199ee5130df4564f4605d97d8d38bb6329`
+Previous baseline commit: `604c7bbe0979424641ce130c4e61decaf8012eaf`
 
 ## Baseline Summary
+
+`v0.10.2` is a patch fixing ineffective logout: after signing out, refreshing a portal silently
+re-authenticated the user because only the app's NextAuth cookie was cleared while the Keycloak SSO
+session stayed alive. The fix implements OIDC RP-initiated logout — the `id_token` is persisted on the
+session and both portals now redirect to Keycloak's `end_session_endpoint`
+(`id_token_hint` + `post_logout_redirect_uri`) after clearing the app cookie, terminating the SSO
+session. A shared `buildEndSessionUrl` helper (`packages/auth-web/src/logout.ts`) builds the URL; both
+Keycloak clients register `post.logout.redirect.uris` (live-patched via `kcadm.sh`, and added to the
+realm import). Verified: valid post-logout redirect → 302, arbitrary URL → 400 (no open redirect). No
+schema change; the regression suite grew from 47 to 50 tests. See `D-050`.
 
 `v0.10.1` is a patch fixing an internal server error on first-login authenticator-app (TOTP) setup. The
 realm import (`keycloak/import/talentos-realm.json`) declared `otpPolicyType: "totp"` but omitted the

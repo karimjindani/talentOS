@@ -3,6 +3,8 @@ import type { PlatformRole, TenantRole } from "@talentos/auth/rbac";
 
 declare module "next-auth" {
   interface Session {
+    // Keycloak id_token, used as id_token_hint for RP-initiated (SSO) logout.
+    idToken?: string | null;
     user: {
       roles: TenantRole[];
       orgRole: TenantRole | null;
@@ -20,4 +22,5 @@ export type AppToken = {
   orgRole?: TenantRole | null;
   platformRole?: PlatformRole | null;
   keycloakSubjectId?: string;
+  idToken?: string;
 };

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
+import { buildEndSessionUrl } from "@talentos/auth-web";
 import { getTenantBySlug } from "@talentos/db";
 
 type PortalHeaderProps = {
@@ -28,7 +30,15 @@ export async function PortalHeader({ tenantSlug }: PortalHeaderProps) {
               <form
                 action={async () => {
                   "use server";
-                  await signOut({ redirectTo: "/" });
+                  const activeSession = await auth();
+                  const logoutUrl = buildEndSessionUrl({
+                    issuer: process.env.KEYCLOAK_ISSUER ?? "http://localhost:8080/realms/talentos",
+                    idToken: activeSession?.idToken,
+                    clientId: process.env.KEYCLOAK_CLIENT_ID ?? "talentos-applicant",
+                    postLogoutRedirectUri: `${process.env.AUTH_URL ?? "http://localhost:3100"}/`
+                  });
+                  await signOut({ redirect: false });
+                  redirect(logoutUrl);
                 }}
               >
                 <button type="submit" className="text-brand-blue">

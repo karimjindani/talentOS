@@ -1,9 +1,11 @@
 # Data Dictionary
 
-Code version: `v0.10.1`
+Code version: `v0.10.2`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.10.2` (Keycloak SSO logout fix) is an auth/Keycloak configuration fix — no data-model change.
+>
 > `v0.10.1` (Keycloak OTP policy fix) is a Keycloak realm configuration fix — no data-model change.
 >
 > `v0.10.0` (Super Admin Organizations console) adds the audit action `organization.created`. No schema

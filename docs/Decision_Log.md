@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.10.1`
+Code version: `v0.10.2`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.10.1`
+Current documentation update: `v0.10.2`
 
 ## D-001
 
@@ -297,5 +297,11 @@ Status: Approved
 ## D-049
 
 `v0.10.1` fixes an internal server error on first-login authenticator-app (TOTP) enrollment. The realm import declared `otpPolicyType: "totp"` but omitted the period, so Keycloak used `otpPolicyPeriod = 0` and threw `ArithmeticException: / by zero` in `TimeBasedOTP.getCurrentInterval`. Decision: pin the full OTP policy in `keycloak/import/talentos-realm.json` (period 30, digits 6, HmacSHA1, initial counter 0, look-ahead 1) so fresh imports are correct, and apply the same policy live to the already-running realm via `kcadm.sh` (non-destructive — no volume recreation, no user data loss). A regression test (`packages/auth-web/src/realm-otp.test.ts`) guards a non-zero OTP period. No application code, schema, or data-model change.
+
+Status: Approved
+
+## D-050
+
+`v0.10.2` fixes ineffective logout (SSO session survived logout; a page refresh re-authenticated the user). Root cause: NextAuth `signOut()` cleared only the app cookie, never Keycloak's SSO session, and the `id_token` was not persisted. Decision: implement OIDC RP-initiated logout — persist `account.id_token` on the JWT/session and, after `signOut({ redirect: false })`, redirect the browser to Keycloak's `end_session_endpoint` with `id_token_hint` (fallback `client_id`) and `post_logout_redirect_uri` via a shared pure helper `buildEndSessionUrl` (`packages/auth-web/src/logout.ts`). Both clients register `post.logout.redirect.uris` (explicit per-origin `http://localhost:3200/*` / `http://localhost:3100/*`) in the realm import, applied live via `kcadm.sh`. Accepted trade-off: the `id_token` is exposed via the user's own `/api/auth/session` endpoint — standard practice for RP-initiated logout and not a cross-user leak. Open-redirect is prevented by Keycloak's per-client redirect allowlist (valid → 302, arbitrary host → 400). No schema or data-model change.
 
 Status: Approved
