@@ -33,6 +33,11 @@ export function resolveTenantFromHost(
   return { tenantSlug: defaultTenantSlug, source: "default" };
 }
 
+// Tenant slugs become subdomains, so restrict to DNS-safe lowercase labels.
+export function isValidTenantSlug(slug: string): boolean {
+  return /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/.test(slug);
+}
+
 function normalizeHost(hostHeader: string | null | undefined): string {
   return (hostHeader ?? "")
     .toLowerCase()

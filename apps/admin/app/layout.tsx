@@ -41,6 +41,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                 <Link href="/programs">Programs</Link>
                 <Link href="/operations">Operations</Link>
                 <Link href="/settings">Settings</Link>
+                {session?.user?.isSuperAdmin ? (
+                  <Link href="/organizations">Organizations</Link>
+                ) : null}
                 <a className="mt-4 text-brand-blue" href={applicantUrl}>
                   Applicant portal
                 </a>
