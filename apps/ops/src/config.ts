@@ -6,14 +6,32 @@ const appDir = dirname(fileURLToPath(import.meta.url));
 
 export const REPO_ROOT = resolve(appDir, "../../..");
 export const OPS_RUNS_DIR = resolve(REPO_ROOT, ".ops/runs");
+export const OPS_CONFIG_FILE = resolve(REPO_ROOT, ".ops/config.json");
+
+export type OpsKeycloakClient = {
+  clientId: string;
+  clientSecret: string;
+};
 
 let envLoaded = false;
 
 export type OpsConfig = {
   host: string;
   port: number;
-  token: string;
   repoRoot: string;
+  baseUrl: string;
+  sessionSecret: string;
+  sessionCookieName: string;
+  loginCookieName: string;
+  sessionMaxAgeSeconds: number;
+  allowedRoles: string[];
+  keycloak: {
+    issuer: string;
+    browserIssuer: string;
+    redirectUri: string;
+    normalClient: OpsKeycloakClient;
+    mfaClient: OpsKeycloakClient;
+  };
 };
 
 export function loadDotEnv(envPath = resolve(REPO_ROOT, ".env")) {
@@ -42,10 +60,47 @@ export function loadDotEnv(envPath = resolve(REPO_ROOT, ".env")) {
 export function getOpsConfig(): OpsConfig {
   loadDotEnv();
   const port = Number(process.env.OPS_PORT ?? 3300);
+  const host = process.env.OPS_HOST ?? "127.0.0.1";
+  const resolvedPort = Number.isFinite(port) ? port : 3300;
+  const baseUrl = trimTrailingSlash(process.env.OPS_BASE_URL ?? `http://${host}:${resolvedPort}`);
+  const issuer = trimTrailingSlash(process.env.KEYCLOAK_ISSUER ?? "http://host.docker.internal:8080/realms/talentos");
   return {
-    host: process.env.OPS_HOST ?? "127.0.0.1",
-    port: Number.isFinite(port) ? port : 3300,
-    token: process.env.OPS_TOKEN ?? "",
-    repoRoot: REPO_ROOT
+    host,
+    port: resolvedPort,
+    repoRoot: REPO_ROOT,
+    baseUrl,
+    sessionSecret: process.env.OPS_SESSION_SECRET ?? process.env.NEXTAUTH_SECRET ?? "local-ops-session-secret",
+    sessionCookieName: "talentos_ops_session",
+    loginCookieName: "talentos_ops_login",
+    sessionMaxAgeSeconds: Number(process.env.OPS_SESSION_MAX_AGE_SECONDS ?? 8 * 60 * 60),
+    allowedRoles: parseList(process.env.OPS_ALLOWED_ROLES ?? "SUPER_ADMIN,ORG_ADMIN"),
+    keycloak: {
+      issuer,
+      browserIssuer: trimTrailingSlash(
+        process.env.OPS_KEYCLOAK_BROWSER_ISSUER ??
+          process.env.KEYCLOAK_BROWSER_ISSUER ??
+          issuer
+      ),
+      redirectUri: process.env.OPS_KEYCLOAK_REDIRECT_URI ?? `${baseUrl}/auth/callback`,
+      normalClient: {
+        clientId: process.env.OPS_KEYCLOAK_CLIENT_ID ?? "talentos-ops",
+        clientSecret: process.env.OPS_KEYCLOAK_CLIENT_SECRET ?? "talentos-ops-secret"
+      },
+      mfaClient: {
+        clientId: process.env.OPS_KEYCLOAK_MFA_CLIENT_ID ?? "talentos-ops-mfa",
+        clientSecret: process.env.OPS_KEYCLOAK_MFA_CLIENT_SECRET ?? "talentos-ops-mfa-secret"
+      }
+    }
   };
+}
+
+function parseList(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function trimTrailingSlash(value: string) {
+  return value.replace(/\/+$/, "");
 }

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@talentos/auth": "0.1.1",
-    "@talentos/db": "0.1.1"
+    "@talentos/db": "0.1.1",
+    "jose": "^6.2.3"
   }
 }

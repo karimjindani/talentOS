@@ -1,16 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { extractBearerToken, isAuthorized } from "./security";
+import { canAccessOpsConsole, extractRealmRoles, primaryOpsRole } from "./security";
 
-describe("ops token auth", () => {
-  it("extracts bearer tokens", () => {
-    expect(extractBearerToken("Bearer abc123")).toBe("abc123");
-    expect(extractBearerToken("Basic abc123")).toBeNull();
+describe("ops Keycloak role auth", () => {
+  it("extracts Keycloak realm roles", () => {
+    expect(extractRealmRoles({ realm_access: { roles: ["ORG_ADMIN", "offline_access", 123] } })).toEqual([
+      "ORG_ADMIN",
+      "offline_access"
+    ]);
+    expect(extractRealmRoles({})).toEqual([]);
   });
 
-  it("accepts only the configured token", () => {
-    expect(isAuthorized("Bearer secret", "secret")).toBe(true);
-    expect(isAuthorized("Bearer wrong", "secret")).toBe(false);
-    expect(isAuthorized(undefined, "secret")).toBe(false);
-    expect(isAuthorized("Bearer secret", "")).toBe(false);
+  it("allows only configured ops roles", () => {
+    const allowedRoles = ["SUPER_ADMIN", "ORG_ADMIN"];
+    expect(canAccessOpsConsole(["SUPER_ADMIN"], allowedRoles)).toBe(true);
+    expect(canAccessOpsConsole(["ORG_ADMIN"], allowedRoles)).toBe(true);
+    expect(canAccessOpsConsole(["HR"], allowedRoles)).toBe(false);
+    expect(canAccessOpsConsole(["TECH_LEAD"], allowedRoles)).toBe(false);
+    expect(canAccessOpsConsole(["APPLICANT"], allowedRoles)).toBe(false);
+    expect(primaryOpsRole(["APPLICANT", "ORG_ADMIN"], allowedRoles)).toBe("ORG_ADMIN");
   });
 });
