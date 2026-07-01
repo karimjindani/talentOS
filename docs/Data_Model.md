@@ -1,9 +1,17 @@
 # Data Model
 
-Code version: `v0.8.0`
+Code version: `v0.10.1`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.10.1` (Keycloak OTP policy fix) and `v0.10.0` (Super Admin Organizations console) make no
+> schema change; `v0.10.0` adds the audit action `organization.created` and reuses `Tenant`, `User`,
+> `TenantMembership`, `AuditLog`.
+>
+> `v0.9.0` (Tenant settings / white-label) adds `Tenant.logoFileId` (unique, optional FK → `StoredFile`,
+> `onDelete: SetNull`) linking a tenant to its uploaded logo, plus the audit action
+> `tenant.branding_updated`. Schema change — migration `20260701120000_tenant_logo_file_id`.
+>
 > `v0.7.3` (Applicant CV & profile links) adds `cvFileId` (unique, optional FK → `StoredFile`,
 > `onDelete: SetNull`), `githubUrl` and `linkedinUrl` to `Application`, giving each application one
 > optional stored CV and two optional profile links. Schema change — migration

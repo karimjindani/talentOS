@@ -10,6 +10,11 @@
   "defaultRoles": ["APPLICANT"],
   "passwordPolicy": "length(12) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and notUsername(undefined) and passwordHistory(5)",
   "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "otpPolicyInitialCounter": 0,
+  "otpPolicyLookAheadWindow": 1,
   "roles": {
     "realm": [
       { "name": "SUPER_ADMIN", "description": "Platform super admin: creates organizations and org admins" },

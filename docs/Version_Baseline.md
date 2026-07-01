@@ -2,19 +2,28 @@
 
 ## Current Baseline
 
-Version: `v0.10.0`
+Version: `v0.10.1`
 
-Baseline name: `Super Admin Organizations Console`
+Baseline name: `Keycloak OTP Policy Fix`
 
-Baseline code commit: `1a0b78199ee5130df4564f4605d97d8d38bb6329`
+Baseline code commit: `pending`
 
 Baseline date: `2026-07-01`
 
-Previous baseline: `v0.9.0`
+Previous baseline: `v0.10.0`
 
-Previous baseline commit: `6c1cc926637ca3823c10a49059588232114f11fd`
+Previous baseline commit: `1a0b78199ee5130df4564f4605d97d8d38bb6329`
 
 ## Baseline Summary
+
+`v0.10.1` is a patch fixing an internal server error on first-login authenticator-app (TOTP) setup. The
+realm import (`keycloak/import/talentos-realm.json`) declared `otpPolicyType: "totp"` but omitted the
+period, so Keycloak used `otpPolicyPeriod = 0` and threw `ArithmeticException: / by zero` in
+`TimeBasedOTP.getCurrentInterval` when validating the enrollment code. The fix adds the full OTP policy
+(period 30, digits 6, HmacSHA1, look-ahead 1) to the realm import and applies the same policy live to
+the running realm via `kcadm.sh`. A new regression test (`packages/auth-web/src/realm-otp.test.ts`)
+asserts a non-zero OTP period so the misconfiguration cannot silently return. No application code,
+schema, or data-model change. The regression suite grew from 46 to 47 tests. See `D-049`.
 
 `v0.10.0` adds a SUPER_ADMIN-only Organizations console to the Admin Portal, filling the gap where new
 tenants could previously be created only by the DB seed script. A new `/organizations` page lists all

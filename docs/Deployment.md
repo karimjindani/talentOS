@@ -1,11 +1,26 @@
 # Deployment
 
-Code version: `v0.7.3`
+Code version: `v0.10.1`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current deployment update: `v0.7.3`
+Current deployment update: `v0.10.1`
 
+> `v0.10.1` (Keycloak OTP policy fix) pins the full TOTP policy in the realm import
+> (`otpPolicyType: totp`, `otpPolicyPeriod: 30`, `otpPolicyDigits: 6`, `HmacSHA1`, look-ahead 1).
+> Without a period, first-login authenticator-app setup returned a Keycloak internal server error
+> (`ArithmeticException: / by zero`). For an **already-running** environment, apply the policy live
+> without recreating the volume:
+> ```
+> docker compose exec keycloak /opt/keycloak/bin/kcadm.sh config credentials \
+>   --server http://localhost:8080 --realm master --user admin --password admin
+> docker compose exec keycloak /opt/keycloak/bin/kcadm.sh update realms/talentos \
+>   -s otpPolicyType=totp -s otpPolicyAlgorithm=HmacSHA1 -s otpPolicyDigits=6 \
+>   -s otpPolicyPeriod=30 -s otpPolicyInitialCounter=0 -s otpPolicyLookAheadWindow=1
+> ```
+> A fresh environment (clean `talentos-keycloak-postgres` volume) imports the corrected policy
+> automatically. Users who scanned the broken QR must delete that authenticator entry and re-enroll.
+>
 > `v0.7.1` (Applicant self-signup) enables Keycloak self-registration in the realm import
 > (`registrationAllowed`, default role `APPLICANT`). No topology change. Applying it to an existing
 > environment requires re-importing the realm (recreate the `talentos-keycloak-postgres` volume) or

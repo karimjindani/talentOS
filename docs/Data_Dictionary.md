@@ -1,9 +1,11 @@
 # Data Dictionary
 
-Code version: `v0.10.0`
+Code version: `v0.10.1`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.10.1` (Keycloak OTP policy fix) is a Keycloak realm configuration fix — no data-model change.
+>
 > `v0.10.0` (Super Admin Organizations console) adds the audit action `organization.created`. No schema
 > change — tenant creation reuses `Tenant`, `User`, `TenantMembership` and `AuditLog`.
 >

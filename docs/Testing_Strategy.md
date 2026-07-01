@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.8.0`
+Code version: `v0.10.1`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -47,6 +47,19 @@ The regression suite starts with security, tenant isolation and application work
 - Admin program CRUD enforces `managePrograms` (HR/TECH_LEAD read-only), is tenant-scoped, and writes
   `program.created`/`program.updated`/`program.status_changed` audit rows.
 - Only `PUBLISHED` programs appear on the applicant apply form; archiving removes them.
+
+### Tenant Settings & Organizations Tests (v0.9.0 / v0.10.0)
+
+- `manageTenantSettings` is granted only to ORG_ADMIN/SUPER_ADMIN; branding writes are hex-validated
+  and audited (`tenant.branding_updated`).
+- `createOrganization` is SUPER_ADMIN-only; `isValidTenantSlug` rejects non-DNS-safe slugs
+  (unit, `auth.test.ts`); tenant creation writes `organization.created` and an ORG_ADMIN membership.
+
+### Keycloak OTP Policy Guard (v0.10.1)
+
+- The realm import declares `otpPolicyType: "totp"` with a non-zero `otpPolicyPeriod` and
+  `otpPolicyDigits` (unit, `realm-otp.test.ts`) — guards against the divide-by-zero that broke
+  first-login TOTP enrollment.
 
 ### Object Storage Tests (v0.7.0)
 
