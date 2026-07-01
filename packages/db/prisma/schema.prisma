@@ -69,6 +69,9 @@ model Tenant {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
+  logoFileId      String?            @unique
+  logoFile        StoredFile?        @relation("TenantLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
+
   memberships     TenantMembership[]
   programs        Program[]
   applications    Application[]
@@ -327,6 +330,7 @@ model StoredFile {
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   owner        User?        @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
   cvForApplication Application? @relation("ApplicationCv")
+  logoForTenant    Tenant?      @relation("TenantLogo")
 
   @@index([tenantId, category])
   @@index([ownerUserId])

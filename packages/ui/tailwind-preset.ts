@@ -9,9 +9,9 @@ const preset: Partial<Config> = {
     extend: {
       colors: {
         brand: {
-          navy: "#0f172a",
-          blue: "#2563eb",
-          mist: "#eff6ff"
+          navy: "var(--brand-navy, #0f172a)",
+          blue: "var(--brand-blue, #2563eb)",
+          mist: "var(--brand-mist, #eff6ff)"
         }
       }
     }

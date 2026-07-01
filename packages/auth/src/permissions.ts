@@ -9,7 +9,8 @@ export type Capability =
   | "managePrograms"
   | "reviewApplications"
   | "evaluateTechnical"
-  | "accessApplicantPortal";
+  | "accessApplicantPortal"
+  | "manageTenantSettings";
 
 // Org-role → capabilities. SUPER_ADMIN is handled separately (platform-level, all capabilities).
 const ROLE_CAPABILITIES: Record<TenantRole, readonly Capability[]> = {
@@ -18,7 +19,8 @@ const ROLE_CAPABILITIES: Record<TenantRole, readonly Capability[]> = {
     "assignOrgRoles",
     "managePrograms",
     "reviewApplications",
-    "evaluateTechnical"
+    "evaluateTechnical",
+    "manageTenantSettings"
   ],
   HR: ["reviewApplications"],
   TECH_LEAD: ["evaluateTechnical"],
@@ -50,7 +52,8 @@ export function capabilitiesFor(actor: ActorRoles): Capability[] {
       "assignOrgRoles",
       "managePrograms",
       "reviewApplications",
-      "evaluateTechnical"
+      "evaluateTechnical",
+      "manageTenantSettings"
     ];
   }
   return actor.orgRole ? [...ROLE_CAPABILITIES[actor.orgRole]] : [];

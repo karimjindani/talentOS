@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SessionProvider } from "next-auth/react";
 import { auth, signOut } from "@/auth";
+import { getTenantContext, brandStyleBlock } from "@talentos/ui";
+import { getTenantBySlug } from "@talentos/db";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "TalentOS Admin",
+  title: "Admin Portal",
   description: "Program administration portal for TalentOS tenant owners and admins"
 };
 
@@ -19,13 +21,20 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       : (session.user.orgRole ?? "—")
     : null;
 
+  const { tenantSlug } = await getTenantContext();
+  const tenant = await getTenantBySlug(tenantSlug);
+  const tenantName = tenant?.name ?? "TalentOS";
+
   return (
     <html lang="en">
+      <head>
+        <style dangerouslySetInnerHTML={{ __html: brandStyleBlock(tenant) }} />
+      </head>
       <body>
         <SessionProvider>
           <div className="min-h-screen bg-slate-100">
             <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-slate-200 bg-white p-6 md:flex">
-              <h1 className="text-xl font-bold">TalentOS Admin</h1>
+              <h1 className="text-xl font-bold">{tenantName} Admin</h1>
               <nav className="mt-8 grid gap-3 text-sm text-slate-700">
                 <Link href="/">Overview</Link>
                 <Link href="/applications">Applications</Link>

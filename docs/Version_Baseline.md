@@ -2,19 +2,21 @@
 
 ## Current Baseline
 
-Version: `v0.8.0`
+Version: `v0.9.0`
 
-Baseline name: `Admin Operations Page`
+Baseline name: `Tenant Settings / White-label Configuration`
 
-Baseline code commit: `75e8a1e42b44f04b316fa165b6c232be0f70ab26`
+Baseline code commit: `pending`
 
-Baseline date: `2026-06-30`
+Baseline date: `2026-07-01`
 
-Previous baseline: `v0.7.3`
+Previous baseline: `v0.8.0`
 
-Previous baseline commit: `a921fc0`
+Previous baseline commit: `75e8a1e42b44f04b316fa165b6c232be0f70ab26`
 
 ## Baseline Summary
+
+`v0.9.0` makes white-labelling real: an admin-gated Settings page (ORG_ADMIN + SUPER_ADMIN only) lets each tenant configure their organisation name, primary/secondary brand colors, and logo. Brand colors are applied live across both portals using CSS custom properties (`--brand-blue`, `--brand-navy`, `--brand-mist`) injected as a per-tenant `<style>` block in each root layout; Tailwind classes reference `var()` with hex fallbacks so all existing brand-class usages become dynamically themable with zero component changes. Logos are stored in MinIO as `StoredFile` records (`Tenant.logoFileId` FK, migration `20260701120000_tenant_logo_file_id`). The applicant portal header shows the tenant name and logo, served via a new public unauthenticated route `/api/branding/logo` (IDOR-safe, 302 presigned redirect). A new `manageTenantSettings` capability gates the settings page and server action, backed by audit log (`tenant.branding_updated`). The regression suite grew from 44 to 45 tests. See `D-047`.
 
 `v0.8.0` adds a local-development Operations page to the Admin Portal. The page provides live
 app-visible health checks, copyable regression/reset commands, and a safe regression data cleanup

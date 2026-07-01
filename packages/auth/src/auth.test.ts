@@ -64,6 +64,14 @@ describe("capability matrix", () => {
     expect(can("accessApplicantPortal", { orgRole: "APPLICANT" })).toBe(true);
     expect(can("manageTenantUsers", { orgRole: "APPLICANT" })).toBe(false);
   });
+
+  it("allows only org-admin and super-admin to manage tenant settings", () => {
+    expect(can("manageTenantSettings", { platformRole: "SUPER_ADMIN" })).toBe(true);
+    expect(can("manageTenantSettings", { orgRole: "ORG_ADMIN" })).toBe(true);
+    expect(can("manageTenantSettings", { orgRole: "HR" })).toBe(false);
+    expect(can("manageTenantSettings", { orgRole: "TECH_LEAD" })).toBe(false);
+    expect(can("manageTenantSettings", { orgRole: "APPLICANT" })).toBe(false);
+  });
 });
 
 describe("tenant isolation", () => {

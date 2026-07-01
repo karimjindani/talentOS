@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
+import { getTenantBySlug } from "@talentos/db";
 
 type PortalHeaderProps = {
   tenantSlug: string;
@@ -7,17 +8,19 @@ type PortalHeaderProps = {
 
 export async function PortalHeader({ tenantSlug }: PortalHeaderProps) {
   const session = await auth();
+  const tenant = await getTenantBySlug(tenantSlug);
 
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link href="/" className="text-xl font-semibold text-brand-navy">
-          TalentOS
+        <Link href="/" className="flex items-center gap-2 text-xl font-semibold text-brand-navy">
+          {tenant?.logoFileId ? (
+            <img src="/api/branding/logo" alt={tenant.name} className="h-8 w-auto" />
+          ) : (
+            <span>{tenant?.name ?? "TalentOS"}</span>
+          )}
         </Link>
         <nav className="flex items-center gap-4 text-sm text-slate-600">
-          <span className="rounded-full bg-brand-mist px-3 py-1 text-brand-blue">
-            Tenant: {tenantSlug}
-          </span>
           <Link href="/apply">Apply</Link>
           {session?.user ? (
             <>
