@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.7.1`
+Code version: `v0.10.2`
 
-Documentation update: `Applicant self-signup (Keycloak self-registration) delivered`
+Documentation update: `Tenant settings / white-label, Organizations console, and Keycloak OTP/SSO-logout fixes delivered (through v0.10.2)`
 
 ## MVP
 
@@ -41,13 +41,29 @@ Documentation update: `Applicant self-signup (Keycloak self-registration) delive
   - Next (`v0.3.1`): full Admin Portal user/role management UI via the Keycloak Admin REST API
     (auto-provision Keycloak users + realm roles).
 
-- Separate Admin and Applicant Portals
-  - The Admin Portal and Applicant Portal should become two separate portal surfaces.
-  - The current `v0.1.1` scaffold serves both portal shells from one Next.js app, but this is not the long-term architecture.
+- Separate Admin and Applicant Portals — delivered in `v0.2.0`
+  - The Admin Portal and Applicant Portal are two separate Next.js applications, each in its own Docker
+    container, sharing only the `packages/*` libraries. As of `v0.2.1` the applicant portal exposes no
+    administrator navigation.
 
 - Object storage foundation — delivered in `v0.7.0`
   - MinIO (S3-compatible) self-hosted object storage with presigned upload/download and tenant-scoped
     `StoredFile` metadata. Enables future CV uploads, program materials, certificates and portfolio assets.
+  - Applied in `v0.7.3` (CV-on-apply) and `v0.9.0` (tenant logo upload).
+
+- Tenant settings / white-label configuration — delivered in `v0.9.0`
+  - Admin-gated (`manageTenantSettings`) branding: organization name, brand colors and logo, persisted,
+    audited (`tenant.branding_updated`) and applied live to both portals via CSS variables. Logos are
+    stored in MinIO (`Tenant.logoFileId`).
+
+- Super Admin Organizations console — delivered in `v0.10.0`
+  - SUPER_ADMIN can create tenants and assign the first ORG_ADMIN by email (DB `User` +
+    `TenantMembership`), audited as `organization.created`; the matching Keycloak realm-role grant is
+    still manual pending the Keycloak Admin REST API (`v0.3.1`).
+
+- Admin Operations dashboard — delivered in `v0.8.0`
+  - Local-development health checks, copyable regression commands and marker-based cleanup guidance;
+    does not execute Docker/npm host commands.
 
 ### MVP Engineering Deliverables
 
