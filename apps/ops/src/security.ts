@@ -1,17 +1,12 @@
-import { timingSafeEqual } from "node:crypto";
-
-export function extractBearerToken(header: string | string[] | undefined): string | null {
-  const value = Array.isArray(header) ? header[0] : header;
-  if (!value) return null;
-  const match = /^Bearer\s+(.+)$/i.exec(value.trim());
-  return match ? match[1] : null;
+export function extractRealmRoles(payload: { realm_access?: { roles?: unknown } }): string[] {
+  const roles = payload.realm_access?.roles;
+  return Array.isArray(roles) ? roles.filter((role): role is string => typeof role === "string") : [];
 }
 
-export function isAuthorized(header: string | string[] | undefined, expectedToken: string): boolean {
-  const receivedToken = extractBearerToken(header);
-  if (!receivedToken || !expectedToken) return false;
+export function canAccessOpsConsole(roles: readonly string[], allowedRoles: readonly string[]): boolean {
+  return roles.some((role) => allowedRoles.includes(role));
+}
 
-  const received = Buffer.from(receivedToken);
-  const expected = Buffer.from(expectedToken);
-  return received.length === expected.length && timingSafeEqual(received, expected);
+export function primaryOpsRole(roles: readonly string[], allowedRoles: readonly string[]): string | null {
+  return allowedRoles.find((role) => roles.includes(role)) ?? null;
 }

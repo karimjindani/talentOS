@@ -24,7 +24,97 @@
       { "name": "APPLICANT", "description": "Applies, participates, submits work" }
     ]
   },
+  "authenticationFlows": [
+    {
+      "id": "10000000-0000-4000-8000-000000000329",
+      "alias": "talentos ops password browser",
+      "description": "Browser login for the local Ops console without Keycloak TOTP.",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-username-password-form",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000330",
+      "alias": "talentos ops mfa browser",
+      "description": "Browser login for the local Ops console with Keycloak TOTP required.",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-username-password-form",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    }
+  ],
   "clients": [
+    {
+      "clientId": "talentos-ops",
+      "name": "TalentOS Local Operations Console",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "talentos-ops-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://127.0.0.1:3300/auth/callback",
+        "http://localhost:3300/auth/callback"
+      ],
+      "webOrigins": ["http://127.0.0.1:3300", "http://localhost:3300"],
+      "attributes": {
+        "post.logout.redirect.uris": "http://127.0.0.1:3300/*##http://localhost:3300/*"
+      },
+      "authenticationFlowBindingOverrides": {
+        "browser": "10000000-0000-4000-8000-000000000329"
+      },
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email"]
+    },
+    {
+      "clientId": "talentos-ops-mfa",
+      "name": "TalentOS Local Operations Console MFA",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "talentos-ops-mfa-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://127.0.0.1:3300/auth/callback",
+        "http://localhost:3300/auth/callback"
+      ],
+      "webOrigins": ["http://127.0.0.1:3300", "http://localhost:3300"],
+      "attributes": {
+        "post.logout.redirect.uris": "http://127.0.0.1:3300/*##http://localhost:3300/*"
+      },
+      "authenticationFlowBindingOverrides": {
+        "browser": "10000000-0000-4000-8000-000000000330"
+      },
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email"]
+    },
     {
       "clientId": "talentos-applicant",
       "name": "TalentOS Applicant Portal",

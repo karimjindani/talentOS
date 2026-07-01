@@ -42,14 +42,24 @@ export function renderIndex() {
     <section class="panel actions">
       <div class="section-head">
         <h2>Actions</h2>
-        <p>Token is stored only in this browser session.</p>
+        <p>Keycloak session controls access. 2FA changes apply on next login.</p>
       </div>
       <div class="action-grid">
-        <div class="token-box">
-          <label for="token">Operations token</label>
-          <div class="token-input-wrap">
-            <input id="token" type="password" autocomplete="off" placeholder="Paste OPS_TOKEN from .env" />
-            <span id="tokenState" class="token-state">Required</span>
+        <div class="auth-box">
+          <div>
+            <div class="panel-kicker">Keycloak session</div>
+            <h3 id="sessionTitle">Checking session</h3>
+            <p id="sessionDetail">Validating local operations access.</p>
+          </div>
+          <div class="auth-controls">
+            <label class="switch-row" for="mfaToggle">
+              <span>
+                <strong>Require 2FA</strong>
+                <small>Applies on next login</small>
+              </span>
+              <input id="mfaToggle" type="checkbox" role="switch" />
+            </label>
+            <a id="logoutLink" class="auth-button" href="/logout">Logout</a>
           </div>
         </div>
         <div class="command-bar" aria-label="Operations actions">
@@ -71,7 +81,7 @@ export function renderIndex() {
           </button>
         </div>
       </div>
-      <p id="summary" class="notice info">Paste the local OPS_TOKEN to enable controls.</p>
+      <p id="summary" class="notice info">Loading Keycloak session.</p>
     </section>
 
     <section class="panel">
@@ -360,50 +370,110 @@ time { font-variant-numeric: tabular-nums; }
   gap: 12px;
   align-items: end;
 }
-.token-box label {
-  display: block;
-  margin-bottom: 6px;
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 800;
-}
-.token-input-wrap { position: relative; }
-input {
-  width: 100%;
-  min-height: 44px;
-  border: 1px solid var(--input-border);
-  border-radius: 8px;
-  background: var(--input-bg);
-  color: var(--ink);
-  font-size: 14px;
-  outline: none;
-  padding: 11px 98px 11px 12px;
-  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
-}
-input:hover { border-color: var(--input-hover-border); }
-input:focus {
-  border-color: var(--blue);
-  background: var(--input-focus-bg);
-  box-shadow: var(--input-focus-shadow);
-}
-.token-state {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+.auth-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
   border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 10px 12px;
+}
+.auth-box h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.auth-box p {
+  font-size: 12px;
+}
+.auth-controls {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.switch-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--ink);
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.switch-row strong,
+.switch-row small {
+  display: block;
+  line-height: 1.1;
+}
+.switch-row strong {
+  font-size: 12px;
+}
+.switch-row small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+.switch-row input {
+  appearance: none;
+  position: relative;
+  width: 42px;
+  height: 22px;
+  border: 1px solid var(--input-border);
   border-radius: 999px;
   background: var(--chip-bg);
-  color: var(--muted);
-  padding: 4px 9px;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
 }
-.token-state.ready {
+.switch-row input::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--muted);
+  transition: transform 140ms ease, background 140ms ease;
+}
+.switch-row input:checked {
   border-color: var(--green-border);
   background: var(--green-soft);
-  color: var(--green);
+}
+.switch-row input:checked::before {
+  background: var(--green);
+  transform: translateX(19px);
+}
+.switch-row input:focus-visible,
+.auth-button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.auth-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--navy);
+  color: white;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 8px 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.auth-button:hover {
+  filter: brightness(1.05);
 }
 .command-bar {
   display: grid;
@@ -676,8 +746,8 @@ pre::-webkit-scrollbar-track { background: var(--console-bg); }
   .top-meta { margin-top: 10px; }
   .command-bar { grid-template-columns: 1fr 1fr; }
   .command-button { text-align: center; }
-  input { padding-right: 12px; }
-  .token-state { position: static; display: inline-flex; margin-top: 7px; transform: none; }
+  .auth-box { display: block; }
+  .auth-controls { justify-content: start; margin-top: 10px; }
   .step { grid-template-columns: 1fr; }
   .step-meta { justify-content: start; }
 }
@@ -689,8 +759,9 @@ pre::-webkit-scrollbar-track { background: var(--console-bg); }
 `;
 
 export const appJs = `
-const tokenInput = document.getElementById("token");
-const tokenState = document.getElementById("tokenState");
+const sessionTitle = document.getElementById("sessionTitle");
+const sessionDetail = document.getElementById("sessionDetail");
+const mfaToggle = document.getElementById("mfaToggle");
 const components = document.getElementById("components");
 const componentSummary = document.getElementById("componentSummary");
 const browserChecks = document.getElementById("browserChecks");
@@ -711,6 +782,7 @@ const themeLabel = document.getElementById("themeLabel");
 const buttons = [...document.querySelectorAll(".command-button")];
 let busy = false;
 let activeButtonId = "";
+let opsState = { authenticated: false, user: null, ops2faEnabled: false };
 const jobCopy = {
   regression: {
     eyebrow: "API regression suite",
@@ -734,11 +806,9 @@ const jobCopy = {
     outputMeta: "Console output from Docker, Prisma, and seed commands."
   }
 };
-const savedToken = sessionStorage.getItem("opsToken");
-if (savedToken) tokenInput.value = savedToken;
 setTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light", false);
-updateTokenState();
 setBusy(false);
+loadOpsState();
 
 function tickClock() {
   document.getElementById("clock").textContent = new Date().toLocaleString();
@@ -746,15 +816,25 @@ function tickClock() {
 tickClock();
 setInterval(tickClock, 1000);
 
-tokenInput.addEventListener("input", () => {
-  sessionStorage.setItem("opsToken", tokenInput.value);
-  updateTokenState();
-  setBusy(busy);
-});
-
 themeToggle.addEventListener("click", () => {
   const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
   setTheme(nextTheme, true);
+});
+
+mfaToggle.addEventListener("change", async () => {
+  const enabled = mfaToggle.checked;
+  mfaToggle.disabled = true;
+  try {
+    const result = await api("/api/ops/2fa", { method: "POST", body: JSON.stringify({ enabled }) });
+    opsState.ops2faEnabled = result.ops2faEnabled;
+    renderOpsState(opsState);
+    setSummary("2FA setting will apply on next login.", "ok");
+  } catch (error) {
+    mfaToggle.checked = !enabled;
+    setSummary(error.message, "error");
+  } finally {
+    mfaToggle.disabled = !opsState.authenticated;
+  }
 });
 
 document.getElementById("healthBtn").addEventListener("click", runHealth);
@@ -765,6 +845,38 @@ document.getElementById("resetBtn").addEventListener("click", () => {
     startJob("reset");
   }
 });
+
+async function loadOpsState() {
+  try {
+    const data = await api("/api/ops/me", { method: "GET" });
+    opsState = data;
+    renderOpsState(data);
+  } catch (error) {
+    opsState = { authenticated: false, user: null, ops2faEnabled: false };
+    renderOpsState(opsState);
+    setSummary(error.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+function renderOpsState(state) {
+  document.body.classList.toggle("is-authenticated", state.authenticated);
+  mfaToggle.checked = state.ops2faEnabled === true;
+  mfaToggle.disabled = !state.authenticated;
+
+  if (state.authenticated && state.user) {
+    sessionTitle.textContent = state.user.email;
+    sessionDetail.textContent = "Role " + state.user.primaryRole + " | 2FA " + (state.ops2faEnabled ? "required next login" : "not required next login");
+    setSummary("Signed in with Keycloak. Ops controls are enabled.", "ok");
+  } else {
+    sessionTitle.textContent = "Session expired";
+    sessionDetail.textContent = "Redirecting to Keycloak login.";
+    setSummary("Redirecting to Keycloak login.", "warn");
+    window.location.replace("/login");
+    return;
+  }
+}
 
 async function runHealth() {
   setBusy(true, "healthBtn");
@@ -830,15 +942,19 @@ async function pollJob(id) {
 async function api(path, options) {
   const response = await fetch(path, {
     ...options,
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": "Bearer " + tokenInput.value,
       ...(options && options.headers ? options.headers : {})
     }
   });
   const text = await response.text();
   const data = text ? JSON.parse(text) : {};
   if (!response.ok) {
+    if (response.status === 401) {
+      opsState = { authenticated: false, user: null, ops2faEnabled: opsState.ops2faEnabled };
+      renderOpsState(opsState);
+    }
     throw new Error(data.error || "Request failed with HTTP " + response.status);
   }
   return data;
@@ -1005,20 +1121,10 @@ function shortRunId(id) {
 function setBusy(value, activeId) {
   busy = value;
   activeButtonId = value ? activeId || "" : "";
-  const hasToken = tokenInput.value.trim().length > 0;
   buttons.forEach((button) => {
-    button.disabled = value || !hasToken;
+    button.disabled = value || !opsState.authenticated;
     button.classList.toggle("is-active", value && button.id === activeButtonId);
   });
-}
-
-function updateTokenState() {
-  const hasToken = tokenInput.value.trim().length > 0;
-  tokenState.textContent = hasToken ? "Ready" : "Required";
-  tokenState.classList.toggle("ready", hasToken);
-  if (!hasToken) {
-    setSummary("Paste the local OPS_TOKEN to enable controls.", "info");
-  }
 }
 
 function setSummary(message, tone) {

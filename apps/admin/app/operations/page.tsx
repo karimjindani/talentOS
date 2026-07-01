@@ -41,7 +41,7 @@ export default async function OperationsPage() {
             <a className="text-brand-blue underline" href="http://127.0.0.1:3300">
               http://127.0.0.1:3300
             </a>
-            . It uses the local <code>OPS_TOKEN</code> from <code>.env</code>, not Keycloak.
+            . It uses Keycloak login and the Ops Console 2FA toggle for access control.
           </p>
         </section>
         <HealthPanel />
