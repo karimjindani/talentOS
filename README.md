@@ -2,7 +2,7 @@
 
 TalentOS is a platform for developing AI-native software engineers through real, production-oriented work rather than passive coursework. Its core learning model is the Spiral Engineering Method (SEM): participants repeatedly complete the full engineering lifecycle — discover, analyze, specify, design, build, test, deploy, present, reflect, and review production readiness — from the very first week, with each cycle increasing in complexity. The platform treats AI as a mentor and accelerator, not a substitute for thinking, and is designed to help learners build secure, maintainable, deployable software while producing a public portfolio that organizations can use for talent discovery and recruitment.
 
-Current documentation version: `v0.8.0`
+Current documentation version: `v0.10.2`
 
 TalentOS is an AI-powered Talent Discovery, Learning and Recruitment Platform designed to bridge the gap between AI-assisted coding and production-grade software engineering.
 
@@ -25,6 +25,10 @@ TalentOS has moved beyond product discovery into an initial platform scaffold wi
 - `v0.7.0`: Object storage foundation — self-hosted MinIO (S3-compatible) with presigned upload/download and tenant-scoped file metadata.
 - `v0.7.1`: Applicant self-signup via Keycloak self-registration (default role APPLICANT) with a portal "Create account" entry.
 - `v0.8.0`: Admin Operations dashboard for local development health, regression cleanup guidance and reset guidance.
+- `v0.9.0`: Tenant settings / white-label configuration — admin-gated branding (name, brand colors, logo) applied live to both portals via CSS variables; logos stored in MinIO.
+- `v0.10.0`: Super Admin Organizations console — create tenants and assign the first Org Admin by email from the Admin Portal.
+- `v0.10.1`: Keycloak OTP policy fix — pins a valid TOTP period so first-login authenticator-app enrollment no longer errors.
+- `v0.10.2`: RP-initiated Keycloak logout — sign-out now terminates the Keycloak SSO session (no silent re-login on refresh).
 
 ## Current Implementation
 
@@ -40,6 +44,9 @@ The current scaffold includes:
 - Applications lifecycle: authenticated apply → submit and admin review (accept/reject/under-review/waitlist), tenant-scoped and audited.
 - Programs management: admin CRUD (create/edit/publish/archive) gated by `managePrograms`; published programs feed the apply form.
 - Object storage: self-hosted MinIO (S3-compatible) with presigned upload/download and tenant-scoped `StoredFile` metadata.
+- Tenant settings / white-label branding (name, brand colors, logo) applied live across both portals; branding writes are capability-gated and audited.
+- Super Admin Organizations console: create tenants and assign the first Org Admin by email, host-based multi-tenant subdomains (`{slug}.localhost`).
+- Keycloak SSO logout (RP-initiated) that terminates the shared session on sign-out.
 - AI mentor service boundary stub.
 - SSDLC documentation for architecture, data model, data dictionary, deployment and testing.
 
@@ -58,6 +65,7 @@ When the local Docker deployment is running:
 - Admin Programs: http://localhost:3200/programs
 - Admin Settings: http://localhost:3200/settings
 - Admin Operations: http://localhost:3200/operations
+- Admin Organizations (SUPER_ADMIN only): http://localhost:3200/organizations
 - Keycloak Admin Console: http://localhost:8080
 - MinIO API: http://localhost:9000
 - MinIO Console: http://localhost:9001
