@@ -6,7 +6,7 @@ Version: `v0.9.0`
 
 Baseline name: `Tenant Settings / White-label Configuration`
 
-Baseline code commit: `pending`
+Baseline code commit: `6c1cc926637ca3823c10a49059588232114f11fd`
 
 Baseline date: `2026-07-01`
 
