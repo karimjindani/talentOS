@@ -6,7 +6,7 @@ Version: `v0.10.1`
 
 Baseline name: `Keycloak OTP Policy Fix`
 
-Baseline code commit: `pending`
+Baseline code commit: `604c7bbe0979424641ce130c4e61decaf8012eaf`
 
 Baseline date: `2026-07-01`
 
