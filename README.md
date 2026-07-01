@@ -84,6 +84,26 @@ form; there is no local `/signup` or `/2fa/setup` page in the applicant portal.
 
 The applicant portal must not expose administrator navigation.
 
+### Adding a new tenant (organization)
+
+As of `v0.10.0`, the platform Super Admin can create tenants from the Admin Portal:
+
+1. Log in to the Admin Portal (`http://localhost:3200`) as `superadmin@talentos.local`.
+2. Open **Organizations** in the sidebar (visible to `SUPER_ADMIN` only), or go to
+   `http://localhost:3200/organizations`.
+3. Fill in the organization name, a DNS-safe **slug** (used as the subdomain), brand colors, and the
+   first Org Admin's email, then **Create organization**.
+4. The new tenant is immediately reachable at `http://{slug}.localhost:3200` (admin) and
+   `http://{slug}.localhost:3100` (applicant). Modern browsers resolve `*.localhost` to loopback
+   automatically — no hosts-file change is needed locally.
+
+Note: the assigned Org Admin's database membership scopes them to the new tenant, but the admin-portal
+**role** comes from Keycloak. Until the Keycloak Admin API integration lands, grant that user the
+`ORG_ADMIN` realm role in the Keycloak admin console so they can sign in with org-admin powers.
+
+Tenant creation is host-independent: the Super Admin manages all organizations regardless of which
+tenant subdomain they are currently on.
+
 ## Architecture Direction
 
 TalentOS is designed as a multi-tenant, white-label SaaS platform.

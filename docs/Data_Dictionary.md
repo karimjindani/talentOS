@@ -1,9 +1,16 @@
 # Data Dictionary
 
-Code version: `v0.8.0`
+Code version: `v0.10.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.10.0` (Super Admin Organizations console) adds the audit action `organization.created`. No schema
+> change — tenant creation reuses `Tenant`, `User`, `TenantMembership` and `AuditLog`.
+>
+> `v0.9.0` (Tenant settings / white-label) adds `Tenant.logoFileId` (unique FK → `StoredFile`,
+> `onDelete: SetNull`, migration `20260701120000_tenant_logo_file_id`) and the audit action
+> `tenant.branding_updated`.
+>
 > `v0.7.3` (Applicant CV & profile links) adds `cvFileId`, `githubUrl` and `linkedinUrl` to
 > `Application` (migration `20260630120000_application_cv_links`).
 >

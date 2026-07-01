@@ -196,7 +196,11 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
      password policy and first-login password/TOTP, seeded Super Admin.
    - Done (`v0.7.1`): applicant self-signup via Keycloak self-registration (default role APPLICANT;
      portal "Create account" using OIDC `prompt=create`).
-   - Next (`v0.3.1`): Admin Portal Organizations/Users/Roles management UI via the Keycloak Admin REST API.
+   - Done (`v0.10.0`): SUPER_ADMIN Organizations console — create tenants and assign the first ORG_ADMIN
+     by email (DB `User` + `TenantMembership`), audited as `organization.created`. The matching Keycloak
+     `ORG_ADMIN` realm role is still granted manually pending the Admin REST API integration.
+   - Next (`v0.3.1`): full Admin Portal Users/Roles management UI via the Keycloak Admin REST API
+     (auto-provision Keycloak users + realm roles).
 
 2. Separate Applicant Portal and Admin Portal — implemented in `v0.2.0`
    - Done: applicant and admin modules split into independent `apps/applicant` and `apps/admin` containers.

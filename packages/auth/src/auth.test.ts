@@ -8,6 +8,7 @@ import {
   createTotpEnrollment,
   hashPassword,
   isSuperAdmin,
+  isValidTenantSlug,
   resolveTenantFromHost,
   verifyPassword,
   verifyTotpToken
@@ -25,6 +26,17 @@ describe("tenant resolution", () => {
 
   it("falls back to the default tenant for bare localhost", () => {
     expect(resolveTenantFromHost("localhost:3000", "localhost", "demo").tenantSlug).toBe("demo");
+  });
+});
+
+describe("tenant slug validation", () => {
+  it("accepts dns-safe slugs and rejects unsafe ones", () => {
+    expect(isValidTenantSlug("acme")).toBe(true);
+    expect(isValidTenantSlug("acme-corp")).toBe(true);
+    expect(isValidTenantSlug("Acme")).toBe(false); // uppercase
+    expect(isValidTenantSlug("-acme")).toBe(false); // leading dash
+    expect(isValidTenantSlug("a c")).toBe(false); // space
+    expect(isValidTenantSlug("")).toBe(false);
   });
 });
 

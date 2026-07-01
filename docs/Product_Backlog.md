@@ -36,7 +36,10 @@ Documentation update: `Applicant self-signup (Keycloak self-registration) delive
 - IAM with Keycloak — foundation delivered in `v0.3.0`
   - Keycloak is the live IAM for authentication, MFA, password policy, roles and session management; both portals authenticate via OIDC and the admin portal enforces RBAC.
   - Applicant self-signup delivered in `v0.7.1` (Keycloak self-registration, default role APPLICANT).
-  - Next (`v0.3.1`): Admin Portal user/org/role management UI via the Keycloak Admin REST API.
+  - Tenant/org creation delivered in `v0.10.0`: SUPER_ADMIN Organizations console creates tenants and
+    assigns the first ORG_ADMIN by email (DB membership); the Keycloak realm-role grant is still manual.
+  - Next (`v0.3.1`): full Admin Portal user/role management UI via the Keycloak Admin REST API
+    (auto-provision Keycloak users + realm roles).
 
 - Separate Admin and Applicant Portals
   - The Admin Portal and Applicant Portal should become two separate portal surfaces.
