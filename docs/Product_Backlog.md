@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.10.2`
+Code version: `v0.10.3`
 
-Documentation update: `Tenant settings / white-label, Organizations console, and Keycloak OTP/SSO-logout fixes delivered (through v0.10.2)`
+Documentation update: `Tenant settings / white-label, Organizations console, Keycloak OTP/SSO-logout fixes, and the per-tenant authorization fix (D-051) delivered (through v0.10.3)`
 
 ## MVP
 
@@ -38,6 +38,8 @@ Documentation update: `Tenant settings / white-label, Organizations console, and
   - Applicant self-signup delivered in `v0.7.1` (Keycloak self-registration, default role APPLICANT).
   - Tenant/org creation delivered in `v0.10.0`: SUPER_ADMIN Organizations console creates tenants and
     assigns the first ORG_ADMIN by email (DB membership); the Keycloak realm-role grant is still manual.
+  - Per-tenant authorization enforced in `v0.10.3` (D-051): admin authority is now bound to the DB
+    `TenantMembership`, closing the cross-tenant access gap; the realm role only gates portal entry.
   - Next (`v0.3.1`): full Admin Portal user/role management UI via the Keycloak Admin REST API
     (auto-provision Keycloak users + realm roles).
 

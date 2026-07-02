@@ -47,7 +47,7 @@ export default async function OperationsPage() {
         <HealthPanel />
         <CommandSection
           title="Run regression tests"
-          description="Run the regression suite from the repository root. Current baseline expectation: 50 tests pass."
+          description="Run the regression suite from the repository root. Current baseline expectation: 62 tests pass."
           commands={[LOCAL_REGRESSION_COMMANDS.runTests]}
         />
         <CommandSection

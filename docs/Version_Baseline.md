@@ -2,19 +2,31 @@
 
 ## Current Baseline
 
-Version: `v0.10.2`
+Version: `v0.10.3`
 
-Baseline name: `Keycloak SSO Logout Fix`
+Baseline name: `Tenant Isolation Fix (D-051)`
 
-Baseline code commit: `3381f155698cf4f565b5aeb8d14c061fa6bd169f`
+Baseline code commit: `<set on commit>`
 
-Baseline date: `2026-07-01`
+Baseline date: `2026-07-02`
 
-Previous baseline: `v0.10.1`
+Previous baseline: `v0.10.2`
 
-Previous baseline commit: `604c7bbe0979424641ce130c4e61decaf8012eaf`
+Previous baseline commit: `3381f155698cf4f565b5aeb8d14c061fa6bd169f`
 
 ## Baseline Summary
+
+`v0.10.3` is a security patch closing the tenant-isolation gap accepted as a known limitation in
+`v0.10.0` (D-048). Admin authorization derived the role from the realm-wide Keycloak token and the tenant
+from the Host header without ever checking that the actor is a member of the tenant being acted on, so an
+`ORG_ADMIN`/`HR`/`TECH_LEAD` of one tenant could read/modify another tenant's programs, application
+decisions, branding and candidate CVs by switching subdomains. The fix makes the DB `TenantMembership`
+the authoritative per-tenant authority (Keycloak realm role remains the coarse portal-entry gate): a
+shared guard (`apps/admin/lib/tenant-guard.ts`, backed by `getActorTenantRoles` + `tenantRolesGrant`)
+binds session → host tenant → membership across the admin layout, every mutating action, and the CV
+download + operations-health routes, with SUPER_ADMIN bypass. The three DB mutators additionally scope
+their writes by `{ id, tenantId }` for defense-in-depth. No schema or data-model change; the regression
+suite grew to 62 tests. See `D-051`.
 
 `v0.10.2` is a patch fixing ineffective logout: after signing out, refreshing a portal silently
 re-authenticated the user because only the app's NextAuth cookie was cleared while the Keycloak SSO

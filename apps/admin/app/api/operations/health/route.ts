@@ -1,21 +1,19 @@
 import { NextResponse } from "next/server";
-import { can, summarizeHealth, type OperationHealthCheck } from "@talentos/auth";
+import { summarizeHealth, type OperationHealthCheck } from "@talentos/auth";
 import { prisma } from "@talentos/db";
-import { auth } from "@/auth";
+import { resolveTenantAccess } from "@/lib/tenant-guard";
 
 export const dynamic = "force-dynamic";
 
 const REQUEST_TIMEOUT_MS = 5000;
 
 export async function GET() {
-  const session = await auth();
-  const allowed = can("manageTenantUsers", {
-    platformRole: session?.user?.platformRole ?? null,
-    orgRole: session?.user?.orgRole ?? null
-  });
-
-  if (!allowed) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // manageTenantUsers must be held *in the resolved tenant* (TenantMembership-backed). See D-051.
+  const access = await resolveTenantAccess("manageTenantUsers");
+  if (!access.ok) {
+    const status =
+      access.reason === "unauthenticated" ? 401 : access.reason === "unknown-tenant" ? 400 : 403;
+    return NextResponse.json({ error: access.reason }, { status });
   }
 
   const checks: OperationHealthCheck[] = [

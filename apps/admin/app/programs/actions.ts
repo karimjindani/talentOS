@@ -2,45 +2,26 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/auth";
 import {
   assertProgramStatusTransition,
   assertTenantScopedAccess,
-  can,
   type ProgramStatus
 } from "@talentos/auth";
 import {
   createProgram,
-  getTenantBySlug,
   getTenantProgram,
-  getUserByEmail,
   setProgramStatus,
   slugify,
   updateProgram
 } from "@talentos/db";
-import { getTenantContext } from "@talentos/ui";
+import { requireTenantAccess } from "@/lib/tenant-guard";
 
 const PROGRAM_STATUSES: ProgramStatus[] = ["DRAFT", "PUBLISHED", "ARCHIVED"];
 
-// Resolve the acting reviewer + tenant, enforcing the managePrograms capability.
+// Resolve the acting reviewer + tenant, enforcing managePrograms *in the resolved tenant*
+// (TenantMembership-backed — not just the realm-wide role). See lib/tenant-guard.ts (D-051).
 async function requireProgramManager() {
-  const session = await auth();
-  const canManage = can("managePrograms", {
-    platformRole: session?.user?.platformRole ?? null,
-    orgRole: session?.user?.orgRole ?? null
-  });
-  if (!canManage) {
-    redirect("/forbidden");
-  }
-
-  const { tenantSlug } = await getTenantContext();
-  const tenant = await getTenantBySlug(tenantSlug);
-  if (!tenant) {
-    throw new Error(`Unknown tenant "${tenantSlug}".`);
-  }
-
-  const actor = session?.user?.email ? await getUserByEmail(session.user.email) : null;
-  return { tenant, actorUserId: actor?.id ?? null };
+  return requireTenantAccess("managePrograms");
 }
 
 function parseDate(value: FormDataEntryValue | null): Date | null {

@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.10.2`
+Code version: `v0.10.3`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -121,3 +121,9 @@ create/delete must record an `AuditLog` entry.
 From `v0.8.0`, the regression baseline also covers local operations safety: the Admin Operations page
 must not execute host Docker/npm commands, health checks must use app-visible dependencies, and
 regression cleanup must delete only explicitly marked `RegressionDataMarker` records.
+
+From `v0.10.3`, the regression baseline also covers per-tenant authorization: `tenantRolesGrant` must
+grant a capability only when the actor's tenant-scoped roles include it (unit,
+`packages/auth/src/permissions.test.ts`), and an actor must never authorize an admin action in a tenant
+they hold no `TenantMembership` in (a realm-wide role no longer suffices). The current regression suite
+is **62 tests**.

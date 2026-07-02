@@ -1,20 +1,14 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/auth";
 import { getTenantContext, StatusBadge } from "@talentos/ui";
 import {
   assertApplicationStatusTransition,
   assertTenantScopedAccess,
-  can,
   nextStatusesFor,
   type ApplicationStatus
 } from "@talentos/auth";
-import {
-  applyStatusTransition,
-  getTenantApplication,
-  getTenantBySlug,
-  getUserByEmail
-} from "@talentos/db";
+import { applyStatusTransition, getTenantApplication, getTenantBySlug } from "@talentos/db";
+import { requireTenantAccess } from "@/lib/tenant-guard";
 
 type ApplicationDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -33,22 +27,10 @@ function formatDate(value: Date | null) {
 async function reviewApplication(formData: FormData) {
   "use server";
 
-  const session = await auth();
-  const actor = {
-    platformRole: session?.user?.platformRole ?? null,
-    orgRole: session?.user?.orgRole ?? null
-  };
-  // Middleware lets any admin-capable role enter the portal; reviewing needs the finer capability
-  // (ORG_ADMIN / HR / SUPER_ADMIN). TECH_LEAD can view but not decide.
-  if (!can("reviewApplications", actor)) {
-    redirect("/forbidden");
-  }
-
-  const { tenantSlug } = await getTenantContext();
-  const tenant = await getTenantBySlug(tenantSlug);
-  if (!tenant) {
-    throw new Error(`Unknown tenant "${tenantSlug}".`);
-  }
+  // Reviewing requires the reviewApplications capability *held in the resolved tenant* (ORG_ADMIN /
+  // HR / SUPER_ADMIN). TECH_LEAD can view but not decide; a role from another tenant no longer
+  // qualifies. See lib/tenant-guard.ts (D-051).
+  const { tenant, actorUserId } = await requireTenantAccess("reviewApplications");
 
   const id = String(formData.get("applicationId") ?? "");
   const toStatus = String(formData.get("toStatus") ?? "") as ApplicationStatus;
@@ -61,12 +43,11 @@ async function reviewApplication(formData: FormData) {
   assertTenantScopedAccess(application.tenantId, tenant.id);
   assertApplicationStatusTransition(application.status, toStatus);
 
-  const reviewer = session?.user?.email ? await getUserByEmail(session.user.email) : null;
   await applyStatusTransition({
     id,
     toStatus,
     reviewerNotes: reviewerNotes.length > 0 ? reviewerNotes : null,
-    actorUserId: reviewer?.id ?? null,
+    actorUserId,
     tenantId: tenant.id
   });
 

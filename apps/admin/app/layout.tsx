@@ -6,6 +6,7 @@ import { auth, signOut } from "@/auth";
 import { getTenantContext, brandStyleBlock } from "@talentos/ui";
 import { buildEndSessionUrl } from "@talentos/auth-web";
 import { getTenantBySlug } from "@talentos/db";
+import { resolveTenantAccess } from "@/lib/tenant-guard";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,6 +27,12 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const { tenantSlug } = await getTenantContext();
   const tenant = await getTenantBySlug(tenantSlug);
   const tenantName = tenant?.name ?? "TalentOS";
+
+  // Tenant-authorization gate: a signed-in admin may only view a tenant they belong to (or be a
+  // SUPER_ADMIN). Rendered as an inline notice rather than a redirect so /forbidden itself — which
+  // shares this layout — cannot cause a redirect loop. Server actions and route handlers enforce the
+  // same rule independently. See lib/tenant-guard.ts (D-051).
+  const access = session?.user ? await resolveTenantAccess() : { ok: true as const };
 
   return (
     <html lang="en">
@@ -77,7 +84,19 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               ) : null}
             </aside>
             <main className="md:pl-64">
-              <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
+              <div className="mx-auto max-w-6xl px-6 py-8">
+                {access.ok ? (
+                  children
+                ) : (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-rose-800">
+                    <h1 className="text-xl font-semibold">Access denied</h1>
+                    <p className="mt-2 text-sm">
+                      Your account is not a member of this organization. Switch to an organization you
+                      belong to, or contact a platform administrator.
+                    </p>
+                  </div>
+                )}
+              </div>
             </main>
           </div>
         </SessionProvider>

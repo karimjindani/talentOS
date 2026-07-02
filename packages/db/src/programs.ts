@@ -107,10 +107,14 @@ export async function updateProgram({
 }: UpdateProgramInput) {
   try {
     return await prisma.$transaction(async (tx) => {
-      const program = await tx.program.update({
-        where: { id },
+      // Scope the write by tenant so a raw id can never cross tenants (defense-in-depth for D-051).
+      const result = await tx.program.updateMany({
+        where: { id, tenantId },
         data: { name, slug, description, startsAt: startsAt ?? null, endsAt: endsAt ?? null }
       });
+      if (result.count === 0) {
+        throw new Error("Program not found for this tenant.");
+      }
 
       await tx.auditLog.create({
         data: {
@@ -123,7 +127,7 @@ export async function updateProgram({
         }
       });
 
-      return program;
+      return tx.program.findFirstOrThrow({ where: { id, tenantId } });
     });
   } catch (error) {
     rethrowDuplicateSlug(error, slug);
@@ -139,7 +143,11 @@ export type SetProgramStatusInput = {
 
 export function setProgramStatus({ id, tenantId, status, actorUserId }: SetProgramStatusInput) {
   return prisma.$transaction(async (tx) => {
-    const program = await tx.program.update({ where: { id }, data: { status } });
+    // Scope the write by tenant so a raw id can never cross tenants (defense-in-depth for D-051).
+    const result = await tx.program.updateMany({ where: { id, tenantId }, data: { status } });
+    if (result.count === 0) {
+      throw new Error("Program not found for this tenant.");
+    }
 
     await tx.auditLog.create({
       data: {
@@ -152,6 +160,6 @@ export function setProgramStatus({ id, tenantId, status, actorUserId }: SetProgr
       }
     });
 
-    return program;
+    return tx.program.findFirstOrThrow({ where: { id, tenantId } });
   });
 }
