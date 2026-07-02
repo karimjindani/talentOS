@@ -1,9 +1,15 @@
 # Data Model
 
-Code version: `v0.11.0`
+Code version: `v0.11.1`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.11.1` (reserved slugs) makes no schema change. It also records the schema addition delivered via
+> PR #13: a **partial unique index** `applications_applicantId_programId_active_key` on
+> `applications (applicantId, programId) WHERE status IN (DRAFT, SUBMITTED, UNDER_REVIEW, ACCEPTED,
+> WAITLISTED)` (migration `20260702090000_duplicate_application_active_index`) — REJECTED excluded so
+> re-application is allowed; it backstops the app-layer duplicate check.
+>
 > `v0.11.0` (org-admin auto-provisioning) makes no schema change — it adds a Keycloak service-account
 > client and a server-side Admin REST call; the DB org-creation transaction is unchanged.
 >

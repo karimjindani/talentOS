@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.11.0`
+Code version: `v0.11.1`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.11.0`
+Current documentation update: `v0.11.1`
 
 ## Overview
 
@@ -155,8 +155,13 @@ TalentOS uses a shared PostgreSQL database with tenant-scoped records.
   (`Tenant.logoFileId` → `StoredFile`), never an arbitrary file id.
 - **Organizations console** (`v0.10.0`) — tenant creation is gated by `createOrganization`
   (SUPER_ADMIN only). The slug is validated by `isValidTenantSlug` (DNS-safe, since it becomes the
-  tenant subdomain); the create writes the tenant, an ORG_ADMIN `TenantMembership`, and an
-  `organization.created` audit row in one transaction.
+  tenant subdomain; `v0.11.1` also rejects a `RESERVED_SLUGS` blocklist — `www`/`admin`/`api`/`demo`/…);
+  the create writes the tenant, an ORG_ADMIN `TenantMembership`, and an `organization.created` audit row
+  in one transaction.
+- **Duplicate-application guard** (`v0.11.1`, index via PR #13) — a partial unique index
+  `applications (applicantId, programId) WHERE status IN (DRAFT, SUBMITTED, UNDER_REVIEW, ACCEPTED,
+  WAITLISTED)` backstops the app-layer check against races; REJECTED is excluded so a rejected applicant
+  may re-apply.
 - **Org-admin auto-provisioning** (`v0.11.0`) — creating an organization now provisions the org admin in
   Keycloak (no manual `kcadm`). `provisionOrgAdmin` (`apps/admin/lib/keycloak-admin.ts`, server-only)
   authenticates with the confidential `talentos-provisioner` service account (client_credentials;

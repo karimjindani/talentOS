@@ -1,9 +1,13 @@
 # Data Dictionary
 
-Code version: `v0.11.0`
+Code version: `v0.11.1`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.11.1` (reserved slugs) makes no schema change. Records the PR #13 addition: a partial unique index
+> on `applications (applicantId, programId)` for active statuses (REJECTED excluded), backstopping the
+> app-layer duplicate-application check.
+>
 > `v0.11.0` (org-admin auto-provisioning) makes no schema change — org creation additionally provisions
 > the Keycloak user + `ORG_ADMIN` realm role via the Admin REST API.
 >

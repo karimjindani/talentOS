@@ -2,19 +2,30 @@
 
 ## Current Baseline
 
-Version: `v0.11.0`
+Version: `v0.11.1`
 
-Baseline name: `Org-Admin Auto-Provisioning via Keycloak Admin REST API (D-053)`
+Baseline name: `Reserved Tenant-Slug Blocklist + Duplicate-Application Index (D-054)`
 
 Baseline code commit: `<set on commit>`
 
 Baseline date: `2026-07-02`
 
-Previous baseline: `v0.10.4`
+Previous baseline: `v0.11.0`
 
-Previous baseline commit: `eea1612`
+Previous baseline commit: `af7f465`
 
 ## Baseline Summary
+
+`v0.11.1` completes the user/tenant-management audit hardening. (1) **Reserved-slug blocklist**:
+`isValidTenantSlug` (`packages/auth/src/tenant.ts`) now rejects routing/infra-sensitive labels
+(`www`, `admin`, `api`, `auth`, `keycloak`, `minio`, `demo`, …) in addition to the DNS-safe check, so a
+SUPER_ADMIN cannot mint a tenant on a subdomain that would collide with platform hosts. No schema change.
+(2) This baseline also records the **duplicate-active-application** guard delivered via PR #13 (commit
+`73c0a78`): a partial unique index `applications_applicantId_programId_active_key` on
+`(applicantId, programId) WHERE status IN (DRAFT, SUBMITTED, UNDER_REVIEW, ACCEPTED, WAITLISTED)`
+(migration `20260702090000_duplicate_application_active_index`) — REJECTED is excluded so a rejected
+applicant may re-apply — plus P2002 handling in the apply flow. The regression suite is 78 tests. See
+`D-054`.
 
 `v0.11.0` delivers the deferred Keycloak-Admin-API provisioning (D-035 / the backlog "v0.3.1" slice):
 creating an organization now auto-provisions the org admin in Keycloak instead of requiring a manual

@@ -33,8 +33,21 @@ export function resolveTenantFromHost(
   return { tenantSlug: defaultTenantSlug, source: "default" };
 }
 
-// Tenant slugs become subdomains, so restrict to DNS-safe lowercase labels.
+// Slugs that must not become tenant subdomains: platform/infra hostnames, auth and object-storage
+// labels, and the `demo` default catch-all tenant. Reserving these prevents routing confusion,
+// cookie-scope bleed and subdomain-takeover concerns.
+export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
+  "www", "admin", "api", "app", "apps", "auth", "sso", "login", "logout", "account", "accounts",
+  "mail", "smtp", "ftp", "cdn", "assets", "static", "storage", "s3", "minio", "keycloak", "ops",
+  "status", "health", "dashboard", "console", "internal", "system", "test", "demo", "root",
+  "superadmin", "support", "help", "docs", "blog"
+]);
+
+// Tenant slugs become subdomains, so restrict to DNS-safe lowercase labels and reject reserved names.
 export function isValidTenantSlug(slug: string): boolean {
+  if (RESERVED_SLUGS.has(slug)) {
+    return false;
+  }
   return /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/.test(slug);
 }
 

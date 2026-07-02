@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.11.0`
+Code version: `v0.11.1`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.11.0`
+Current documentation update: `v0.11.1`
 
 ## D-001
 
@@ -321,5 +321,11 @@ Status: Approved
 ## D-053
 
 `v0.11.0` delivers org-admin auto-provisioning via the Keycloak Admin REST API — the deferred D-035 / backlog-"v0.3.1" slice — so a SUPER_ADMIN creating an organization no longer needs a manual `kcadm` step for the new admin to sign in. Decisions: (1) **Authenticate with a dedicated service-account client** `talentos-provisioner` (confidential, `serviceAccountsEnabled`, realm-management client roles `manage-users`/`view-realm`/`query-users`) via `client_credentials`, rather than embedding master-admin credentials in the app — least-privilege / shift-left. (2) **Credential delivery: a generated one-time temporary password shown once** in the UI (no SMTP in the stack), with required actions `UPDATE_PASSWORD` + `CONFIGURE_TOTP` forcing a reset + 2FA on first login; an already-existing Keycloak user keeps their password and is only granted the role (idempotent). (3) The provisioning client is **server-only** (`apps/admin/lib/keycloak-admin.ts`), never imported by edge middleware or an edge barrel. (4) The org create form became the admin app's first `useActionState` client component so the action can return a typed result and render the one-time password; Keycloak failure does not roll back the DB org (they cannot share a transaction) — the message is retryable and provisioning is idempotent. New realm client added to `keycloak/import/talentos-realm.json` (fresh envs) and applied live to the running realm via `kcadm.sh`. No DB schema change; the regression suite grew to 71 tests (new `apps/admin/lib/keycloak-admin.test.ts`). This closes the D-048/D-051 loop: realm role (now auto-granted) gates portal entry, `TenantMembership` gates authority, `keycloakSubjectId` links on login.
+
+Status: Approved
+
+## D-054
+
+`v0.11.1` completes the user/tenant-management audit hardening (finding #4). (1) **Reserved-slug blocklist**: `isValidTenantSlug` now rejects a `RESERVED_SLUGS` set of routing/infra-sensitive labels (`www`, `admin`, `api`, `app`, `auth`, `sso`, `mail`, `cdn`, `static`, `storage`, `s3`, `minio`, `keycloak`, `ops`, `demo`, …) in addition to the DNS-safe regex, because a tenant slug becomes a subdomain and these would invite routing confusion, cookie-scope bleed or subdomain-takeover concerns; `demo` (the default catch-all tenant) is reserved too. Validation-only, no schema change; existing tenants are unaffected (the check runs only on create). (2) This entry also records the **duplicate-active-application** guard shipped via PR #13 (commit `73c0a78`), which merged without its own governance entry: a Postgres **partial unique index** `applications_applicantId_programId_active_key` on `(applicantId, programId) WHERE status IN (DRAFT, SUBMITTED, UNDER_REVIEW, ACCEPTED, WAITLISTED)` (migration `20260702090000_duplicate_application_active_index`) backstops the app-layer duplicate check against races. Decision: use a partial index (not a plain `@@unique`, which Prisma's schema also cannot express with a `WHERE`) so **REJECTED** applications are excluded and a rejected applicant may re-apply — preserving prior behavior. The regression suite is 78 tests (new `packages/auth/src/auth.test.ts` reserved-slug cases + PR #13's `applications.test.ts`).
 
 Status: Approved
