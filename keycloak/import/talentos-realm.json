@@ -148,6 +148,22 @@
       "webOrigins": ["http://localhost:3200"],
       "attributes": { "post.logout.redirect.uris": "http://localhost:3200/*" },
       "defaultClientScopes": ["web-origins", "profile", "roles", "email"]
+    },
+    {
+      "clientId": "talentos-provisioner",
+      "name": "TalentOS Admin Provisioner (service account)",
+      "description": "Confidential service-account client used by the admin app to create org-admin users and grant realm roles via the Keycloak Admin REST API.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "talentos-provisioner-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "serviceAccountClientRoles": {
+        "realm-management": ["manage-users", "view-realm", "query-users"]
+      },
+      "defaultClientScopes": ["roles"]
     }
   ],
   "users": [

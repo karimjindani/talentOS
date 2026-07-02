@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.10.4`
+Code version: `v0.11.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.10.4`
+Current documentation update: `v0.11.0`
 
 ## Overview
 
@@ -157,6 +157,14 @@ TalentOS uses a shared PostgreSQL database with tenant-scoped records.
   (SUPER_ADMIN only). The slug is validated by `isValidTenantSlug` (DNS-safe, since it becomes the
   tenant subdomain); the create writes the tenant, an ORG_ADMIN `TenantMembership`, and an
   `organization.created` audit row in one transaction.
+- **Org-admin auto-provisioning** (`v0.11.0`) — creating an organization now provisions the org admin in
+  Keycloak (no manual `kcadm`). `provisionOrgAdmin` (`apps/admin/lib/keycloak-admin.ts`, server-only)
+  authenticates with the confidential `talentos-provisioner` service account (client_credentials;
+  realm-management `manage-users`) and creates the user with `emailVerified`, required actions
+  (`UPDATE_PASSWORD` + `CONFIGURE_TOTP`) and a one-time temp password (shown once in the UI), then grants
+  the `ORG_ADMIN` realm role — idempotent (an existing user just gains the role). With v0.10.3/v0.10.4
+  this closes the loop: realm role gates portal entry, `TenantMembership` gates authority, and
+  `keycloakSubjectId` links on first login.
 - **First-login TOTP** (`v0.10.1`) — the realm import pins a valid OTP policy
   (`otpPolicyType: totp`, period 30, digits 6, HmacSHA1) so authenticator-app enrollment cannot divide
   by zero; a unit test (`realm-otp.test.ts`) guards the non-zero period.
@@ -240,15 +248,17 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
    - Done (`v0.7.1`): applicant self-signup via Keycloak self-registration (default role APPLICANT;
      portal "Create account" using OIDC `prompt=create`).
    - Done (`v0.10.0`): SUPER_ADMIN Organizations console — create tenants and assign the first ORG_ADMIN
-     by email (DB `User` + `TenantMembership`), audited as `organization.created`. The matching Keycloak
-     `ORG_ADMIN` realm role is still granted manually pending the Admin REST API integration.
+     by email (DB `User` + `TenantMembership`), audited as `organization.created`.
+   - Done (`v0.11.0`): the matching Keycloak identity + `ORG_ADMIN` realm role are now **auto-provisioned**
+     via the Admin REST API (service-account client, one-time temp password) — no manual `kcadm` step.
    - Done (`v0.9.0`): tenant settings / white-label configuration — admin-gated
      (`manageTenantSettings`) branding (name, colors, logo) persisted, audited and applied live to both
      portals via CSS variables; logos stored in MinIO (`Tenant.logoFileId`).
    - Done (`v0.10.1`): pinned the realm OTP policy so first-login authenticator-app enrollment works.
    - Done (`v0.10.2`): RP-initiated Keycloak logout so sign-out terminates the SSO session.
-   - Next (`v0.3.1`): full Admin Portal Users/Roles management UI via the Keycloak Admin REST API
-     (auto-provision Keycloak users + realm roles; per-tenant role enforcement).
+   - Next: a full Admin Portal Users/Roles management UI (list/edit/deactivate users, manage roles) on
+     top of the `v0.11.0` Keycloak Admin REST integration. Per-tenant role enforcement already shipped in
+     `v0.10.3`; org-admin auto-provisioning shipped in `v0.11.0`.
 
 2. Separate Applicant Portal and Admin Portal — implemented in `v0.2.0`
    - Done: applicant and admin modules split into independent `apps/applicant` and `apps/admin` containers.

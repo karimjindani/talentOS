@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.10.4`
+Code version: `v0.11.0`
 
-Documentation update: `Tenant settings / white-label, Organizations console, Keycloak OTP/SSO-logout fixes, per-tenant authorization (D-051), and identity linking + email normalization (D-052) delivered (through v0.10.4)`
+Documentation update: `Tenant settings / white-label, Organizations console, Keycloak OTP/SSO-logout fixes, per-tenant authorization (D-051), identity linking + email normalization (D-052), and org-admin auto-provisioning (D-053) delivered (through v0.11.0)`
 
 ## MVP
 
@@ -37,11 +37,14 @@ Documentation update: `Tenant settings / white-label, Organizations console, Key
   - Keycloak is the live IAM for authentication, MFA, password policy, roles and session management; both portals authenticate via OIDC and the admin portal enforces RBAC.
   - Applicant self-signup delivered in `v0.7.1` (Keycloak self-registration, default role APPLICANT).
   - Tenant/org creation delivered in `v0.10.0`: SUPER_ADMIN Organizations console creates tenants and
-    assigns the first ORG_ADMIN by email (DB membership); the Keycloak realm-role grant is still manual.
+    assigns the first ORG_ADMIN by email (DB membership).
   - Per-tenant authorization enforced in `v0.10.3` (D-051): admin authority is now bound to the DB
     `TenantMembership`, closing the cross-tenant access gap; the realm role only gates portal entry.
-  - Next (`v0.3.1`): full Admin Portal user/role management UI via the Keycloak Admin REST API
-    (auto-provision Keycloak users + realm roles).
+  - Org-admin auto-provisioning delivered in `v0.11.0` (D-053): org creation provisions the Keycloak user
+    + `ORG_ADMIN` realm role via the Admin REST API (service-account client, one-time temp password) — no
+    manual `kcadm` step.
+  - Next: a full Admin Portal Users/Roles management UI (list/edit/deactivate, role changes) on top of the
+    `v0.11.0` Keycloak Admin REST integration.
 
 - Separate Admin and Applicant Portals — delivered in `v0.2.0`
   - The Admin Portal and Applicant Portal are two separate Next.js applications, each in its own Docker

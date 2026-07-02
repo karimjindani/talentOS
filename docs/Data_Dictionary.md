@@ -1,9 +1,12 @@
 # Data Dictionary
 
-Code version: `v0.10.4`
+Code version: `v0.11.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.11.0` (org-admin auto-provisioning) makes no schema change — org creation additionally provisions
+> the Keycloak user + `ORG_ADMIN` realm role via the Admin REST API.
+>
 > `v0.10.4` (identity linking & email normalization) makes no schema change: emails are normalized on
 > write and `keycloakSubjectId` is backfilled on login (see the `User.keycloakSubjectId` row below);
 > `email_verified` is exposed on the session only (not a DB column).

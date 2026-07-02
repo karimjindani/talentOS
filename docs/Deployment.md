@@ -1,11 +1,26 @@
 # Deployment
 
-Code version: `v0.10.4`
+Code version: `v0.11.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current deployment update: `v0.10.4`
+Current deployment update: `v0.11.0`
 
+> `v0.11.0` (org-admin auto-provisioning) adds a confidential Keycloak service-account client
+> `talentos-provisioner` (realm-management roles `manage-users`/`view-realm`/`query-users`) and four admin
+> env vars (`KEYCLOAK_SERVER_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_PROVISIONER_CLIENT_ID`,
+> `KEYCLOAK_PROVISIONER_CLIENT_SECRET`; defaults in `.env`/`.env.example`). A **fresh** environment gets
+> the client from the realm import. For an **already-running** realm, add it live (non-destructive) via
+> `kcadm.sh`:
+> ```
+> kcadm.sh create clients -r talentos -s clientId=talentos-provisioner -s enabled=true \
+>   -s publicClient=false -s standardFlowEnabled=false -s directAccessGrantsEnabled=false \
+>   -s serviceAccountsEnabled=true -s secret=talentos-provisioner-secret
+> kcadm.sh add-roles -r talentos --uusername service-account-talentos-provisioner \
+>   --cclientid realm-management --rolename manage-users --rolename view-realm --rolename query-users
+> ```
+> Then rebuild the admin container (`docker compose up -d --build admin`). No DB migration.
+>
 > `v0.10.4` (identity linking & email normalization) and `v0.10.3` (tenant isolation fix) are code-only —
 > no deployment, infra, or migration change; a `docker compose up -d --build admin applicant` picks them
 > up.

@@ -1,9 +1,12 @@
 # Data Model
 
-Code version: `v0.10.4`
+Code version: `v0.11.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.11.0` (org-admin auto-provisioning) makes no schema change — it adds a Keycloak service-account
+> client and a server-side Admin REST call; the DB org-creation transaction is unchanged.
+>
 > `v0.10.4` (identity linking & email normalization) and `v0.10.3` (tenant isolation fix) make no schema
 > change — both are code-only (email normalization + login-time `keycloakSubjectId` backfill; and
 > membership-based authorization consulting existing `TenantMembership` rows).
