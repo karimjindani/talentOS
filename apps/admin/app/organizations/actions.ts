@@ -44,7 +44,8 @@ export async function createOrganizationAction(
   if (!isValidTenantSlug(slug)) {
     return {
       ok: false,
-      error: "Slug must be lowercase letters, numbers and hyphens (DNS-safe), used as the tenant subdomain."
+      error:
+        "Slug must be lowercase letters, numbers and hyphens (DNS-safe), not a reserved name (e.g. www, admin, api, demo); it becomes the tenant subdomain."
     };
   }
 

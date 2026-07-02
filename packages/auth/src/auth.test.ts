@@ -38,6 +38,20 @@ describe("tenant slug validation", () => {
     expect(isValidTenantSlug("a c")).toBe(false); // space
     expect(isValidTenantSlug("")).toBe(false);
   });
+
+  it("rejects reserved infrastructure/routing slugs", () => {
+    expect(isValidTenantSlug("www")).toBe(false);
+    expect(isValidTenantSlug("admin")).toBe(false);
+    expect(isValidTenantSlug("api")).toBe(false);
+    expect(isValidTenantSlug("demo")).toBe(false); // the default catch-all tenant
+    expect(isValidTenantSlug("keycloak")).toBe(false);
+  });
+
+  it("still allows slugs that merely contain a reserved word", () => {
+    expect(isValidTenantSlug("acmeapi")).toBe(true);
+    expect(isValidTenantSlug("admins")).toBe(true);
+    expect(isValidTenantSlug("my-demo")).toBe(true);
+  });
 });
 
 describe("role authorization", () => {

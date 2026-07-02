@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.11.0`
+Code version: `v0.11.1`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -136,5 +136,10 @@ From `v0.11.0`, the regression baseline also covers org-admin auto-provisioning
 (`apps/admin/lib/keycloak-admin.test.ts`): `generateTempPassword` must satisfy the realm password policy;
 `provisionOrgAdmin` must create a new user with `emailVerified` + required actions + a temp password and
 grant `ORG_ADMIN`, and must be idempotent for an existing user (no password reset, role ensured); and the
-realm import must declare the `talentos-provisioner` service-account client with `manage-users`. The
-current regression suite is **71 tests**.
+realm import must declare the `talentos-provisioner` service-account client with `manage-users`.
+
+From `v0.11.1`, the regression baseline also covers reserved tenant slugs: `isValidTenantSlug` must reject
+the `RESERVED_SLUGS` blocklist (`www`, `admin`, `api`, `demo`, `keycloak`, …) while still allowing normal
+slugs and slugs that merely contain a reserved substring (unit, `packages/auth/src/auth.test.ts`); and
+duplicate active applications are blocked at the DB via the partial unique index (PR #13,
+`packages/db/src/applications.test.ts`). The current regression suite is **78 tests**.

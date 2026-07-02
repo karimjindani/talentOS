@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.11.0`
+Code version: `v0.11.1`
 
-Documentation update: `Tenant settings / white-label, Organizations console, Keycloak OTP/SSO-logout fixes, per-tenant authorization (D-051), identity linking + email normalization (D-052), and org-admin auto-provisioning (D-053) delivered (through v0.11.0)`
+Documentation update: `Tenant settings / white-label, Organizations console, Keycloak OTP/SSO-logout fixes, per-tenant authorization (D-051), identity linking + email normalization (D-052), org-admin auto-provisioning (D-053), and reserved-slug blocklist + duplicate-application index (D-054) delivered (through v0.11.1)`
 
 ## MVP
 
