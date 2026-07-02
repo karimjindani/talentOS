@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.10.4`
+Code version: `v0.11.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -130,4 +130,11 @@ they hold no `TenantMembership` in (a realm-wide role no longer suffices).
 From `v0.10.4`, the regression baseline also covers identity normalization: `normalizeEmail` must fold
 casing/whitespace to one canonical address (unit, `packages/db/src/users.test.ts`); email lookups are
 case-insensitive; and `keycloakSubjectId` is backfilled on login for existing users without creating new
-rows. The current regression suite is **65 tests**.
+rows.
+
+From `v0.11.0`, the regression baseline also covers org-admin auto-provisioning
+(`apps/admin/lib/keycloak-admin.test.ts`): `generateTempPassword` must satisfy the realm password policy;
+`provisionOrgAdmin` must create a new user with `emailVerified` + required actions + a temp password and
+grant `ORG_ADMIN`, and must be idempotent for an existing user (no password reset, role ensured); and the
+realm import must declare the `talentos-provisioner` service-account client with `manage-users`. The
+current regression suite is **71 tests**.

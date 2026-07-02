@@ -2,19 +2,32 @@
 
 ## Current Baseline
 
-Version: `v0.10.4`
+Version: `v0.11.0`
 
-Baseline name: `Identity Linking & Email Normalization (D-052)`
+Baseline name: `Org-Admin Auto-Provisioning via Keycloak Admin REST API (D-053)`
 
 Baseline code commit: `<set on commit>`
 
 Baseline date: `2026-07-02`
 
-Previous baseline: `v0.10.3`
+Previous baseline: `v0.10.4`
 
-Previous baseline commit: `4cc2689`
+Previous baseline commit: `eea1612`
 
 ## Baseline Summary
+
+`v0.11.0` delivers the deferred Keycloak-Admin-API provisioning (D-035 / the backlog "v0.3.1" slice):
+creating an organization now auto-provisions the org admin in Keycloak instead of requiring a manual
+`kcadm` step. `createOrganizationAction` calls a new server-only `provisionOrgAdmin`
+(`apps/admin/lib/keycloak-admin.ts`) which authenticates with a confidential `talentos-provisioner`
+service-account client (client_credentials; realm-management `manage-users`/`view-realm`/`query-users`),
+creates the user (`emailVerified`, required actions `UPDATE_PASSWORD` + `CONFIGURE_TOTP`), sets a
+generated one-time temporary password, and grants the `ORG_ADMIN` realm role — idempotent (an existing
+user keeps their password and just gains the role). The org form became the admin app's first
+`useActionState` client component and shows the one-time password once. This completes the two-layer
+model (realm role gates portal entry, `TenantMembership` gates authority, `keycloakSubjectId` links on
+login): a freshly created org admin can now sign in with no manual Keycloak step. No DB schema change;
+the regression suite grew to 71 tests. See `D-053`.
 
 `v0.10.4` fixes two identity defects from the user-management audit. (1) The DB `User`↔Keycloak link was
 dead for admins: `keycloakSubjectId` was only ever written by `provisionApplicantUser` on an applicant's
