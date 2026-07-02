@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.10.2`
+Code version: `v0.10.4`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.10.2`
+Current documentation update: `v0.10.4`
 
 ## D-001
 
@@ -309,5 +309,11 @@ Status: Approved
 ## D-051
 
 `v0.10.3` closes the tenant-isolation gap that was accepted as a known limitation in **D-048**. Root cause: admin authorization was decided from two unlinked inputs — the role came from the *realm-wide* Keycloak access token (`orgRole`/`platformRole`), while the tenant came from the *Host header* — and `can()` never checked the two together, so an `ORG_ADMIN`/`HR`/`TECH_LEAD` of tenant A could operate on tenant B simply by visiting B's subdomain (program CRUD, application decisions, branding, and candidate-CV download were all reachable; `assertTenantScopedAccess` compared resource-vs-host, both B, and passed). Decision: make the DB `TenantMembership` the authoritative per-tenant authority, keeping the Keycloak realm role only as the coarse portal-entry gate (two-layer model). New primitives: `getActorTenantRoles(email, tenantId)` (`packages/db`, case-insensitive email match) and `tenantRolesGrant(capability, roles)` (`packages/auth`); a shared admin guard `resolveTenantAccess`/`requireTenantAccess` (`apps/admin/lib/tenant-guard.ts`) that binds session → host tenant → membership, with SUPER_ADMIN bypass. Wired into the admin layout (gates all page reads), every mutating action (`requireProgramManager`, `reviewApplication`, `saveTenantBranding`), and the sensitive route handlers (CV download — previously only checked for *any* authenticated session — and operations health). Defense-in-depth: the DB mutators `updateProgram`/`setProgramStatus`/`applyStatusTransition` now write via `updateMany({ where: { id, tenantId } })` so a raw id can never cross tenants. The membership data already existed (seed + `createOrganization`); it was simply never consulted. No schema or data-model change; the regression suite grew to 62 tests (new `packages/auth/src/permissions.test.ts`). Supersedes the D-048 known limitation.
+
+Status: Approved
+
+## D-052
+
+`v0.10.4` fixes two identity defects from the user-management audit. (1) The DB `User`↔Keycloak link was dead for admin/reviewer/super-admin users: `keycloakSubjectId` was only ever persisted by `provisionApplicantUser` (applicant first-apply), never on login, so the "linked on first login" claim was false. Decision: add a server-side, edge-safe `linkKeycloakIdentity({ email, keycloakSubjectId, name })` (`packages/db`) that backfills the subject on an existing row (case-insensitive, only when missing/changed) and **never creates** a row; call it best-effort from the admin guard `resolveTenantAccess` so every admin logs in linked. Crucially it is NOT added to the jwt/session callbacks, which must stay edge-safe (imported by middleware) — DB writes live only in server components. (2) Email casing was inconsistent (`createOrganization` lowercased; `provisionApplicantUser`/`getUserByEmail` did not) against the case-sensitive `User.email @unique`, risking duplicate identities and orphaned lookups (e.g. the applicant status page). Decision: a shared `normalizeEmail` (`trim().toLowerCase()`) on every write path and a case-insensitive `getUserByEmail`. Additionally, the Keycloak `email_verified` claim is now captured through the jwt/session callbacks and exposed as `session.user.isEmailVerified` (named to avoid NextAuth's built-in `User.emailVerified: Date`), but **not enforced** — a hard gate is deferred until SMTP-backed verification exists, since self-registered applicants are currently unverified. No schema or data-model change; the regression suite grew to 65 tests (new `packages/db/src/users.test.ts`).
 
 Status: Approved

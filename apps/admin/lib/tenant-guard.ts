@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getTenantContext } from "@talentos/ui";
 import { isSuperAdmin, tenantRolesGrant, type Capability } from "@talentos/auth";
-import { getActorTenantRoles, getTenantBySlug, type Tenant } from "@talentos/db";
+import { getActorTenantRoles, getTenantBySlug, linkKeycloakIdentity, type Tenant } from "@talentos/db";
 
 export type TenantAccess =
   | { ok: true; tenant: Tenant; actorUserId: string | null; isSuperAdmin: boolean }
@@ -27,6 +27,22 @@ export async function resolveTenantAccess(capability?: Capability): Promise<Tena
   if (!tenant) return { ok: false, reason: "unknown-tenant" };
 
   const email = session.user.email;
+
+  // Backfill the Keycloak subject on the existing DB User at login time — admin/reviewer/super-admin
+  // rows were never linked before (only applicants, on first apply). Best-effort: never blocks the
+  // request, never creates a row. Server-side only (kept out of the edge-imported auth callbacks).
+  if (email) {
+    try {
+      await linkKeycloakIdentity({
+        email,
+        keycloakSubjectId: session.user.keycloakSubjectId,
+        name: session.user.name ?? null
+      });
+    } catch {
+      // linking is non-critical; authorization proceeds regardless
+    }
+  }
+
   const actor = email ? await getActorTenantRoles(email, tenant.id) : null;
 
   // Platform super admin may act on any tenant; keep their user id for audit attribution if present.

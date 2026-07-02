@@ -1,9 +1,13 @@
 # Data Model
 
-Code version: `v0.10.2`
+Code version: `v0.10.4`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.10.4` (identity linking & email normalization) and `v0.10.3` (tenant isolation fix) make no schema
+> change — both are code-only (email normalization + login-time `keycloakSubjectId` backfill; and
+> membership-based authorization consulting existing `TenantMembership` rows).
+>
 > `v0.10.2` (Keycloak SSO logout fix) makes no schema change — auth/Keycloak configuration only.
 >
 > `v0.10.1` (Keycloak OTP policy fix) and `v0.10.0` (Super Admin Organizations console) make no

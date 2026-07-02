@@ -11,6 +11,9 @@ declare module "next-auth" {
       platformRole: PlatformRole | null;
       isSuperAdmin: boolean;
       keycloakSubjectId: string | null;
+      // Keycloak `email_verified` claim, exposed for future gating (not enforced yet). Named
+      // `isEmailVerified` to avoid colliding with NextAuth's built-in `User.emailVerified: Date`.
+      isEmailVerified: boolean | null;
     } & DefaultSession["user"];
   }
 }
@@ -22,5 +25,6 @@ export type AppToken = {
   orgRole?: TenantRole | null;
   platformRole?: PlatformRole | null;
   keycloakSubjectId?: string;
+  emailVerified?: boolean | null;
   idToken?: string;
 };

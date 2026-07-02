@@ -1,6 +1,12 @@
 import type { TenantRole, User } from "@prisma/client";
 import { prisma } from "./client";
 
+/** Canonical form for a user email — trimmed and lowercased so the case-sensitive unique index
+ *  never yields duplicate identities for the same address. */
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 export type ProvisionApplicantInput = {
   email: string;
   name?: string | null;
@@ -19,14 +25,15 @@ export async function provisionApplicantUser({
   keycloakSubjectId,
   tenantId
 }: ProvisionApplicantInput): Promise<User> {
+  const normalizedEmail = normalizeEmail(email);
   const user = await prisma.user.upsert({
-    where: { email },
+    where: { email: normalizedEmail },
     update: {
       ...(name ? { name } : {}),
       ...(keycloakSubjectId ? { keycloakSubjectId } : {})
     },
     create: {
-      email,
+      email: normalizedEmail,
       name: name ?? null,
       keycloakSubjectId: keycloakSubjectId ?? null
     }
@@ -43,9 +50,46 @@ export async function provisionApplicantUser({
   return user;
 }
 
-/** Resolve a DB User by email (e.g. the signed-in reviewer for audit attribution). */
+/** Resolve a DB User by email (e.g. the signed-in reviewer for audit attribution).
+ *  Case-insensitive so a casing difference between the Keycloak token and the stored row
+ *  cannot orphan the lookup (e.g. the applicant status page). */
 export function getUserByEmail(email: string) {
-  return prisma.user.findUnique({ where: { email } });
+  return prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
+}
+
+/**
+ * Backfill the Keycloak subject on an existing DB User at login time (server-side only — never
+ * called from the edge-imported auth callbacks). Matches case-insensitively and updates only when a
+ * row exists and its `keycloakSubjectId` is missing or has changed; it never creates a row, so
+ * applicant rows are still born on first apply. Also backfills a missing display name. Best-effort:
+ * returns the linked user or null if none exists for the email.
+ */
+export async function linkKeycloakIdentity({
+  email,
+  keycloakSubjectId,
+  name
+}: {
+  email: string;
+  keycloakSubjectId?: string | null;
+  name?: string | null;
+}): Promise<User | null> {
+  const user = await prisma.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } }
+  });
+  if (!user) return null;
+
+  const nextSubject =
+    keycloakSubjectId && keycloakSubjectId !== user.keycloakSubjectId ? keycloakSubjectId : undefined;
+  const nextName = !user.name && name ? name : undefined;
+  if (nextSubject === undefined && nextName === undefined) return user;
+
+  return prisma.user.update({
+    where: { id: user.id },
+    data: {
+      ...(nextSubject !== undefined ? { keycloakSubjectId: nextSubject } : {}),
+      ...(nextName !== undefined ? { name: nextName } : {})
+    }
+  });
 }
 
 /**

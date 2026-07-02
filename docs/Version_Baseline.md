@@ -2,19 +2,30 @@
 
 ## Current Baseline
 
-Version: `v0.10.3`
+Version: `v0.10.4`
 
-Baseline name: `Tenant Isolation Fix (D-051)`
+Baseline name: `Identity Linking & Email Normalization (D-052)`
 
 Baseline code commit: `<set on commit>`
 
 Baseline date: `2026-07-02`
 
-Previous baseline: `v0.10.2`
+Previous baseline: `v0.10.3`
 
-Previous baseline commit: `3381f155698cf4f565b5aeb8d14c061fa6bd169f`
+Previous baseline commit: `4cc2689`
 
 ## Baseline Summary
+
+`v0.10.4` fixes two identity defects from the user-management audit. (1) The DB `User`↔Keycloak link was
+dead for admins: `keycloakSubjectId` was only ever written by `provisionApplicantUser` on an applicant's
+first apply, so admin/reviewer/super-admin rows stayed `NULL` forever. A server-side, edge-safe
+`linkKeycloakIdentity` (called best-effort from the admin guard `resolveTenantAccess`) now backfills the
+subject on login for existing rows without creating new ones. (2) Email casing was inconsistent
+(`createOrganization` lowercased; `provisionApplicantUser`/`getUserByEmail` did not) against a
+case-sensitive unique index, risking duplicate users and broken applicant status lookups; a shared
+`normalizeEmail` is applied on every write and `getUserByEmail` is now case-insensitive. The Keycloak
+`email_verified` claim is exposed on the session (`session.user.isEmailVerified`) but **not** enforced
+(no SMTP yet). No schema or data-model change; the regression suite grew to 65 tests. See `D-052`.
 
 `v0.10.3` is a security patch closing the tenant-isolation gap accepted as a known limitation in
 `v0.10.0` (D-048). Admin authorization derived the role from the realm-wide Keycloak token and the tenant

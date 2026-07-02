@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./client";
+import { normalizeEmail } from "./users";
 
 /** Resolve a tenant by its slug (the slug comes from host-based tenant resolution). */
 export function getTenantBySlug(slug: string) {
@@ -51,10 +52,11 @@ export function createOrganization({
       throw error;
     }
 
+    const normalizedAdminEmail = normalizeEmail(adminEmail);
     const admin = await tx.user.upsert({
-      where: { email: adminEmail },
+      where: { email: normalizedAdminEmail },
       update: adminName ? { name: adminName } : {},
-      create: { email: adminEmail, name: adminName ?? null }
+      create: { email: normalizedAdminEmail, name: adminName ?? null }
     });
 
     await tx.tenantMembership.upsert({

@@ -42,6 +42,9 @@ export function createTalentosAuth(options: TalentosAuthOptions): NextAuthResult
           appToken.orgRole = primaryOrgRole(orgRoles);
           appToken.platformRole = extractSuperAdmin(realmRoles);
           appToken.keycloakSubjectId = (profile?.sub as string | undefined) ?? appToken.sub;
+          // Expose the Keycloak email_verified claim (edge-safe, read-only). Not enforced yet.
+          const emailVerified = (profile as { email_verified?: boolean } | undefined)?.email_verified;
+          appToken.emailVerified = typeof emailVerified === "boolean" ? emailVerified : null;
           // Keep the id_token for RP-initiated logout (id_token_hint).
           if (account.id_token) {
             appToken.idToken = account.id_token;
@@ -56,6 +59,7 @@ export function createTalentosAuth(options: TalentosAuthOptions): NextAuthResult
         session.user.platformRole = appToken.platformRole ?? null;
         session.user.isSuperAdmin = appToken.platformRole === "SUPER_ADMIN";
         session.user.keycloakSubjectId = appToken.keycloakSubjectId ?? null;
+        session.user.isEmailVerified = appToken.emailVerified ?? null;
         session.idToken = appToken.idToken ?? null;
         return session;
       }

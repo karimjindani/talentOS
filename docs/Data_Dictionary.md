@@ -1,9 +1,16 @@
 # Data Dictionary
 
-Code version: `v0.10.2`
+Code version: `v0.10.4`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.10.4` (identity linking & email normalization) makes no schema change: emails are normalized on
+> write and `keycloakSubjectId` is backfilled on login (see the `User.keycloakSubjectId` row below);
+> `email_verified` is exposed on the session only (not a DB column).
+>
+> `v0.10.3` (tenant isolation fix) makes no data-model change — authorization now consults the existing
+> `TenantMembership` rows.
+>
 > `v0.10.2` (Keycloak SSO logout fix) is an auth/Keycloak configuration fix — no data-model change.
 >
 > `v0.10.1` (Keycloak OTP policy fix) is a Keycloak realm configuration fix — no data-model change.
@@ -49,7 +56,7 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 | `id` | Unique user identifier. |
 | `email` | Unique login email (matches the Keycloak username/email). |
 | `name` | Display name. |
-| `keycloakSubjectId` | Unique link to the Keycloak subject (OIDC `sub`); set on first login (v0.3.1). |
+| `keycloakSubjectId` | Unique link to the Keycloak subject (OIDC `sub`). Backfilled on login for admin users via `linkKeycloakIdentity` and set for applicants on first apply (`v0.10.4`); never creates a row. |
 | `emailVerified` | Email verification timestamp. |
 | `platformRole` | Platform role, `SUPER_ADMIN` or null. |
 | `passwordHash` | Optional legacy local hash; Keycloak owns credentials as of `v0.3.0`. |
