@@ -116,14 +116,18 @@ export function applyStatusTransition({
   tenantId
 }: ApplyStatusTransitionInput) {
   return prisma.$transaction(async (tx) => {
-    const application = await tx.application.update({
-      where: { id },
+    // Scope the write by tenant so a raw id can never cross tenants (defense-in-depth for D-051).
+    const result = await tx.application.updateMany({
+      where: { id, tenantId },
       data: {
         status: toStatus,
         reviewedAt: new Date(),
         ...(reviewerNotes !== undefined ? { reviewerNotes } : {})
       }
     });
+    if (result.count === 0) {
+      throw new Error("Application not found for this tenant.");
+    }
 
     await tx.auditLog.create({
       data: {
@@ -136,6 +140,6 @@ export function applyStatusTransition({
       }
     });
 
-    return application;
+    return tx.application.findFirstOrThrow({ where: { id, tenantId } });
   });
 }

@@ -75,9 +75,10 @@ export default async function OrganizationsPage() {
           Creates the tenant and assigns its first Org Admin by email.
         </p>
         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          The assigned Org Admin gains full access only once their Keycloak account holds the{" "}
-          <code>ORG_ADMIN</code> realm role. The database membership scopes them to this tenant, but the
-          role identity comes from Keycloak (assign it in the Keycloak admin console for now).
+          The assigned Org Admin can act only on <strong>this</strong> organization — the database
+          membership now enforces their authority per tenant. They still need the <code>ORG_ADMIN</code>{" "}
+          realm role on their Keycloak account to sign in to the admin portal (assign it in the Keycloak
+          admin console until auto-provisioning lands).
         </div>
 
         <form action={createOrganizationAction} className="mt-6 grid max-w-xl gap-5">

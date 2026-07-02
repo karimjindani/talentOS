@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.10.2`
+Code version: `v0.10.3`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.10.2`
+Current documentation update: `v0.10.3`
 
 ## Overview
 
@@ -165,11 +165,17 @@ TalentOS uses a shared PostgreSQL database with tenant-scoped records.
   `post_logout_redirect_uri`, built by `buildEndSessionUrl` in `packages/auth-web`), which terminates
   the Keycloak SSO session instead of only clearing the app cookie. Post-logout redirects are restricted
   to each client's registered origin (`post.logout.redirect.uris`), preventing open redirects.
-- **Known limitation (RBAC scoping):** admin `orgRole` is derived from the global Keycloak realm role,
-  not from per-tenant `TenantMembership`. Data reads/writes remain tenant-scoped
-  (`assertTenantScopedAccess` + host-resolved `tenantId`), but a user holding an `ORG_ADMIN` realm role
-  currently has admin authority on any tenant whose subdomain they visit. Per-tenant role enforcement
-  lands with the Keycloak Admin REST API integration (`v0.3.1`).
+- **Per-tenant RBAC (`v0.10.3`, closes the former D-048 limitation):** admin authorization is bound to
+  the DB `TenantMembership`, not the realm-wide Keycloak role. A shared guard
+  (`apps/admin/lib/tenant-guard.ts` → `resolveTenantAccess`/`requireTenantAccess`, backed by
+  `getActorTenantRoles` in `packages/db` and `tenantRolesGrant` in `packages/auth`) resolves
+  session → host tenant → membership and authorizes only when the actor holds a capable role **in the
+  resolved tenant**; `SUPER_ADMIN` (platform role) bypasses. It gates the admin layout (all page reads),
+  every mutating action (`managePrograms`/`reviewApplications`/`manageTenantSettings`), and the sensitive
+  route handlers (candidate-CV download, operations health). The Keycloak realm role now serves only as
+  the coarse *portal-entry* gate (middleware). Defense-in-depth: `updateProgram`/`setProgramStatus`/
+  `applyStatusTransition` write via `updateMany({ where: { id, tenantId } })` so a raw id cannot cross
+  tenants. Remaining `v0.3.1` work is Keycloak user/role *auto-provisioning*, not isolation.
 
 ## Scalability
 

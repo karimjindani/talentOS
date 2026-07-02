@@ -1,37 +1,17 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { getTenantContext } from "@talentos/ui";
-import { can } from "@talentos/auth";
-import {
-  getTenantBySlug,
-  getUserByEmail,
-  updateTenantBranding,
-  createStoredFile,
-  markStoredFileReady
-} from "@talentos/db";
+import { updateTenantBranding, createStoredFile, markStoredFileReady } from "@talentos/db";
 import { buildObjectKey, getBucket, putObject } from "@talentos/storage";
+import { requireTenantAccess } from "@/lib/tenant-guard";
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 const LOGO_ALLOWED = new Set(["image/png", "image/jpeg", "image/webp"]);
 const LOGO_MAX = 2 * 1024 * 1024; // 2 MB
 
 export async function saveTenantBranding(formData: FormData) {
-  const session = await auth();
-  if (!session?.user) redirect("/api/auth/signin");
-
-  const actor = {
-    platformRole: session.user.platformRole ?? null,
-    orgRole: session.user.orgRole ?? null
-  };
-  if (!can("manageTenantSettings", actor)) {
-    throw new Error("Forbidden");
-  }
-
-  const { tenantSlug } = await getTenantContext();
-  const tenant = await getTenantBySlug(tenantSlug);
-  if (!tenant) throw new Error("Tenant not found");
+  // manageTenantSettings must be held *in the resolved tenant* (TenantMembership-backed), so an admin
+  // of another tenant can no longer overwrite this tenant's branding. See lib/tenant-guard.ts (D-051).
+  const { tenant, actorUserId } = await requireTenantAccess("manageTenantSettings");
 
   const name = ((formData.get("name") as string) ?? "").trim();
   const primaryColor = ((formData.get("primaryColor") as string) ?? "").trim();
@@ -42,7 +22,6 @@ export async function saveTenantBranding(formData: FormData) {
   if (!HEX_RE.test(primaryColor)) throw new Error("Invalid primary color — must be a 6-digit hex e.g. #2563eb");
   if (!HEX_RE.test(secondaryColor)) throw new Error("Invalid secondary color — must be a 6-digit hex e.g. #0f172a");
 
-  const dbUser = session.user.email ? await getUserByEmail(session.user.email) : null;
   let logoFileId: string | undefined;
 
   if (logoFile instanceof File && logoFile.size > 0) {
@@ -60,14 +39,14 @@ export async function saveTenantBranding(formData: FormData) {
     });
     const stored = await createStoredFile({
       tenantId: tenant.id,
-      ownerUserId: dbUser?.id ?? null,
+      ownerUserId: actorUserId,
       bucket: getBucket(),
       storageKey: key,
       originalName: logoFile.name,
       contentType: logoFile.type,
       size: logoFile.size,
       category: "logo",
-      actorUserId: dbUser?.id ?? null
+      actorUserId
     });
     await markStoredFileReady(stored.id, tenant.id);
     logoFileId = stored.id;
@@ -79,7 +58,7 @@ export async function saveTenantBranding(formData: FormData) {
     primaryColor,
     secondaryColor,
     ...(logoFileId !== undefined && { logoFileId }),
-    actorUserId: dbUser?.id ?? null
+    actorUserId
   });
 
   revalidatePath("/settings");

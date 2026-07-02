@@ -43,6 +43,15 @@ export function can(capability: Capability, actor: ActorRoles): boolean {
   return ROLE_CAPABILITIES[actor.orgRole].includes(capability);
 }
 
+/**
+ * True when any of the actor's tenant-scoped roles (from their TenantMembership rows in the
+ * resolved tenant) grants the capability. This is the per-tenant authority check that binds
+ * a realm-wide role to the specific tenant being acted on.
+ */
+export function tenantRolesGrant(capability: Capability, roles: readonly TenantRole[]): boolean {
+  return roles.some((role) => ROLE_CAPABILITIES[role].includes(capability));
+}
+
 export function capabilitiesFor(actor: ActorRoles): Capability[] {
   if (isSuperAdmin(actor.platformRole)) {
     return [
