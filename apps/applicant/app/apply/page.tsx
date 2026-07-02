@@ -6,6 +6,7 @@ import { getTenantContext } from "@talentos/ui";
 import {
   createStoredFile,
   createSubmittedApplication,
+  DUPLICATE_APPLICATION_ERROR_MESSAGE,
   findActiveApplication,
   getTenantBySlug,
   listPublishedPrograms,
@@ -17,6 +18,10 @@ import { buildObjectKey, getBucket, putObject } from "@talentos/storage";
 const MOTIVATION_LABEL = "Why do you want to join?";
 const CV_CONTENT_TYPE = "application/pdf";
 const CV_MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+const DUPLICATE_APPLICATION_ERROR_CODE = "duplicate-active-application";
+const APPLY_ERROR_MESSAGES: Record<string, string> = {
+  [DUPLICATE_APPLICATION_ERROR_CODE]: DUPLICATE_APPLICATION_ERROR_MESSAGE
+};
 
 // Allow only the two profile hosts so stored links can't be used for phishing/redirects.
 const PROFILE_HOST_SUFFIX: Record<string, string> = {
@@ -100,7 +105,7 @@ async function submitApplication(formData: FormData) {
   // Reject duplicates before uploading, so a blocked submission leaves no orphan object.
   const existing = await findActiveApplication(applicant.id, program.id);
   if (existing) {
-    redirect("/application");
+    redirect(`/apply?error=${DUPLICATE_APPLICATION_ERROR_CODE}`);
   }
 
   // Stream the CV to object storage, then record it and link it to the new application.
@@ -123,24 +128,37 @@ async function submitApplication(formData: FormData) {
   });
   await markStoredFileReady(file.id, tenant.id);
 
-  await createSubmittedApplication({
-    tenantId: tenant.id,
-    programId: program.id,
-    applicantId: applicant.id,
-    answers: [{ questionKey: "motivation", questionLabel: MOTIVATION_LABEL, answer: motivation }],
-    cvFileId: file.id,
-    githubUrl,
-    linkedinUrl
-  });
+  try {
+    await createSubmittedApplication({
+      tenantId: tenant.id,
+      programId: program.id,
+      applicantId: applicant.id,
+      answers: [{ questionKey: "motivation", questionLabel: MOTIVATION_LABEL, answer: motivation }],
+      cvFileId: file.id,
+      githubUrl,
+      linkedinUrl
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === DUPLICATE_APPLICATION_ERROR_MESSAGE) {
+      redirect(`/apply?error=${DUPLICATE_APPLICATION_ERROR_CODE}`);
+    }
+    throw error;
+  }
 
   redirect("/application");
 }
 
-export default async function ApplyPage() {
+export default async function ApplyPage({
+  searchParams
+}: {
+  searchParams?: Promise<{ error?: string }>;
+}) {
   const session = await auth();
   const { tenantSlug } = await getTenantContext();
   const tenant = await getTenantBySlug(tenantSlug);
   const programs = tenant ? await listPublishedPrograms(tenant.id) : [];
+  const errorCode = (await searchParams)?.error;
+  const errorMessage = errorCode ? APPLY_ERROR_MESSAGES[errorCode] : null;
 
   return (
     <main>
@@ -151,6 +169,12 @@ export default async function ApplyPage() {
           Submit your application to a published program. You can track its status from your
           application page once submitted.
         </p>
+
+        {errorMessage ? (
+          <p className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-800">
+            {errorMessage}
+          </p>
+        ) : null}
 
         {!tenant ? (
           <p className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-800">

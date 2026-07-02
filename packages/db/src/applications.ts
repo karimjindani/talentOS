@@ -1,4 +1,4 @@
-import type { ApplicationStatus } from "@prisma/client";
+import type { ApplicationStatus, Prisma } from "@prisma/client";
 import { prisma } from "./client";
 
 export type ApplicationAnswerInput = {
@@ -7,13 +7,58 @@ export type ApplicationAnswerInput = {
   answer: string;
 };
 
-// Statuses that represent an in-flight application (used to block duplicate submissions per program).
-const ACTIVE_STATUSES: ApplicationStatus[] = ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "WAITLISTED"];
+export const DUPLICATE_APPLICATION_ERROR_MESSAGE = "You already have an active application for this opportunity.";
 
-/** An applicant's existing in-flight application for a program, if any. */
+// Statuses that block another application for the same applicant and program.
+export const DUPLICATE_BLOCKING_APPLICATION_STATUSES: ApplicationStatus[] = [
+  "DRAFT",
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "ACCEPTED",
+  "WAITLISTED"
+];
+
+export function isDuplicateBlockingApplicationStatus(status: ApplicationStatus): boolean {
+  return DUPLICATE_BLOCKING_APPLICATION_STATUSES.includes(status);
+}
+
+function duplicateBlockingApplicationWhere(
+  applicantId: string,
+  programId: string
+): Prisma.ApplicationWhereInput {
+  return {
+    applicantId,
+    programId,
+    status: { in: DUPLICATE_BLOCKING_APPLICATION_STATUSES }
+  };
+}
+
+type PrismaKnownErrorShape = {
+  code?: unknown;
+  meta?: {
+    target?: unknown;
+  };
+};
+
+function isDuplicateApplicationUniqueError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+  const knownError = error as PrismaKnownErrorShape;
+  if (knownError.code !== "P2002") {
+    return false;
+  }
+  const target = knownError.meta?.target;
+  if (Array.isArray(target)) {
+    return target.includes("applicantId") && target.includes("programId");
+  }
+  return typeof target === "string" && target.includes("applicantId") && target.includes("programId");
+}
+
+/** An applicant's duplicate-blocking application for a program, if any. */
 export function findActiveApplication(applicantId: string, programId: string) {
   return prisma.application.findFirst({
-    where: { applicantId, programId, status: { in: ACTIVE_STATUSES } }
+    where: duplicateBlockingApplicationWhere(applicantId, programId)
   });
 }
 
@@ -37,40 +82,73 @@ export function createSubmittedApplication({
   githubUrl = null,
   linkedinUrl = null
 }: CreateSubmittedApplicationInput) {
-  return prisma.$transaction(async (tx) => {
-    const application = await tx.application.create({
-      data: {
-        tenantId,
-        programId,
-        applicantId,
-        status: "SUBMITTED",
-        submittedAt: new Date(),
-        cvFileId,
-        githubUrl,
-        linkedinUrl,
-        answers: {
-          create: answers.map((a) => ({
-            questionKey: a.questionKey,
-            questionLabel: a.questionLabel,
-            answer: a.answer
-          }))
+  return prisma
+    .$transaction(async (tx) => {
+      const existing = await tx.application.findFirst({
+        where: duplicateBlockingApplicationWhere(applicantId, programId)
+      });
+      if (existing) {
+        throw new Error(DUPLICATE_APPLICATION_ERROR_MESSAGE);
+      }
+
+      const application = await tx.application.create({
+        data: {
+          tenantId,
+          programId,
+          applicantId,
+          status: "SUBMITTED",
+          submittedAt: new Date(),
+          cvFileId,
+          githubUrl,
+          linkedinUrl,
+          answers: {
+            create: answers.map((a) => ({
+              questionKey: a.questionKey,
+              questionLabel: a.questionLabel,
+              answer: a.answer
+            }))
+          }
         }
-      }
-    });
+      });
 
-    await tx.auditLog.create({
-      data: {
-        tenantId,
-        actorUserId: applicantId,
-        action: "application.submitted",
-        entityType: "Application",
-        entityId: application.id,
-        metadata: { programId, status: "SUBMITTED" }
-      }
-    });
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          actorUserId: applicantId,
+          action: "application.submitted",
+          entityType: "Application",
+          entityId: application.id,
+          metadata: { programId, status: "SUBMITTED" }
+        }
+      });
 
-    return application;
-  });
+      return application;
+    })
+    .catch((error: unknown) => {
+      if (isDuplicateApplicationUniqueError(error)) {
+        throw new Error(DUPLICATE_APPLICATION_ERROR_MESSAGE);
+      }
+      throw error;
+    });
+}
+
+export type ApplicationDuplicatePolicyCase = {
+  previousStatus: ApplicationStatus | null;
+  canApply: boolean;
+};
+
+export const APPLICATION_DUPLICATE_POLICY_CASES: ApplicationDuplicatePolicyCase[] = [
+  { previousStatus: null, canApply: true },
+  { previousStatus: "DRAFT", canApply: false },
+  { previousStatus: "SUBMITTED", canApply: false },
+  { previousStatus: "UNDER_REVIEW", canApply: false },
+  { previousStatus: "ACCEPTED", canApply: false },
+  { previousStatus: "REJECTED", canApply: true },
+  { previousStatus: "WAITLISTED", canApply: false }
+];
+
+export function canApplyAfterPreviousApplicationStatus(status: ApplicationStatus | null): boolean {
+  return status === null || !isDuplicateBlockingApplicationStatus(status);
 }
 
 /** All applications for a tenant, with applicant and program, newest first (admin list). */
