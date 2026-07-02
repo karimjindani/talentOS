@@ -1,6 +1,6 @@
 # Principles of Software Development
 
-Current code version: `v0.10.3`
+Current code version: `v0.10.4`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 

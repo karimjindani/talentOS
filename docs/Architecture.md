@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.10.3`
+Code version: `v0.10.4`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.10.3`
+Current documentation update: `v0.10.4`
 
 ## Overview
 
@@ -176,6 +176,14 @@ TalentOS uses a shared PostgreSQL database with tenant-scoped records.
   the coarse *portal-entry* gate (middleware). Defense-in-depth: `updateProgram`/`setProgramStatus`/
   `applyStatusTransition` write via `updateMany({ where: { id, tenantId } })` so a raw id cannot cross
   tenants. Remaining `v0.3.1` work is Keycloak user/role *auto-provisioning*, not isolation.
+- **Identity linking & email normalization (`v0.10.4`):** the DB `User` is the local mirror of the
+  Keycloak identity, joined by email. Emails are normalized (`normalizeEmail`, lowercased/trimmed) on
+  every write and `getUserByEmail` is case-insensitive, so the case-sensitive unique index cannot spawn
+  duplicate identities or orphan lookups. `keycloakSubjectId` is backfilled on login for existing rows by
+  `linkKeycloakIdentity`, called best-effort from the admin guard — kept out of the edge-safe auth
+  callbacks (no DB at the edge) and never creating rows (applicant rows are still born on first apply).
+  The Keycloak `email_verified` claim is surfaced as `session.user.isEmailVerified` for future gating but
+  is **not** enforced (deferred until SMTP-backed verification exists).
 
 ## Scalability
 

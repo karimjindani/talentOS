@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.10.3`
+Code version: `v0.10.4`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -125,5 +125,9 @@ regression cleanup must delete only explicitly marked `RegressionDataMarker` rec
 From `v0.10.3`, the regression baseline also covers per-tenant authorization: `tenantRolesGrant` must
 grant a capability only when the actor's tenant-scoped roles include it (unit,
 `packages/auth/src/permissions.test.ts`), and an actor must never authorize an admin action in a tenant
-they hold no `TenantMembership` in (a realm-wide role no longer suffices). The current regression suite
-is **62 tests**.
+they hold no `TenantMembership` in (a realm-wide role no longer suffices).
+
+From `v0.10.4`, the regression baseline also covers identity normalization: `normalizeEmail` must fold
+casing/whitespace to one canonical address (unit, `packages/db/src/users.test.ts`); email lookups are
+case-insensitive; and `keycloakSubjectId` is backfilled on login for existing users without creating new
+rows. The current regression suite is **65 tests**.
