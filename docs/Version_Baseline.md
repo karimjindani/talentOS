@@ -6,7 +6,7 @@ Version: `v0.11.2`
 
 Baseline name: `Engineering Governance Documentation — Source Control + CI/CD Policy (D-055, D-056)`
 
-Baseline code commit: `<set on commit>`
+Baseline code commit: `7bc6d5e`
 
 Baseline date: `2026-07-03`
 

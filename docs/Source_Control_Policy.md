@@ -2,7 +2,7 @@
 
 Code version: `v0.11.2`
 
-Baseline commit: `<set on commit>`
+Baseline commit: `7bc6d5e`
 
 This policy documents how source control is operated for TalentOS. It **codifies the workflow the
 repository already follows** (see git history) and fills the governance gaps that were previously

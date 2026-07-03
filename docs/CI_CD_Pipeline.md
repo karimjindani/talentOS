@@ -2,7 +2,7 @@
 
 Code version: `v0.11.2`
 
-Baseline commit: `<set on commit>`
+Baseline commit: `7bc6d5e`
 
 This policy documents the Continuous Integration pipeline that **exists today** and defines the
 Continuous Delivery / deployment governance that **does not yet exist** — image versioning, a registry,
