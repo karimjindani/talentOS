@@ -28,6 +28,11 @@ The CI gate runs on **every `push` and `pull_request`**
 | Test | `npm run test` | Vitest regression suite |
 | Build | `npm run build` | Production build of both apps |
 
+A parallel **`realm-import`** job boots Keycloak the same way production does
+(`start-dev --import-realm`, in-memory H2) against `keycloak/import/` and fails if the realm does not
+import cleanly — a boot-level guard against a malformed realm JSON reaching `main` (added in `v0.11.3`,
+D-057).
+
 **All stages must pass** for a PR to merge (see the PR policy in the Source Control Policy). This is the
 mandatory pre-merge gate.
 
