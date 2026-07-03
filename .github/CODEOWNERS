@@ -1,0 +1,6 @@
+# Code owners for TalentOS — used to route Pull Request reviews.
+# See docs/Source_Control_Policy.md (Pull Request & Code Review Policy).
+# Every PR into `main` requires at least one approving review from an owner.
+
+# Default owner for everything in the repository.
+*       @karimjindani

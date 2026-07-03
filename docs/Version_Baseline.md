@@ -2,19 +2,34 @@
 
 ## Current Baseline
 
-Version: `v0.11.1`
+Version: `v0.11.2`
 
-Baseline name: `Reserved Tenant-Slug Blocklist + Duplicate-Application Index (D-054)`
+Baseline name: `Engineering Governance Documentation — Source Control + CI/CD Policy (D-055, D-056)`
 
 Baseline code commit: `<set on commit>`
 
-Baseline date: `2026-07-02`
+Baseline date: `2026-07-03`
 
-Previous baseline: `v0.11.0`
+Previous baseline: `v0.11.1`
 
-Previous baseline commit: `af7f465`
+Previous baseline commit: `1a2f8e4`
 
 ## Baseline Summary
+
+`v0.11.2` is a **documentation-only** baseline that closes the engineering-governance gaps in the SSDLC
+docs — source control and CI/CD were operated in practice but never written down (violating principle 0).
+Two new canonical policies are added: **`docs/Source_Control_Policy.md`** (D-055) codifies the
+trunk-based branching model, `<type>/vX.Y.Z-<slug>` naming, Conventional-Commits standard with the
+`(vX.Y.Z, D-0NN)` trailer, the PR/review policy — >=1 review + green CI to merge `main`, no direct
+pushes — the rebase-then-merge-commit / never-force-push rule, and protected-branch/merge-freeze rules;
+and **`docs/CI_CD_Pipeline.md`** (D-056) documents the existing CI gate and **specifies as design
+targets** (not built this iteration) a security-scan stage (principle 7), a CD build/push flow, an image
+versioning + registry policy (`vX.Y.Z` + git-SHA tags), a dev -> staging -> prod promotion ladder, and a
+rollback procedure. `docs/sdlc.md` gains two summary sections linking both policies; `docs/Deployment.md`
+gains a Delivery-Pipeline section. Operationalized with repo artifacts `CONTRIBUTING.md`,
+`.github/pull_request_template.md`, and `.github/CODEOWNERS`. No application code, pipeline, or schema
+change (`.github/workflows/ci.yml` is unchanged); the regression suite is unchanged at **78 tests**.
+See `D-055`, `D-056`.
 
 `v0.11.1` completes the user/tenant-management audit hardening. (1) **Reserved-slug blocklist**:
 `isValidTenantSlug` (`packages/auth/src/tenant.ts`) now rejects routing/infra-sensitive labels

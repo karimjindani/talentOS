@@ -1,6 +1,6 @@
 # Principles of Software Development
 
-Current code version: `v0.11.1`
+Current code version: `v0.11.2`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -20,3 +20,36 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 3. Every documentation update must reference the relevant code version.
 4. Every implementation commit should mention the version when the work establishes or changes a versioned baseline.
 5. Version baselines must be recorded in `docs/Version_Baseline.md`.
+
+## Source Control, Branching & Code Review
+
+Source control is operated under a documented policy (`v0.11.2`, D-055) — see
+[`Source_Control_Policy.md`](Source_Control_Policy.md). In brief:
+
+1. **Trunk-based branching.** `main` is always releasable and protected; work happens on short-lived
+   branches cut from `main` and deleted after merge.
+2. **Branch naming** `<type>/vX.Y.Z-<slug>` (`type` ∈ `feat, fix, docs, ci, chore, refactor`).
+3. **Commits follow Conventional Commits** (`type(scope): subject`), carrying the `(vX.Y.Z, D-0NN)`
+   version + Decision-Log trailer when they change a versioned baseline (ties to Version/Documentation
+   Control rule 4).
+4. **Every change lands via a Pull Request** — ≥1 approving review, CI green, no direct pushes to
+   `main`; authors do not merge their own unreviewed PRs.
+5. **Rebase before merge, integrate via merge commit; never force-push `main`.** `main` is protected
+   (PR + passing CI + review required; no force-push/deletion), with a merge freeze while a baseline is
+   tagged.
+
+## CI/CD & Delivery
+
+The delivery pipeline is governed by [`CI_CD_Pipeline.md`](CI_CD_Pipeline.md) (`v0.11.2`, D-056) and the
+[`Deployment.md`](Deployment.md) guide. In brief:
+
+1. **CI gate (implemented):** `.github/workflows/ci.yml` runs `db:generate → typecheck → lint → test →
+   build` on every push and PR; all stages must pass to merge.
+2. **Security scanning (target, principle 7):** a dependency/SAST/secret/container-image scan stage is
+   specified to shift security left; it is documented as a follow-up, not yet implemented.
+3. **CD & image policy (target):** images build from the single root `Dockerfile`, are tagged with both
+   the baseline `vX.Y.Z` and the git SHA, pushed to a registry, and never deployed untagged.
+4. **Environment promotion:** dev (local Compose) → staging (auto-deploy on `main`) → prod (deploy a
+   `vX.Y.Z` tag behind a manual approval); per-environment secrets are never committed.
+5. **Rollback:** redeploy the previous known-good image tag; reverse a bad migration only via a new
+   forward migration (never hand-reverse a live schema change).
