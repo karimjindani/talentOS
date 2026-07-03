@@ -160,13 +160,18 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
-      "serviceAccountClientRoles": {
-        "realm-management": ["manage-users", "view-realm", "query-users"]
-      },
       "defaultClientScopes": ["roles"]
     }
   ],
   "users": [
+    {
+      "username": "service-account-talentos-provisioner",
+      "enabled": true,
+      "serviceAccountClientId": "talentos-provisioner",
+      "clientRoles": {
+        "realm-management": ["manage-users", "view-realm", "query-users"]
+      }
+    },
     {
       "username": "superadmin@talentos.local",
       "email": "superadmin@talentos.local",
