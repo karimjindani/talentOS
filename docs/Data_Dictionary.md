@@ -1,9 +1,30 @@
 # Data Dictionary
 
-Code version: `v0.11.4`
+Code version: `v0.12.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.12.0` (applicant dashboard) adds new tables and fields:
+>
+> **program_tasks**: `id` (cuid PK), `tenantId` (FK→tenants), `programId` (FK→programs), `weekNumber`
+> (Int, 1-4), `title` (String), `description` (String?), `dueAt` (DateTime?), `order` (Int, default 0),
+> `createdAt`, `updatedAt`. Index on `[tenantId, programId, weekNumber]`.
+>
+> **video_resources**: `id` (cuid PK), `tenantId` (FK→tenants), `programId` (FK→programs), `weekNumber`
+> (Int?), `title` (String), `url` (String), `description` (String?), `createdAt`, `updatedAt`. Index on
+> `[tenantId, programId, weekNumber]`.
+>
+> **notifications**: `id` (cuid PK), `tenantId` (FK→tenants), `userId` (FK→users), `type`
+> (NotificationType: INFO/WARNING/SUCCESS/TASK_DUE), `title` (String), `body` (String?), `readAt`
+> (DateTime?), `createdAt`. Index on `[userId, readAt]` and `[tenantId, createdAt]`.
+>
+> **calendar_events**: `id` (cuid PK), `tenantId` (FK→tenants), `programId` (FK→programs), `title`
+> (String), `description` (String?), `startsAt` (DateTime), `endsAt` (DateTime?), `location` (String?),
+> `createdAt`, `updatedAt`. Index on `[tenantId, programId, startsAt]`.
+>
+> **user_task_completions**: `id` (cuid PK), `taskId` (FK→program_tasks), `userId` (FK→users),
+> `completedAt` (DateTime, default now()). Unique on `[taskId, userId]`. Index on `[userId]`.
+>
 > `v0.11.4` (UI polish) makes no data-model change — it is a UI-only iteration (apply page redesign,
 > admin sidebar active-state indicator, review page back button).
 >

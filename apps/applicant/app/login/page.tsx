@@ -6,6 +6,8 @@ import { useSearchParams } from "next/navigation";
 
 function KeycloakAuthButtons() {
   const params = useSearchParams();
+  // Default callbackUrl is /application; middleware/dashboard layout will redirect to /dashboard
+  // if the user has an accepted application.
   const callbackUrl = params.get("callbackUrl") ?? "/application";
 
   return (

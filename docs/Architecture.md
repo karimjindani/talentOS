@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.11.4`
+Code version: `v0.12.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.11.4`
+Current documentation update: `v0.12.0`
 
 ## Overview
 
@@ -20,6 +20,16 @@ The two modules share only the `packages/*` libraries (`auth`, `auth-web`, `db`,
 `v0.2.0` realized this separation at the container level. As of `v0.3.0`, **Keycloak is the live IAM**: both portals authenticate via OIDC (Auth.js / NextAuth v5), and the Admin Portal enforces role-based access. Signup, password policy and authenticator-app 2FA are owned by Keycloak. The full Admin user/org/role management UI (Keycloak Admin REST API) follows in `v0.3.1`.
 
 The architecture follows the SSDLC principle that every iteration updates architecture, data model, deployment and testing documentation.
+
+### Applicant Dashboard (`v0.12.0`)
+
+When an applicant's application reaches ACCEPTED status, the applicant portal exposes a `/dashboard`
+route group with a fixed left sidebar (`ApplicantShell.tsx`, mirroring the admin `SidebarNav` pattern).
+The dashboard layout (`app/dashboard/layout.tsx`) checks for an accepted application and redirects to
+`/application` if none exists. The landing page and `/application` page also redirect to `/dashboard`
+for accepted applicants. The `PortalHeader` conditionally shows "Dashboard" instead of "Apply". Seven
+pages: overview, program (4-week breakdown), tasks, resources (embedded videos), calendar, notifications,
+profile. Data is served by `packages/db/src/dashboard.ts` (11 query/helper functions).
 
 ## Container Topology
 

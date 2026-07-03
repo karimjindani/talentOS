@@ -1,9 +1,26 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { PortalHeader } from "@/components/PortalHeader";
 import { StatusCard, getTenantContext } from "@talentos/ui";
+import { getTenantBySlug, getUserByEmail, listApplicantApplications } from "@talentos/db";
+import { auth } from "@/auth";
 
 export default async function HomePage() {
   const tenant = await getTenantContext();
+
+  // If the user is logged in and has an accepted application, redirect to dashboard
+  const session = await auth();
+  if (session?.user?.email) {
+    const tenantRecord = await getTenantBySlug(tenant.tenantSlug);
+    const user = tenantRecord ? await getUserByEmail(session.user.email) : null;
+    if (user && tenantRecord) {
+      const applications = await listApplicantApplications(user.id, tenantRecord.id);
+      const hasAccepted = applications.some((a) => a.status === "ACCEPTED");
+      if (hasAccepted) {
+        redirect("/dashboard");
+      }
+    }
+  }
 
   return (
     <main>

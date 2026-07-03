@@ -2,19 +2,32 @@
 
 ## Current Baseline
 
-Version: `v0.11.4`
+Version: `v0.12.0`
 
-Baseline name: `UI Polish — Apply Page, Admin Sidebar, Review Back Button (D-058)`
+Baseline name: `Applicant Dashboard — 4-Week Program Progress, Tasks, Resources, Notifications, Calendar (D-059)`
 
 Baseline code commit: `<set on commit>`
 
 Baseline date: `2026-07-03`
 
-Previous baseline: `v0.11.3`
+Previous baseline: `v0.11.4`
 
-Previous baseline commit: `2fd6fce`
+Previous baseline commit: `4e2390ce`
 
 ## Baseline Summary
+
+`v0.12.0` delivers the Applicant Dashboard — a professional, sidebar-based dashboard that appears when an
+applicant's application is ACCEPTED. When accepted, the "Apply" link in the portal header is replaced with
+a "Dashboard" link, the landing page and `/application` page redirect to `/dashboard`, and a full
+navigation shell provides access to: overview (quick stats + 4-week progress + current tasks + recent
+notifications + upcoming events), My Program (4-week breakdown with per-week tasks/resources/progress),
+Tasks (grouped by week with due dates and status), Resources (embedded YouTube/Loom videos by week),
+Calendar (upcoming and past events), Notifications (with mark-as-read), and Profile (read-only). Schema
+changes: 4 new Prisma models (`ProgramTask`, `VideoResource`, `Notification`, `CalendarEvent`), 1 new
+enum (`NotificationType`), 1 join table (`UserTaskCompletion`), migration
+`20260703150655_v0_12_0_applicant_dashboard`. DB helpers in `packages/db/src/dashboard.ts`. Seed script
+`scripts/seed-dashboard.ts`. The regression suite grew to 125 tests (24 new: 14 dashboard DB helper
+tests + 10 ApplicantShell nav tests). See `D-059`.
 
 `v0.11.4` is a UI-only polish iteration with three changes. (1) **Applicant Apply page redesign**:
 `apps/applicant/app/apply/page.tsx` render section replaced with a professional, branded, card-based

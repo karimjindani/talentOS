@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.11.4`
+Code version: `v0.12.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.11.2`
+Current documentation update: `v0.12.0`
 
 ## D-001
 
@@ -345,5 +345,11 @@ Status: Approved
 ## D-058
 
 `v0.11.4` is a UI-only polish iteration addressing three UX gaps. (1) **Applicant Apply page redesign** (`apps/applicant/app/apply/page.tsx`): the plain form was replaced with a professional, branded, card-based layout — header banner with 📝 icon, sectioned form (Program & Motivation / Documents / Profile Links), styled inputs with focus rings, dashed-border upload zone, full-width submit button with hover state. Decision: use existing brand tokens (`brand-navy`/`brand-blue`/`brand-mist`) — no new colors or dependencies. Server action `submitApplication` is unchanged; only the JSX render section was replaced. (2) **Admin sidebar active-state indicator** (`apps/admin/components/SidebarNav.tsx`, NEW): the inline `<nav>` in `layout.tsx` was extracted into a client component using `usePathname()` to apply `bg-brand-blue text-white font-semibold` to the active link. Decision: exact match for `/` (Overview), `startsWith` for all others so nested routes (`/applications/123`) highlight the parent ("Applications"). Active style is high-contrast to be clearly distinguishable from the hover state. Works for all admin roles; "Organizations" remains SUPER_ADMIN-only. (3) **Review page back button** (`apps/admin/app/applications/[id]/page.tsx`): added "← Back to Applications" link at the top. Decision: inline link with arrow (not a full button) to keep the page header clean. No schema, data-model, or security change. The regression suite grew to 101 tests (12 new `SidebarNav.test.ts` covering route-matching logic: exact match, startsWith match, cross-route isolation, NAV_ITEMS integrity).
+
+Status: Approved
+
+## D-059
+
+`v0.12.0` delivers the Applicant Dashboard. When an applicant's application reaches ACCEPTED status, the portal header replaces "Apply" with "Dashboard", and the landing page + `/application` page redirect to `/dashboard`. The dashboard uses a fixed left sidebar (`ApplicantShell.tsx`, mirroring the admin `SidebarNav` pattern) with 7 nav items: Dashboard (overview), My Program, Tasks, Resources, Calendar, Notifications, Profile. The overview shows quick stats (overall progress %, tasks completed/pending, days remaining), 4-week progress bars, current tasks, recent notifications, and upcoming events. Schema additions: `ProgramTask` (task scoped to program + week 1-4 with dueAt and order), `VideoResource` (external YouTube/Loom URL scoped to program + optional week), `Notification` (in-app notification with type INFO/WARNING/SUCCESS/TASK_DUE, readAt), `CalendarEvent` (scheduled event with startsAt/endsAt/location), `UserTaskCompletion` (join table tracking task completion per applicant), and `NotificationType` enum. Decisions: (1) Full schema changes with migration rather than mock data — the dashboard needs real persistence. (2) External video URLs (YouTube/Loom) rather than MinIO upload — simpler, no file management, HR/leads just paste links. (3) Pre-defined tasks per program rather than per-applicant assignment — tasks are program-level; admin editing is deferred. (4) Applicant dashboard only — admin-side task/video management UI is a future iteration. DB helpers in `packages/db/src/dashboard.ts` (11 functions including `getApplicantProgramProgress` which computes per-week completion). Seed script `scripts/seed-dashboard.ts` creates 9 tasks, 5 videos, 5 events, 3 notifications. The regression suite grew to 125 tests (24 new: 14 `dashboard.test.ts` + 10 `ApplicantShell.test.ts`).
 
 Status: Approved

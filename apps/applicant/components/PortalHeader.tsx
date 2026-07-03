@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { buildEndSessionUrl } from "@talentos/auth-web";
-import { getTenantBySlug } from "@talentos/db";
+import { getTenantBySlug, getUserByEmail, listApplicantApplications } from "@talentos/db";
 
 type PortalHeaderProps = {
   tenantSlug: string;
@@ -11,6 +11,16 @@ type PortalHeaderProps = {
 export async function PortalHeader({ tenantSlug }: PortalHeaderProps) {
   const session = await auth();
   const tenant = await getTenantBySlug(tenantSlug);
+
+  // Check if the logged-in user has an accepted application
+  let hasAcceptedApplication = false;
+  if (session?.user?.email && tenant) {
+    const user = await getUserByEmail(session.user.email);
+    if (user) {
+      const applications = await listApplicantApplications(user.id, tenant.id);
+      hasAcceptedApplication = applications.some((a) => a.status === "ACCEPTED");
+    }
+  }
 
   return (
     <header className="border-b border-slate-200 bg-white">
@@ -23,12 +33,21 @@ export async function PortalHeader({ tenantSlug }: PortalHeaderProps) {
           )}
         </Link>
         <nav className="flex items-center gap-3 text-sm">
-          <Link
-            href="/apply"
-            className="rounded-lg px-4 py-2 font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-brand-blue"
-          >
-            Apply
-          </Link>
+          {hasAcceptedApplication ? (
+            <Link
+              href="/dashboard"
+              className="rounded-lg bg-brand-blue px-4 py-2 font-semibold text-white transition-colors hover:bg-brand-navy"
+            >
+              Dashboard
+            </Link>
+          ) : (
+            <Link
+              href="/apply"
+              className="rounded-lg px-4 py-2 font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-brand-blue"
+            >
+              Apply
+            </Link>
+          )}
           {session?.user ? (
             <>
               <span className="rounded-lg bg-slate-100 px-3 py-1.5 font-medium text-slate-600">
