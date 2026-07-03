@@ -1,6 +1,9 @@
 # TalentOS Documentation Overview
 
-Code/documentation version: `v0.7.1`
+Code/documentation version: `v0.11.2`
+
+> For the complete, authoritative version history see [Version Baseline](Version_Baseline.md). The
+> changelog excerpt below is retained from an earlier snapshot and is not exhaustive.
 
 TalentOS is an AI-powered Talent Discovery, Learning and Recruitment Platform.
 
@@ -92,6 +95,9 @@ The applicant portal must not expose administrator navigation.
 - [Product Backlog](Product_Backlog.md)
 - [Version Baseline](Version_Baseline.md)
 - [Deployment](Deployment.md)
+- [Source Control & Branching Policy](Source_Control_Policy.md)
+- [CI/CD & Delivery Policy](CI_CD_Pipeline.md)
+- [Contributing Guide](../CONTRIBUTING.md)
 - [Testing Strategy](Testing_Strategy.md)
 - [Decision Log](Decision_Log.md)
 - [Data Model](Data_Model.md)

@@ -1,6 +1,6 @@
 # Decision Log
 
-Code version: `v0.11.1`
+Code version: `v0.11.2`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -327,5 +327,17 @@ Status: Approved
 ## D-054
 
 `v0.11.1` completes the user/tenant-management audit hardening (finding #4). (1) **Reserved-slug blocklist**: `isValidTenantSlug` now rejects a `RESERVED_SLUGS` set of routing/infra-sensitive labels (`www`, `admin`, `api`, `app`, `auth`, `sso`, `mail`, `cdn`, `static`, `storage`, `s3`, `minio`, `keycloak`, `ops`, `demo`, …) in addition to the DNS-safe regex, because a tenant slug becomes a subdomain and these would invite routing confusion, cookie-scope bleed or subdomain-takeover concerns; `demo` (the default catch-all tenant) is reserved too. Validation-only, no schema change; existing tenants are unaffected (the check runs only on create). (2) This entry also records the **duplicate-active-application** guard shipped via PR #13 (commit `73c0a78`), which merged without its own governance entry: a Postgres **partial unique index** `applications_applicantId_programId_active_key` on `(applicantId, programId) WHERE status IN (DRAFT, SUBMITTED, UNDER_REVIEW, ACCEPTED, WAITLISTED)` (migration `20260702090000_duplicate_application_active_index`) backstops the app-layer duplicate check against races. Decision: use a partial index (not a plain `@@unique`, which Prisma's schema also cannot express with a `WHERE`) so **REJECTED** applications are excluded and a rejected applicant may re-apply — preserving prior behavior. The regression suite is 78 tests (new `packages/auth/src/auth.test.ts` reserved-slug cases + PR #13's `applications.test.ts`).
+
+Status: Approved
+
+## D-055
+
+`v0.11.2` documents the **source-control & branching policy** that the repository already followed but had never written down (SSDLC principle 0). Decision: adopt a **trunk-based** model — `main` always releasable and protected, short-lived `<type>/vX.Y.Z-<slug>` branches cut from and merged back to `main` via reviewed Pull Requests. Standards codified in `docs/Source_Control_Policy.md`: **Conventional Commits** (`type(scope): subject`) with a `(vX.Y.Z, D-0NN)` version/decision trailer on baseline-changing commits; **PR policy** of >=1 approving review + green CI (no direct pushes, no self-merge of unreviewed PRs); **merge policy** of rebase-before-merge, integrate via merge commit, never force-push `main`; and **protected-branch / merge-freeze rules** for `main`. Operationalized with repo artifacts: `CONTRIBUTING.md`, `.github/pull_request_template.md`, and `.github/CODEOWNERS` (review routing to `@karimjindani`). GitHub branch-protection settings must be enabled in the repo UI (checklist in the policy) — they cannot be committed. Documentation-only; no app code or schema change; the regression suite is unchanged at 78 tests.
+
+Status: Approved
+
+## D-056
+
+`v0.11.2` documents the **CI/CD & delivery policy** (`docs/CI_CD_Pipeline.md`), separating what exists from what is a target. Existing: the CI gate (`.github/workflows/ci.yml`) runs `db:generate -> typecheck -> lint -> test -> build` on every push/PR and is the mandatory pre-merge gate. Decisions recorded as **design targets, not implemented this iteration** (per the approved scope, docs-only — `ci.yml` unchanged): (1) a **security-scan stage** (dependency/`npm audit`+Dependabot, SAST/CodeQL, secret/gitleaks, container/Trivy) with block-vs-warn severity rules to satisfy principle 7 (shift-left); (2) **CD** that builds from the single root `Dockerfile` and pushes to a registry (`ghcr.io` or Alibaba ACR); (3) **image versioning** — every image tagged with both the baseline `vX.Y.Z` and the immutable git SHA, `main` never deployed untagged; (4) an **environment-promotion ladder** dev (local Compose) -> staging (auto-deploy on `main`, the existing ECS validation box) -> prod (deploy a `vX.Y.Z` tag behind a manual approval), with per-environment secrets never committed; (5) a **rollback** procedure — redeploy the previous known-good tag, and reverse a bad migration only via a new forward migration (never hand-reverse a live schema change). Documentation-only; no app code, pipeline, or schema change; the regression suite is unchanged at 78 tests. The scan stage and CD implementation are deferred to a later baseline.
 
 Status: Approved
