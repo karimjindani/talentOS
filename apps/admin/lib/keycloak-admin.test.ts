@@ -102,12 +102,24 @@ describe("realm import", () => {
       clients: {
         clientId: string;
         serviceAccountsEnabled?: boolean;
-        serviceAccountClientRoles?: Record<string, string[]>;
+      }[];
+      users: {
+        username: string;
+        serviceAccountClientId?: string;
+        clientRoles?: Record<string, string[]>;
       }[];
     };
     const provisioner = realm.clients.find((c) => c.clientId === "talentos-provisioner");
     expect(provisioner).toBeDefined();
     expect(provisioner?.serviceAccountsEnabled).toBe(true);
-    expect(provisioner?.serviceAccountClientRoles?.["realm-management"]).toContain("manage-users");
+
+    // Realm-management roles are granted via the service-account user (the canonical Keycloak
+    // realm-import representation), NOT a serviceAccountClientRoles field on the client — that field
+    // is not valid in the import schema and aborts the import (D-057).
+    const serviceAccountUser = realm.users.find(
+      (u) => u.serviceAccountClientId === "talentos-provisioner"
+    );
+    expect(serviceAccountUser).toBeDefined();
+    expect(serviceAccountUser?.clientRoles?.["realm-management"]).toContain("manage-users");
   });
 });

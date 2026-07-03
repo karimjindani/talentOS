@@ -2,19 +2,33 @@
 
 ## Current Baseline
 
-Version: `v0.11.2`
+Version: `v0.11.3`
 
-Baseline name: `Engineering Governance Documentation — Source Control + CI/CD Policy (D-055, D-056)`
+Baseline name: `Keycloak Realm-Import Fix — provisioner service-account roles (D-057)`
 
-Baseline code commit: `7bc6d5e`
+Baseline code commit: `2fd6fce`
 
 Baseline date: `2026-07-03`
 
-Previous baseline: `v0.11.1`
+Previous baseline: `v0.11.2`
 
-Previous baseline commit: `1a2f8e4`
+Previous baseline commit: `7bc6d5e`
 
 ## Baseline Summary
+
+`v0.11.3` is a fix for a crash-looping Keycloak that broke authentication platform-wide on any fresh
+deployment. The `talentos-provisioner` service-account client added in `v0.11.0` was written into
+`keycloak/import/talentos-realm.json` with an **invalid `serviceAccountClientRoles` field**; Keycloak's
+import parser rejects it and aborts at the parse step — before the realm-exists check — so
+`start-dev --import-realm` fails on every startup and Keycloak crash-loops (OIDC discovery unreachable,
+no portal can log in). The defect escaped `v0.11.0` because that iteration validated the provisioner only
+via a live `kcadm.sh` patch, never the baked-in import on a clean volume. Fix: remove the invalid field
+and express the service account's realm-management roles the canonical import way — a
+`service-account-talentos-provisioner` user with `serviceAccountClientId` + `clientRoles`
+(`realm-management`: `manage-users`/`view-realm`/`query-users`). Verified with a destructive fresh-import
+test (wiped `keycloak-postgres` volume): Keycloak boots, the realm imports cleanly, the provisioner
+authenticates and the Admin `/users` API returns 200. No application code, schema, or data-model change;
+the regression suite is unchanged at **78 tests** (validated via the deployment/e2e test). See `D-057`.
 
 `v0.11.2` is a **documentation-only** baseline that closes the engineering-governance gaps in the SSDLC
 docs — source control and CI/CD were operated in practice but never written down (violating principle 0).

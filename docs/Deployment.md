@@ -1,11 +1,20 @@
 # Deployment
 
-Code version: `v0.11.2`
+Code version: `v0.11.3`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current deployment update: `v0.11.2`
+Current deployment update: `v0.11.3`
 
+> `v0.11.3` fixes a **crash-looping Keycloak** on fresh deployments: the `talentos-provisioner` client
+> (v0.11.0) was written into `keycloak/import/talentos-realm.json` with an invalid
+> `serviceAccountClientRoles` field, so `start-dev --import-realm` aborted at parse time on every
+> startup. The fix expresses the service account's realm-management roles the canonical way (a
+> `service-account-talentos-provisioner` user with `clientRoles`). **Fresh environments** now import the
+> realm cleanly with no action — the import dir is a read-only volume mount, so no image rebuild is
+> needed. **Already-running environments** that had the provisioner patched live via `kcadm.sh` need no
+> action; the fix just makes the on-disk import valid so future restarts/redeploys no longer crash.
+>
 > `v0.11.2` (engineering-governance docs) and `v0.11.1` (reserved-slug blocklist) introduce **no
 > deployment, infra, or migration change**. `v0.11.2` documents the delivery pipeline — see
 > [Delivery Pipeline (CI/CD)](#delivery-pipeline-cicd) below and [`CI_CD_Pipeline.md`](CI_CD_Pipeline.md).
