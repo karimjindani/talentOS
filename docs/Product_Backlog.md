@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.11.2`
+Code version: `v0.11.4`
 
-Documentation update: `UI polish delivered in v0.11.2 (D-055): applicant apply page professionalized, admin sidebar active-state indicator, application review back button. All prior work through v0.11.1 (tenant settings, organizations, Keycloak fixes, per-tenant auth, identity linking, org-admin provisioning, reserved slugs, duplicate-application index) remains functional.`
+Documentation update: `UI polish delivered in v0.11.4 (D-058): applicant apply page professionalized, admin sidebar active-state indicator, application review back button. All prior work through v0.11.3 (tenant settings, organizations, Keycloak fixes, per-tenant auth, identity linking, org-admin provisioning, reserved slugs, duplicate-application index, engineering governance docs, Keycloak realm-import fix) remains functional.`
 
 ## MVP
 

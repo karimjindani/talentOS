@@ -144,7 +144,7 @@ slugs and slugs that merely contain a reserved substring (unit, `packages/auth/s
 duplicate active applications are blocked at the DB via the partial unique index (PR #13,
 `packages/db/src/applications.test.ts`). The current regression suite is **78 tests**.
 
-From `v0.11.2`, the regression baseline also covers the admin sidebar active-state route-matching logic
+From `v0.11.4`, the regression baseline also covers the admin sidebar active-state route-matching logic
 (unit, `apps/admin/components/SidebarNav.test.ts`): `isActive` must return `true` for exact-match routes
 (`/` only on `/`) and `startsWith`-match routes (`/applications` on `/applications` and
 `/applications/[id]`); no false positives across routes; `NAV_ITEMS` contains the five standard admin

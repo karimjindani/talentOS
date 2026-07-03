@@ -2,21 +2,21 @@
 
 ## Current Baseline
 
-Version: `v0.11.2`
+Version: `v0.11.4`
 
-Baseline name: `UI Polish — Apply Page, Admin Sidebar, Review Back Button (D-055)`
+Baseline name: `UI Polish — Apply Page, Admin Sidebar, Review Back Button (D-058)`
 
 Baseline code commit: `<set on commit>`
 
 Baseline date: `2026-07-03`
 
-Previous baseline: `v0.11.1`
+Previous baseline: `v0.11.3`
 
-Previous baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+Previous baseline commit: `2fd6fce`
 
 ## Baseline Summary
 
-`v0.11.2` is a UI-only polish iteration with three changes. (1) **Applicant Apply page redesign**:
+`v0.11.4` is a UI-only polish iteration with three changes. (1) **Applicant Apply page redesign**:
 `apps/applicant/app/apply/page.tsx` render section replaced with a professional, branded, card-based
 layout — header banner with icon, sectioned form (Program & Motivation / Documents / Profile Links),
 styled inputs with focus rings, dashed-border upload zone, full-width submit button with hover state.
@@ -25,7 +25,36 @@ from `apps/admin/app/layout.tsx` into a new client component `apps/admin/compone
 uses `usePathname()` to apply `bg-brand-blue text-white font-semibold` to the active link (exact match
 for `/`, `startsWith` for others); works for all admin roles. (3) **Review page back button**: added
 "← Back to Applications" link to `apps/admin/app/applications/[id]/page.tsx`. No schema, data-model, or
-security change. The regression suite grew to 101 tests (12 new `SidebarNav.test.ts`). See `D-055`.
+security change. The regression suite grew to 101 tests (12 new `SidebarNav.test.ts`). See `D-058`.
+
+`v0.11.3` is a fix for a crash-looping Keycloak that broke authentication platform-wide on any fresh
+deployment. The `talentos-provisioner` service-account client added in `v0.11.0` was written into
+`keycloak/import/talentos-realm.json` with an **invalid `serviceAccountClientRoles` field**; Keycloak's
+import parser rejects it and aborts at the parse step — before the realm-exists check — so
+`start-dev --import-realm` fails on every startup and Keycloak crash-loops (OIDC discovery unreachable,
+no portal can log in). The defect escaped `v0.11.0` because that iteration validated the provisioner only
+via a live `kcadm.sh` patch, never the baked-in import on a clean volume. Fix: remove the invalid field
+and express the service account's realm-management roles the canonical import way — a
+`service-account-talentos-provisioner` user with `serviceAccountClientId` + `clientRoles`
+(`realm-management`: `manage-users`/`view-realm`/`query-users`). Verified with a destructive fresh-import
+test (wiped `keycloak-postgres` volume): Keycloak boots, the realm imports cleanly, the provisioner
+authenticates and the Admin `/users` API returns 200. No application code, schema, or data-model change;
+the regression suite is unchanged at **78 tests** (validated via the deployment/e2e test). See `D-057`.
+
+`v0.11.2` is a **documentation-only** baseline that closes the engineering-governance gaps in the SSDLC
+docs — source control and CI/CD were operated in practice but never written down (violating principle 0).
+Two new canonical policies are added: **`docs/Source_Control_Policy.md`** (D-055) codifies the
+trunk-based branching model, `<type>/vX.Y.Z-<slug>` naming, Conventional-Commits standard with the
+`(vX.Y.Z, D-0NN)` trailer, the PR/review policy — >=1 review + green CI to merge `main`, no direct
+pushes — the rebase-then-merge-commit / never-force-push rule, and protected-branch/merge-freeze rules;
+and **`docs/CI_CD_Pipeline.md`** (D-056) documents the existing CI gate and **specifies as design
+targets** (not built this iteration) a security-scan stage (principle 7), a CD build/push flow, an image
+versioning + registry policy (`vX.Y.Z` + git-SHA tags), a dev -> staging -> prod promotion ladder, and a
+rollback procedure. `docs/sdlc.md` gains two summary sections linking both policies; `docs/Deployment.md`
+gains a Delivery-Pipeline section. Operationalized with repo artifacts `CONTRIBUTING.md`,
+`.github/pull_request_template.md`, and `.github/CODEOWNERS`. No application code, pipeline, or schema
+change (`.github/workflows/ci.yml` is unchanged); the regression suite is unchanged at **78 tests**.
+See `D-055`, `D-056`.
 
 `v0.11.1` completes the user/tenant-management audit hardening. (1) **Reserved-slug blocklist**:
 `isValidTenantSlug` (`packages/auth/src/tenant.ts`) now rejects routing/infra-sensitive labels

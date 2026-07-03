@@ -1,10 +1,10 @@
 # Data Model
 
-Code version: `v0.11.2`
+Code version: `v0.11.4`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-> `v0.11.2` (UI polish) makes no schema change — it is a UI-only iteration (apply page redesign, admin
+> `v0.11.4` (UI polish) makes no schema change — it is a UI-only iteration (apply page redesign, admin
 > sidebar active-state indicator, review page back button).
 >
 > `v0.11.1` (reserved slugs) makes no schema change. It also records the schema addition delivered via
