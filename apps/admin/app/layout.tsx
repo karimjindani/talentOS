@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { SessionProvider } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
@@ -7,6 +6,7 @@ import { getTenantContext, brandStyleBlock } from "@talentos/ui";
 import { buildEndSessionUrl } from "@talentos/auth-web";
 import { getTenantBySlug } from "@talentos/db";
 import { resolveTenantAccess } from "@/lib/tenant-guard";
+import { SidebarNav } from "@/components/SidebarNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -44,19 +44,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           <div className="min-h-screen bg-slate-100">
             <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-slate-200 bg-white p-6 md:flex">
               <h1 className="text-xl font-bold">{tenantName} Admin</h1>
-              <nav className="mt-8 grid gap-3 text-sm text-slate-700">
-                <Link href="/">Overview</Link>
-                <Link href="/applications">Applications</Link>
-                <Link href="/programs">Programs</Link>
-                <Link href="/operations">Operations</Link>
-                <Link href="/settings">Settings</Link>
-                {session?.user?.isSuperAdmin ? (
-                  <Link href="/organizations">Organizations</Link>
-                ) : null}
-                <a className="mt-4 text-brand-blue" href={applicantUrl}>
-                  Applicant portal
-                </a>
-              </nav>
+              <SidebarNav
+                isSuperAdmin={session?.user?.isSuperAdmin ?? false}
+                applicantUrl={applicantUrl}
+              />
               {session?.user ? (
                 <div className="mt-auto border-t border-slate-200 pt-4 text-sm">
                   <p className="font-medium text-slate-700">{session.user.email}</p>
@@ -74,9 +65,12 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                       await signOut({ redirect: false });
                       redirect(logoutUrl);
                     }}
-                    className="mt-2"
+                    className="mt-3"
                   >
-                    <button type="submit" className="text-brand-blue">
+                    <button
+                      type="submit"
+                      className="w-full cursor-pointer rounded-lg border border-slate-200 px-3 py-2 font-medium text-slate-700 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                    >
                       Logout
                     </button>
                   </form>

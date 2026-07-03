@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getTenantContext, StatusBadge } from "@talentos/ui";
@@ -68,7 +69,14 @@ export default async function ApplicationDetailPage({ params }: ApplicationDetai
 
   return (
     <>
-      <div className="flex items-center justify-between">
+      <Link
+        href="/applications"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-blue transition-colors hover:text-brand-navy"
+      >
+        <span aria-hidden="true">←</span> Back to Applications
+      </Link>
+
+      <div className="mt-4 flex items-center justify-between">
         <h1 className="text-3xl font-bold">
           {application.applicant.name ?? application.applicant.email}
         </h1>

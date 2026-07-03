@@ -22,11 +22,18 @@ export async function PortalHeader({ tenantSlug }: PortalHeaderProps) {
             <span>{tenant?.name ?? "TalentOS"}</span>
           )}
         </Link>
-        <nav className="flex items-center gap-4 text-sm text-slate-600">
-          <Link href="/apply">Apply</Link>
+        <nav className="flex items-center gap-3 text-sm">
+          <Link
+            href="/apply"
+            className="rounded-lg px-4 py-2 font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-brand-blue"
+          >
+            Apply
+          </Link>
           {session?.user ? (
             <>
-              <span className="text-slate-500">{session.user.email}</span>
+              <span className="rounded-lg bg-slate-100 px-3 py-1.5 font-medium text-slate-600">
+                {session.user.email}
+              </span>
               <form
                 action={async () => {
                   "use server";
@@ -41,13 +48,21 @@ export async function PortalHeader({ tenantSlug }: PortalHeaderProps) {
                   redirect(logoutUrl);
                 }}
               >
-                <button type="submit" className="text-brand-blue">
+                <button
+                  type="submit"
+                  className="cursor-pointer rounded-lg border border-slate-200 px-4 py-2 font-medium text-slate-700 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                >
                   Logout
                 </button>
               </form>
             </>
           ) : (
-            <Link href="/login">Login</Link>
+            <Link
+              href="/login"
+              className="cursor-pointer rounded-lg bg-brand-blue px-4 py-2 font-semibold text-white transition-colors hover:bg-brand-navy"
+            >
+              Login
+            </Link>
           )}
         </nav>
       </div>

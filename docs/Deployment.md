@@ -1,23 +1,13 @@
 # Deployment
 
-Code version: `v0.11.3`
+Code version: `v0.11.2`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current deployment update: `v0.11.3`
+Current deployment update: `v0.11.2`
 
-> `v0.11.3` fixes a **crash-looping Keycloak** on fresh deployments: the `talentos-provisioner` client
-> (v0.11.0) was written into `keycloak/import/talentos-realm.json` with an invalid
-> `serviceAccountClientRoles` field, so `start-dev --import-realm` aborted at parse time on every
-> startup. The fix expresses the service account's realm-management roles the canonical way (a
-> `service-account-talentos-provisioner` user with `clientRoles`). **Fresh environments** now import the
-> realm cleanly with no action — the import dir is a read-only volume mount, so no image rebuild is
-> needed. **Already-running environments** that had the provisioner patched live via `kcadm.sh` need no
-> action; the fix just makes the on-disk import valid so future restarts/redeploys no longer crash.
->
-> `v0.11.2` (engineering-governance docs) and `v0.11.1` (reserved-slug blocklist) introduce **no
-> deployment, infra, or migration change**. `v0.11.2` documents the delivery pipeline — see
-> [Delivery Pipeline (CI/CD)](#delivery-pipeline-cicd) below and [`CI_CD_Pipeline.md`](CI_CD_Pipeline.md).
+> `v0.11.2` (UI polish) makes no deployment change — both containers rebuild with the same Docker
+> Compose topology. Rebuild with `docker compose up -d --build applicant admin`.
 >
 > `v0.11.0` (org-admin auto-provisioning) adds a confidential Keycloak service-account client
 > `talentos-provisioner` (realm-management roles `manage-users`/`view-realm`/`query-users`) and four admin
@@ -157,18 +147,6 @@ The first deployment target is a VPS running Docker Compose.
    ```
 
 3. Run database migration commands from a release process before serving production traffic.
-
-## Delivery Pipeline (CI/CD)
-
-The steps above are the **manual** deployment path. The **automated** delivery governance — the CI gate,
-security scanning, image versioning/registry policy, the dev → staging → prod promotion ladder, and the
-rollback procedure — is defined in [`CI_CD_Pipeline.md`](CI_CD_Pipeline.md).
-
-Current state (`v0.11.2`): CI (`.github/workflows/ci.yml`) builds and tests every push/PR, but images
-are still built on the host and deployed manually with `docker compose up --build -d`. Automated image
-build/push and deploy are documented targets, not yet implemented. Once implemented, deployments will
-pull a **version+SHA-tagged image from a registry** rather than building on the target host, and
-rollback becomes a redeploy of the previous known-good tag.
 
 ## Alibaba Cloud ECS Deployment
 
