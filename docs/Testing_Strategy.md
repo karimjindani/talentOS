@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.11.1`
+Code version: `v0.11.2`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -143,3 +143,9 @@ the `RESERVED_SLUGS` blocklist (`www`, `admin`, `api`, `demo`, `keycloak`, …) 
 slugs and slugs that merely contain a reserved substring (unit, `packages/auth/src/auth.test.ts`); and
 duplicate active applications are blocked at the DB via the partial unique index (PR #13,
 `packages/db/src/applications.test.ts`). The current regression suite is **78 tests**.
+
+From `v0.11.4`, the regression baseline also covers the admin sidebar active-state route-matching logic
+(unit, `apps/admin/components/SidebarNav.test.ts`): `isActive` must return `true` for exact-match routes
+(`/` only on `/`) and `startsWith`-match routes (`/applications` on `/applications` and
+`/applications/[id]`); no false positives across routes; `NAV_ITEMS` contains the five standard admin
+nav items in order with only Overview using exact matching. The current regression suite is **101 tests**.

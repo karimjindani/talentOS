@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.11.3`
+Code version: `v0.11.4`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.11.1`
+Current documentation update: `v0.11.2`
 
 ## D-001
 
@@ -324,12 +324,6 @@ Status: Approved
 
 Status: Approved
 
-## D-054
-
-`v0.11.1` completes the user/tenant-management audit hardening (finding #4). (1) **Reserved-slug blocklist**: `isValidTenantSlug` now rejects a `RESERVED_SLUGS` set of routing/infra-sensitive labels (`www`, `admin`, `api`, `app`, `auth`, `sso`, `mail`, `cdn`, `static`, `storage`, `s3`, `minio`, `keycloak`, `ops`, `demo`, …) in addition to the DNS-safe regex, because a tenant slug becomes a subdomain and these would invite routing confusion, cookie-scope bleed or subdomain-takeover concerns; `demo` (the default catch-all tenant) is reserved too. Validation-only, no schema change; existing tenants are unaffected (the check runs only on create). (2) This entry also records the **duplicate-active-application** guard shipped via PR #13 (commit `73c0a78`), which merged without its own governance entry: a Postgres **partial unique index** `applications_applicantId_programId_active_key` on `(applicantId, programId) WHERE status IN (DRAFT, SUBMITTED, UNDER_REVIEW, ACCEPTED, WAITLISTED)` (migration `20260702090000_duplicate_application_active_index`) backstops the app-layer duplicate check against races. Decision: use a partial index (not a plain `@@unique`, which Prisma's schema also cannot express with a `WHERE`) so **REJECTED** applications are excluded and a rejected applicant may re-apply — preserving prior behavior. The regression suite is 78 tests (new `packages/auth/src/auth.test.ts` reserved-slug cases + PR #13's `applications.test.ts`).
-
-Status: Approved
-
 ## D-055
 
 `v0.11.2` documents the **source-control & branching policy** that the repository already followed but had never written down (SSDLC principle 0). Decision: adopt a **trunk-based** model — `main` always releasable and protected, short-lived `<type>/vX.Y.Z-<slug>` branches cut from and merged back to `main` via reviewed Pull Requests. Standards codified in `docs/Source_Control_Policy.md`: **Conventional Commits** (`type(scope): subject`) with a `(vX.Y.Z, D-0NN)` version/decision trailer on baseline-changing commits; **PR policy** of >=1 approving review + green CI (no direct pushes, no self-merge of unreviewed PRs); **merge policy** of rebase-before-merge, integrate via merge commit, never force-push `main`; and **protected-branch / merge-freeze rules** for `main`. Operationalized with repo artifacts: `CONTRIBUTING.md`, `.github/pull_request_template.md`, and `.github/CODEOWNERS` (review routing to `@karimjindani`). GitHub branch-protection settings must be enabled in the repo UI (checklist in the policy) — they cannot be committed. Documentation-only; no app code or schema change; the regression suite is unchanged at 78 tests.
@@ -345,5 +339,11 @@ Status: Approved
 ## D-057
 
 `v0.11.3` fixes a crash-looping Keycloak that broke authentication for the whole platform on any fresh deployment. Root cause: the `talentos-provisioner` service-account client added in `v0.11.0` (D-053) was written into the realm import `keycloak/import/talentos-realm.json` with an **invalid `serviceAccountClientRoles` field** on its `ClientRepresentation`. Keycloak's import parser rejects unknown fields and aborts at the JSON-parse step — before the realm-exists check — so `start-dev --import-realm` fails on **every** startup (fresh or existing) and Keycloak crash-loops; OIDC discovery is unreachable and no portal can authenticate. The defect escaped v0.11.0 testing because that iteration validated the provisioner only via a **live `kcadm.sh` patch** on a running realm, never the baked-in import against a clean volume. Decision: remove the invalid field and express the service account's realm-management roles the **canonical import way** — a `service-account-talentos-provisioner` user in the realm `users` array with `serviceAccountClientId: "talentos-provisioner"` and `clientRoles: { "realm-management": ["manage-users", "view-realm", "query-users"] }`. The client itself (confidential, `serviceAccountsEnabled`, secret) is unchanged. Verified with a destructive fresh-import test (wiped the `keycloak-postgres` volume): Keycloak boots, the realm imports with no error, the provisioner authenticates via `client_credentials`, and the Admin `/users` API returns 200. No application code, schema, or data-model change. The v0.11.0 unit test `apps/admin/lib/keycloak-admin.test.ts` was updated because it had asserted the presence of the invalid `serviceAccountClientRoles` field (locking in the broken config); it now checks the canonical service-account user + `clientRoles`. The Vitest regression suite stays at 78 tests (assertion updated, not added), and the fix is validated end-to-end via the deployment/fresh-import test. This patch also adds a **CI guard** (a `realm-import` job in `.github/workflows/ci.yml`) that boots Keycloak the same way production does (`start-dev --import-realm`, in-memory H2) and fails the build if the realm does not import cleanly — so a malformed import (unknown field, bad JSON) can no longer silently reach `main`. This is the shift-left, boot-level check that the unit test alone could not provide (the unit test had in fact ossified the broken config).
+
+Status: Approved
+
+## D-058
+
+`v0.11.4` is a UI-only polish iteration addressing three UX gaps. (1) **Applicant Apply page redesign** (`apps/applicant/app/apply/page.tsx`): the plain form was replaced with a professional, branded, card-based layout — header banner with 📝 icon, sectioned form (Program & Motivation / Documents / Profile Links), styled inputs with focus rings, dashed-border upload zone, full-width submit button with hover state. Decision: use existing brand tokens (`brand-navy`/`brand-blue`/`brand-mist`) — no new colors or dependencies. Server action `submitApplication` is unchanged; only the JSX render section was replaced. (2) **Admin sidebar active-state indicator** (`apps/admin/components/SidebarNav.tsx`, NEW): the inline `<nav>` in `layout.tsx` was extracted into a client component using `usePathname()` to apply `bg-brand-blue text-white font-semibold` to the active link. Decision: exact match for `/` (Overview), `startsWith` for all others so nested routes (`/applications/123`) highlight the parent ("Applications"). Active style is high-contrast to be clearly distinguishable from the hover state. Works for all admin roles; "Organizations" remains SUPER_ADMIN-only. (3) **Review page back button** (`apps/admin/app/applications/[id]/page.tsx`): added "← Back to Applications" link at the top. Decision: inline link with arrow (not a full button) to keep the page header clean. No schema, data-model, or security change. The regression suite grew to 101 tests (12 new `SidebarNav.test.ts` covering route-matching logic: exact match, startsWith match, cross-route isolation, NAV_ITEMS integrity).
 
 Status: Approved

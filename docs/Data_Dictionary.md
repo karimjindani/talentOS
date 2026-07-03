@@ -1,9 +1,12 @@
 # Data Dictionary
 
-Code version: `v0.11.1`
+Code version: `v0.11.4`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.11.4` (UI polish) makes no data-model change — it is a UI-only iteration (apply page redesign,
+> admin sidebar active-state indicator, review page back button).
+>
 > `v0.11.1` (reserved slugs) makes no schema change. Records the PR #13 addition: a partial unique index
 > on `applications (applicantId, programId)` for active statuses (REJECTED excluded), backstopping the
 > app-layer duplicate-application check.

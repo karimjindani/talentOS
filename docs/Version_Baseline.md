@@ -2,19 +2,30 @@
 
 ## Current Baseline
 
-Version: `v0.11.3`
+Version: `v0.11.4`
 
-Baseline name: `Keycloak Realm-Import Fix — provisioner service-account roles (D-057)`
+Baseline name: `UI Polish — Apply Page, Admin Sidebar, Review Back Button (D-058)`
 
-Baseline code commit: `2fd6fce`
+Baseline code commit: `<set on commit>`
 
 Baseline date: `2026-07-03`
 
-Previous baseline: `v0.11.2`
+Previous baseline: `v0.11.3`
 
-Previous baseline commit: `7bc6d5e`
+Previous baseline commit: `2fd6fce`
 
 ## Baseline Summary
+
+`v0.11.4` is a UI-only polish iteration with three changes. (1) **Applicant Apply page redesign**:
+`apps/applicant/app/apply/page.tsx` render section replaced with a professional, branded, card-based
+layout — header banner with icon, sectioned form (Program & Motivation / Documents / Profile Links),
+styled inputs with focus rings, dashed-border upload zone, full-width submit button with hover state.
+Server action logic unchanged. (2) **Admin sidebar active-state indicator**: extracted the inline `<nav>`
+from `apps/admin/app/layout.tsx` into a new client component `apps/admin/components/SidebarNav.tsx` that
+uses `usePathname()` to apply `bg-brand-blue text-white font-semibold` to the active link (exact match
+for `/`, `startsWith` for others); works for all admin roles. (3) **Review page back button**: added
+"← Back to Applications" link to `apps/admin/app/applications/[id]/page.tsx`. No schema, data-model, or
+security change. The regression suite grew to 101 tests (12 new `SidebarNav.test.ts`). See `D-058`.
 
 `v0.11.3` is a fix for a crash-looping Keycloak that broke authentication platform-wide on any fresh
 deployment. The `talentos-provisioner` service-account client added in `v0.11.0` was written into

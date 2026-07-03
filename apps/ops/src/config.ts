@@ -4,7 +4,11 @@ import { fileURLToPath } from "node:url";
 
 const appDir = dirname(fileURLToPath(import.meta.url));
 
-export const REPO_ROOT = resolve(appDir, "../../..");
+export function resolveRepoRoot(env: NodeJS.ProcessEnv = process.env, resolvedAppDir = appDir) {
+  return env.OPS_REPO_ROOT ? resolve(env.OPS_REPO_ROOT) : resolve(resolvedAppDir, "../../..");
+}
+
+export const REPO_ROOT = resolveRepoRoot();
 export const OPS_RUNS_DIR = resolve(REPO_ROOT, ".ops/runs");
 export const OPS_CONFIG_FILE = resolve(REPO_ROOT, ".ops/config.json");
 

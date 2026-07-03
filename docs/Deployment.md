@@ -1,11 +1,14 @@
 # Deployment
 
-Code version: `v0.11.3`
+Code version: `v0.11.4`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current deployment update: `v0.11.3`
+Current deployment update: `v0.11.4`
 
+> `v0.11.4` (UI polish) makes no deployment change — both containers rebuild with the same Docker
+> Compose topology. Rebuild with `docker compose up -d --build applicant admin`.
+>
 > `v0.11.3` fixes a **crash-looping Keycloak** on fresh deployments: the `talentos-provisioner` client
 > (v0.11.0) was written into `keycloak/import/talentos-realm.json` with an invalid
 > `serviceAccountClientRoles` field, so `start-dev --import-realm` aborted at parse time on every
@@ -157,18 +160,6 @@ The first deployment target is a VPS running Docker Compose.
    ```
 
 3. Run database migration commands from a release process before serving production traffic.
-
-## Delivery Pipeline (CI/CD)
-
-The steps above are the **manual** deployment path. The **automated** delivery governance — the CI gate,
-security scanning, image versioning/registry policy, the dev → staging → prod promotion ladder, and the
-rollback procedure — is defined in [`CI_CD_Pipeline.md`](CI_CD_Pipeline.md).
-
-Current state (`v0.11.2`): CI (`.github/workflows/ci.yml`) builds and tests every push/PR, but images
-are still built on the host and deployed manually with `docker compose up --build -d`. Automated image
-build/push and deploy are documented targets, not yet implemented. Once implemented, deployments will
-pull a **version+SHA-tagged image from a registry** rather than building on the target host, and
-rollback becomes a redeploy of the previous known-good tag.
 
 ## Alibaba Cloud ECS Deployment
 

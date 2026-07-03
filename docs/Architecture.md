@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.11.1`
+Code version: `v0.11.4`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.11.1`
+Current documentation update: `v0.11.4`
 
 ## Overview
 
@@ -81,6 +81,12 @@ flowchart LR
 The applicant and admin routes live in separate containers, and each container returns 404 for the
 other module's routes. As of `v0.2.1` the applicant portal exposes **no** admin navigation; only the
 admin portal links back to the applicant portal (`NEXT_PUBLIC_APPLICANT_URL`).
+
+As of `v0.11.4` the admin portal sidebar is rendered by a client component
+(`apps/admin/components/SidebarNav.tsx`) that uses `usePathname()` to highlight the active nav item
+(`bg-brand-blue text-white`), and the application review page (`/applications/[id]`) includes a
+"← Back to Applications" link. The applicant `/apply` page uses a professional card-based layout with
+branded header, sectioned form, and styled inputs.
 
 ```mermaid
 flowchart TD
