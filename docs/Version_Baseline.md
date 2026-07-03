@@ -6,7 +6,7 @@ Version: `v0.11.3`
 
 Baseline name: `Keycloak Realm-Import Fix — provisioner service-account roles (D-057)`
 
-Baseline code commit: `<set on commit>`
+Baseline code commit: `2fd6fce`
 
 Baseline date: `2026-07-03`
 
