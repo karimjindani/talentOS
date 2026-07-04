@@ -5,6 +5,7 @@ export type RegressionEntityType =
   | "ApplicationAnswer"
   | "Application"
   | "StoredFile"
+  | "Mission"
   | "Program"
   | "TenantMembership"
   | "User";
@@ -19,6 +20,7 @@ export const REGRESSION_CLEANUP_ORDER: readonly RegressionEntityType[] = [
   "ApplicationAnswer",
   "Application",
   "StoredFile",
+  "Mission",
   "Program",
   "TenantMembership",
   "User"
@@ -79,6 +81,8 @@ async function deleteMarkedEntities(
       return (await tx.application.deleteMany({ where: { id: { in: ids } } })).count;
     case "StoredFile":
       return (await tx.storedFile.deleteMany({ where: { id: { in: ids } } })).count;
+    case "Mission":
+      return (await tx.mission.deleteMany({ where: { id: { in: ids } } })).count;
     case "Program":
       return (await tx.program.deleteMany({ where: { id: { in: ids } } })).count;
     case "TenantMembership":

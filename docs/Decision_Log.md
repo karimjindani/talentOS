@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.12.2`
+Code version: `v0.14.1`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.12.2`
+Current documentation update: `v0.14.1`
 
 ## D-001
 
@@ -379,5 +379,34 @@ total/passed/failed/skipped/duration counts with raw logs. Scenario-generated re
 The initial suite automates 15 logical scenarios: 13 pass locally, 0 fail, and 2 are explicit documented
 skips (second-tenant cross-tenant fixture and full storage upload/download automation). Playwright is
 accepted as the browser-scenario dependency for expanding route-level automation in future slices.
+
+Status: Approved
+
+## D-063
+
+`v0.14.0` delivers the Mission Engine MVP, the first slice of the core TalentOS learning experience from
+the vision roadmap. Decision: keep mission management inside the existing Admin Portal and expose
+published missions inside the accepted applicant dashboard rather than introducing a separate LMS app.
+The existing placeholder `Mission` table is extended with `MissionStatus` (`DRAFT`, `PUBLISHED`,
+`ARCHIVED`), sequencing (`weekNumber`, `order`) and SEM-oriented structured content (`objective`,
+`acceptanceCriteria`, `deliverables`, `evaluationCriteria`, `competencyTags`). Mission writes are
+tenant-scoped, program-scoped and audited (`mission.created`, `mission.updated`,
+`mission.status_changed`). A new `manageMissions` capability is granted to `SUPER_ADMIN` and `ORG_ADMIN`;
+HR and Tech Lead can view but not mutate missions. Accepted applicants see only published missions for
+their accepted program. The demo seed includes the Week 1 "Build a Public Product Landing Page" mission
+to make the learning experience visible immediately after local bootstrap. Submission workflow,
+engineering journal and portfolio generation are deferred to later slices.
+
+Status: Approved
+
+## D-064
+
+`v0.14.1` establishes Applicant Portal and Back Office/Admin Portal user guides as living documentation.
+Decision: maintain role-facing Markdown guides under `docs/user-guides/` and require every future
+user-facing route, workflow, role, permission, status, form, dashboard or navigation change to update the
+relevant guide in the same pull request. The guides include version applicability, last verified date,
+audience, required access, related URLs, step-by-step workflows, troubleshooting and known limitations.
+Screenshots are deferred until workflows stabilize; Markdown remains the source of truth for this
+baseline. Documentation-only; no application code, schema, package or Docker change.
 
 Status: Approved

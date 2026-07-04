@@ -10,6 +10,7 @@ describe("regression data cleanup", () => {
     expect(REGRESSION_CLEANUP_ORDER.indexOf("TenantMembership")).toBeLessThan(
       REGRESSION_CLEANUP_ORDER.indexOf("User")
     );
+    expect(REGRESSION_CLEANUP_ORDER.indexOf("Mission")).toBeLessThan(REGRESSION_CLEANUP_ORDER.indexOf("Program"));
   });
 
   it("does not include unmarkable broad tables in cleanup order", () => {

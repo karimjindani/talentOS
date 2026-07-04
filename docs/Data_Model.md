@@ -1,9 +1,14 @@
 # Data Model
 
-Code version: `v0.12.0`
+Code version: `v0.14.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.14.0` (Mission Engine MVP) extends `Mission` from a placeholder into a managed learning
+> assignment: `MissionStatus` enum (`DRAFT`, `PUBLISHED`, `ARCHIVED`), `status`, `weekNumber`, `order`,
+> `objective`, `acceptanceCriteria`, `deliverables`, `evaluationCriteria`, and `competencyTags`.
+> Migration: `20260704160000_v0_14_0_mission_engine_mvp`.
+>
 > `v0.12.0` (applicant dashboard) adds 4 new models + 1 enum + 1 join table:
 > `ProgramTask` (id, tenantId, programId, weekNumber 1-4, title, description?, dueAt?, order, timestamps),
 > `VideoResource` (id, tenantId, programId, weekNumber?, title, url, description?, timestamps),
@@ -96,14 +101,15 @@ erDiagram
 - `Application`: applicant submission to a program; optionally links a CV (`cvFile` → `StoredFile`) and carries optional `githubUrl` / `linkedinUrl`.
 - `ApplicationAnswer`: structured answers inside an application.
 - `AuditLog`: security and business action history.
+- `Mission`: tenant/program-scoped SEM assignment managed by admins and visible to accepted applicants
+  when published.
+- `Submission`: participant mission deliverable.
 - `StoredFile`: tenant-scoped metadata for an object stored in MinIO (bytes live in the object store).
 - `RegressionDataMarker`: local/dev marker rows identifying records created by regression workflows and
   safe to remove during regression cleanup.
 
 ## Future-Ready Entities
 
-- `Mission`: mission-based learning assignment.
-- `Submission`: participant mission deliverable.
 - `PortfolioArtifact`: public engineering portfolio item.
 - `Certificate`: tenant-issued certificate.
 - `KnowledgeBaseDocument`: tenant-owned knowledge content.

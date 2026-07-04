@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.12.0`
+Code version: `v0.14.0`
 
-Documentation update: `Applicant dashboard delivered in v0.12.0 (D-059): post-acceptance routing to /dashboard, 4-week program progress, tasks with due dates, video resources (YouTube/Loom), notifications, calendar, profile. Schema additions: ProgramTask, VideoResource, Notification, CalendarEvent, UserTaskCompletion, NotificationType enum. All prior work through v0.11.4 remains functional.`
+Documentation update: `Mission Engine MVP delivered in v0.14.0 (D-063): admin mission management, applicant dashboard mission browsing, seeded Week 1 SEM mission, mission status workflow, mission regression area.`
 
 ## MVP
 
@@ -74,7 +74,7 @@ Documentation update: `Applicant dashboard delivered in v0.12.0 (D-059): post-ac
 
 - Applications module — delivered in `v0.5.0` (authenticated apply → submit → admin review with accept/reject/under-review/waitlist, tenant-scoped and audited).
 - Programs module — delivered in `v0.6.0` (admin CRUD: create/edit/publish/archive, `managePrograms`-gated, tenant-scoped and audited; published programs feed the apply form).
-- Missions module
+- Missions module â€” delivered in `v0.14.0` (admin create/edit/publish/archive; accepted applicants see published missions for their accepted program).
 - AI Mentor boundary
 - Knowledge Base
 - GitHub Integration

@@ -10,3 +10,4 @@ export * from "./applications";
 export * from "./files";
 export * from "./regression";
 export * from "./dashboard";
+export * from "./missions";

@@ -11,6 +11,7 @@ describe("ApplicantShell isApplicantNavActive route matching", () => {
 
     it("is not active on any sub-path", () => {
       expect(isApplicantNavActive("/dashboard/program", dashboard)).toBe(false);
+      expect(isApplicantNavActive("/dashboard/missions", dashboard)).toBe(false);
       expect(isApplicantNavActive("/dashboard/tasks", dashboard)).toBe(false);
       expect(isApplicantNavActive("/dashboard/notifications", dashboard)).toBe(false);
     });
@@ -27,6 +28,13 @@ describe("ApplicantShell isApplicantNavActive route matching", () => {
       const item = APPLICANT_NAV_ITEMS.find((i) => i.href === "/dashboard/tasks")!;
       expect(isApplicantNavActive("/dashboard/tasks", item)).toBe(true);
       expect(isApplicantNavActive("/dashboard/program", item)).toBe(false);
+    });
+
+    it("Missions is active on `/dashboard/missions` and mission detail pages", () => {
+      const item = APPLICANT_NAV_ITEMS.find((i) => i.href === "/dashboard/missions")!;
+      expect(isApplicantNavActive("/dashboard/missions", item)).toBe(true);
+      expect(isApplicantNavActive("/dashboard/missions/mission-1", item)).toBe(true);
+      expect(isApplicantNavActive("/dashboard/tasks", item)).toBe(false);
     });
 
     it("Resources is active on `/dashboard/resources` only", () => {
@@ -51,14 +59,15 @@ describe("ApplicantShell isApplicantNavActive route matching", () => {
   });
 
   describe("nav items completeness", () => {
-    it("has exactly 7 nav items", () => {
-      expect(APPLICANT_NAV_ITEMS).toHaveLength(7);
+    it("has exactly 8 nav items", () => {
+      expect(APPLICANT_NAV_ITEMS).toHaveLength(8);
     });
 
     it("includes all expected routes", () => {
       const hrefs = APPLICANT_NAV_ITEMS.map((i) => i.href);
       expect(hrefs).toContain("/dashboard");
       expect(hrefs).toContain("/dashboard/program");
+      expect(hrefs).toContain("/dashboard/missions");
       expect(hrefs).toContain("/dashboard/tasks");
       expect(hrefs).toContain("/dashboard/resources");
       expect(hrefs).toContain("/dashboard/calendar");

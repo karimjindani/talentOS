@@ -1,9 +1,14 @@
 # Data Dictionary
 
-Code version: `v0.12.0`
+Code version: `v0.14.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.14.0` (Mission Engine MVP) adds `MissionStatus` and extends `missions` with `status`,
+> `weekNumber`, `order`, `objective`, `acceptanceCriteria`, `deliverables`, `evaluationCriteria` and
+> `competencyTags`. Audit actions in use: `mission.created`, `mission.updated`,
+> `mission.status_changed`.
+>
 > `v0.12.0` (applicant dashboard) adds new tables and fields:
 >
 > **program_tasks**: `id` (cuid PK), `tenantId` (FK→tenants), `programId` (FK→programs), `weekNumber`
@@ -139,6 +144,24 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 | `questionLabel` | Human-readable question. |
 | `answer` | Applicant response. |
 
+## Mission
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant. |
+| `programId` | Program the mission belongs to. |
+| `title` | Mission title shown to admins and accepted applicants. |
+| `difficulty` | `BEGINNER`, `INTERMEDIATE`, `ADVANCED` or `EXPERT`. |
+| `status` | `DRAFT`, `PUBLISHED` or `ARCHIVED`; only published missions appear to applicants. |
+| `weekNumber` | Program week/sequence bucket. |
+| `order` | Sort order within the week. |
+| `brief` | Main mission brief and business context. |
+| `objective` | Short learning/product objective. |
+| `acceptanceCriteria` | Completion criteria. |
+| `deliverables` | Required artifacts such as PRD, repository, deployment URL and Loom video. |
+| `evaluationCriteria` | Completion level or grading rubric. |
+| `competencyTags` | Competency mapping labels. |
+
 ## AuditLog
 
 | Field | Purpose |
@@ -172,7 +195,7 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 | --- | --- |
 | `id` | Unique marker ID. |
 | `runId` | Regression run identifier. |
-| `entityType` | Marked entity type, such as `Application`, `ApplicationAnswer`, `Program`, `User`, `TenantMembership` or `StoredFile`. |
+| `entityType` | Marked entity type, such as `Application`, `ApplicationAnswer`, `Mission`, `Program`, `User`, `TenantMembership` or `StoredFile`. |
 | `entityId` | ID of the marked entity. |
 | `createdAt` | Marker creation timestamp. |
 

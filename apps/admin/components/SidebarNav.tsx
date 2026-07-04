@@ -14,6 +14,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Overview", exact: true },
   { href: "/applications", label: "Applications" },
   { href: "/programs", label: "Programs" },
+  { href: "/missions", label: "Missions" },
   { href: "/operations", label: "Operations" },
   { href: "/settings", label: "Settings" }
 ];

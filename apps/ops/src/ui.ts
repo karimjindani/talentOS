@@ -76,6 +76,7 @@ export function renderIndex() {
               <option value="applicant">Applicant</option>
               <option value="admin">Admin</option>
               <option value="programs">Programs</option>
+              <option value="missions">Missions</option>
               <option value="tenant">Tenant isolation</option>
               <option value="dashboard">Dashboard</option>
               <option value="storage">Storage</option>
