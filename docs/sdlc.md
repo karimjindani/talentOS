@@ -1,6 +1,6 @@
 # Principles of Software Development
 
-Current code version: `v0.12.0`
+Current code version: `v0.14.1`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -20,6 +20,9 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 3. Every documentation update must reference the relevant code version.
 4. Every implementation commit should mention the version when the work establishes or changes a versioned baseline.
 5. Version baselines must be recorded in `docs/Version_Baseline.md`.
+6. User-facing portal changes must update the relevant user guide in `docs/user-guides/` in the same
+   iteration. This applies to route changes, navigation changes, forms, workflows, role/capability
+   changes, status labels, dashboard behavior and troubleshooting guidance.
 
 ## Source Control, Branching & Code Review
 

@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.12.2`
+Code version: `v0.14.1`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.12.2`
+Current documentation update: `v0.14.1`
 
 ## D-001
 
@@ -396,5 +396,17 @@ HR and Tech Lead can view but not mutate missions. Accepted applicants see only 
 their accepted program. The demo seed includes the Week 1 "Build a Public Product Landing Page" mission
 to make the learning experience visible immediately after local bootstrap. Submission workflow,
 engineering journal and portfolio generation are deferred to later slices.
+
+Status: Approved
+
+## D-064
+
+`v0.14.1` establishes Applicant Portal and Back Office/Admin Portal user guides as living documentation.
+Decision: maintain role-facing Markdown guides under `docs/user-guides/` and require every future
+user-facing route, workflow, role, permission, status, form, dashboard or navigation change to update the
+relevant guide in the same pull request. The guides include version applicability, last verified date,
+audience, required access, related URLs, step-by-step workflows, troubleshooting and known limitations.
+Screenshots are deferred until workflows stabilize; Markdown remains the source of truth for this
+baseline. Documentation-only; no application code, schema, package or Docker change.
 
 Status: Approved

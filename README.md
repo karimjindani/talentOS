@@ -2,7 +2,7 @@
 
 TalentOS is a platform for developing AI-native software engineers through real, production-oriented work rather than passive coursework. Its core learning model is the Spiral Engineering Method (SEM): participants repeatedly complete the full engineering lifecycle — discover, analyze, specify, design, build, test, deploy, present, reflect, and review production readiness — from the very first week, with each cycle increasing in complexity. The platform treats AI as a mentor and accelerator, not a substitute for thinking, and is designed to help learners build secure, maintainable, deployable software while producing a public portfolio that organizations can use for talent discovery and recruitment.
 
-Current documentation version: `v0.12.2`
+Current documentation version: `v0.14.1`
 
 TalentOS is an AI-powered Talent Discovery, Learning and Recruitment Platform designed to bridge the gap between AI-assisted coding and production-grade software engineering.
 
@@ -39,6 +39,10 @@ TalentOS has moved beyond product discovery into an initial platform scaffold wi
 - `v0.12.0`: Applicant dashboard for accepted applicants.
 - `v0.12.1`: Cross-subdomain tenant login with canonical `lvh.me` auth hosts and shared cookies.
 - `v0.12.2`: Local deployment hardening — one-command bootstrap, repaired local Keycloak clients, stable `keycloak.lvh.me` issuer and smoke-login validation.
+
+- `v0.13.0`: Scenario-based regression suite with Ops-controlled area selection and pass/fail/skip counts.
+- `v0.14.0`: Mission Engine MVP — admin mission management and applicant mission visibility.
+- `v0.14.1`: User guides for Applicant Portal and Back Office/Admin Portal.
 
 ## Current Implementation
 
@@ -177,6 +181,7 @@ Near-term engineering direction:
 ## Important Documentation
 
 - [Vision guide](docs/vision.md)
+- [User Guides](docs/user-guides/README.md)
 - [Product Vision](docs/Product_Vision.md)
 - [Architecture](docs/Architecture.md)
 - [Product Backlog](docs/Product_Backlog.md)

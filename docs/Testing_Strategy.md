@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.14.0`
+Code version: `v0.14.1`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -105,6 +105,20 @@ Planned integration tests:
 - Smoke tests confirm the applicant portal (`http://localhost:3100`) and admin portal (`http://localhost:3200`, routes served at root) load.
 - Module isolation: each web container returns 404 for the other module's routes (admin routes on the applicant container and applicant routes on the admin container).
 
+### Documentation Regression Tests (`v0.14.1`)
+
+User-facing documentation is part of the regression baseline. Any portal workflow, route, role,
+permission, status, form or navigation change must update the relevant guide under `docs/user-guides/`
+in the same pull request.
+
+Documentation validation checks:
+
+- Applicant guide includes current Applicant Portal URLs and supported applicant workflows.
+- Back Office guide includes current Admin Portal URLs, roles and capability boundaries.
+- Root `README.md` links the user guide index.
+- User guides distinguish implemented workflows from known limitations.
+- Documentation-only patches do not change application code, schema, package or Docker files.
+
 ### Scenario Regression Tests (`v0.13.0`)
 
 Scenario regression is run through `scripts/regression/run.ts` and surfaced in the Ops Console.
@@ -207,3 +221,7 @@ From `v0.14.0`, the regression baseline also covers the Mission Engine MVP: miss
 mission ordering, admin/applicant mission navigation, and the `regression:missions` scenario area. The
 unit suite is **146 tests** before final v0.14.0 validation, and the missions scenario currently passes
 2/2.
+
+From `v0.14.1`, the regression baseline also covers user-guide currency: Applicant Portal and Back
+Office guide updates are mandatory for user-facing workflow, route, role, permission, status, form or
+navigation changes.
