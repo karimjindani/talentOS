@@ -182,7 +182,8 @@ Status: Approved
 
 ## D-030
 
-`docs/README.md` must remain aligned with the root README and current version baseline
+Root `README.md` is the single maintained project landing page and documentation overview.
+`docs/README.md` is removed to avoid two competing README versions.
 
 Status: Approved
 
