@@ -6,7 +6,7 @@ Version: `v0.14.0`
 
 Baseline name: `Mission Engine MVP (D-063)`
 
-Baseline code commit: `pending v0.14.0 commit`
+Baseline code commit: `b3ee03d712977849de96cbde0b2c3fb5cff83c0f`
 
 Baseline date: `2026-07-04`
 
