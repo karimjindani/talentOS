@@ -126,10 +126,13 @@
       "directAccessGrantsEnabled": true,
       "redirectUris": [
         "http://localhost:3100/api/auth/callback/keycloak",
-        "http://localhost:3100/*"
+        "http://localhost:3100/*",
+        "http://lvh.me:3100/api/auth/callback/keycloak",
+        "http://lvh.me:3100/*",
+        "http://*.lvh.me:3100/*"
       ],
-      "webOrigins": ["http://localhost:3100"],
-      "attributes": { "post.logout.redirect.uris": "http://localhost:3100/*" },
+      "webOrigins": ["http://localhost:3100", "http://lvh.me:3100", "http://*.lvh.me:3100"],
+      "attributes": { "post.logout.redirect.uris": "http://localhost:3100/*##http://lvh.me:3100/*##http://*.lvh.me:3100/*" },
       "defaultClientScopes": ["web-origins", "profile", "roles", "email"]
     },
     {
@@ -143,10 +146,13 @@
       "directAccessGrantsEnabled": true,
       "redirectUris": [
         "http://localhost:3200/api/auth/callback/keycloak",
-        "http://localhost:3200/*"
+        "http://localhost:3200/*",
+        "http://lvh.me:3200/api/auth/callback/keycloak",
+        "http://lvh.me:3200/*",
+        "http://*.lvh.me:3200/*"
       ],
-      "webOrigins": ["http://localhost:3200"],
-      "attributes": { "post.logout.redirect.uris": "http://localhost:3200/*" },
+      "webOrigins": ["http://localhost:3200", "http://lvh.me:3200", "http://*.lvh.me:3200"],
+      "attributes": { "post.logout.redirect.uris": "http://localhost:3200/*##http://lvh.me:3200/*##http://*.lvh.me:3200/*" },
       "defaultClientScopes": ["web-origins", "profile", "roles", "email"]
     },
     {

@@ -16,7 +16,10 @@ export default auth((req) => {
   if (!isAuthRoute && !isForbidden) {
     if (!req.auth) {
       const signInUrl = new URL("/api/auth/signin", nextUrl.origin);
-      signInUrl.searchParams.set("callbackUrl", pathname);
+      // Absolute callback (host + path), not just the path: login runs through the canonical
+      // AUTH_URL host, so the post-login redirect must carry the tenant subdomain to return the
+      // user to their own tenant. The auth `redirect` callback allows only base-domain hosts (D-060).
+      signInUrl.searchParams.set("callbackUrl", nextUrl.href);
       return NextResponse.redirect(signInUrl);
     }
     const user = req.auth.user;

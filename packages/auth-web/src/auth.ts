@@ -8,6 +8,7 @@ import {
   primaryOrgRole
 } from "./roles";
 import type { AppToken } from "./types";
+import { resolveTenantRedirect } from "./tenant-redirect";
 import "./types";
 
 export type TalentosAuthOptions = {
@@ -17,14 +18,49 @@ export type TalentosAuthOptions = {
 };
 
 /**
+ * Multi-tenant cookie + redirect config (v0.12.1, D-060).
+ *
+ * Tenants are addressed by subdomain (e.g. `sbp.<base>`), but next-auth (beta.25) derives the OIDC
+ * redirect_uri from a *pinned* AUTH_URL — it cannot mint a per-subdomain callback. So login always
+ * runs through one canonical AUTH_URL host, and we scope the auth cookies to the parent base domain
+ * (`.<base>`) so the session set during that callback is readable on every tenant subdomain. A user
+ * signs in once on the canonical host and is redirected back to their tenant subdomain, where the
+ * shared cookie satisfies the tenant guard. `APP_BASE_DOMAIN` drives both pieces; when it is unset or
+ * `localhost` (single-label — browsers reject a Domain attribute on it) we fall back to next-auth's
+ * host-only cookie defaults so nothing changes for a single-host deployment.
+ */
+function baseDomainCookieConfig() {
+  const baseDomain = process.env.APP_BASE_DOMAIN;
+  if (!baseDomain || baseDomain === "localhost") return undefined;
+
+  const secure = (process.env.AUTH_URL ?? "").startsWith("https://");
+  // __Host- forbids a Domain attribute (so cannot be shared cross-subdomain); __Secure- is fine.
+  const prefix = secure ? "__Secure-" : "";
+  const shared = { domain: `.${baseDomain}`, path: "/", sameSite: "lax" as const, secure };
+
+  return {
+    sessionToken: { name: `${prefix}authjs.session-token`, options: { ...shared, httpOnly: true } },
+    callbackUrl: { name: `${prefix}authjs.callback-url`, options: { ...shared } },
+    csrfToken: { name: `${prefix}authjs.csrf-token`, options: { ...shared, httpOnly: true } },
+    pkceCodeVerifier: { name: `${prefix}authjs.pkce.code_verifier`, options: { ...shared, httpOnly: true, maxAge: 900 } },
+    state: { name: `${prefix}authjs.state`, options: { ...shared, httpOnly: true, maxAge: 900 } },
+    nonce: { name: `${prefix}authjs.nonce`, options: { ...shared, httpOnly: true } }
+  };
+}
+
+/**
  * Build a NextAuth v5 instance wired to Keycloak (OIDC). JWT sessions, with realm
  * roles decoded from the Keycloak access token into org + platform roles. DB-free so
  * the same config is edge-safe when reused in middleware.
  */
 export function createTalentosAuth(options: TalentosAuthOptions): NextAuthResult {
+  const cookies = baseDomainCookieConfig();
+  const baseDomain = process.env.APP_BASE_DOMAIN;
+
   return NextAuth({
     trustHost: true,
     session: { strategy: "jwt" },
+    ...(cookies ? { cookies } : {}),
     providers: [
       Keycloak({
         clientId: options.clientId,
@@ -33,6 +69,13 @@ export function createTalentosAuth(options: TalentosAuthOptions): NextAuthResult
       })
     ],
     callbacks: {
+      // Post-login/logout landing guard. Default next-auth only allows the AUTH_URL origin and
+      // relative paths, which would trap a tenant user on the canonical auth host. We additionally
+      // allow any subdomain of APP_BASE_DOMAIN so a user returns to their own tenant — but nothing
+      // outside it, so this is not an open redirect (v0.12.1, D-060).
+      redirect({ url, baseUrl }) {
+        return resolveTenantRedirect(url, baseUrl, baseDomain);
+      },
       jwt({ token, account, profile }) {
         if (account?.access_token) {
           const appToken = token as AppToken;
