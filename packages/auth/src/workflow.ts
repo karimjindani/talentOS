@@ -53,3 +53,25 @@ export function assertProgramStatusTransition(from: ProgramStatus, to: ProgramSt
     throw new Error(`Invalid program status transition from ${from} to ${to}.`);
   }
 }
+
+export type MissionStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+
+const ALLOWED_MISSION_TRANSITIONS: Record<MissionStatus, MissionStatus[]> = {
+  DRAFT: ["PUBLISHED", "ARCHIVED"],
+  PUBLISHED: ["ARCHIVED", "DRAFT"],
+  ARCHIVED: ["DRAFT"]
+};
+
+export function canTransitionMissionStatus(from: MissionStatus, to: MissionStatus): boolean {
+  return ALLOWED_MISSION_TRANSITIONS[from].includes(to);
+}
+
+export function nextMissionStatuses(status: MissionStatus): MissionStatus[] {
+  return [...ALLOWED_MISSION_TRANSITIONS[status]];
+}
+
+export function assertMissionStatusTransition(from: MissionStatus, to: MissionStatus): void {
+  if (!canTransitionMissionStatus(from, to)) {
+    throw new Error(`Invalid mission status transition from ${from} to ${to}.`);
+  }
+}

@@ -21,6 +21,7 @@
     "regression:applicant": "tsx scripts/regression/run.ts applicant",
     "regression:admin": "tsx scripts/regression/run.ts admin",
     "regression:programs": "tsx scripts/regression/run.ts programs",
+    "regression:missions": "tsx scripts/regression/run.ts missions",
     "regression:tenant": "tsx scripts/regression/run.ts tenant",
     "regression:dashboard": "tsx scripts/regression/run.ts dashboard",
     "regression:storage": "tsx scripts/regression/run.ts storage",
@@ -32,7 +33,7 @@
     "local:doctor": "tsx scripts/local/doctor.ts",
     "local:smoke-login": "tsx scripts/local/smoke-login.ts",
     "db:generate": "prisma generate --schema packages/db/prisma/schema.prisma",
-    "db:migrate": "prisma migrate dev --schema packages/db/prisma/schema.prisma",
+    "db:migrate": "prisma migrate deploy --schema packages/db/prisma/schema.prisma",
     "db:seed": "tsx packages/db/prisma/seed.ts"
   },
   "devDependencies": {

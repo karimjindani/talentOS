@@ -7,6 +7,7 @@ export type Capability =
   | "manageTenantUsers"
   | "assignOrgRoles"
   | "managePrograms"
+  | "manageMissions"
   | "reviewApplications"
   | "evaluateTechnical"
   | "accessApplicantPortal"
@@ -18,6 +19,7 @@ const ROLE_CAPABILITIES: Record<TenantRole, readonly Capability[]> = {
     "manageTenantUsers",
     "assignOrgRoles",
     "managePrograms",
+    "manageMissions",
     "reviewApplications",
     "evaluateTechnical",
     "manageTenantSettings"
@@ -58,9 +60,10 @@ export function capabilitiesFor(actor: ActorRoles): Capability[] {
       "createOrganization",
       "createOrgAdmin",
       "manageTenantUsers",
-      "assignOrgRoles",
-      "managePrograms",
-      "reviewApplications",
+    "assignOrgRoles",
+    "managePrograms",
+    "manageMissions",
+    "reviewApplications",
       "evaluateTechnical",
       "manageTenantSettings"
     ];

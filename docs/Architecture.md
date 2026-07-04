@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.13.0`
+Code version: `v0.14.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.13.0`
+Current documentation update: `v0.14.0`
 
 ## Overview
 
@@ -30,6 +30,15 @@ The dashboard layout (`app/dashboard/layout.tsx`) checks for an accepted applica
 for accepted applicants. The `PortalHeader` conditionally shows "Dashboard" instead of "Apply". Seven
 pages: overview, program (4-week breakdown), tasks, resources (embedded videos), calendar, notifications,
 profile. Data is served by `packages/db/src/dashboard.ts` (11 query/helper functions).
+
+### Mission Engine MVP (`v0.14.0`)
+
+`v0.14.0` turns the placeholder `Mission` model into the first learning-engine capability. Admins manage
+missions through `/missions`, `/missions/new` and `/missions/[id]`; `SUPER_ADMIN` and `ORG_ADMIN` can
+create/edit/publish/archive while HR and Tech Lead are read-only. Accepted applicants see published
+missions for their accepted program at `/dashboard/missions` and `/dashboard/missions/[id]`. Mission
+content is structured as SEM-oriented text fields: brief, objective, deliverables, acceptance criteria,
+evaluation criteria and competency tags.
 
 ## Container Topology
 
@@ -111,6 +120,7 @@ flowchart TD
       AdminHome["/"] --> Applications["/applications"]
       Applications --> Detail["/applications/[id]"]
       AdminHome --> Programs["/programs"]
+      AdminHome --> Missions["/missions"]
       AdminHome --> Operations["/operations"]
       AdminHome --> Settings["/settings"]
       AdminHome --> Organizations["/organizations (SUPER_ADMIN)"]
@@ -298,7 +308,7 @@ TalentOS now has two regression layers:
 
 The Ops Console exposes the scenario suite as an area selector. Operators can run the full suite or one
 area at a time: `auth`, `applicant`, `admin`, `programs`, `tenant`, `dashboard`, `storage`, `ops`, or
-`unit`. Each run emits a machine-readable `REGRESSION_RESULT_JSON` payload containing total, passed,
+`unit`. As of `v0.14.0`, `missions` is also an area. Each run emits a machine-readable `REGRESSION_RESULT_JSON` payload containing total, passed,
 failed, skipped and duration counts; the Ops job runner parses that payload and renders the summary and
 raw logs.
 
@@ -352,8 +362,10 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
      applicant apply form.
    - Next: cohorts and public per-program application entry points.
 
-5. Missions
-   - Implement mission lifecycle aligned to the Spiral Engineering Method.
+5. Missions â€” delivered in `v0.14.0`
+   - Done: admin create/edit/publish/archive missions, accepted applicants view published missions in
+     their dashboard, and demo seed includes the Week 1 "Build a Public Product Landing Page" SEM mission.
+   - Next: mission submissions and reviewer workflow.
 
 6. AI Mentor Boundary
    - Expand the current AI service boundary into tenant-aware, auditable mentor workflows.

@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import {
   applyStatusTransition,
   cleanupRegressionData,
+  createMission,
   createProgram,
   createSubmittedApplication,
   DUPLICATE_APPLICATION_ERROR_MESSAGE,
@@ -14,14 +15,16 @@ import {
   getTenantProgram,
   listApplicantApplications,
   listCompletedTaskIds,
+  listPublishedProgramMissions,
   listPublishedPrograms,
   markNotificationRead,
   markRegressionData,
   markTaskCompleted,
   prisma,
+  setMissionStatus,
   setProgramStatus
 } from "@talentos/db";
-import type { RegressionArea, RegressionSummary } from "@talentos/auth";
+import { tenantRolesGrant, type RegressionArea, type RegressionSummary } from "@talentos/auth";
 
 type ScenarioStatus = "passed" | "failed" | "skipped";
 
@@ -51,6 +54,7 @@ const AREAS: RegressionArea[] = [
   "applicant",
   "admin",
   "programs",
+  "missions",
   "tenant",
   "dashboard",
   "storage",
@@ -174,6 +178,46 @@ const scenarios: Scenario[] = [
       await setProgramStatus({ id: fixture.program.id, tenantId: fixture.tenant.id, status: "ARCHIVED", actorUserId: fixture.actor.id });
       const afterArchive = await listPublishedPrograms(fixture.tenant.id);
       if (afterArchive.some((program) => program.id === fixture.program.id)) throw new Error("Archived program was still applicant-visible.");
+    }
+  },
+  {
+    area: "missions",
+    name: "Mission lifecycle publishes and archives applicant-visible missions",
+    run: async (ctx) => {
+      const fixture = await createProgramFixture(ctx.runId, "PUBLISHED");
+      const mission = await createMission({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Regression Mission ${ctx.runId}`,
+        difficulty: "BEGINNER",
+        status: "DRAFT",
+        weekNumber: 1,
+        order: 0,
+        brief: "Regression mission brief",
+        objective: "Regression mission objective",
+        acceptanceCriteria: "- Acceptance",
+        deliverables: "- Deliverable",
+        evaluationCriteria: "Bronze: pass",
+        competencyTags: ["Requirements Engineering"],
+        actorUserId: fixture.actor.id
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Mission", entityId: mission.id });
+      await setMissionStatus({ id: mission.id, tenantId: fixture.tenant.id, status: "PUBLISHED", actorUserId: fixture.actor.id });
+      const published = await listPublishedProgramMissions(fixture.tenant.id, fixture.program.id);
+      if (!published.some((candidate) => candidate.id === mission.id)) throw new Error("Published mission was not applicant-visible.");
+      await setMissionStatus({ id: mission.id, tenantId: fixture.tenant.id, status: "ARCHIVED", actorUserId: fixture.actor.id });
+      const afterArchive = await listPublishedProgramMissions(fixture.tenant.id, fixture.program.id);
+      if (afterArchive.some((candidate) => candidate.id === mission.id)) throw new Error("Archived mission was still applicant-visible.");
+    }
+  },
+  {
+    area: "missions",
+    name: "Only Org Admin and Super Admin can manage missions",
+    run: async () => {
+      if (!tenantRolesGrant("manageMissions", ["ORG_ADMIN"])) throw new Error("ORG_ADMIN did not grant manageMissions.");
+      if (tenantRolesGrant("manageMissions", ["HR"])) throw new Error("HR unexpectedly granted manageMissions.");
+      if (tenantRolesGrant("manageMissions", ["TECH_LEAD"])) throw new Error("TECH_LEAD unexpectedly granted manageMissions.");
+      if (tenantRolesGrant("manageMissions", ["APPLICANT"])) throw new Error("APPLICANT unexpectedly granted manageMissions.");
     }
   },
   {

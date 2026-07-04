@@ -2,19 +2,24 @@
 
 ## Current Baseline
 
-Version: `v0.13.0`
+Version: `v0.14.0`
 
-Baseline name: `Scenario-Based Regression Suite (D-062)`
+Baseline name: `Mission Engine MVP (D-063)`
 
-Baseline code commit: `943df5ce0d647afcccf62fdd0f512e3308087f77`
+Baseline code commit: `pending v0.14.0 commit`
 
 Baseline date: `2026-07-04`
 
-Previous baseline: `v0.12.2`
+Previous baseline: `v0.13.0`
 
-Previous baseline commit: `9db81d1ad56a102d812ee81feaf54ed3e4d6c452`
+Previous baseline commit: `943df5ce0d647afcccf62fdd0f512e3308087f77`
 
 ## Baseline Summary
+
+`v0.14.0` delivers the Mission Engine MVP. Admins manage missions through the Admin Portal; accepted
+applicants see published missions for their accepted program in the dashboard. The `Mission` model now
+has status, week/order sequencing, SEM-oriented structured content and competency tags. The demo seed
+includes the Week 1 "Build a Public Product Landing Page" mission. See `D-063`.
 
 `v0.13.0` establishes scenario-based regression as a first-class local development capability. The Ops
 Console can run the full regression suite or a selected logical area and displays total/passed/failed/

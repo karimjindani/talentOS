@@ -381,3 +381,20 @@ skips (second-tenant cross-tenant fixture and full storage upload/download autom
 accepted as the browser-scenario dependency for expanding route-level automation in future slices.
 
 Status: Approved
+
+## D-063
+
+`v0.14.0` delivers the Mission Engine MVP, the first slice of the core TalentOS learning experience from
+the vision roadmap. Decision: keep mission management inside the existing Admin Portal and expose
+published missions inside the accepted applicant dashboard rather than introducing a separate LMS app.
+The existing placeholder `Mission` table is extended with `MissionStatus` (`DRAFT`, `PUBLISHED`,
+`ARCHIVED`), sequencing (`weekNumber`, `order`) and SEM-oriented structured content (`objective`,
+`acceptanceCriteria`, `deliverables`, `evaluationCriteria`, `competencyTags`). Mission writes are
+tenant-scoped, program-scoped and audited (`mission.created`, `mission.updated`,
+`mission.status_changed`). A new `manageMissions` capability is granted to `SUPER_ADMIN` and `ORG_ADMIN`;
+HR and Tech Lead can view but not mutate missions. Accepted applicants see only published missions for
+their accepted program. The demo seed includes the Week 1 "Build a Public Product Landing Page" mission
+to make the learning experience visible immediately after local bootstrap. Submission workflow,
+engineering journal and portfolio generation are deferred to later slices.
+
+Status: Approved

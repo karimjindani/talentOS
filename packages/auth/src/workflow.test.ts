@@ -4,7 +4,10 @@ import {
   canTransitionApplicationStatus,
   nextProgramStatuses,
   canTransitionProgramStatus,
-  assertProgramStatusTransition
+  assertProgramStatusTransition,
+  nextMissionStatuses,
+  canTransitionMissionStatus,
+  assertMissionStatusTransition
 } from "./workflow";
 
 describe("nextStatusesFor", () => {
@@ -53,5 +56,26 @@ describe("program status transitions", () => {
   it("asserts and rejects invalid program transitions", () => {
     expect(() => assertProgramStatusTransition("DRAFT", "PUBLISHED")).not.toThrow();
     expect(() => assertProgramStatusTransition("ARCHIVED", "PUBLISHED")).toThrow("Invalid program status");
+  });
+});
+
+describe("mission status transitions", () => {
+  it("allows publishing and archiving a draft mission", () => {
+    expect(nextMissionStatuses("DRAFT")).toEqual(["PUBLISHED", "ARCHIVED"]);
+    expect(canTransitionMissionStatus("DRAFT", "PUBLISHED")).toBe(true);
+  });
+
+  it("allows a published mission to be archived or returned to draft", () => {
+    expect(nextMissionStatuses("PUBLISHED")).toEqual(["ARCHIVED", "DRAFT"]);
+  });
+
+  it("allows an archived mission to be restored to draft only", () => {
+    expect(nextMissionStatuses("ARCHIVED")).toEqual(["DRAFT"]);
+    expect(canTransitionMissionStatus("ARCHIVED", "PUBLISHED")).toBe(false);
+  });
+
+  it("asserts and rejects invalid mission transitions", () => {
+    expect(() => assertMissionStatusTransition("DRAFT", "PUBLISHED")).not.toThrow();
+    expect(() => assertMissionStatusTransition("ARCHIVED", "PUBLISHED")).toThrow("Invalid mission status");
   });
 });

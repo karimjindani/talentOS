@@ -46,6 +46,12 @@ enum MissionDifficulty {
   EXPERT
 }
 
+enum MissionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
 enum SubmissionStatus {
   DRAFT
   SUBMITTED
@@ -229,20 +235,29 @@ model AuditLog {
 }
 
 model Mission {
-  id          String             @id @default(cuid())
-  tenantId    String
-  programId   String
-  title       String
-  difficulty  MissionDifficulty
-  brief       String
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id                 String             @id @default(cuid())
+  tenantId           String
+  programId          String
+  title              String
+  difficulty         MissionDifficulty
+  status             MissionStatus      @default(DRAFT)
+  weekNumber         Int                @default(1)
+  order              Int                @default(0)
+  brief              String
+  objective          String             @default("")
+  acceptanceCriteria String             @default("")
+  deliverables       String             @default("")
+  evaluationCriteria String             @default("")
+  competencyTags     String[]           @default([])
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   program     Program            @relation(fields: [programId], references: [id], onDelete: Cascade)
   submissions Submission[]
 
-  @@index([tenantId, programId])
+  @@index([tenantId, programId, status])
+  @@index([tenantId, status])
   @@map("missions")
 }
 

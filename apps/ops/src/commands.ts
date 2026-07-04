@@ -17,6 +17,7 @@ export const REGRESSION_AREAS: RegressionArea[] = [
   "applicant",
   "admin",
   "programs",
+  "missions",
   "tenant",
   "dashboard",
   "storage",

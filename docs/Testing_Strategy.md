@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.13.0`
+Code version: `v0.14.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -116,6 +116,7 @@ Commands:
 - `npm.cmd run regression:applicant`
 - `npm.cmd run regression:admin`
 - `npm.cmd run regression:programs`
+- `npm.cmd run regression:missions`
 - `npm.cmd run regression:tenant`
 - `npm.cmd run regression:dashboard`
 - `npm.cmd run regression:storage`
@@ -127,7 +128,7 @@ parses this payload and displays the summary per run and per step.
 
 Scenario data ownership rules:
 
-- Scenario-created users, memberships, programs, applications and answers must be tagged with
+- Scenario-created users, memberships, programs, missions, applications and answers must be tagged with
   `RegressionDataMarker`.
 - Cleanup must delete only marker-tagged records.
 - Seeded demo data and user-created data are never cleanup targets unless explicitly marker-tagged.
@@ -200,3 +201,9 @@ initial automated scenario suite contains 15 scenarios across `unit`, `auth`, `a
 `programs`, `tenant`, `dashboard`, `storage` and `ops`. Current status: 13 automated scenarios pass,
 0 fail and 2 are intentionally skipped/documented gaps in the local one-tenant environment: cross-tenant
 read denial that needs a second tenant fixture, and full CV upload/download storage automation.
+
+From `v0.14.0`, the regression baseline also covers the Mission Engine MVP: mission status transitions,
+`manageMissions` authorization, tenant-scoped mission reads/writes, published-only applicant visibility,
+mission ordering, admin/applicant mission navigation, and the `regression:missions` scenario area. The
+unit suite is **146 tests** before final v0.14.0 validation, and the missions scenario currently passes
+2/2.

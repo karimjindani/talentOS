@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.13.0`
+Code version: `v0.14.0`
 
 ## Purpose
 
@@ -19,6 +19,7 @@ The suite can be run from the local Ops Console or from npm scripts.
 | Applicant | `npm.cmd run regression:applicant` | Automated |
 | Admin | `npm.cmd run regression:admin` | Automated |
 | Programs | `npm.cmd run regression:programs` | Automated |
+| Missions | `npm.cmd run regression:missions` | Automated |
 | Tenant isolation | `npm.cmd run regression:tenant` | Partially automated |
 | Dashboard | `npm.cmd run regression:dashboard` | Automated |
 | Storage | `npm.cmd run regression:storage` | Missing |
@@ -45,6 +46,9 @@ The suite can be run from the local Ops Console or from npm scripts.
 | Programs | Org Admin creates a draft program. | Automated | Data-level scenario through DB helpers. |
 | Programs | Published program appears in applicant-visible list. | Automated | Validates `listPublishedPrograms`. |
 | Programs | Archived program is removed from applicant-visible list. | Automated | Validates lifecycle visibility. |
+| Missions | Org Admin creates a draft mission, publishes it, and accepted applicants can see it. | Automated | Validates mission lifecycle visibility. |
+| Missions | Archived mission is removed from applicant-visible mission list. | Automated | Validates published-only visibility. |
+| Missions | HR, Tech Lead and Applicant cannot manage missions. | Automated | Validates `manageMissions` capability. |
 | Tenant isolation | Tenant-scoped program read rejects another tenant. | Partially automated | Skips when only one local tenant exists. Needs a second marked tenant fixture. |
 | Tenant isolation | Realm role alone does not grant authority without `TenantMembership`. | Automated | Validates the D-051 authorization principle. |
 | Tenant isolation | Cross-tenant application, file and settings denial through browser routes. | Missing | Add Playwright/browser route coverage. |
@@ -67,6 +71,7 @@ Current marker-tagged entity types:
 - `User`
 - `TenantMembership`
 - `Program`
+- `Mission`
 - `Application`
 - `ApplicationAnswer`
 
@@ -85,7 +90,7 @@ Cleanup rules:
 5. Prefer deterministic regression names such as `regression-<runId>` and
    `applicant+<runId>@regression.talentos.local`.
 
-## Known Gaps After `v0.13.0`
+## Known Gaps After `v0.14.0`
 
 - Full browser-level Playwright coverage is not yet complete for every scenario. The runner currently
   combines OIDC HTTP login flows with DB/service-level scenario checks.

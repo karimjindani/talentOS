@@ -14,6 +14,7 @@ describe("SidebarNav isActive route matching", () => {
     it("is not active on any sub-path", () => {
       expect(isActive("/applications", overview)).toBe(false);
       expect(isActive("/programs", overview)).toBe(false);
+      expect(isActive("/missions", overview)).toBe(false);
       expect(isActive("/operations", overview)).toBe(false);
       expect(isActive("/settings", overview)).toBe(false);
       expect(isActive("/organizations", overview)).toBe(false);
@@ -32,6 +33,12 @@ describe("SidebarNav isActive route matching", () => {
       const item = NAV_ITEMS.find((i) => i.href === "/programs")!;
       expect(isActive("/programs", item)).toBe(true);
       expect(isActive("/programs/xyz", item)).toBe(true);
+    });
+
+    it("Missions is active on `/missions` and nested `/missions/[id]`", () => {
+      const item = NAV_ITEMS.find((i) => i.href === "/missions")!;
+      expect(isActive("/missions", item)).toBe(true);
+      expect(isActive("/missions/xyz", item)).toBe(true);
     });
 
     it("Operations is active on `/operations` only", () => {
@@ -55,6 +62,7 @@ describe("SidebarNav isActive route matching", () => {
       const item = NAV_ITEMS.find((i) => i.href === "/applications")!;
       expect(isActive("/", item)).toBe(false);
       expect(isActive("/programs", item)).toBe(false);
+      expect(isActive("/missions", item)).toBe(false);
       expect(isActive("/operations", item)).toBe(false);
       expect(isActive("/settings", item)).toBe(false);
     });
@@ -64,6 +72,7 @@ describe("SidebarNav isActive route matching", () => {
       expect(isActive("/", item)).toBe(false);
       expect(isActive("/applications", item)).toBe(false);
       expect(isActive("/applications/123", item)).toBe(false);
+      expect(isActive("/missions", item)).toBe(false);
     });
 
     it("no item is active on an unknown route", () => {
@@ -75,11 +84,12 @@ describe("SidebarNav isActive route matching", () => {
   });
 
   describe("NAV_ITEMS integrity", () => {
-    it("contains the five standard admin nav items in order", () => {
+    it("contains the six standard admin nav items in order", () => {
       expect(NAV_ITEMS.map((i) => i.label)).toEqual([
         "Overview",
         "Applications",
         "Programs",
+        "Missions",
         "Operations",
         "Settings"
       ]);
