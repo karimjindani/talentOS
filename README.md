@@ -176,7 +176,8 @@ Near-term engineering direction:
 
 ## Important Documentation
 
-- [Product overview](docs/README.md)
+- [Vision guide](docs/vision.md)
+- [Product Vision](docs/Product_Vision.md)
 - [Architecture](docs/Architecture.md)
 - [Product Backlog](docs/Product_Backlog.md)
 - [Version Baseline](docs/Version_Baseline.md)
