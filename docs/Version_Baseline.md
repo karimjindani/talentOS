@@ -6,7 +6,7 @@ Version: `v0.12.1`
 
 Baseline name: `Cross-Subdomain Tenant Login (D-060)`
 
-Baseline code commit: `<set on commit>`
+Baseline code commit: `ed5f66d`
 
 Baseline date: `2026-07-04`
 
