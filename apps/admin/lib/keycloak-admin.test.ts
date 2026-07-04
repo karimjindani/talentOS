@@ -26,8 +26,8 @@ afterEach(() => {
 
 describe("adminBaseFromIssuer", () => {
   it("strips the realm path from the issuer", () => {
-    expect(adminBaseFromIssuer("http://host.docker.internal:8080/realms/talentos")).toBe(
-      "http://host.docker.internal:8080"
+    expect(adminBaseFromIssuer("http://keycloak.lvh.me:8080/realms/talentos")).toBe(
+      "http://keycloak.lvh.me:8080"
     );
     expect(adminBaseFromIssuer("http://host:8080/realms/talentos/")).toBe("http://host:8080");
   });
@@ -101,6 +101,8 @@ describe("realm import", () => {
     const realm = JSON.parse(readFileSync(realmPath, "utf8")) as {
       clients: {
         clientId: string;
+        redirectUris?: string[];
+        webOrigins?: string[];
         serviceAccountsEnabled?: boolean;
       }[];
       users: {
@@ -121,5 +123,12 @@ describe("realm import", () => {
     );
     expect(serviceAccountUser).toBeDefined();
     expect(serviceAccountUser?.clientRoles?.["realm-management"]).toContain("manage-users");
+
+    const adminClient = realm.clients.find((c) => c.clientId === "talentos-admin");
+    const applicantClient = realm.clients.find((c) => c.clientId === "talentos-applicant");
+    expect(adminClient?.redirectUris).toContain("http://lvh.me:3200/api/auth/callback/keycloak");
+    expect(adminClient?.redirectUris).toContain("http://*.lvh.me:3200/*");
+    expect(applicantClient?.redirectUris).toContain("http://lvh.me:3100/api/auth/callback/keycloak");
+    expect(applicantClient?.redirectUris).toContain("http://*.lvh.me:3100/*");
   });
 });

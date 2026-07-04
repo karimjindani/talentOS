@@ -21,7 +21,7 @@ export async function runHealthChecks(): Promise<OpsHealthResponse> {
     ...(await Promise.all(CONTAINERS.map((name) => checkContainer(name)))),
     await checkDatabase(),
     await checkHttp("Keycloak realm", discoveryUrl()),
-    await checkHttp("MinIO API", `${process.env.S3_ENDPOINT ?? "http://localhost:9000"}/minio/health/live`),
+    await checkHttp("MinIO API", `${process.env.S3_ENDPOINT ?? "http://minio.lvh.me:9000"}/minio/health/live`),
     await checkHttp("Applicant Portal", process.env.NEXTAUTH_URL ?? "http://localhost:3100"),
     await checkHttp("Admin Portal", process.env.ADMIN_NEXTAUTH_URL ?? "http://localhost:3200")
   ];
@@ -157,8 +157,8 @@ async function checkHttp(name: string, url: string): Promise<OpsComponentCheck> 
 }
 
 function discoveryUrl(): string {
-  const issuer = process.env.KEYCLOAK_ISSUER ?? "http://localhost:8080/realms/talentos";
-  return `${issuer.replace("host.docker.internal", "localhost").replace(/\/$/, "")}/.well-known/openid-configuration`;
+  const issuer = process.env.KEYCLOAK_ISSUER ?? "http://keycloak.lvh.me:8080/realms/talentos";
+  return `${issuer.replace(/\/$/, "")}/.well-known/openid-configuration`;
 }
 
 function trimDetail(value: string) {

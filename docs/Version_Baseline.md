@@ -2,19 +2,27 @@
 
 ## Current Baseline
 
-Version: `v0.12.1`
+Version: `v0.12.2`
 
-Baseline name: `Cross-Subdomain Tenant Login (D-060)`
+Baseline name: `Local Deployment Hardening (D-061)`
 
-Baseline code commit: `ed5f66d`
+Baseline code commit: `TBD after v0.12.2 implementation commit`
 
 Baseline date: `2026-07-04`
 
-Previous baseline: `v0.12.0`
+Previous baseline: `v0.12.1`
 
-Previous baseline commit: `7e4e1fa`
+Previous baseline commit: `7830833`
 
 ## Baseline Summary
+
+`v0.12.2` hardens the local deployment path. Local OIDC now uses a single browser-and-container reachable
+issuer, `http://keycloak.lvh.me:8080/realms/talentos`, eliminating browser-facing
+`host.docker.internal` redirects and Ops Console issuer mismatches. MinIO uses the same local pattern via
+`http://minio.lvh.me:9000`. New commands `local:bootstrap`, `local:doctor` and `local:smoke-login`
+repair local runtime state, validate services and run full login callbacks. Existing local Keycloak
+volumes are patched non-destructively for current clients and redirect URIs. Demo data now includes
+`accepted@demo.talentos.local` so the applicant dashboard has seed data out of the box. See `D-061`.
 
 `v0.12.1` fixes org admins (and any non-SUPER_ADMIN) being denied their own tenant with "Access denied — not a member of this organization" after signing in on their tenant subdomain. Root cause was a deployment/auth-topology gap: `AUTH_URL` pinned to `localhost:3200` made next-auth build the OIDC `redirect_uri` for `localhost`, so the Keycloak callback returned the browser to the default (`demo`) tenant where the org admin has no membership. Two alternatives were built and empirically disproved (unpinning `AUTH_URL`+`trustHost`, and an nginx `X-Forwarded-Host` proxy) — next-auth v5 beta derives the callback URL from a pinned `AUTH_URL`, not the request host. Fix: canonical-host + base-domain shared-cookie. Login runs through one canonical host per app (`AUTH_URL`=`lvh.me:3200`/`lvh.me:3100`); auth cookies are scoped to `.lvh.me` (`packages/auth-web`) so the session is valid on every tenant subdomain; after login the user is returned to their tenant subdomain via `resolveTenantRedirect` (an allow-list of base-domain subdomains, not an open redirect). `APP_BASE_DOMAIN` moves to `lvh.me` for local dev; the Keycloak clients gain `lvh.me`/`*.lvh.me` redirect URIs, web origins and post-logout URIs; logout post-redirect follows the request Host. Also fixes a latent Next-standalone boot crash (`HOSTNAME=0.0.0.0`). Verified end-to-end with a scripted no-2FA `ORG_ADMIN` login on the real `sbp` tenant (HTTP 200 admin page, no denial). No schema, data-model or RBAC change. Adds 8 `tenant-redirect.test.ts` tests. Builds on the `v0.12.0`/`D-059` dashboard that merged during this work. See `D-060`.
 

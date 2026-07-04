@@ -1019,7 +1019,7 @@ async function runBrowserChecks() {
   const checks = [
     ["Browser to Applicant Portal", "http://localhost:3100"],
     ["Browser to Admin Portal", "http://localhost:3200"],
-    ["Browser to Keycloak issuer", "http://localhost:8080/realms/talentos/.well-known/openid-configuration"]
+    ["Browser to Keycloak issuer", "http://keycloak.lvh.me:8080/realms/talentos/.well-known/openid-configuration"]
   ];
   const results = [];
   for (const [name, url] of checks) {

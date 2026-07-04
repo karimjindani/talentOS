@@ -18,7 +18,7 @@ function serverUrl(): string {
   if (process.env.KEYCLOAK_SERVER_URL) {
     return process.env.KEYCLOAK_SERVER_URL.replace(/\/$/, "");
   }
-  return adminBaseFromIssuer(process.env.KEYCLOAK_ISSUER ?? "http://localhost:8080/realms/talentos");
+  return adminBaseFromIssuer(process.env.KEYCLOAK_ISSUER ?? "http://keycloak.lvh.me:8080/realms/talentos");
 }
 
 const adminApi = () => `${serverUrl()}/admin/realms/${REALM}`;

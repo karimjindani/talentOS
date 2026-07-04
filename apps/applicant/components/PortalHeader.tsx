@@ -64,7 +64,7 @@ export async function PortalHeader({ tenantSlug }: PortalHeaderProps) {
                   const host = requestHeaders.get("host") ?? "localhost:3100";
                   const proto = requestHeaders.get("x-forwarded-proto") ?? "http";
                   const logoutUrl = buildEndSessionUrl({
-                    issuer: process.env.KEYCLOAK_ISSUER ?? "http://localhost:8080/realms/talentos",
+                    issuer: process.env.KEYCLOAK_ISSUER ?? "http://keycloak.lvh.me:8080/realms/talentos",
                     idToken: activeSession?.idToken,
                     clientId: process.env.KEYCLOAK_CLIENT_ID ?? "talentos-applicant",
                     postLogoutRedirectUri: `${proto}://${host}/`

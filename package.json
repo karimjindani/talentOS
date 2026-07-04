@@ -18,6 +18,9 @@
     "test:watch": "vitest",
     "ops:start": "npm run start -w @talentos/ops",
     "ops:cleanup-regression": "tsx scripts/cleanup-regression-data.ts",
+    "local:bootstrap": "tsx scripts/local/bootstrap.ts",
+    "local:doctor": "tsx scripts/local/doctor.ts",
+    "local:smoke-login": "tsx scripts/local/smoke-login.ts",
     "db:generate": "prisma generate --schema packages/db/prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema packages/db/prisma/schema.prisma",
     "db:seed": "tsx packages/db/prisma/seed.ts"
