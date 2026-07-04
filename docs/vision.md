@@ -1,4 +1,4 @@
-﻿# TalentOS Vision
+# TalentOS Vision
 
 ## Vision Statement
 
@@ -155,6 +155,60 @@ A successful graduate of TalentOS should be able to:
 
 ---
 
+# Competency Progression Framework
+
+The objective of TalentOS is not to teach technologies.
+
+The objective is to progressively develop engineering competencies that enable a participant to independently transform a business idea into a production-ready software solution.
+
+Each week increases the participant's engineering responsibility and introduces new competencies.
+
+## Competency Maturity Levels
+
+| Level | Description |
+|---------|-------------|
+| NI | Not Introduced |
+| I | Introductory |
+| F | Foundation |
+| A | Advanced |
+| M | Mastery |
+
+## Competency Progression Matrix
+
+| Competency | W1 | W2 | W3 | W4 |
+|------------|----|----|----|----|
+| Requirements Engineering | F | A | A | M |
+| AI-Assisted Development | F | A | A | M |
+| Architecture & Design | I | F | A | M |
+| Source Control & CI/CD | F | A | A | M |
+| Documentation Engineering | F | A | A | M |
+| Functional Testing | F | A | A | M |
+| Deployment & Hosting | F | A | A | M |
+| Performance Engineering | NI | I | F | A |
+| Security Engineering | NI | I | F | A |
+| DevOps & Operations | NI | I | F | A |
+| Communication & Presentation | F | A | A | M |
+| Production Readiness | NI | NI | I | M |
+
+## Graduate Outcome
+
+A successful graduate should be able to:
+
+1. Understand a business problem.
+2. Gather and refine requirements.
+3. Create technical specifications.
+4. Design a solution.
+5. Use AI effectively throughout the software lifecycle.
+6. Build production-quality software.
+7. Test and validate software.
+8. Deploy software independently.
+9. Produce professional documentation.
+10. Present and defend technical decisions.
+11. Demonstrate production readiness.
+
+Graduation is based on demonstrated competency rather than assignment completion alone.
+
+---
 # Core Pillars
 
 TalentOS is built around three pillars.
@@ -633,4 +687,3 @@ TalentOS succeeds when a graduate can independently:
 10. Demonstrate production readiness.
 
 At that point, TalentOS has achieved its mission of producing AI-native software engineers capable of transforming ideas into production-ready software.
-
