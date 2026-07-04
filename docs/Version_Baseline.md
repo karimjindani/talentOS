@@ -6,7 +6,7 @@ Version: `v0.12.2`
 
 Baseline name: `Local Deployment Hardening (D-061)`
 
-Baseline code commit: `TBD after v0.12.2 implementation commit`
+Baseline code commit: `9db81d1ad56a102d812ee81feaf54ed3e4d6c452`
 
 Baseline date: `2026-07-04`
 
