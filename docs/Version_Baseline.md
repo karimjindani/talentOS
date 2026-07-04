@@ -6,7 +6,7 @@ Version: `v0.13.0`
 
 Baseline name: `Scenario-Based Regression Suite (D-062)`
 
-Baseline code commit: `pending v0.13.0 commit`
+Baseline code commit: `943df5ce0d647afcccf62fdd0f512e3308087f77`
 
 Baseline date: `2026-07-04`
 
