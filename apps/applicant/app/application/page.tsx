@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { PortalHeader } from "@/components/PortalHeader";
 import { auth } from "@/auth";
 import { getTenantContext, StatusBadge } from "@talentos/ui";
@@ -15,6 +16,11 @@ export default async function ApplicationPage() {
   const email = session?.user?.email ?? null;
   const user = tenant && email ? await getUserByEmail(email) : null;
   const applications = tenant && user ? await listApplicantApplications(user.id, tenant.id) : [];
+
+  // If the applicant has an accepted application, redirect to dashboard
+  if (applications.some((a) => a.status === "ACCEPTED")) {
+    redirect("/dashboard");
+  }
 
   return (
     <main>

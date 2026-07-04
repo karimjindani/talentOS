@@ -1,9 +1,20 @@
 # Data Model
 
-Code version: `v0.11.4`
+Code version: `v0.12.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
+> `v0.12.0` (applicant dashboard) adds 4 new models + 1 enum + 1 join table:
+> `ProgramTask` (id, tenantId, programId, weekNumber 1-4, title, description?, dueAt?, order, timestamps),
+> `VideoResource` (id, tenantId, programId, weekNumber?, title, url, description?, timestamps),
+> `Notification` (id, tenantId, userId, type NotificationType, title, body?, readAt?, createdAt),
+> `CalendarEvent` (id, tenantId, programId, title, description?, startsAt, endsAt?, location?, timestamps),
+> `UserTaskCompletion` (id, taskId, userId, completedAt — unique on [taskId, userId]),
+> `NotificationType` enum (INFO, WARNING, SUCCESS, TASK_DUE).
+> Relations added to `Tenant` (programTasks, videoResources, notifications, calendarEvents),
+> `User` (notifications, taskCompletions), and `Program` (tasks, videoResources, calendarEvents).
+> Migration: `20260703150655_v0_12_0_applicant_dashboard`.
+>
 > `v0.11.4` (UI polish) makes no schema change — it is a UI-only iteration (apply page redesign, admin
 > sidebar active-state indicator, review page back button).
 >

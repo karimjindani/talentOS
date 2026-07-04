@@ -1,11 +1,16 @@
 # Deployment
 
-Code version: `v0.11.4`
+Code version: `v0.12.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current deployment update: `v0.11.4`
+Current deployment update: `v0.12.0`
 
+> `v0.12.0` (applicant dashboard) requires a database migration: `20260703150655_v0_12_0_applicant_dashboard`.
+> After pulling the code, run `npx prisma migrate deploy --schema packages/db/prisma/schema.prisma` against
+> the target database, then rebuild the applicant container: `docker compose up -d --build applicant`.
+> The admin container is unchanged. Seed demo data with `npx tsx scripts/seed-dashboard.ts`.
+>
 > `v0.11.4` (UI polish) makes no deployment change — both containers rebuild with the same Docker
 > Compose topology. Rebuild with `docker compose up -d --build applicant admin`.
 >

@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 
 // Applicant-only routes that require an authenticated session. The landing page stays
 // public; applying and the applicant's own application area require a Keycloak sign-in.
-const PROTECTED_PREFIXES = ["/apply", "/application"];
+const PROTECTED_PREFIXES = ["/apply", "/application", "/dashboard"];
 
 export default auth((req) => {
   const { nextUrl } = req;

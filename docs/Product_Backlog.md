@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.11.4`
+Code version: `v0.12.0`
 
-Documentation update: `UI polish delivered in v0.11.4 (D-058): applicant apply page professionalized, admin sidebar active-state indicator, application review back button. All prior work through v0.11.3 (tenant settings, organizations, Keycloak fixes, per-tenant auth, identity linking, org-admin provisioning, reserved slugs, duplicate-application index, engineering governance docs, Keycloak realm-import fix) remains functional.`
+Documentation update: `Applicant dashboard delivered in v0.12.0 (D-059): post-acceptance routing to /dashboard, 4-week program progress, tasks with due dates, video resources (YouTube/Loom), notifications, calendar, profile. Schema additions: ProgramTask, VideoResource, Notification, CalendarEvent, UserTaskCompletion, NotificationType enum. All prior work through v0.11.4 remains functional.`
 
 ## MVP
 

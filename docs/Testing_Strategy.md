@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.11.2`
+Code version: `v0.12.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -149,3 +149,13 @@ From `v0.11.4`, the regression baseline also covers the admin sidebar active-sta
 (`/` only on `/`) and `startsWith`-match routes (`/applications` on `/applications` and
 `/applications/[id]`); no false positives across routes; `NAV_ITEMS` contains the five standard admin
 nav items in order with only Overview using exact matching. The current regression suite is **101 tests**.
+
+From `v0.12.0`, the regression baseline also covers the applicant dashboard DB helpers
+(unit, `packages/db/src/dashboard.test.ts`, 14 tests): `listProgramTasks`, `listTasksByWeek`,
+`listVideoResources`, `listCalendarEvents`, `listUserNotifications`, `countUnreadNotifications`,
+`markNotificationRead`, `createNotification`, `listCompletedTaskIds`, `markTaskCompleted`, and
+`getApplicantProgramProgress` (progress calculation across 4 weeks with percentage computation and
+empty-week handling). Also covers the applicant shell nav active-state route-matching logic
+(unit, `apps/applicant/components/ApplicantShell.test.ts`, 10 tests): `isApplicantNavActive` for
+exact-match (`/dashboard`) and `startsWith`-match routes, plus `APPLICANT_NAV_ITEMS` completeness
+(7 items, all expected routes present). The current regression suite is **125 tests**.
