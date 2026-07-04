@@ -1,4 +1,4 @@
-import type { OpsJobKind } from "@talentos/auth";
+import type { OpsJobKind, RegressionArea } from "@talentos/auth";
 
 export type CommandSpec = {
   id: string;
@@ -10,16 +10,24 @@ export type CommandSpec = {
 
 const npmBin = process.platform === "win32" ? "npm.cmd" : "npm";
 
-export const OPS_JOB_COMMANDS: Record<OpsJobKind, CommandSpec[]> = {
-  regression: [
-    {
-      id: "test",
-      name: "Run regression tests",
-      command: npmBin,
-      args: ["run", "test"],
-      timeoutMs: 5 * 60 * 1000
-    }
-  ],
+export const REGRESSION_AREAS: RegressionArea[] = [
+  "all",
+  "unit",
+  "auth",
+  "applicant",
+  "admin",
+  "programs",
+  "tenant",
+  "dashboard",
+  "storage",
+  "ops"
+];
+
+export function isRegressionArea(value: unknown): value is RegressionArea {
+  return typeof value === "string" && REGRESSION_AREAS.includes(value as RegressionArea);
+}
+
+export const OPS_JOB_COMMANDS: Record<Exclude<OpsJobKind, "regression">, CommandSpec[]> = {
   cleanup: [
     {
       id: "cleanup-regression",
@@ -75,9 +83,20 @@ export const OPS_JOB_COMMANDS: Record<OpsJobKind, CommandSpec[]> = {
   ]
 };
 
-const allowedCommands = Object.values(OPS_JOB_COMMANDS)
-  .flat()
-  .map((spec) => commandKey(spec.command, spec.args));
+export function regressionCommand(area: RegressionArea): CommandSpec {
+  return {
+    id: `regression-${area}`,
+    name: area === "all" ? "Run full scenario regression suite" : `Run ${area} regression scenarios`,
+    command: npmBin,
+    args: ["run", `regression:${area}`],
+    timeoutMs: area === "all" ? 30 * 60 * 1000 : 10 * 60 * 1000
+  };
+}
+
+const allowedCommands = [
+  ...REGRESSION_AREAS.map((area) => regressionCommand(area)),
+  ...Object.values(OPS_JOB_COMMANDS).flat()
+].map((spec) => commandKey(spec.command, spec.args));
 
 export function formatCommand(spec: Pick<CommandSpec, "command" | "args">): string {
   return [spec.command, ...spec.args].join(" ");
@@ -87,7 +106,8 @@ export function isAllowedCommand(command: string, args: string[]): boolean {
   return allowedCommands.includes(commandKey(command, args));
 }
 
-export function getCommandsForJob(kind: OpsJobKind): CommandSpec[] {
+export function getCommandsForJob(kind: OpsJobKind, area: RegressionArea = "all"): CommandSpec[] {
+  if (kind === "regression") return [regressionCommand(area)];
   return OPS_JOB_COMMANDS[kind];
 }
 

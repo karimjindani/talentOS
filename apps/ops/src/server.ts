@@ -5,6 +5,7 @@ import { runHealthChecks } from "./health";
 import { createJob, getJob } from "./jobs";
 import { appJs, renderIndex, stylesCss } from "./ui";
 import type { OpsJobKind } from "@talentos/auth";
+import { isRegressionArea } from "./commands";
 import { readOpsSettings, writeOpsSettings } from "./settings";
 import {
   buildLoginRedirect,
@@ -134,7 +135,11 @@ async function route(req: IncomingMessage, res: ServerResponse) {
       if (!["regression", "cleanup", "reset"].includes(kind)) {
         return sendJson(res, 400, { error: "Unknown job kind." });
       }
-      return sendJson(res, 202, await createJob(kind));
+      const area = body.area ?? "all";
+      if (kind === "regression" && !isRegressionArea(area)) {
+        return sendJson(res, 400, { error: "Unknown regression area." });
+      }
+      return sendJson(res, 202, await createJob(kind, kind === "regression" && isRegressionArea(area) ? area : "all"));
     }
     const jobMatch = /^\/api\/ops\/jobs\/([^/]+)$/.exec(url.pathname);
     if (req.method === "GET" && jobMatch) {

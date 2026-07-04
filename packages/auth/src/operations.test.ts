@@ -24,7 +24,8 @@ describe("operations helpers", () => {
   });
 
   it("exposes local regression commands without running them", () => {
-    expect(LOCAL_REGRESSION_COMMANDS.runTests).toBe("npm.cmd run test");
+    expect(LOCAL_REGRESSION_COMMANDS.runTests).toBe("npm.cmd run regression:all");
+    expect(LOCAL_REGRESSION_COMMANDS.runUnitTests).toBe("npm.cmd run regression:unit");
     expect(LOCAL_REGRESSION_COMMANDS.cleanupRegressionData).toBe("npm.cmd run ops:cleanup-regression");
   });
 

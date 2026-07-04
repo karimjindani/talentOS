@@ -45,6 +45,8 @@ describe("ops server auth gate", () => {
 
     expect(response.status).toBe(200);
     expect(body).toContain("TalentOS Local Operations");
+    expect(body).toContain("Regression Area");
+    expect(body).toContain("Full Regression");
     expect(body).not.toContain('id="loginLink"');
   });
 });

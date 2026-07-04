@@ -67,9 +67,28 @@ export function renderIndex() {
             <span class="button-kicker">Check</span>
             <span>Health</span>
           </button>
+          <label class="area-select-label" for="regressionArea">
+            <span>Regression Area</span>
+            <select id="regressionArea" class="area-select">
+              <option value="all">All areas</option>
+              <option value="unit">Unit</option>
+              <option value="auth">Auth</option>
+              <option value="applicant">Applicant</option>
+              <option value="admin">Admin</option>
+              <option value="programs">Programs</option>
+              <option value="tenant">Tenant isolation</option>
+              <option value="dashboard">Dashboard</option>
+              <option value="storage">Storage</option>
+              <option value="ops">Ops</option>
+            </select>
+          </label>
+          <button id="selectedRegressionBtn" class="command-button" type="button">
+            <span class="button-kicker">Run</span>
+            <span>Selected</span>
+          </button>
           <button id="regressionBtn" class="command-button" type="button">
             <span class="button-kicker">Run</span>
-            <span>Regression</span>
+            <span>Full Regression</span>
           </button>
           <button id="cleanupBtn" class="command-button" type="button">
             <span class="button-kicker">Clean</span>
@@ -477,8 +496,26 @@ time { font-variant-numeric: tabular-nums; }
 }
 .command-bar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(112px, auto));
+  grid-template-columns: minmax(112px, auto) minmax(160px, 1fr) repeat(4, minmax(112px, auto));
   gap: 8px;
+}
+.area-select-label {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.area-select {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+  padding: 0 10px;
 }
 .command-button {
   min-height: 44px;
@@ -733,7 +770,7 @@ pre::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius
 pre::-webkit-scrollbar-track { background: var(--console-bg); }
 @media (max-width: 1120px) {
   .action-grid { grid-template-columns: 1fr; align-items: stretch; }
-  .command-bar { grid-template-columns: repeat(4, 1fr); }
+  .command-bar { grid-template-columns: repeat(3, 1fr); }
   .lower-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 900px) {
@@ -779,6 +816,7 @@ const steps = document.getElementById("steps");
 const jobMeta = document.getElementById("jobMeta");
 const themeToggle = document.getElementById("themeToggle");
 const themeLabel = document.getElementById("themeLabel");
+const regressionArea = document.getElementById("regressionArea");
 const buttons = [...document.querySelectorAll(".command-button")];
 let busy = false;
 let activeButtonId = "";
@@ -787,9 +825,9 @@ const jobCopy = {
   regression: {
     eyebrow: "API regression suite",
     title: "Regression Run",
-    description: "Live execution of the TalentOS regression test suite.",
+    description: "Live execution of the TalentOS scenario regression suite.",
     outputTitle: "Regression Output",
-    outputMeta: "Console output from npm.cmd run test."
+    outputMeta: "Console output from npm.cmd run regression:<area>."
   },
   cleanup: {
     eyebrow: "Regression data cleanup",
@@ -838,7 +876,8 @@ mfaToggle.addEventListener("change", async () => {
 });
 
 document.getElementById("healthBtn").addEventListener("click", runHealth);
-document.getElementById("regressionBtn").addEventListener("click", () => startJob("regression"));
+document.getElementById("selectedRegressionBtn").addEventListener("click", () => startJob("regression", regressionArea.value));
+document.getElementById("regressionBtn").addEventListener("click", () => startJob("regression", "all"));
 document.getElementById("cleanupBtn").addEventListener("click", () => startJob("cleanup"));
 document.getElementById("resetBtn").addEventListener("click", () => {
   if (confirm("Reset deletes local TalentOS Docker volumes and reseeds demo data. Continue?")) {
@@ -900,15 +939,15 @@ async function runHealth() {
   }
 }
 
-async function startJob(kind) {
-  const buttonId = kind === "regression" ? "regressionBtn" : kind === "cleanup" ? "cleanupBtn" : "resetBtn";
-  prepareJobView(kind);
+async function startJob(kind, area) {
+  const buttonId = kind === "regression" && area !== "all" ? "selectedRegressionBtn" : kind === "regression" ? "regressionBtn" : kind === "cleanup" ? "cleanupBtn" : "resetBtn";
+  prepareJobView(kind, area);
   scrollToResults();
   setBusy(true, buttonId);
   setSummary("Starting " + titleCase(kind) + " job.", "warn");
   setOutputState("queued", "queued");
   try {
-    const job = await api("/api/ops/jobs", { method: "POST", body: JSON.stringify({ kind }) });
+    const job = await api("/api/ops/jobs", { method: "POST", body: JSON.stringify({ kind, ...(kind === "regression" ? { area: area || "all" } : {}) }) });
     pollJob(job.id);
   } catch (error) {
     setBusy(false);
@@ -932,7 +971,8 @@ async function pollJob(id) {
   } else {
     setBusy(false);
     const copy = getJobCopy(job.kind);
-    setSummary(copy.title + " " + job.status + " | Run " + job.id, job.status === "passed" ? "ok" : "error");
+    const regression = job.regressionSummary ? " | " + formatRegressionSummary(job.regressionSummary) : "";
+    setSummary(copy.title + " " + job.status + regression + " | Run " + job.id, job.status === "passed" ? "ok" : "error");
     if (job.kind === "reset" && job.status === "passed") {
       runHealth().catch(() => {});
     }
@@ -1046,11 +1086,15 @@ function renderJob(job) {
   jobStatus.className = "pill " + job.status;
   jobMeta.innerHTML = [
     '<span class="meta-chip">Run <strong>' + escapeHtml(shortRunId(job.id)) + '</strong></span>',
+    job.kind === "regression" ? '<span class="meta-chip">Area <strong>' + escapeHtml(job.area || "all") + '</strong></span>' : "",
+    job.regressionSummary ? '<span class="meta-chip">Passed <strong>' + job.regressionSummary.passed + "/" + job.regressionSummary.total + '</strong></span>' : "",
+    job.regressionSummary ? '<span class="meta-chip">Failed <strong>' + job.regressionSummary.failed + '</strong></span>' : "",
+    job.regressionSummary ? '<span class="meta-chip">Skipped <strong>' + job.regressionSummary.skipped + '</strong></span>' : "",
     '<span class="meta-chip">Started <strong>' + new Date(job.startedAt).toLocaleString() + '</strong></span>',
     job.completedAt ? '<span class="meta-chip">Completed <strong>' + new Date(job.completedAt).toLocaleString() + '</strong></span>' : '<span class="meta-chip">Status <strong>' + escapeHtml(job.status) + '</strong></span>'
-  ].join(" ");
+  ].filter(Boolean).join(" ");
   steps.innerHTML = job.steps.map((step) => (
-    '<div class="step ' + step.status + '"><div><strong>' + escapeHtml(step.name) + '</strong><code>' + escapeHtml(step.command) + '</code></div><div class="step-meta"><span class="pill ' + step.status + '">' + step.status + '</span><span class="duration">' + (step.durationMs ? step.durationMs + "ms" : "") + '</span></div></div>'
+    '<div class="step ' + step.status + '"><div><strong>' + escapeHtml(step.name) + '</strong><code>' + escapeHtml(step.command) + '</code>' + (step.regressionSummary ? '<p class="step-detail">' + escapeHtml(formatRegressionSummary(step.regressionSummary)) + '</p>' : '') + '</div><div class="step-meta"><span class="pill ' + step.status + '">' + step.status + '</span><span class="duration">' + (step.durationMs ? step.durationMs + "ms" : "") + '</span></div></div>'
   )).join("");
 }
 
@@ -1059,18 +1103,22 @@ function healthResultStep({ title, status, detail, command }) {
   return '<div class="step ' + status + '"><div><strong>' + escapeHtml(title) + '</strong><code>' + escapeHtml(command) + '</code><p class="step-detail">' + escapeHtml(detail) + '</p></div><div class="step-meta"><span class="pill ' + status + '">' + escapeHtml(label) + '</span></div></div>';
 }
 
-function prepareJobView(kind) {
+function prepareJobView(kind, area) {
   const copy = getJobCopy(kind);
   jobPanel.classList.add("active");
   jobEyebrow.textContent = copy.eyebrow;
   jobTitle.textContent = copy.title;
-  jobMeta.innerHTML = '<span class="meta-chip">Preparing <strong>' + escapeHtml(copy.title) + '</strong></span>';
+  jobMeta.innerHTML = '<span class="meta-chip">Preparing <strong>' + escapeHtml(copy.title) + '</strong></span>' + (kind === "regression" ? '<span class="meta-chip">Area <strong>' + escapeHtml(area || "all") + '</strong></span>' : '');
   jobStatus.textContent = "queued";
   jobStatus.className = "pill queued";
   outputTitle.textContent = copy.outputTitle;
   outputMeta.textContent = copy.outputMeta;
   output.textContent = "{}";
   steps.innerHTML = '<div class="empty-state active">' + escapeHtml(copy.description) + ' Waiting for the first job update...</div>';
+}
+
+function formatRegressionSummary(summary) {
+  return summary.passed + "/" + summary.total + " passed, " + summary.failed + " failed, " + summary.skipped + " skipped";
 }
 
 function prepareHealthView() {
@@ -1125,6 +1173,7 @@ function setBusy(value, activeId) {
     button.disabled = value || !opsState.authenticated;
     button.classList.toggle("is-active", value && button.id === activeButtonId);
   });
+  regressionArea.disabled = value || !opsState.authenticated;
 }
 
 function setSummary(message, tone) {

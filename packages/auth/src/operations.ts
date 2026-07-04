@@ -21,6 +21,27 @@ export type OpsJobKind = "regression" | "cleanup" | "reset";
 
 export type OpsJobStatus = "queued" | "running" | "passed" | "failed";
 
+export type RegressionArea =
+  | "all"
+  | "unit"
+  | "auth"
+  | "applicant"
+  | "admin"
+  | "programs"
+  | "tenant"
+  | "dashboard"
+  | "storage"
+  | "ops";
+
+export type RegressionSummary = {
+  area: RegressionArea;
+  total: number;
+  passed: number;
+  failed: number;
+  skipped: number;
+  durationMs: number;
+};
+
 export type OpsJobStep = {
   id: string;
   name: string;
@@ -31,11 +52,13 @@ export type OpsJobStep = {
   durationMs?: number;
   exitCode?: number | null;
   output: string;
+  regressionSummary?: RegressionSummary;
 };
 
 export type OpsJob = {
   id: string;
   kind: OpsJobKind;
+  area?: RegressionArea;
   status: OpsJobStatus;
   startedAt: string;
   updatedAt: string;
@@ -43,10 +66,12 @@ export type OpsJob = {
   steps: OpsJobStep[];
   output: string;
   error?: string;
+  regressionSummary?: RegressionSummary;
 };
 
 export const LOCAL_REGRESSION_COMMANDS = {
-  runTests: "npm.cmd run test",
+  runTests: "npm.cmd run regression:all",
+  runUnitTests: "npm.cmd run regression:unit",
   cleanupRegressionData: "npm.cmd run ops:cleanup-regression",
   cleanupRegressionRun: "npm.cmd run ops:cleanup-regression -- <runId>"
 } as const;
