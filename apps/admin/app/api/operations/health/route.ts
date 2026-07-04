@@ -19,7 +19,7 @@ export async function GET() {
   const checks: OperationHealthCheck[] = [
     await checkDatabase(),
     await checkHttp("Keycloak realm", discoveryUrl()),
-    await checkHttp("MinIO API", `${process.env.S3_ENDPOINT ?? "http://host.docker.internal:9000"}/minio/health/live`),
+    await checkHttp("MinIO API", `${process.env.S3_ENDPOINT ?? "http://minio.lvh.me:9000"}/minio/health/live`),
     await checkWithFallbacks("Applicant Portal", applicantHealthUrls()),
     { name: "Admin Portal", status: "healthy", detail: "Admin API responded." }
   ];
@@ -67,22 +67,13 @@ async function checkHttp(name: string, url: string): Promise<OperationHealthChec
 }
 
 function discoveryUrl(): string {
-  const issuer = process.env.KEYCLOAK_ISSUER ?? "http://host.docker.internal:8080/realms/talentos";
+  const issuer = process.env.KEYCLOAK_ISSUER ?? "http://keycloak.lvh.me:8080/realms/talentos";
   return `${issuer.replace(/\/$/, "")}/.well-known/openid-configuration`;
 }
 
 function applicantHealthUrls(): string[] {
-  const publicUrl = process.env.NEXT_PUBLIC_APPLICANT_URL ?? "http://localhost:3100";
+  const publicUrl = process.env.NEXT_PUBLIC_APPLICANT_URL ?? "http://lvh.me:3100";
   const urls = [publicUrl];
-  try {
-    const parsed = new URL(publicUrl);
-    if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
-      parsed.hostname = "host.docker.internal";
-      urls.push(parsed.toString().replace(/\/$/, ""));
-    }
-  } catch {
-    // Keep the original URL; checkHttp will report the error if it is invalid.
-  }
   return [...new Set(urls)];
 }
 

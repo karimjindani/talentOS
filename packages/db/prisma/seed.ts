@@ -60,7 +60,8 @@ async function main() {
     { email: "orgadmin@demo.talentos.local", name: "Demo Org Admin", role: "ORG_ADMIN" },
     { email: "hr@demo.talentos.local", name: "Demo HR", role: "HR" },
     { email: "techlead@demo.talentos.local", name: "Demo Tech Lead", role: "TECH_LEAD" },
-    { email: "applicant@demo.talentos.local", name: "Demo Applicant", role: "APPLICANT" }
+    { email: "applicant@demo.talentos.local", name: "Demo Applicant", role: "APPLICANT" },
+    { email: "accepted@demo.talentos.local", name: "Demo Accepted Applicant", role: "APPLICANT" }
   ];
 
   for (const orgUser of orgUsers) {
@@ -112,6 +113,41 @@ async function main() {
                 questionLabel: "Why do you want to join?",
                 answer:
                   "I want to build and ship production-grade software with AI mentorship from week one."
+              }
+            ]
+          }
+        }
+      });
+    }
+  }
+
+  // Seed one ACCEPTED application so the applicant dashboard has demo data out of the box.
+  const acceptedApplicant = await prisma.user.findUnique({
+    where: { email: "accepted@demo.talentos.local" }
+  });
+
+  if (acceptedApplicant) {
+    const existingAcceptedApplication = await prisma.application.findFirst({
+      where: { applicantId: acceptedApplicant.id, programId: program.id }
+    });
+
+    if (!existingAcceptedApplication) {
+      await prisma.application.create({
+        data: {
+          tenantId: tenant.id,
+          programId: program.id,
+          applicantId: acceptedApplicant.id,
+          status: "ACCEPTED",
+          submittedAt: new Date(),
+          reviewedAt: new Date(),
+          reviewerNotes: "Accepted demo applicant for local dashboard validation.",
+          answers: {
+            create: [
+              {
+                questionKey: "motivation",
+                questionLabel: "Why do you want to join?",
+                answer:
+                  "I want to use TalentOS to practice the full engineering lifecycle and build a public portfolio."
               }
             ]
           }

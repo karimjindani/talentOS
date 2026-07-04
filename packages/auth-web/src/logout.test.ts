@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildEndSessionUrl } from "./logout";
 
-const ISSUER = "http://host.docker.internal:8080/realms/talentos";
+const ISSUER = "http://keycloak.lvh.me:8080/realms/talentos";
 const REDIRECT = "http://localhost:3200/";
 
 describe("buildEndSessionUrl", () => {

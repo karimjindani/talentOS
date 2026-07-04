@@ -41,15 +41,16 @@ async function main() {
   ];
 
   for (const task of taskDefs) {
-    await prisma.programTask.create({
-      data: {
-        tenantId: tenant.id,
-        programId: program.id,
-        ...task,
-      },
+    const existing = await prisma.programTask.findFirst({
+      where: { tenantId: tenant.id, programId: program.id, weekNumber: task.weekNumber, title: task.title },
     });
+    if (existing) {
+      await prisma.programTask.update({ where: { id: existing.id }, data: task });
+    } else {
+      await prisma.programTask.create({ data: { tenantId: tenant.id, programId: program.id, ...task } });
+    }
   }
-  console.log(`Created ${taskDefs.length} program tasks`);
+  console.log(`Upserted ${taskDefs.length} program tasks`);
 
   // --- Video Resources ---
   const videoDefs = [
@@ -61,15 +62,16 @@ async function main() {
   ];
 
   for (const video of videoDefs) {
-    await prisma.videoResource.create({
-      data: {
-        tenantId: tenant.id,
-        programId: program.id,
-        ...video,
-      },
+    const existing = await prisma.videoResource.findFirst({
+      where: { tenantId: tenant.id, programId: program.id, title: video.title, url: video.url },
     });
+    if (existing) {
+      await prisma.videoResource.update({ where: { id: existing.id }, data: video });
+    } else {
+      await prisma.videoResource.create({ data: { tenantId: tenant.id, programId: program.id, ...video } });
+    }
   }
-  console.log(`Created ${videoDefs.length} video resources`);
+  console.log(`Upserted ${videoDefs.length} video resources`);
 
   // --- Calendar Events ---
   const eventDefs = [
@@ -81,15 +83,16 @@ async function main() {
   ];
 
   for (const event of eventDefs) {
-    await prisma.calendarEvent.create({
-      data: {
-        tenantId: tenant.id,
-        programId: program.id,
-        ...event,
-      },
+    const existing = await prisma.calendarEvent.findFirst({
+      where: { tenantId: tenant.id, programId: program.id, title: event.title, startsAt: event.startsAt },
     });
+    if (existing) {
+      await prisma.calendarEvent.update({ where: { id: existing.id }, data: event });
+    } else {
+      await prisma.calendarEvent.create({ data: { tenantId: tenant.id, programId: program.id, ...event } });
+    }
   }
-  console.log(`Created ${eventDefs.length} calendar events`);
+  console.log(`Upserted ${eventDefs.length} calendar events`);
 
   // --- Notifications ---
   const notifDefs = [
@@ -99,15 +102,16 @@ async function main() {
   ];
 
   for (const notif of notifDefs) {
-    await prisma.notification.create({
-      data: {
-        tenantId: tenant.id,
-        userId: applicant.id,
-        ...notif,
-      },
+    const existing = await prisma.notification.findFirst({
+      where: { tenantId: tenant.id, userId: applicant.id, title: notif.title },
     });
+    if (existing) {
+      await prisma.notification.update({ where: { id: existing.id }, data: notif });
+    } else {
+      await prisma.notification.create({ data: { tenantId: tenant.id, userId: applicant.id, ...notif } });
+    }
   }
-  console.log(`Created ${notifDefs.length} notifications`);
+  console.log(`Upserted ${notifDefs.length} notifications`);
 
   console.log("\n✅ Seed complete!");
 }

@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.12.0`
+Code version: `v0.12.2`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.12.0`
+Current documentation update: `v0.12.2`
 
 ## Overview
 
@@ -162,6 +162,16 @@ login uses a canonical-host + shared-cookie model rather than per-subdomain call
 - The tenant guard (`resolveTenantAccess`, D-051) is unchanged: it still binds the shared session to the
   `Host`-resolved tenant via DB membership. An org admin who lands on their subdomain with the shared
   cookie now passes the membership check instead of being denied.
+
+### Local OIDC hostname rule (`v0.12.2`, D-061)
+
+Local development must use a single OIDC issuer URL that is reachable from both the browser and the
+Docker containers, and that exactly matches the Keycloak `iss` claim. The supported local issuer is
+`http://keycloak.lvh.me:8080/realms/talentos`; the Keycloak container advertises
+`KC_HOSTNAME=http://keycloak.lvh.me:8080`, and app containers map `keycloak.lvh.me` to the Docker host
+gateway. This avoids the earlier split where browser flows used `localhost` while containers used
+`host.docker.internal`, which caused unreachable login-action URLs and `unexpected "iss" claim value`
+errors. The same pattern is used for browser-visible object storage URLs with `http://minio.lvh.me:9000`.
 
 ## Security Model
 

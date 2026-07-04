@@ -2,7 +2,7 @@
 
 TalentOS is a platform for developing AI-native software engineers through real, production-oriented work rather than passive coursework. Its core learning model is the Spiral Engineering Method (SEM): participants repeatedly complete the full engineering lifecycle — discover, analyze, specify, design, build, test, deploy, present, reflect, and review production readiness — from the very first week, with each cycle increasing in complexity. The platform treats AI as a mentor and accelerator, not a substitute for thinking, and is designed to help learners build secure, maintainable, deployable software while producing a public portfolio that organizations can use for talent discovery and recruitment.
 
-Current documentation version: `v0.10.2`
+Current documentation version: `v0.12.2`
 
 TalentOS is an AI-powered Talent Discovery, Learning and Recruitment Platform designed to bridge the gap between AI-assisted coding and production-grade software engineering.
 
@@ -29,6 +29,16 @@ TalentOS has moved beyond product discovery into an initial platform scaffold wi
 - `v0.10.0`: Super Admin Organizations console — create tenants and assign the first Org Admin by email from the Admin Portal.
 - `v0.10.1`: Keycloak OTP policy fix — pins a valid TOTP period so first-login authenticator-app enrollment no longer errors.
 - `v0.10.2`: RP-initiated Keycloak logout — sign-out now terminates the Keycloak SSO session (no silent re-login on refresh).
+- `v0.10.3`: Tenant isolation fix — admin authority is bound to `TenantMembership` for the host-resolved tenant.
+- `v0.10.4`: Identity linking and email normalization on admin login.
+- `v0.11.0`: Org-admin auto-provisioning through the Keycloak Admin REST API.
+- `v0.11.1`: Reserved tenant slug blocklist for infra/routing names.
+- `v0.11.2`: Engineering governance documentation for source control and CI/CD.
+- `v0.11.3`: Keycloak realm-import validation/fix for the provisioner service account.
+- `v0.11.4`: UI polish — apply page redesign, admin sidebar active state and review back button.
+- `v0.12.0`: Applicant dashboard for accepted applicants.
+- `v0.12.1`: Cross-subdomain tenant login with canonical `lvh.me` auth hosts and shared cookies.
+- `v0.12.2`: Local deployment hardening — one-command bootstrap, repaired local Keycloak clients, stable `keycloak.lvh.me` issuer and smoke-login validation.
 
 ## Current Implementation
 
@@ -45,7 +55,7 @@ The current scaffold includes:
 - Programs management: admin CRUD (create/edit/publish/archive) gated by `managePrograms`; published programs feed the apply form.
 - Object storage: self-hosted MinIO (S3-compatible) with presigned upload/download and tenant-scoped `StoredFile` metadata.
 - Tenant settings / white-label branding (name, brand colors, logo) applied live across both portals; branding writes are capability-gated and audited.
-- Super Admin Organizations console: create tenants and assign the first Org Admin by email, host-based multi-tenant subdomains (`{slug}.localhost`).
+- Super Admin Organizations console: create tenants and assign the first Org Admin by email, host-based multi-tenant subdomains (`{slug}.lvh.me` locally).
 - Keycloak SSO logout (RP-initiated) that terminates the shared session on sign-out.
 - AI mentor service boundary stub.
 - SSDLC documentation for architecture, data model, data dictionary, deployment and testing.
@@ -54,21 +64,38 @@ The current scaffold includes:
 
 When the local Docker deployment is running:
 
+Start or repair the full local stack with:
+
+```powershell
+npm.cmd run local:bootstrap
+```
+
+Validate it with:
+
+```powershell
+npm.cmd run local:doctor
+npm.cmd run local:smoke-login
+```
+
 ### Portal and service links
 
-- Applicant Portal: http://localhost:3100
-- Applicant Login: http://localhost:3100/login
-- Applicant Apply: http://localhost:3100/apply
-- Applicant Application: http://localhost:3100/application
-- Admin Portal: http://localhost:3200
-- Admin Applications: http://localhost:3200/applications
-- Admin Programs: http://localhost:3200/programs
-- Admin Settings: http://localhost:3200/settings
-- Admin Operations: http://localhost:3200/operations
-- Admin Organizations (SUPER_ADMIN only): http://localhost:3200/organizations
-- Keycloak Admin Console: http://localhost:8080
-- MinIO API: http://localhost:9000
+- Applicant Portal: http://lvh.me:3100
+- Demo Applicant Portal: http://demo.lvh.me:3100
+- Applicant Login: http://lvh.me:3100/login
+- Applicant Apply: http://demo.lvh.me:3100/apply
+- Applicant Application: http://demo.lvh.me:3100/application
+- Applicant Dashboard: http://demo.lvh.me:3100/dashboard
+- Admin Portal: http://lvh.me:3200
+- Demo Admin Portal: http://demo.lvh.me:3200
+- Admin Applications: http://demo.lvh.me:3200/applications
+- Admin Programs: http://demo.lvh.me:3200/programs
+- Admin Settings: http://demo.lvh.me:3200/settings
+- Admin Operations: http://demo.lvh.me:3200/operations
+- Admin Organizations (SUPER_ADMIN only): http://lvh.me:3200/organizations
+- Keycloak Admin Console: http://keycloak.lvh.me:8080
+- MinIO API: http://minio.lvh.me:9000
 - MinIO Console: http://localhost:9001
+- Local Ops Console: http://127.0.0.1:3300
 
 ### Seeded local credentials
 
@@ -81,6 +108,7 @@ These credentials are for local development only.
 | HR | `hr@demo.talentos.local` | `ChangeMe123!` | Can access admin workflows allowed by role. |
 | Tech Lead | `techlead@demo.talentos.local` | `ChangeMe123!` | Can access admin workflows allowed by role. |
 | Applicant | `applicant@demo.talentos.local` | `ChangeMe123!` | Can access applicant portal workflows. |
+| Accepted Applicant | `accepted@demo.talentos.local` | `ChangeMe123!` | Has an accepted application and dashboard demo data. |
 | Keycloak local admin console | `admin` | `admin` | Local Keycloak administration. |
 | MinIO local console | `talentos` | `talentos_dev_password` | Local object storage console. |
 
@@ -96,14 +124,14 @@ The applicant portal must not expose administrator navigation.
 
 As of `v0.10.0`, the platform Super Admin can create tenants from the Admin Portal:
 
-1. Log in to the Admin Portal (`http://localhost:3200`) as `superadmin@talentos.local`.
+1. Log in to the Admin Portal (`http://lvh.me:3200`) as `superadmin@talentos.local`.
 2. Open **Organizations** in the sidebar (visible to `SUPER_ADMIN` only), or go to
-   `http://localhost:3200/organizations`.
+   `http://lvh.me:3200/organizations`.
 3. Fill in the organization name, a DNS-safe **slug** (used as the subdomain), brand colors, and the
    first Org Admin's email, then **Create organization**.
-4. The new tenant is immediately reachable at `http://{slug}.localhost:3200` (admin) and
-   `http://{slug}.localhost:3100` (applicant). Modern browsers resolve `*.localhost` to loopback
-   automatically — no hosts-file change is needed locally.
+4. The new tenant is immediately reachable at `http://{slug}.lvh.me:3200` (admin) and
+   `http://{slug}.lvh.me:3100` (applicant). `lvh.me` and `*.lvh.me` resolve to loopback automatically,
+   so no hosts-file change is needed locally.
 
 Note: the assigned Org Admin's database membership scopes them to the new tenant, but the admin-portal
 **role** comes from Keycloak. Until the Keycloak Admin API integration lands, grant that user the

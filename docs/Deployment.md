@@ -1,10 +1,17 @@
 # Deployment
 
-Code version: `v0.12.0`
+Code version: `v0.12.2`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current deployment update: `v0.12.0`
+Current deployment update: `v0.12.2`
+
+> `v0.12.2` hardens local development deployment. Run `npm.cmd run local:bootstrap` from the repo root
+> to repair/create ignored `.env`, rebuild Compose services, run Prisma setup, seed demo/dashboard data,
+> non-destructively repair stale Keycloak clients in an existing local realm, and start the host-only Ops
+> Console. Local OIDC now uses one browser-and-container reachable issuer:
+> `http://keycloak.lvh.me:8080/realms/talentos`. Do not use `host.docker.internal` in browser-facing
+> Keycloak URLs.
 
 > `v0.12.0` (applicant dashboard) requires a database migration: `20260703150655_v0_12_0_applicant_dashboard`.
 > After pulling the code, run `npx prisma migrate deploy --schema packages/db/prisma/schema.prisma` against
@@ -100,58 +107,43 @@ MinIO object store (`talentos-minio`) is part of that same topology.
 
 ## Local Development
 
-1. Copy `.env.example` to `.env`.
-2. If local ports are already in use, override them in `.env`. Defaults avoid the OpenPay
-   `3000`/`5432` ports:
+The supported local path is the idempotent bootstrap command:
 
-   ```env
-   APPLICANT_PORT=3100
-   ADMIN_PORT=3200
-   POSTGRES_PORT=55432
-   KEYCLOAK_PORT=8080
-   NEXTAUTH_URL=http://localhost:3100
-   ADMIN_NEXTAUTH_URL=http://localhost:3200
-   NEXTAUTH_SECRET=replace-with-a-long-random-secret
-   KEYCLOAK_ISSUER=http://host.docker.internal:8080/realms/talentos
-   DATABASE_URL=postgresql://talentos:talentos_dev_password@localhost:55432/talentos?schema=public
-   ```
-3. Install dependencies:
+```powershell
+npm.cmd run local:bootstrap
+```
 
-   ```powershell
-   npm.cmd install
-   ```
+The bootstrap command:
 
-4. Start PostgreSQL, the Keycloak database and Keycloak (the realm is auto-imported):
+- repairs the ignored local `.env` file;
+- keeps PostgreSQL on `55432` by default to avoid common local conflicts;
+- rebuilds and starts Docker Compose services;
+- runs `db:generate`, `db:migrate`, `db:seed` and `scripts/seed-dashboard.ts`;
+- patches existing Keycloak realms non-destructively so stale local volumes gain current clients and
+  redirect URIs;
+- starts the host-only Local Ops Console on `127.0.0.1:3300`.
 
-   ```powershell
-   docker compose up postgres keycloak-postgres keycloak minio minio-setup -d
-   ```
+Validate the deployment:
 
-5. Generate Prisma client:
+```powershell
+npm.cmd run local:doctor
+npm.cmd run local:smoke-login
+```
 
-   ```powershell
-   npm.cmd run db:generate
-   ```
+Local browser/container hostnames:
 
-6. Run migrations:
+- App base domain: `lvh.me`
+- Keycloak issuer: `http://keycloak.lvh.me:8080/realms/talentos`
+- MinIO API endpoint: `http://minio.lvh.me:9000`
+- Applicant canonical host: `http://lvh.me:3100`
+- Applicant tenant host: `http://demo.lvh.me:3100`
+- Admin canonical host: `http://lvh.me:3200`
+- Admin tenant host: `http://demo.lvh.me:3200`
+- Ops Console: `http://127.0.0.1:3300`
 
-   ```powershell
-   npm.cmd run db:migrate
-   ```
-
-7. Seed demo data:
-
-   ```powershell
-   npm.cmd run db:seed
-   ```
-
-8. Start either app in dev mode (separate terminals). For local (non-Docker) dev, set
-   `KEYCLOAK_ISSUER=http://localhost:8080/realms/talentos`:
-
-   ```powershell
-   npm.cmd run dev:applicant
-   npm.cmd run dev:admin
-   ```
+`lvh.me`, `*.lvh.me`, `keycloak.lvh.me` and `minio.lvh.me` resolve to loopback in the browser. Compose
+maps `keycloak.lvh.me` and `minio.lvh.me` to the Docker host gateway inside app containers, so the
+browser URL, container URL and OIDC issuer claim all match.
 
 ## Docker Compose Deployment
 
@@ -213,18 +205,18 @@ Keycloak production mode, backups, monitoring, and an evaluation of Alibaba Clou
 
 The `applicant` and `admin` services build from the single root `Dockerfile` using the `APP_NAME` and
 `APP_DIR` build args declared in `docker-compose.yml`. They reach Keycloak at
-`KEYCLOAK_ISSUER` (default `http://host.docker.internal:8080/realms/talentos`) and declare
-`extra_hosts: host.docker.internal:host-gateway` so the issuer URL resolves the same way in the browser
-and in the containers.
+`KEYCLOAK_ISSUER` (default `http://keycloak.lvh.me:8080/realms/talentos`) and map
+`keycloak.lvh.me:host-gateway` so the issuer URL resolves the same way in the browser and in the
+containers.
 
 ## Keycloak
 
-- Admin console: `http://localhost:8080` (bootstrap admin `KC_ADMIN`/`KC_ADMIN_PASSWORD`, default
+- Admin console: `http://keycloak.lvh.me:8080` (bootstrap admin `KC_ADMIN`/`KC_ADMIN_PASSWORD`, default
   `admin`/`admin`).
 - Seeded **Super Admin** for local development: `superadmin@talentos.local`, temporary password
   `ChangeMeSuper#1`. First login forces a password change and authenticator-app (TOTP) setup.
 - Demo org users (permanent password `ChangeMe123!`): `orgadmin@`, `hr@`, `techlead@`,
-  `applicant@demo.talentos.local` with the matching realm roles.
+  `applicant@demo.talentos.local` and `accepted@demo.talentos.local` with the matching realm roles.
 - Password policy: min length 12, upper/lower/digit/special, not equal to username, last-5 history.
 - **Self-registration (v0.7.1):** `registrationAllowed` is on; new accounts default to the `APPLICANT`
   role with email as username. Applicants self-serve via the portal "Create account" button
@@ -232,13 +224,13 @@ and in the containers.
 
 ## Object Storage (MinIO)
 
-- Console: `http://localhost:9001`, API: `http://localhost:9000` (root creds
+- Console: `http://localhost:9001`, API: `http://minio.lvh.me:9000` (root creds
   `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY`, dev defaults `talentos`/`talentos_dev_password`).
 - The `talentos` bucket is created **private** by `minio-setup`; all access is via short-lived presigned
   URLs generated by the apps. Object keys are tenant-namespaced: `tenant/{tenantId}/{category}/…`.
 - Config is the same env in every environment: `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`,
   `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE=true`. Locally `S3_ENDPOINT` uses
-  `http://host.docker.internal:9000` so presigned URLs resolve in both the browser and the containers.
+  `http://minio.lvh.me:9000` so presigned URLs resolve in both the browser and the containers.
 - As of `v0.7.3` the **`applicant`** container also receives the `S3_*` env (and `depends_on: minio`)
   because the apply flow uploads the CV to MinIO server-side; previously only `admin` needed it.
 - **Cloud (Alibaba ECS):** MinIO runs as the same container on a persistent volume. Set `S3_ENDPOINT` to
@@ -250,35 +242,41 @@ and in the containers.
 
 Keycloak (`KEYCLOAK_PORT=8080`):
 
-- Admin console: `http://localhost:8080`
-- Realm OIDC discovery: `http://localhost:8080/realms/talentos/.well-known/openid-configuration`
+- Admin console: `http://keycloak.lvh.me:8080`
+- Realm OIDC discovery: `http://keycloak.lvh.me:8080/realms/talentos/.well-known/openid-configuration`
 
 Applicant container (`APPLICANT_PORT=3100`):
 
-- Public portal: `http://localhost:3100`
-- Login (Keycloak sign-in): `http://localhost:3100/login`
-- Apply page (authenticated): `http://localhost:3100/apply`
-- Applicant application page (authenticated): `http://localhost:3100/application`
+- Public portal: `http://lvh.me:3100`
+- Demo tenant portal: `http://demo.lvh.me:3100`
+- Login (Keycloak sign-in): `http://lvh.me:3100/login`
+- Apply page (authenticated): `http://demo.lvh.me:3100/apply`
+- Applicant application page (authenticated): `http://demo.lvh.me:3100/application`
+- Accepted applicant dashboard: `http://demo.lvh.me:3100/dashboard`
 
 Admin container (`ADMIN_PORT=3200`, routes at root, RBAC-gated):
 
-- Admin overview: `http://localhost:3200`
-- Admin applications: `http://localhost:3200/applications`
-- Admin programs: `http://localhost:3200/programs`
-- Admin settings: `http://localhost:3200/settings`
-- Forbidden page: `http://localhost:3200/forbidden`
+- Admin overview: `http://lvh.me:3200`
+- Demo tenant admin: `http://demo.lvh.me:3200`
+- Admin applications: `http://demo.lvh.me:3200/applications`
+- Admin programs: `http://demo.lvh.me:3200/programs`
+- Admin settings: `http://demo.lvh.me:3200/settings`
+- Forbidden page: `http://demo.lvh.me:3200/forbidden`
+- Local Ops Console: `http://127.0.0.1:3300`
 
 ## Smoke Tests
 
 After deployment, verify:
 
-- `http://localhost:8080/realms/talentos/.well-known/openid-configuration` returns HTTP 200.
-- `http://localhost:3100/` loads publicly; `http://localhost:3100/apply` and `/application` redirect to
+- `npm.cmd run local:doctor` passes.
+- `npm.cmd run local:smoke-login` passes.
+- `http://keycloak.lvh.me:8080/realms/talentos/.well-known/openid-configuration` returns HTTP 200.
+- `http://lvh.me:3100/` loads publicly; `http://demo.lvh.me:3100/apply` and `/application` redirect to
   `/login` when unauthenticated (both require an applicant session as of `v0.5.0`).
-- `http://localhost:3200/` redirects unauthenticated users to Keycloak sign-in.
+- `http://demo.lvh.me:3200/` redirects unauthenticated users to Keycloak sign-in.
 - Sign in to the admin portal as `applicant@demo.talentos.local` → `/forbidden`; as `orgadmin@…` /
   `hr@…` / `techlead@…` / `superadmin@talentos.local` → admin routes load.
-- Module isolation: `http://localhost:3100/applications` returns 404 (admin routes are not served by the
+- Module isolation: `http://lvh.me:3100/applications` returns 404 (admin routes are not served by the
   applicant container).
 - Application lifecycle (`v0.5.0`): sign in as `applicant@demo.talentos.local`, submit `/apply`, and
   confirm `/application` shows `SUBMITTED`; sign in to the admin portal as `hr@demo.talentos.local`,

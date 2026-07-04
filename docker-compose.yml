@@ -48,7 +48,7 @@ services:
       KC_DB_URL: jdbc:postgresql://keycloak-postgres:5432/${KC_DB_NAME:-keycloak}
       KC_DB_USERNAME: ${KC_DB_USER:-keycloak}
       KC_DB_PASSWORD: ${KC_DB_PASSWORD:-keycloak_dev_password}
-      KC_HOSTNAME: ${KC_HOSTNAME:-http://host.docker.internal:8080}
+      KC_HOSTNAME: ${KC_HOSTNAME:-http://keycloak.lvh.me:8080}
       KC_HOSTNAME_STRICT: "false"
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
@@ -106,7 +106,8 @@ services:
       minio:
         condition: service_started
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "keycloak.lvh.me:host-gateway"
+      - "minio.lvh.me:host-gateway"
     environment:
       NODE_ENV: production
       # Bind the Next.js standalone server to all interfaces. Without this it inherits Docker's
@@ -122,12 +123,12 @@ services:
       # resolve to 127.0.0.1 with no host-file setup.
       AUTH_URL: ${NEXTAUTH_URL:-http://lvh.me:3100}
       AUTH_TRUST_HOST: "true"
-      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://host.docker.internal:8080/realms/talentos}
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://keycloak.lvh.me:8080/realms/talentos}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_APPLICANT_CLIENT_ID:-talentos-applicant}
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_APPLICANT_CLIENT_SECRET:-talentos-applicant-secret}
       APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:-lvh.me}
       DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-demo}
-      S3_ENDPOINT: ${S3_ENDPOINT:-http://host.docker.internal:9000}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio.lvh.me:9000}
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-talentos}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-talentos_dev_password}
@@ -152,7 +153,8 @@ services:
       minio:
         condition: service_started
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "keycloak.lvh.me:host-gateway"
+      - "minio.lvh.me:host-gateway"
     environment:
       NODE_ENV: production
       # Bind the Next.js standalone server to all interfaces (see applicant note above).
@@ -165,17 +167,17 @@ services:
       # the "not a member of this organization" denial (v0.12.1, D-060).
       AUTH_URL: ${ADMIN_NEXTAUTH_URL:-http://lvh.me:3200}
       AUTH_TRUST_HOST: "true"
-      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://host.docker.internal:8080/realms/talentos}
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://keycloak.lvh.me:8080/realms/talentos}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-talentos-admin}
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-talentos-admin-secret}
-      KEYCLOAK_SERVER_URL: ${KEYCLOAK_SERVER_URL:-http://host.docker.internal:8080}
+      KEYCLOAK_SERVER_URL: ${KEYCLOAK_SERVER_URL:-http://keycloak.lvh.me:8080}
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:-talentos}
       KEYCLOAK_PROVISIONER_CLIENT_ID: ${KEYCLOAK_PROVISIONER_CLIENT_ID:-talentos-provisioner}
       KEYCLOAK_PROVISIONER_CLIENT_SECRET: ${KEYCLOAK_PROVISIONER_CLIENT_SECRET:-talentos-provisioner-secret}
       APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:-lvh.me}
       DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-demo}
       NEXT_PUBLIC_APPLICANT_URL: ${NEXT_PUBLIC_APPLICANT_URL:-http://localhost:3100}
-      S3_ENDPOINT: ${S3_ENDPOINT:-http://host.docker.internal:9000}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio.lvh.me:9000}
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-talentos}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-talentos_dev_password}

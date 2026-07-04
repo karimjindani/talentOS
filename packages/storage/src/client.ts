@@ -15,7 +15,7 @@ export function getS3Client(): S3Client {
   if (!cached) {
     cached = new S3Client({
       region: process.env.S3_REGION ?? "us-east-1",
-      endpoint: process.env.S3_ENDPOINT ?? "http://host.docker.internal:9000",
+      endpoint: process.env.S3_ENDPOINT ?? "http://minio.lvh.me:9000",
       forcePathStyle: (process.env.S3_FORCE_PATH_STYLE ?? "true") !== "false",
       credentials: {
         accessKeyId: process.env.S3_ACCESS_KEY_ID ?? "talentos",

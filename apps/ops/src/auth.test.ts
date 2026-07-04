@@ -13,8 +13,8 @@ const config: OpsConfig = {
   sessionMaxAgeSeconds: 3600,
   allowedRoles: ["SUPER_ADMIN", "ORG_ADMIN"],
   keycloak: {
-    issuer: "http://host.docker.internal:8080/realms/talentos",
-    browserIssuer: "http://localhost:8080/realms/talentos",
+    issuer: "http://keycloak.lvh.me:8080/realms/talentos",
+    browserIssuer: "http://keycloak.lvh.me:8080/realms/talentos",
     redirectUri: "http://127.0.0.1:3300/auth/callback",
     normalClient: { clientId: "talentos-ops", clientSecret: "normal-secret" },
     mfaClient: { clientId: "talentos-ops-mfa", clientSecret: "mfa-secret" }

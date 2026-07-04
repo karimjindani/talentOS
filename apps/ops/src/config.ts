@@ -67,7 +67,7 @@ export function getOpsConfig(): OpsConfig {
   const host = process.env.OPS_HOST ?? "127.0.0.1";
   const resolvedPort = Number.isFinite(port) ? port : 3300;
   const baseUrl = trimTrailingSlash(process.env.OPS_BASE_URL ?? `http://${host}:${resolvedPort}`);
-  const issuer = trimTrailingSlash(process.env.KEYCLOAK_ISSUER ?? "http://host.docker.internal:8080/realms/talentos");
+  const issuer = trimTrailingSlash(process.env.KEYCLOAK_ISSUER ?? "http://keycloak.lvh.me:8080/realms/talentos");
   return {
     host,
     port: resolvedPort,
