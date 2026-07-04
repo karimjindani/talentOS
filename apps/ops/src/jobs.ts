@@ -1,15 +1,15 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import type { OpsJob, OpsJobKind, OpsJobStatus } from "@talentos/auth";
+import type { OpsJob, OpsJobKind, OpsJobStatus, RegressionArea, RegressionSummary } from "@talentos/auth";
 import { OPS_RUNS_DIR } from "./config";
 import { formatCommand, getCommandsForJob, isAllowedCommand } from "./commands";
 import { runCommand } from "./process";
 
 const jobs = new Map<string, OpsJob>();
 
-export async function createJob(kind: OpsJobKind): Promise<OpsJob> {
-  const commands = getCommandsForJob(kind);
+export async function createJob(kind: OpsJobKind, area: RegressionArea = "all"): Promise<OpsJob> {
+  const commands = getCommandsForJob(kind, area);
   if (!commands) {
     throw new Error(`Unknown job kind: ${kind}`);
   }
@@ -24,6 +24,7 @@ export async function createJob(kind: OpsJobKind): Promise<OpsJob> {
   const job: OpsJob = {
     id: randomUUID(),
     kind,
+    ...(kind === "regression" ? { area } : {}),
     status: "queued",
     startedAt: now,
     updatedAt: now,
@@ -65,7 +66,7 @@ async function runJob(job: OpsJob) {
   touch(job);
   await saveJob(job);
 
-  const commands = getCommandsForJob(job.kind);
+  const commands = getCommandsForJob(job.kind, job.area ?? "all");
   for (let index = 0; index < commands.length; index += 1) {
     const spec = commands[index];
     const step = job.steps[index];
@@ -80,6 +81,13 @@ async function runJob(job: OpsJob) {
     step.durationMs = result.durationMs;
     step.completedAt = new Date().toISOString();
     step.status = summarizeStepStatus(result.exitCode, result.timedOut);
+    step.regressionSummary = parseRegressionSummary(result.output);
+    if (step.regressionSummary) {
+      job.regressionSummary = mergeRegressionSummaries(job.area ?? step.regressionSummary.area, [
+        ...(job.regressionSummary ? [job.regressionSummary] : []),
+        step.regressionSummary
+      ]);
+    }
     job.output += `\n$ ${step.command}\n${result.output}`;
 
     if (step.status === "failed") {
@@ -98,6 +106,33 @@ async function runJob(job: OpsJob) {
   job.completedAt = new Date().toISOString();
   touch(job);
   await saveJob(job);
+}
+
+export function parseRegressionSummary(output: string): RegressionSummary | undefined {
+  const line = output
+    .split(/\r?\n/)
+    .find((candidate) => candidate.startsWith("REGRESSION_RESULT_JSON:"));
+  if (!line) return undefined;
+  try {
+    const payload = JSON.parse(line.slice("REGRESSION_RESULT_JSON:".length)) as { summary?: RegressionSummary };
+    return payload.summary;
+  } catch {
+    return undefined;
+  }
+}
+
+function mergeRegressionSummaries(area: RegressionArea, summaries: RegressionSummary[]): RegressionSummary {
+  return summaries.reduce<RegressionSummary>(
+    (merged, summary) => ({
+      area,
+      total: merged.total + summary.total,
+      passed: merged.passed + summary.passed,
+      failed: merged.failed + summary.failed,
+      skipped: merged.skipped + summary.skipped,
+      durationMs: merged.durationMs + summary.durationMs
+    }),
+    { area, total: 0, passed: 0, failed: 0, skipped: 0, durationMs: 0 }
+  );
 }
 
 function touch(job: OpsJob) {

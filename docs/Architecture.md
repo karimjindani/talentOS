@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.12.2`
+Code version: `v0.13.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.12.2`
+Current documentation update: `v0.13.0`
 
 ## Overview
 
@@ -283,10 +283,28 @@ The architecture establishes clear seams between modules and shared libraries:
 - `apps/applicant` owns the public/applicant routes, UI, middleware and API endpoints.
 - `apps/admin` owns the administrator routes, UI and middleware, served at the container root, gated by RBAC.
 - `apps/admin` includes `/operations`, a local-development dashboard for app-visible health checks,
-  regression commands, marker-based cleanup guidance and local reset instructions. It does not execute
-  Docker or npm host commands.
+  area-based scenario regression commands, marker-based cleanup guidance and local reset instructions.
+  It does not execute Docker reset commands from the web app.
 - `keycloak/import` owns the realm definition (roles, clients, password policy, demo users).
 - AI mentor integration is represented by a stubbed service boundary in the applicant app.
+
+## Scenario Regression Architecture (`v0.13.0`)
+
+TalentOS now has two regression layers:
+
+- Unit regression: the existing Vitest suite, run as `npm.cmd run regression:unit`.
+- Scenario regression: local development scenarios grouped by logical product area and run by
+  `scripts/regression/run.ts`.
+
+The Ops Console exposes the scenario suite as an area selector. Operators can run the full suite or one
+area at a time: `auth`, `applicant`, `admin`, `programs`, `tenant`, `dashboard`, `storage`, `ops`, or
+`unit`. Each run emits a machine-readable `REGRESSION_RESULT_JSON` payload containing total, passed,
+failed, skipped and duration counts; the Ops job runner parses that payload and renders the summary and
+raw logs.
+
+Scenario-generated records must be tagged through `RegressionDataMarker` before cleanup is allowed.
+The cleanup path deletes only marker-tagged records in dependency order and must not touch seeded demo
+data or user-created records.
 
 ## Engineering To-Do List
 

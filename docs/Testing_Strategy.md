@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.12.0`
+Code version: `v0.13.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
@@ -8,7 +8,14 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
 Testing must preserve previously committed and tested work on every iteration.
 
-The regression suite starts with security, tenant isolation and application workflow utilities, then expands as the applicant/admin portals become persistent.
+The regression suite has two layers:
+
+- Unit regression: fast Vitest coverage for utilities, server actions, guards and DB helpers.
+- Scenario regression: local-development journeys that exercise logical product areas end to end through
+  OIDC login flows, portal routes and database state transitions.
+
+The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts after
+each run.
 
 ## Test Levels
 
@@ -98,6 +105,33 @@ Planned integration tests:
 - Smoke tests confirm the applicant portal (`http://localhost:3100`) and admin portal (`http://localhost:3200`, routes served at root) load.
 - Module isolation: each web container returns 404 for the other module's routes (admin routes on the applicant container and applicant routes on the admin container).
 
+### Scenario Regression Tests (`v0.13.0`)
+
+Scenario regression is run through `scripts/regression/run.ts` and surfaced in the Ops Console.
+
+Commands:
+
+- `npm.cmd run regression:unit`
+- `npm.cmd run regression:auth`
+- `npm.cmd run regression:applicant`
+- `npm.cmd run regression:admin`
+- `npm.cmd run regression:programs`
+- `npm.cmd run regression:tenant`
+- `npm.cmd run regression:dashboard`
+- `npm.cmd run regression:storage`
+- `npm.cmd run regression:ops`
+- `npm.cmd run regression:all`
+
+The runner emits `REGRESSION_RESULT_JSON` with total, passed, failed, skipped and duration counts. Ops
+parses this payload and displays the summary per run and per step.
+
+Scenario data ownership rules:
+
+- Scenario-created users, memberships, programs, applications and answers must be tagged with
+  `RegressionDataMarker`.
+- Cleanup must delete only marker-tagged records.
+- Seeded demo data and user-created data are never cleanup targets unless explicitly marker-tagged.
+
 ## Regression Rule
 
 Every implementation iteration must add or update tests for newly committed behavior and keep the existing suite passing.
@@ -159,3 +193,10 @@ empty-week handling). Also covers the applicant shell nav active-state route-mat
 (unit, `apps/applicant/components/ApplicantShell.test.ts`, 10 tests): `isApplicantNavActive` for
 exact-match (`/dashboard`) and `startsWith`-match routes, plus `APPLICANT_NAV_ITEMS` completeness
 (7 items, all expected routes present). The current regression suite is **125 tests**.
+
+From `v0.13.0`, the regression baseline also covers scenario-based product journeys. The Ops Console
+can run all regression areas or a selected area, and displays total/passed/failed/skipped counts. The
+initial automated scenario suite contains 15 scenarios across `unit`, `auth`, `applicant`, `admin`,
+`programs`, `tenant`, `dashboard`, `storage` and `ops`. Current status: 13 automated scenarios pass,
+0 fail and 2 are intentionally skipped/documented gaps in the local one-tenant environment: cross-tenant
+read denial that needs a second tenant fixture, and full CV upload/download storage automation.

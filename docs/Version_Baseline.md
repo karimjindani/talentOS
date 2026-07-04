@@ -2,19 +2,26 @@
 
 ## Current Baseline
 
-Version: `v0.12.2`
+Version: `v0.13.0`
 
-Baseline name: `Local Deployment Hardening (D-061)`
+Baseline name: `Scenario-Based Regression Suite (D-062)`
 
-Baseline code commit: `9db81d1ad56a102d812ee81feaf54ed3e4d6c452`
+Baseline code commit: `943df5ce0d647afcccf62fdd0f512e3308087f77`
 
 Baseline date: `2026-07-04`
 
-Previous baseline: `v0.12.1`
+Previous baseline: `v0.12.2`
 
-Previous baseline commit: `7830833`
+Previous baseline commit: `9db81d1ad56a102d812ee81feaf54ed3e4d6c452`
 
 ## Baseline Summary
+
+`v0.13.0` establishes scenario-based regression as a first-class local development capability. The Ops
+Console can run the full regression suite or a selected logical area and displays total/passed/failed/
+skipped/duration counts. The new runner (`scripts/regression/run.ts`) supports `unit`, `auth`,
+`applicant`, `admin`, `programs`, `tenant`, `dashboard`, `storage`, `ops` and `all`. Scenario-generated
+records are tagged with `RegressionDataMarker`, and cleanup remains marker-only. The initial local suite
+contains 15 scenarios: 13 pass, 0 fail and 2 are documented skips. See `D-062`.
 
 `v0.12.2` hardens the local deployment path. Local OIDC now uses a single browser-and-container reachable
 issuer, `http://keycloak.lvh.me:8080/realms/talentos`, eliminating browser-facing

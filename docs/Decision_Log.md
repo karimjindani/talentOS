@@ -365,3 +365,18 @@ Status: Approved
 `v0.12.2` hardens the local deployment path after repeated local login failures exposed a systemic developer-experience gap. Decision: local OIDC uses one issuer that is reachable from both browser and containers and exactly matches Keycloak's token `iss`: `http://keycloak.lvh.me:8080/realms/talentos`. App containers map `keycloak.lvh.me` to the host gateway, while browsers resolve it through `lvh.me` loopback DNS. This replaces browser-facing `host.docker.internal` URLs, which are not reliable from the host browser and caused failed login-action redirects; it also removes the `localhost`/`host.docker.internal` issuer split that caused Ops Console `unexpected "iss" claim value`. MinIO follows the same local pattern via `http://minio.lvh.me:9000`. The new `local:bootstrap` command repairs ignored `.env`, rebuilds Compose, runs DB setup, seeds demo/dashboard data, and non-destructively patches stale Keycloak realms so existing local volumes gain current clients/redirect URIs (`talentos-admin`, `talentos-applicant`, `talentos-provisioner`, `talentos-ops`, `talentos-ops-mfa`). The new `local:doctor` and `local:smoke-login` commands validate HTTP reachability and full browser-style login callbacks, including Ops Console. An accepted demo applicant (`accepted@demo.talentos.local`) is seeded so the applicant dashboard works without manually accepting an application first. No production deployment decision is changed.
 
 Status: Approved
+
+## D-062
+
+`v0.13.0` establishes scenario-based regression as a first-class local development capability. Unit tests
+remain the fast inner loop, but TalentOS now also has an area-based scenario runner
+(`scripts/regression/run.ts`) with npm commands for `unit`, `auth`, `applicant`, `admin`, `programs`,
+`tenant`, `dashboard`, `storage`, `ops` and `all`. The Ops Console can create regression jobs for a
+selected area or the full suite, parses the runner's `REGRESSION_RESULT_JSON` payload, and displays
+total/passed/failed/skipped/duration counts with raw logs. Scenario-generated records must be tagged via
+`RegressionDataMarker`; cleanup remains marker-based and must not delete seeded or user-created data.
+The initial suite automates 15 logical scenarios: 13 pass locally, 0 fail, and 2 are explicit documented
+skips (second-tenant cross-tenant fixture and full storage upload/download automation). Playwright is
+accepted as the browser-scenario dependency for expanding route-level automation in future slices.
+
+Status: Approved
