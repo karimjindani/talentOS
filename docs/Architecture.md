@@ -133,13 +133,35 @@ flowchart TD
 
 TalentOS uses a shared PostgreSQL database with tenant-scoped records.
 
-- Tenants are resolved from subdomains such as `demo.talentos.app` (`resolveTenantFromHost`).
-- Local development supports tenant simulation with hosts such as `demo.localhost`.
+- Tenants are resolved from subdomains such as `sbp.talentos.app` (`resolveTenantFromHost`).
+- Local development addresses tenants at `<slug>.lvh.me:<port>` (`v0.12.1`); `lvh.me` and `*.lvh.me`
+  resolve to `127.0.0.1` with no host-file setup. `APP_BASE_DOMAIN` (`lvh.me` locally, the real base
+  domain in production) drives both host resolution and the auth cookie scope below.
 - Tenant-owned entities include `tenantId`.
 - Application code must enforce tenant isolation before reading or mutating tenant-owned data.
 - Tenants are created by the platform SUPER_ADMIN through the Admin Portal Organizations console
   (`v0.10.0`); each tenant carries white-label branding — name, brand colors and logo — applied to both
   portals by host resolution (`v0.9.0`).
+
+### Cross-subdomain authentication (`v0.12.1`, D-060)
+
+next-auth (v5 beta) derives the OIDC `redirect_uri` from a **pinned `AUTH_URL`** and cannot mint a
+per-subdomain callback (a reverse proxy forwarding `X-Forwarded-Host` does *not* change this). So tenant
+login uses a canonical-host + shared-cookie model rather than per-subdomain callbacks:
+
+- Login always runs through one canonical host per app (`AUTH_URL`, e.g. `lvh.me:3200`), giving a stable
+  `redirect_uri` registered on the Keycloak client.
+- Auth cookies (session/CSRF/state/PKCE/nonce) are scoped to the parent base domain (`Domain=.lvh.me`)
+  by `packages/auth-web`, so the session established during the canonical-host callback is valid on every
+  tenant subdomain. (`localhost` is a single-label host and cannot carry a `Domain` cookie, so this is
+  gated on `APP_BASE_DOMAIN` being a real multi-label domain; otherwise next-auth's host-only defaults
+  apply and the deployment behaves as single-host.)
+- After the callback, the app redirects the user back to their tenant subdomain. `resolveTenantRedirect`
+  allows only the canonical origin and subdomains of `APP_BASE_DOMAIN` — an allow-list, not an open
+  redirect — and the middlewares pass the absolute tenant URL as `callbackUrl` so the subdomain survives.
+- The tenant guard (`resolveTenantAccess`, D-051) is unchanged: it still binds the shared session to the
+  `Host`-resolved tenant via DB membership. An org admin who lands on their subdomain with the shared
+  cookie now passes the membership check instead of being denied.
 
 ## Security Model
 

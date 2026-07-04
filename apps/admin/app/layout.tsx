@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SessionProvider } from "next-auth/react";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { getTenantContext, brandStyleBlock } from "@talentos/ui";
@@ -56,11 +57,16 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                     action={async () => {
                       "use server";
                       const activeSession = await auth();
+                      // Return to the tenant subdomain the admin is actually on (AUTH_URL is no
+                      // longer pinned; the request Host header is the source of truth). See D-060.
+                      const requestHeaders = await headers();
+                      const host = requestHeaders.get("host") ?? "localhost:3200";
+                      const proto = requestHeaders.get("x-forwarded-proto") ?? "http";
                       const logoutUrl = buildEndSessionUrl({
                         issuer: process.env.KEYCLOAK_ISSUER ?? "http://localhost:8080/realms/talentos",
                         idToken: activeSession?.idToken,
                         clientId: process.env.KEYCLOAK_CLIENT_ID ?? "talentos-admin",
-                        postLogoutRedirectUri: `${process.env.AUTH_URL ?? "http://localhost:3200"}/`
+                        postLogoutRedirectUri: `${proto}://${host}/`
                       });
                       await signOut({ redirect: false });
                       redirect(logoutUrl);

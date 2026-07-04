@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { buildEndSessionUrl } from "@talentos/auth-web";
@@ -57,11 +58,16 @@ export async function PortalHeader({ tenantSlug }: PortalHeaderProps) {
                 action={async () => {
                   "use server";
                   const activeSession = await auth();
+                  // Return to the tenant subdomain the user is actually on (AUTH_URL is no longer
+                  // pinned; the request Host header is the source of truth). See v0.12.1 / D-060.
+                  const requestHeaders = await headers();
+                  const host = requestHeaders.get("host") ?? "localhost:3100";
+                  const proto = requestHeaders.get("x-forwarded-proto") ?? "http";
                   const logoutUrl = buildEndSessionUrl({
                     issuer: process.env.KEYCLOAK_ISSUER ?? "http://localhost:8080/realms/talentos",
                     idToken: activeSession?.idToken,
                     clientId: process.env.KEYCLOAK_CLIENT_ID ?? "talentos-applicant",
-                    postLogoutRedirectUri: `${process.env.AUTH_URL ?? "http://localhost:3100"}/`
+                    postLogoutRedirectUri: `${proto}://${host}/`
                   });
                   await signOut({ redirect: false });
                   redirect(logoutUrl);

@@ -109,14 +109,23 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       NODE_ENV: production
+      # Bind the Next.js standalone server to all interfaces. Without this it inherits Docker's
+      # HOSTNAME=<container-id> and tries to bind to that name, which fails DNS resolution
+      # (getaddrinfo EAI_AGAIN) non-deterministically on boot.
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
       DATABASE_URL: postgresql://${POSTGRES_USER:-talentos}:${POSTGRES_PASSWORD:-talentos_dev_password}@postgres:5432/${POSTGRES_DB:-talentos}?schema=public
       AUTH_SECRET: ${NEXTAUTH_SECRET:-replace-with-a-long-random-secret}
-      AUTH_URL: ${NEXTAUTH_URL:-http://localhost:3100}
+      # Login runs through this single canonical host; the session cookie is scoped to
+      # APP_BASE_DOMAIN so it is valid on every tenant subdomain (sbp.lvh.me, …) and the user is
+      # redirected back to their tenant after signing in (v0.12.1, D-060). lvh.me + *.lvh.me both
+      # resolve to 127.0.0.1 with no host-file setup.
+      AUTH_URL: ${NEXTAUTH_URL:-http://lvh.me:3100}
       AUTH_TRUST_HOST: "true"
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://host.docker.internal:8080/realms/talentos}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_APPLICANT_CLIENT_ID:-talentos-applicant}
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_APPLICANT_CLIENT_SECRET:-talentos-applicant-secret}
-      APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:-localhost}
+      APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:-lvh.me}
       DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-demo}
       S3_ENDPOINT: ${S3_ENDPOINT:-http://host.docker.internal:9000}
       S3_REGION: ${S3_REGION:-us-east-1}
@@ -146,9 +155,15 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       NODE_ENV: production
+      # Bind the Next.js standalone server to all interfaces (see applicant note above).
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
       DATABASE_URL: postgresql://${POSTGRES_USER:-talentos}:${POSTGRES_PASSWORD:-talentos_dev_password}@postgres:5432/${POSTGRES_DB:-talentos}?schema=public
       AUTH_SECRET: ${NEXTAUTH_SECRET:-replace-with-a-long-random-secret}
-      AUTH_URL: ${ADMIN_NEXTAUTH_URL:-http://localhost:3200}
+      # Canonical login host; session cookie scoped to APP_BASE_DOMAIN so an org admin signing in is
+      # returned to their tenant subdomain (e.g. sbp.lvh.me:3200) with a valid session — the fix for
+      # the "not a member of this organization" denial (v0.12.1, D-060).
+      AUTH_URL: ${ADMIN_NEXTAUTH_URL:-http://lvh.me:3200}
       AUTH_TRUST_HOST: "true"
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://host.docker.internal:8080/realms/talentos}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-talentos-admin}
@@ -157,7 +172,7 @@ services:
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:-talentos}
       KEYCLOAK_PROVISIONER_CLIENT_ID: ${KEYCLOAK_PROVISIONER_CLIENT_ID:-talentos-provisioner}
       KEYCLOAK_PROVISIONER_CLIENT_SECRET: ${KEYCLOAK_PROVISIONER_CLIENT_SECRET:-talentos-provisioner-secret}
-      APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:-localhost}
+      APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:-lvh.me}
       DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-demo}
       NEXT_PUBLIC_APPLICANT_URL: ${NEXT_PUBLIC_APPLICANT_URL:-http://localhost:3100}
       S3_ENDPOINT: ${S3_ENDPOINT:-http://host.docker.internal:9000}
