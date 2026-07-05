@@ -2,19 +2,39 @@
 
 ## Current Baseline
 
-Version: `v0.14.0`
+Version: `v0.14.2`
 
-Baseline name: `Mission Engine MVP (D-063)`
+Baseline name: `Applicant Portal Tenant Isolation (D-065)`
 
-Baseline code commit: `b3ee03d712977849de96cbde0b2c3fb5cff83c0f`
+Baseline code commit: `41c99f0a58ae81646c6b4c2b101402888042d2b4`
 
-Baseline date: `2026-07-04`
+Baseline date: `2026-07-05`
 
-Previous baseline: `v0.13.0`
+Previous baseline: `v0.14.1`
 
-Previous baseline commit: `943df5ce0d647afcccf62fdd0f512e3308087f77`
+Previous baseline commit: `5a686c6`
 
 ## Baseline Summary
+
+`v0.14.2` is a security patch that closes the tenant-isolation gap in the **applicant** portal — the
+D-051 fix had only ever covered the admin portal. Sessions are shared across subdomains
+(`Domain=.lvh.me`, D-060), so an authenticated user of one tenant could open another tenant's applicant
+subdomain and reach `/dashboard` / `/application`, and `/apply`'s `provisionApplicantUser` would silently
+enroll them into that tenant. A new `apps/applicant/lib/tenant-guard.ts`
+(`resolveTenantAccess`/`requireTenantAccess`, mirroring the admin guard) binds session → Host-resolved
+tenant → DB `TenantMembership` (SUPER_ADMIN bypass); `/dashboard` and `/application` require
+`accessApplicantPortal` in the resolved tenant and non-members are redirected to a new `/access-denied`
+page. `/apply` stays open (public recruitment funnel; applying is what creates membership) but existing
+members are redirected to `/application`. The same baseline removes `CONFIGURE_TOTP` from org-admin
+provisioning, grants the provisioner `manage-realm`/`view-users`, and pins
+`registrationAllowed`/`registrationEmailAsUsername` in the realm import (a drifted live realm had
+disabled self-registration). No schema or data-model change; the regression suite grew to 152 tests
+(6 new `tenant-guard.test.ts`), and the fix was verified end-to-end in a real browser. See `D-065`.
+
+`v0.14.1` establishes role-facing user guides as living documentation under `docs/user-guides/`
+(Applicant Portal + Back Office), and requires every future user-facing route/workflow/role/permission/
+status/form/dashboard/navigation change to update the relevant guide in the same PR. Documentation-only;
+no application code, schema, package or Docker change. See `D-064`.
 
 `v0.14.0` delivers the Mission Engine MVP. Admins manage missions through the Admin Portal; accepted
 applicants see published missions for their accepted program in the dashboard. The `Mission` model now

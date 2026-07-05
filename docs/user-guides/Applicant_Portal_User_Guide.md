@@ -1,6 +1,6 @@
 # Applicant Portal User Guide
 
-Applies to version: `v0.14.1`
+Applies to version: `v0.14.2`
 
 Last verified: 2026-07-05
 
@@ -47,9 +47,13 @@ TalentOS uses Keycloak for identity and access management.
 3. To create a new applicant account, use the Keycloak registration flow exposed from the portal.
 4. Sign in with email and password.
 5. If prompted, complete the required password change.
-6. If prompted, configure authenticator-app 2FA.
 
-Password policy, password reset, first-login password change, and 2FA setup are owned by Keycloak.
+Password policy, password reset and first-login password change are owned by Keycloak. Authenticator-app
+2FA is currently **disabled** platform-wide (`v0.14.2`); no OTP setup is requested at sign-in.
+
+Signing in on a tenant subdomain (`http://<tenant>.lvh.me:3100`) determines which organization you are
+acting in. You may hold an account under more than one tenant; each subdomain shows only that tenant's
+programs and application.
 
 ## Apply to a Program
 
@@ -95,6 +99,14 @@ The dashboard contains:
 
 Applicants without an accepted application are redirected back to their application/status flow.
 
+### Access to an organization you have not joined
+
+The Dashboard and Application pages are restricted to members of the tenant whose subdomain you are on. If
+you open another tenant's `/dashboard` or `/application` without a membership there, you are redirected to
+an **Access denied** page ("You are not a member of this organization") with two options: **Apply to
+join** (opens that tenant's apply form) or **Sign out**. Applying is open to anyone signed in — submitting
+an application is what enrolls you as an `APPLICANT` in that tenant.
+
 ## Missions
 
 Missions are the learning-by-building assignments in TalentOS. In `v0.14.0`, accepted applicants can view
@@ -118,7 +130,7 @@ Mission submission, engineering journal entries, and portfolio publishing are fu
 | --- | --- | --- |
 | Cannot sign in | Wrong tenant URL, wrong credentials, or stale Keycloak session | Use the correct tenant URL and sign out/in again. |
 | Asked to change password | First-login security requirement | Complete the Keycloak password update. |
-| Asked to configure 2FA | First-login security requirement | Use an authenticator app and complete setup. |
+| "Access denied — not a member of this organization" | You opened a tenant subdomain where you have no membership | Use your own tenant's URL, or select **Apply to join** to apply to that organization. |
 | Dashboard is not visible | Application is not accepted | Check application status first. |
 | No missions are visible | No published missions for accepted program | Contact the program administrator. |
 | Apply form does not show a program | No published program exists for the tenant | Contact the program administrator. |
