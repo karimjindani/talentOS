@@ -111,9 +111,12 @@ branded header, sectioned form, and styled inputs.
 flowchart TD
     subgraph Applicant["talentos-applicant :3100"]
       Landing["/"] --> Login["/login (Keycloak)"]
-      Login --> Apply["/apply (authenticated)"]
-      Login --> Application["/application (authenticated)"]
+      Login --> Apply["/apply (open funnel)"]
+      Login --> Application["/application (tenant member)"]
+      Application --> Dashboard["/dashboard (accepted)"]
       Apply --> Application
+      Application -. non-member .-> AccessDenied["/access-denied"]
+      Dashboard -. non-member .-> AccessDenied
     end
     Login -. OIDC .-> KC["Keycloak :8080"]
     subgraph AdminC["talentos-admin :3200 (RBAC-gated)"]
@@ -223,9 +226,10 @@ errors. The same pattern is used for browser-visible object storage URLs with `h
 - **Org-admin auto-provisioning** (`v0.11.0`) — creating an organization now provisions the org admin in
   Keycloak (no manual `kcadm`). `provisionOrgAdmin` (`apps/admin/lib/keycloak-admin.ts`, server-only)
   authenticates with the confidential `talentos-provisioner` service account (client_credentials;
-  realm-management `manage-users`) and creates the user with `emailVerified`, required actions
-  (`UPDATE_PASSWORD` + `CONFIGURE_TOTP`) and a one-time temp password (shown once in the UI), then grants
-  the `ORG_ADMIN` realm role — idempotent (an existing user just gains the role). With v0.10.3/v0.10.4
+  realm-management `manage-users`/`manage-realm`/`view-users`) and creates the user with `emailVerified`,
+  a single required action (`UPDATE_PASSWORD` — 2FA setup was withdrawn in `v0.14.2`/D-065, so no
+  `CONFIGURE_TOTP`) and a one-time temp password (shown once in the UI), then grants the `ORG_ADMIN` realm
+  role — idempotent (an existing user just gains the role). With v0.10.3/v0.10.4
   this closes the loop: realm role gates portal entry, `TenantMembership` gates authority, and
   `keycloakSubjectId` links on first login.
 - **First-login TOTP** (`v0.10.1`) — the realm import pins a valid OTP policy
@@ -247,6 +251,17 @@ errors. The same pattern is used for browser-visible object storage URLs with `h
   the coarse *portal-entry* gate (middleware). Defense-in-depth: `updateProgram`/`setProgramStatus`/
   `applyStatusTransition` write via `updateMany({ where: { id, tenantId } })` so a raw id cannot cross
   tenants. Remaining `v0.3.1` work is Keycloak user/role *auto-provisioning*, not isolation.
+- **Per-tenant RBAC for the applicant portal (`v0.14.2`, D-065 — parity with D-051):** the applicant
+  portal now applies the same binding. A mirror guard (`apps/applicant/lib/tenant-guard.ts` →
+  `resolveTenantAccess`/`requireTenantAccess`, same `getActorTenantRoles` + `tenantRolesGrant`
+  primitives) gates `/dashboard` and `/application` on `accessApplicantPortal` **in the Host-resolved
+  tenant**; a non-member (previously admitted because the shared `.lvh.me` session carried across
+  subdomains, D-060) is redirected to a standalone `/access-denied` page instead of another tenant's
+  portal. `SUPER_ADMIN` bypasses. `/apply` stays intentionally open — it is the public recruitment funnel
+  and `provisionApplicantUser` creating an `APPLICANT` membership is the legitimate self-enrollment path —
+  but an existing member of the tenant is redirected to `/application`. Self-registration
+  (`registrationAllowed`/`registrationEmailAsUsername`) is pinned by a realm-import assertion so a fresh
+  realm cannot silently disable "Create account".
 - **Identity linking & email normalization (`v0.10.4`):** the DB `User` is the local mirror of the
   Keycloak identity, joined by email. Emails are normalized (`normalizeEmail`, lowercased/trimmed) on
   every write and `getUserByEmail` is case-insensitive, so the case-sensitive unique index cannot spawn

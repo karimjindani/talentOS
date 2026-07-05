@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.14.0`
+Code version: `v0.14.2`
 
 ## Purpose
 
@@ -51,7 +51,8 @@ The suite can be run from the local Ops Console or from npm scripts.
 | Missions | HR, Tech Lead and Applicant cannot manage missions. | Automated | Validates `manageMissions` capability. |
 | Tenant isolation | Tenant-scoped program read rejects another tenant. | Partially automated | Skips when only one local tenant exists. Needs a second marked tenant fixture. |
 | Tenant isolation | Realm role alone does not grant authority without `TenantMembership`. | Automated | Validates the D-051 authorization principle. |
-| Tenant isolation | Cross-tenant application, file and settings denial through browser routes. | Missing | Add Playwright/browser route coverage. |
+| Tenant isolation | Applicant portal denies a non-member of the Host-resolved tenant (`/dashboard`, `/application` → `/access-denied`; SUPER_ADMIN bypass). | Automated | Unit-covered by `apps/applicant/lib/tenant-guard.test.ts`; also validated end-to-end via browser. Ports the D-051 guard to the applicant portal. |
+| Tenant isolation | Cross-tenant file and settings denial through admin browser routes. | Missing | Add Playwright/browser route coverage. |
 | Dashboard | Accepted applicant dashboard pages load. | Automated | Covers overview, program, tasks, resources, calendar, notifications and profile. |
 | Dashboard | Task completion persists. | Automated | Uses dashboard DB helpers. |
 | Dashboard | Notification read state persists. | Automated | Uses dashboard DB helpers. |

@@ -81,7 +81,7 @@ export async function createOrganizationAction(
         ok: true,
         email: adminEmail,
         tempPassword: result.tempPassword,
-        message: `Organization "${name}" created and ${adminEmail} was provisioned as ORG_ADMIN. They will be prompted to set a new password and configure 2FA on first login.`
+        message: `Organization "${name}" created and ${adminEmail} was provisioned as ORG_ADMIN. They will be prompted to set a new password on first login.`
       };
     }
     return {

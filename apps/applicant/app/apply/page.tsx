@@ -14,6 +14,7 @@ import {
   provisionApplicantUser
 } from "@talentos/db";
 import { buildObjectKey, getBucket, putObject } from "@talentos/storage";
+import { resolveTenantAccess } from "@/lib/tenant-guard";
 
 const MOTIVATION_LABEL = "Why do you want to join?";
 const CV_CONTENT_TYPE = "application/pdf";
@@ -156,6 +157,16 @@ export default async function ApplyPage({
   const session = await auth();
   const { tenantSlug } = await getTenantContext();
   const tenant = await getTenantBySlug(tenantSlug);
+
+  // The apply page stays open (public recruitment funnel), but a user who is already a member of
+  // this tenant has nothing to apply for here — send them to their application status page.
+  if (session?.user?.email && tenant) {
+    const access = await resolveTenantAccess();
+    if (access.ok && !access.isSuperAdmin) {
+      redirect("/application");
+    }
+  }
+
   const programs = tenant ? await listPublishedPrograms(tenant.id) : [];
   const errorCode = (await searchParams)?.error;
   const errorMessage = errorCode ? APPLY_ERROR_MESSAGES[errorCode] : null;

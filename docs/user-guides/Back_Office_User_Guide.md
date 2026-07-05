@@ -1,6 +1,6 @@
 # Back Office User Guide
 
-Applies to version: `v0.14.1`
+Applies to version: `v0.14.2`
 
 Last verified: 2026-07-05
 
@@ -41,8 +41,9 @@ These credentials are for local development only.
 | Tech Lead | `techlead@demo.talentos.local` | `ChangeMe123!` | Read-only admin access where permitted. |
 | Keycloak local admin | `admin` | `admin` | Local IAM administration. |
 
-Super Admin may be forced through password change and authenticator-app TOTP setup depending on the
-current local Keycloak state.
+Super Admin may be forced through a first-login password change depending on the current local Keycloak
+state. Authenticator-app TOTP is currently **disabled** platform-wide (`v0.14.2`); newly provisioned org
+admins are asked only to set a password on first login, not to configure 2FA.
 
 ## Login and Tenant Context
 

@@ -93,7 +93,7 @@ async function createUser(token: string, email: string, name: string | null): Pr
       emailVerified: true,
       ...(firstName ? { firstName } : {}),
       ...(rest.length ? { lastName: rest.join(" ") } : {}),
-      requiredActions: ["UPDATE_PASSWORD", "CONFIGURE_TOTP"]
+      requiredActions: ["UPDATE_PASSWORD"]
     })
   });
   if (res.status === 201) {
@@ -142,9 +142,9 @@ export type ProvisionResult = {
 
 /**
  * Ensure a Keycloak user exists for the org admin and holds the ORG_ADMIN realm role. Idempotent:
- * a brand-new user is created with `emailVerified`, required actions (UPDATE_PASSWORD + CONFIGURE_TOTP)
- * and a generated temporary password (returned once); an existing user keeps their credentials and just
- * gains the role. Realm-role assignment always runs.
+ * a brand-new user is created with `emailVerified`, a single required action (UPDATE_PASSWORD — 2FA is
+ * disabled platform-wide, so no CONFIGURE_TOTP) and a generated temporary password (returned once); an
+ * existing user keeps their credentials and just gains the role. Realm-role assignment always runs.
  */
 export async function provisionOrgAdmin({
   email,

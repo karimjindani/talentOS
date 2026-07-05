@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.14.1`
+Code version: `v0.14.2`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.14.1`
+Current documentation update: `v0.14.2`
 
 ## D-001
 
@@ -408,5 +408,27 @@ relevant guide in the same pull request. The guides include version applicabilit
 audience, required access, related URLs, step-by-step workflows, troubleshooting and known limitations.
 Screenshots are deferred until workflows stabilize; Markdown remains the source of truth for this
 baseline. Documentation-only; no application code, schema, package or Docker change.
+
+Status: Approved
+
+## D-065
+
+`v0.14.2` closes the tenant-isolation gap in the **applicant** portal — the D-051 fix was applied only to
+the admin portal. Because sessions are shared across subdomains (`Domain=.lvh.me`, D-060), an
+authenticated user of one tenant could open another tenant's applicant subdomain and reach `/dashboard`
+and `/application`, and (worse) `/apply`'s `provisionApplicantUser` would silently enroll them into that
+tenant. Decision: port the admin guard verbatim. A new `apps/applicant/lib/tenant-guard.ts`
+(`resolveTenantAccess`/`requireTenantAccess`) binds session → Host-resolved tenant → DB
+`TenantMembership` (SUPER_ADMIN bypasses); `/dashboard` and `/application` require the
+`accessApplicantPortal` capability *in the resolved tenant* and non-members are redirected to a new
+`/access-denied` page. `/apply` stays open by design — it is the public recruitment funnel, and applying
+is what legitimately creates membership — but existing members are redirected to `/application`. The
+same baseline removes `CONFIGURE_TOTP` from org-admin provisioning (2FA setup withdrawn per operator
+request; also avoids the Keycloak TOTP "/ by zero" error), grants the provisioner service account
+`manage-realm`/`view-users`, and pins `registrationAllowed`/`registrationEmailAsUsername` in the realm
+import (a drifted live realm had disabled self-registration). No schema or data-model change; the
+regression suite grew to **152 tests** (6 new `tenant-guard.test.ts`), and the fix was verified
+end-to-end in a real browser (cross-tenant denial, preserved same-tenant access, open apply funnel, and a
+full register→apply→membership flow under a tenant subdomain).
 
 Status: Approved

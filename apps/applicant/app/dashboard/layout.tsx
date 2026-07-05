@@ -1,16 +1,17 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { getTenantContext } from "@talentos/ui";
-import { getTenantBySlug, getUserByEmail, listApplicantApplications, countUnreadNotifications } from "@talentos/db";
+import { getUserByEmail, listApplicantApplications, countUnreadNotifications } from "@talentos/db";
+import { requireTenantAccess } from "@/lib/tenant-guard";
 import { ApplicantShell } from "@/components/ApplicantShell";
 
 export default async function DashboardLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const session = await auth();
-  const { tenantSlug } = await getTenantContext();
-  const tenant = await getTenantBySlug(tenantSlug);
-  const email = session?.user?.email ?? null;
+  // Bind the session to the tenant resolved from the Host header via DB membership. Non-members
+  // are redirected to /access-denied; unauthenticated users to /login.
+  const { tenant } = await requireTenantAccess("accessApplicantPortal");
 
-  if (!email || !tenant) {
+  const session = await auth();
+  const email = session?.user?.email ?? null;
+  if (!email) {
     redirect("/login");
   }
 
