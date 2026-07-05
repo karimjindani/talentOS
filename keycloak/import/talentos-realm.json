@@ -175,7 +175,7 @@
       "enabled": true,
       "serviceAccountClientId": "talentos-provisioner",
       "clientRoles": {
-        "realm-management": ["manage-users", "view-realm", "query-users"]
+        "realm-management": ["manage-users", "view-realm", "view-users", "manage-realm", "query-users"]
       }
     },
     {

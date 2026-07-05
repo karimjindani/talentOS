@@ -69,10 +69,13 @@ describe("provisionOrgAdmin", () => {
     expect(result.keycloakUserId).toBe("uid-1");
     expect(result.tempPassword).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(6);
-    // create-user call carries emailVerified + required actions
+    // create-user call carries emailVerified + required actions. 2FA is disabled platform-wide,
+    // so a new org admin is only asked to set a password — never CONFIGURE_TOTP (avoids the
+    // Keycloak TOTP-setup "/ by zero" internal error hit during OTP login).
     const createBody = JSON.parse(fetchMock.mock.calls[2][1].body);
     expect(createBody.emailVerified).toBe(true);
-    expect(createBody.requiredActions).toContain("CONFIGURE_TOTP");
+    expect(createBody.requiredActions).toContain("UPDATE_PASSWORD");
+    expect(createBody.requiredActions).not.toContain("CONFIGURE_TOTP");
   });
 
   it("skips password for an existing user and only ensures the role", async () => {
@@ -99,6 +102,8 @@ describe("realm import", () => {
       new URL("../../../keycloak/import/talentos-realm.json", import.meta.url)
     );
     const realm = JSON.parse(readFileSync(realmPath, "utf8")) as {
+      registrationAllowed?: boolean;
+      registrationEmailAsUsername?: boolean;
       clients: {
         clientId: string;
         redirectUris?: string[];
@@ -111,6 +116,11 @@ describe("realm import", () => {
         clientRoles?: Record<string, string[]>;
       }[];
     };
+
+    // Self-service applicant registration must stay enabled — a fresh realm import is the only
+    // place this is guaranteed (a drifted live realm silently disabled it, breaking "Create account").
+    expect(realm.registrationAllowed).toBe(true);
+    expect(realm.registrationEmailAsUsername).toBe(true);
     const provisioner = realm.clients.find((c) => c.clientId === "talentos-provisioner");
     expect(provisioner).toBeDefined();
     expect(provisioner?.serviceAccountsEnabled).toBe(true);
