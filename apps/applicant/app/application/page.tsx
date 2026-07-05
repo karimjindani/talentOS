@@ -2,20 +2,22 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PortalHeader } from "@/components/PortalHeader";
 import { auth } from "@/auth";
-import { getTenantContext, StatusBadge } from "@talentos/ui";
-import { getTenantBySlug, getUserByEmail, listApplicantApplications } from "@talentos/db";
+import { StatusBadge } from "@talentos/ui";
+import { getUserByEmail, listApplicantApplications } from "@talentos/db";
+import { requireTenantAccess } from "@/lib/tenant-guard";
 
 function formatDate(value: Date | null) {
   return value ? new Date(value).toLocaleString() : "—";
 }
 
 export default async function ApplicationPage() {
+  // Membership-gated: a user with no membership in the host-resolved tenant is redirected to
+  // /access-denied rather than seeing another tenant's application area.
+  const { tenant } = await requireTenantAccess("accessApplicantPortal");
   const session = await auth();
-  const { tenantSlug } = await getTenantContext();
-  const tenant = await getTenantBySlug(tenantSlug);
   const email = session?.user?.email ?? null;
-  const user = tenant && email ? await getUserByEmail(email) : null;
-  const applications = tenant && user ? await listApplicantApplications(user.id, tenant.id) : [];
+  const user = email ? await getUserByEmail(email) : null;
+  const applications = user ? await listApplicantApplications(user.id, tenant.id) : [];
 
   // If the applicant has an accepted application, redirect to dashboard
   if (applications.some((a) => a.status === "ACCEPTED")) {
@@ -24,7 +26,7 @@ export default async function ApplicationPage() {
 
   return (
     <main>
-      <PortalHeader tenantSlug={tenantSlug} />
+      <PortalHeader tenantSlug={tenant.slug} />
       <section className="mx-auto max-w-4xl px-6 py-14">
         <h1 className="text-3xl font-bold">Your application</h1>
 
