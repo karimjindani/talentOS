@@ -12,8 +12,10 @@ export default auth((req) => {
 
   const isAuthRoute = pathname.startsWith("/api/auth");
   const isForbidden = pathname === "/forbidden";
+  // Keycloak's post-logout redirect lands here without a session by definition (v0.14.3, D-066).
+  const isLoggedOut = pathname === "/logged-out";
 
-  if (!isAuthRoute && !isForbidden) {
+  if (!isAuthRoute && !isForbidden && !isLoggedOut) {
     if (!req.auth) {
       const signInUrl = new URL("/api/auth/signin", nextUrl.origin);
       const callbackUrl = tenantCallbackUrl(req.headers.get("host"), nextUrl);

@@ -1,8 +1,6 @@
 import Link from "next/link";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { auth, signOut } from "@/auth";
-import { buildEndSessionUrl } from "@talentos/auth-web";
+import { auth } from "@/auth";
+import { logoutAction } from "@/lib/logout-action";
 
 // Standalone page under the ROOT layout (not the dashboard shell), so the membership guard can
 // redirect here without a loop. Shown when an authenticated user has no membership in the
@@ -26,25 +24,8 @@ export default async function AccessDeniedPage() {
             Apply to join
           </Link>
           {session?.user ? (
-            <form
-              action={async () => {
-                "use server";
-                const activeSession = await auth();
-                // Return to the tenant subdomain the user is actually on (AUTH_URL is not pinned;
-                // the request Host header is the source of truth). See v0.12.1 / D-060.
-                const requestHeaders = await headers();
-                const host = requestHeaders.get("host") ?? "localhost:3100";
-                const proto = requestHeaders.get("x-forwarded-proto") ?? "http";
-                const logoutUrl = buildEndSessionUrl({
-                  issuer: process.env.KEYCLOAK_ISSUER ?? "http://keycloak.lvh.me:8080/realms/talentos",
-                  idToken: activeSession?.idToken,
-                  clientId: process.env.KEYCLOAK_CLIENT_ID ?? "talentos-applicant",
-                  postLogoutRedirectUri: `${proto}://${host}/`
-                });
-                await signOut({ redirect: false });
-                redirect(logoutUrl);
-              }}
-            >
+            // Shared tenant-aware RP-initiated Keycloak logout (v0.14.3 / D-066).
+            <form action={logoutAction}>
               <button
                 type="submit"
                 className="w-full cursor-pointer rounded-xl border border-slate-200 px-5 py-3 font-medium text-slate-700 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
