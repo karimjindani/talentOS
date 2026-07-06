@@ -75,3 +75,38 @@ export function assertMissionStatusTransition(from: MissionStatus, to: MissionSt
     throw new Error(`Invalid mission status transition from ${from} to ${to}.`);
   }
 }
+
+export type SubmissionStatus = "DRAFT" | "SUBMITTED" | "REVIEWED" | "NEEDS_REVISION" | "ACCEPTED";
+
+// Mission-submission review loop (v0.15.0, D-067). The SEM revision loop is
+// DRAFT → SUBMITTED → (ACCEPTED | NEEDS_REVISION) with NEEDS_REVISION → SUBMITTED for resubmission.
+// ACCEPTED is terminal — an accepted submission is graduation/portfolio evidence. The REVIEWED enum
+// value is retained in the schema but unused by MVP-1 (removing PostgreSQL enum values is not worth
+// the migration risk).
+const ALLOWED_SUBMISSION_TRANSITIONS: Record<SubmissionStatus, SubmissionStatus[]> = {
+  DRAFT: ["SUBMITTED"],
+  SUBMITTED: ["ACCEPTED", "NEEDS_REVISION"],
+  REVIEWED: [],
+  NEEDS_REVISION: ["SUBMITTED"],
+  ACCEPTED: []
+};
+
+export function canTransitionSubmissionStatus(from: SubmissionStatus, to: SubmissionStatus): boolean {
+  return ALLOWED_SUBMISSION_TRANSITIONS[from].includes(to);
+}
+
+/** Valid next statuses for a submission (drives the reviewer's action buttons). */
+export function nextSubmissionStatuses(status: SubmissionStatus): SubmissionStatus[] {
+  return [...ALLOWED_SUBMISSION_TRANSITIONS[status]];
+}
+
+export function assertSubmissionStatusTransition(from: SubmissionStatus, to: SubmissionStatus): void {
+  if (!canTransitionSubmissionStatus(from, to)) {
+    throw new Error(`Invalid submission status transition from ${from} to ${to}.`);
+  }
+}
+
+/** True while the applicant may still edit the evidence fields (before/again between reviews). */
+export function isSubmissionEditable(status: SubmissionStatus): boolean {
+  return status === "DRAFT" || status === "NEEDS_REVISION";
+}

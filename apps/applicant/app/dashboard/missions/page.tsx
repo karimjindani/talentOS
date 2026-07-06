@@ -5,7 +5,9 @@ import {
   getTenantBySlug,
   getUserByEmail,
   listApplicantApplications,
-  listPublishedProgramMissions
+  listApplicantProgramSubmissions,
+  listPublishedProgramMissions,
+  type SubmissionStatus
 } from "@talentos/db";
 
 export default async function ApplicantMissionsPage() {
@@ -23,6 +25,9 @@ export default async function ApplicantMissionsPage() {
 
   const program = acceptedApp.program;
   const missions = await listPublishedProgramMissions(tenant.id, program.id);
+  // Per-mission submission status chips (v0.15.0, D-067).
+  const submissions = await listApplicantProgramSubmissions(tenant.id, user.id, program.id);
+  const statusByMission = new Map(submissions.map((submission) => [submission.missionId, submission.status]));
 
   return (
     <div>
@@ -50,9 +55,7 @@ export default async function ApplicantMissionsPage() {
                   </p>
                   <h2 className="mt-2 text-xl font-semibold text-brand-navy">{mission.title}</h2>
                 </div>
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                  Published
-                </span>
+                <MissionSubmissionChip status={statusByMission.get(mission.id) ?? null} />
               </div>
               <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">{mission.objective || mission.brief}</p>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -68,4 +71,27 @@ export default async function ApplicantMissionsPage() {
       )}
     </div>
   );
+}
+
+function MissionSubmissionChip({ status }: { status: SubmissionStatus | null }) {
+  if (!status) {
+    return (
+      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">Not started</span>
+    );
+  }
+  const styles: Record<SubmissionStatus, string> = {
+    DRAFT: "bg-slate-100 text-slate-700",
+    SUBMITTED: "bg-blue-100 text-blue-700",
+    REVIEWED: "bg-slate-100 text-slate-700",
+    NEEDS_REVISION: "bg-amber-100 text-amber-800",
+    ACCEPTED: "bg-emerald-100 text-emerald-700"
+  };
+  const labels: Record<SubmissionStatus, string> = {
+    DRAFT: "Draft saved",
+    SUBMITTED: "Submitted",
+    REVIEWED: "Reviewed",
+    NEEDS_REVISION: "Revision requested",
+    ACCEPTED: "Accepted"
+  };
+  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${styles[status]}`}>{labels[status]}</span>;
 }

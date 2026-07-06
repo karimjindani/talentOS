@@ -9,6 +9,7 @@ export type Capability =
   | "managePrograms"
   | "manageMissions"
   | "reviewApplications"
+  | "reviewSubmissions"
   | "evaluateTechnical"
   | "accessApplicantPortal"
   | "manageTenantSettings";
@@ -21,11 +22,14 @@ const ROLE_CAPABILITIES: Record<TenantRole, readonly Capability[]> = {
     "managePrograms",
     "manageMissions",
     "reviewApplications",
+    "reviewSubmissions",
     "evaluateTechnical",
     "manageTenantSettings"
   ],
   HR: ["reviewApplications"],
-  TECH_LEAD: ["evaluateTechnical"],
+  // Tech leads review mission submissions (v0.15.0, D-067): staff review the engineering work —
+  // participants never review each other (Graduate Profile: graduates are not code reviewers).
+  TECH_LEAD: ["evaluateTechnical", "reviewSubmissions"],
   APPLICANT: ["accessApplicantPortal"]
 };
 
@@ -60,10 +64,11 @@ export function capabilitiesFor(actor: ActorRoles): Capability[] {
       "createOrganization",
       "createOrgAdmin",
       "manageTenantUsers",
-    "assignOrgRoles",
-    "managePrograms",
-    "manageMissions",
-    "reviewApplications",
+      "assignOrgRoles",
+      "managePrograms",
+      "manageMissions",
+      "reviewApplications",
+      "reviewSubmissions",
       "evaluateTechnical",
       "manageTenantSettings"
     ];

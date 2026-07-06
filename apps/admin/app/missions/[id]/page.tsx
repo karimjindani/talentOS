@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { can, nextMissionStatuses } from "@talentos/auth";
 import { getTenantContext, StatusBadge } from "@talentos/ui";
-import { getTenantBySlug, getTenantMission, listTenantPrograms } from "@talentos/db";
+import {
+  getTenantBySlug,
+  getTenantMission,
+  listMissionSubmissions,
+  listTenantPrograms
+} from "@talentos/db";
 import { MissionForm } from "../MissionForm";
 import { setMissionStatusAction, updateMissionAction } from "../actions";
 
@@ -29,6 +34,10 @@ export default async function MissionDetailPage({ params }: MissionDetailPagePro
     notFound();
   }
 
+  // Submissions list (v0.15.0, D-067) — visible to every admin role; review actions are gated on
+  // reviewSubmissions inside the review page.
+  const submissions = tenant ? await listMissionSubmissions(tenant.id, mission.id) : [];
+
   if (!canManage) {
     return (
       <>
@@ -40,6 +49,7 @@ export default async function MissionDetailPage({ params }: MissionDetailPagePro
           Your role can view missions but cannot edit them.
         </p>
         <MissionReadOnly mission={mission} />
+        <MissionSubmissions missionId={mission.id} submissions={submissions} />
       </>
     );
   }
@@ -82,7 +92,70 @@ export default async function MissionDetailPage({ params }: MissionDetailPagePro
           ))}
         </form>
       </section>
+
+      <MissionSubmissions missionId={mission.id} submissions={submissions} />
     </>
+  );
+}
+
+type MissionSubmissionList = Awaited<ReturnType<typeof listMissionSubmissions>>;
+
+function MissionSubmissions({
+  missionId,
+  submissions
+}: {
+  missionId: string;
+  submissions: MissionSubmissionList;
+}) {
+  return (
+    <section className="mt-6 max-w-4xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 className="text-lg font-semibold">Submissions</h2>
+      <p className="mt-1 text-sm text-slate-600">
+        Applicant evidence for this mission. Accepting a submission records it as portfolio evidence
+        for the mission&apos;s competencies.
+      </p>
+      {submissions.length === 0 ? (
+        <p className="mt-4 text-sm text-slate-500">No submissions yet.</p>
+      ) : (
+        <table className="mt-4 w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+              <th className="py-2 pr-4">Applicant</th>
+              <th className="py-2 pr-4">Status</th>
+              <th className="py-2 pr-4">Submitted</th>
+              <th className="py-2 pr-4">Reviewed</th>
+              <th className="py-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {submissions.map((submission) => (
+              <tr key={submission.id} className="border-b border-slate-100">
+                <td className="py-3 pr-4 font-medium text-slate-800">
+                  {submission.applicant.name ?? submission.applicant.email}
+                </td>
+                <td className="py-3 pr-4">
+                  <StatusBadge status={submission.status} />
+                </td>
+                <td className="py-3 pr-4 text-slate-600">
+                  {submission.submittedAt ? submission.submittedAt.toLocaleDateString() : "—"}
+                </td>
+                <td className="py-3 pr-4 text-slate-600">
+                  {submission.reviewedAt ? submission.reviewedAt.toLocaleDateString() : "—"}
+                </td>
+                <td className="py-3 text-right">
+                  <Link
+                    href={`/missions/${missionId}/submissions/${submission.id}`}
+                    className="font-semibold text-brand-blue hover:underline"
+                  >
+                    Review →
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
 }
 
