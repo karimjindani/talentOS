@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.14.0`
+Code version: `v0.15.1`
 
-Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+Architecture baseline commit: `4c2a8a39b5992f601488732efb9578842513b240`
 
-Current documentation update: `v0.14.0`
+Current documentation update: `v0.15.1`
 
 ## Overview
 
@@ -377,10 +377,13 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
      applicant apply form.
    - Next: cohorts and public per-program application entry points.
 
-5. Missions â€” delivered in `v0.14.0`
-   - Done: admin create/edit/publish/archive missions, accepted applicants view published missions in
-     their dashboard, and demo seed includes the Week 1 "Build a Public Product Landing Page" SEM mission.
-   - Next: mission submissions and reviewer workflow.
+5. Missions — mission engine delivered in `v0.14.0`, submissions in `v0.15.0`, full seed in `v0.15.1`
+   - Done: admin create/edit/publish/archive missions; accepted applicants view published missions in
+     their dashboard; mission submission + staff review loop (`v0.15.0`, D-067:
+     `DRAFT→SUBMITTED→ACCEPTED|NEEDS_REVISION`, evidence = GitHub/deployment/Loom URLs + inline
+     engineering journal, `reviewSubmissions` capability); demo seed provides the complete four-week
+     TaskPilot SEM mission arc (`v0.15.1`, D-068).
+   - Next: competency rollup / portfolio view over accepted submissions.
 
 6. AI Mentor Boundary
    - Expand the current AI service boundary into tenant-aware, auditable mentor workflows.

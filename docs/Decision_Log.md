@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.14.2`
+Code version: `v0.15.1`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.14.2`
+Current documentation update: `v0.15.1`
 
 ## D-001
 
@@ -480,5 +480,27 @@ the dashboard (with per-mission status chips in the list); admins review from a 
 feedback) in the same transaction as the review. Writes are tenant-scoped, ownership-checked,
 status-machine-guarded and audited (`submission.created/updated/submitted/reviewed`). The regression
 suite covers the full loop, the role matrix and cross-tenant isolation.
+
+Status: Approved
+
+## D-068
+
+`v0.15.1` seeds the complete four-week mission arc so the demo tenant demonstrates the full
+AI-Native Software Engineering Apprenticeship out of the box (previously only the Week 1 mission
+existed). Decisions: (1) **One continuous product** — all four missions evolve TaskPilot, the
+fictional AI-assisted task planner from the Week 1 brief, embodying the SEM principle that the
+lifecycle stays constant while complexity increases (`docs/SEM.md`); every brief embeds the tailored
+10-step lifecycle. (2) **Difficulty ladder mirrors the curriculum themes** — BEGINNER "Build
+Something Real" → INTERMEDIATE "Build Like an Engineer" → ADVANCED "Build Like a Production Team" →
+EXPERT "Build Like a Production Engineer", with deliverables and acceptance criteria lifted from the
+weekly deliverable tables in `docs/curriculum.md`. (3) **Deployment progression follows the vision
+roadmap** — static hosting → full-stack hosting → Docker + CI/CD → VPS behind a reverse proxy with
+SSL (`docs/vision.md`). (4) **`competencyTags` use `docs/Competency_Framework.md` names verbatim**;
+`Production Readiness` first appears in Week 4, matching the maturity matrix (PRR reaches Mastery
+only in Week 4); no mission asks participants to review each other's code (`docs/Graduate_Profile.md`).
+(5) **Data-driven idempotent seed** — `seed.ts` refactored to a `missionSeeds` array upserted on
+stable ids; Week 1 content is unchanged. Also fixes the `v0.14.0` mojibake week/difficulty separator
+(`Â€¢` → `•`) on the three mission pages via an encoding-proof JSX escape. No schema, capability,
+route or workflow changes.
 
 Status: Approved
