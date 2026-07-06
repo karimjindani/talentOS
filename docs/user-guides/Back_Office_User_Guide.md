@@ -1,8 +1,8 @@
 # Back Office User Guide
 
-Applies to version: `v0.15.0`
+Applies to version: `v0.15.1`
 
-Last verified: 2026-07-06
+Last verified: 2026-07-07
 
 Note (`v0.14.3`): signing out with the sidebar **Logout** button now works from tenant subdomains
 (for example `demo.lvh.me:3200`) as well as the canonical host; it ends the Keycloak single sign-on
@@ -123,7 +123,9 @@ Organization Admins and Super Admins manage missions.
 
 HR and Tech Lead users can view missions but cannot create, edit, publish, or archive them.
 
-The seeded Week 1 mission is **Build a Public Product Landing Page**.
+The demo program seeds the full four-week mission arc (`v0.15.1`) — Week 1 **Build a Public Product
+Landing Page** (Beginner) through Week 4 **Take TaskPilot to Production** (Expert) — all published
+and visible to accepted applicants.
 
 ### Reviewing mission submissions (`v0.15.0`)
 

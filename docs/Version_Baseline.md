@@ -2,19 +2,32 @@
 
 ## Current Baseline
 
-Version: `v0.15.0`
+Version: `v0.15.1`
 
-Baseline name: `Mission Submission Workflow MVP-1 (D-067)`
+Baseline name: `Four-Week Mission Seed (D-068)`
 
 Baseline code commit: _set on merge_
 
-Baseline date: `2026-07-06`
+Baseline date: `2026-07-07`
 
-Previous baseline: `v0.14.3`
+Previous baseline: `v0.15.0`
 
-Previous baseline commit: `58e42b3`
+Previous baseline commit: `4c2a8a3`
 
 ## Baseline Summary
+
+`v0.15.1` seeds the complete four-week mission arc (D-068) so a fresh install demonstrates the full
+AI-Native Software Engineering Apprenticeship, not just Week 1. One continuous product — TaskPilot,
+from the Week 1 brief — is taken from idea to production across four published missions:
+Week 1 "Build a Public Product Landing Page" (BEGINNER, unchanged), Week 2 "Design and Build the
+TaskPilot Application" (INTERMEDIATE, design-first full stack), Week 3 "Containerize, Automate and
+Load-Test TaskPilot" (ADVANCED, Docker/CI-CD/performance/threat model) and Week 4 "Take TaskPilot to
+Production" (EXPERT, VPS + reverse proxy/SSL, VA/PT, Production Readiness Review). Every mission
+embeds the tailored 10-step SEM lifecycle, the curriculum's weekly deliverables, measurable
+acceptance criteria, Bronze→Platinum evaluation criteria, and `competencyTags` from the Competency
+Framework. `seed.ts` is refactored to a data-driven idempotent `missionSeeds` upsert. Also fixes the
+`v0.14.0` mojibake week/difficulty separator (`Â€¢` → `•`) on the three mission pages. No schema
+change. See `D-068`.
 
 `v0.15.0` delivers Mission Submission MVP-1 (D-067), the evidence half of the SEM learning loop.
 Accepted applicants submit evidence for published missions of their accepted program — Git

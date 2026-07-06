@@ -1,8 +1,8 @@
 # Applicant Portal User Guide
 
-Applies to version: `v0.15.0`
+Applies to version: `v0.15.1`
 
-Last verified: 2026-07-06
+Last verified: 2026-07-07
 
 Audience: applicants and accepted program participants.
 
@@ -124,7 +124,15 @@ To view missions:
 4. Open a mission to review the objective, acceptance criteria, deliverables, evaluation criteria, and
    competency tags.
 
-The seeded Week 1 mission is **Build a Public Product Landing Page**.
+The demo program seeds the full four-week mission arc (`v0.15.1`), evolving one product — TaskPilot —
+from idea to production:
+
+| Week | Mission | Difficulty |
+| --- | --- | --- |
+| 1 | Build a Public Product Landing Page | Beginner |
+| 2 | Design and Build the TaskPilot Application | Intermediate |
+| 3 | Containerize, Automate and Load-Test TaskPilot | Advanced |
+| 4 | Take TaskPilot to Production | Expert |
 
 ### Submitting mission work (`v0.15.0`)
 
