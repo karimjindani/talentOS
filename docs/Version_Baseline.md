@@ -2,19 +2,33 @@
 
 ## Current Baseline
 
-Version: `v0.14.2`
+Version: `v0.14.3`
 
-Baseline name: `Applicant Portal Tenant Isolation (D-065)`
+Baseline name: `Dashboard Logout and Tenant-Subdomain Logout Fix (D-066)`
 
-Baseline code commit: `41c99f0a58ae81646c6b4c2b101402888042d2b4`
+Baseline code commit: _set on merge_
 
-Baseline date: `2026-07-05`
+Baseline date: `2026-07-06`
 
-Previous baseline: `v0.14.1`
+Previous baseline: `v0.14.2`
 
-Previous baseline commit: `5a686c6`
+Previous baseline commit: `41c99f0`
 
 ## Baseline Summary
+
+`v0.14.3` fixes two related logout defects (D-066). Accepted applicants were trapped in the dashboard
+with no sign-out: `ApplicantShell` (which replaces `PortalHeader` on `/dashboard`) had no Logout
+button, while `v0.12.0` redirects accepted applicants away from every page that had one. Separately,
+RP-initiated Keycloak logout had been silently broken on every tenant subdomain in both portals since
+`v0.12.1`, because Keycloak does not match hostname wildcards (`http://*.lvh.me:{port}/*`) in
+`post_logout_redirect_uri` patterns ("Invalid redirect uri"). The fix centralizes logout in
+`buildTenantLogoutUrl` (`packages/auth-web`): logout always returns through the canonical AUTH_URL
+origin's new `/logged-out` route with the tenant origin carried in the OIDC `state` parameter, and
+`/logged-out` bounces the user back to their tenant via the allow-listed `resolveTenantRedirect`
+(no open redirect). Shared per-app `logoutAction` server actions replace the three duplicated inline
+forms; `ApplicantShell` gains a sidebar Logout button; `/logged-out` is exempted from the admin auth
+middleware. No schema or data-model change; the regression suite grew to 161 tests and the fix was
+verified end-to-end in a real browser. See `D-066`.
 
 `v0.14.2` is a security patch that closes the tenant-isolation gap in the **applicant** portal — the
 D-051 fix had only ever covered the admin portal. Sessions are shared across subdomains

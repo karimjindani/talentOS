@@ -1,8 +1,8 @@
 # Applicant Portal User Guide
 
-Applies to version: `v0.14.2`
+Applies to version: `v0.14.3`
 
-Last verified: 2026-07-05
+Last verified: 2026-07-06
 
 Audience: applicants and accepted program participants.
 
@@ -98,6 +98,10 @@ The dashboard contains:
 - Profile
 
 Applicants without an accepted application are redirected back to their application/status flow.
+
+To sign out from the dashboard, use the **Logout** button at the bottom of the sidebar (below your
+name and email). Signing out ends both the portal session and the Keycloak single sign-on session and
+returns you to your tenant's portal home page (`v0.14.3`).
 
 ### Access to an organization you have not joined
 

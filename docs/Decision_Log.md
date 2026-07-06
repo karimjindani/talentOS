@@ -432,3 +432,27 @@ end-to-end in a real browser (cross-tenant denial, preserved same-tenant access,
 full register→apply→membership flow under a tenant subdomain).
 
 Status: Approved
+
+## D-066
+
+`v0.14.3` fixes two related logout defects. (1) An accepted applicant had **no way to sign out**: the
+dashboard layout replaces `PortalHeader` (which held the only Logout button) with `ApplicantShell`,
+and since `v0.12.0` redirects accepted applicants from `/` and `/application` to `/dashboard`, they
+could never reach a page with a logout affordance. (2) RP-initiated Keycloak logout was **broken on
+every tenant subdomain** in both portals since `v0.12.1`: the logout forms derived
+`post_logout_redirect_uri` from the request Host, but Keycloak only supports `*` wildcards at the end
+of a redirect-URI pattern — the registered `http://*.lvh.me:{port}/*` hostname wildcards never match,
+so Keycloak answered "Invalid redirect uri" (the `v0.10.2` validation had run on the canonical host
+only). Decision: centralize logout in a shared `buildTenantLogoutUrl` (`packages/auth-web`) that
+always returns through the canonical AUTH_URL origin's new `/logged-out` route — the only origin
+Keycloak can validate — carrying the tenant origin in the OIDC `state` parameter; `/logged-out`
+bounces the user back to their tenant via the existing allow-listed `resolveTenantRedirect` (D-060),
+so this is not an open redirect (verified: foreign and look-alike hosts collapse to the canonical
+origin). The three duplicated inline logout forms (PortalHeader, applicant access-denied page, admin
+root layout) now call shared per-app `logoutAction` server actions, and `ApplicantShell` gains a
+Logout button in the sidebar user block. `/logged-out` is exempted from the admin auth middleware.
+No schema, data-model or capability change; the regression suite grew to **161 tests**, and the fix
+was verified end-to-end in a real browser (dashboard logout, admin tenant-subdomain logout, SSO
+termination on both, and the `/logged-out` allow-list).
+
+Status: Approved

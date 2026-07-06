@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import { SessionProvider } from "next-auth/react";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
+import { logoutAction } from "@/lib/logout-action";
 import { getTenantContext, brandStyleBlock } from "@talentos/ui";
-import { buildEndSessionUrl } from "@talentos/auth-web";
 import { getTenantBySlug } from "@talentos/db";
 import { resolveTenantAccess } from "@/lib/tenant-guard";
 import { SidebarNav } from "@/components/SidebarNav";
@@ -53,26 +51,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                 <div className="mt-auto border-t border-slate-200 pt-4 text-sm">
                   <p className="font-medium text-slate-700">{session.user.email}</p>
                   <p className="text-slate-500">{roleLabel}</p>
-                  <form
-                    action={async () => {
-                      "use server";
-                      const activeSession = await auth();
-                      // Return to the tenant subdomain the admin is actually on (AUTH_URL is no
-                      // longer pinned; the request Host header is the source of truth). See D-060.
-                      const requestHeaders = await headers();
-                      const host = requestHeaders.get("host") ?? "localhost:3200";
-                      const proto = requestHeaders.get("x-forwarded-proto") ?? "http";
-                      const logoutUrl = buildEndSessionUrl({
-                        issuer: process.env.KEYCLOAK_ISSUER ?? "http://keycloak.lvh.me:8080/realms/talentos",
-                        idToken: activeSession?.idToken,
-                        clientId: process.env.KEYCLOAK_CLIENT_ID ?? "talentos-admin",
-                        postLogoutRedirectUri: `${proto}://${host}/`
-                      });
-                      await signOut({ redirect: false });
-                      redirect(logoutUrl);
-                    }}
-                    className="mt-3"
-                  >
+                  {/* Shared tenant-aware RP-initiated Keycloak logout (v0.14.3 / D-066). */}
+                  <form action={logoutAction} className="mt-3">
                     <button
                       type="submit"
                       className="w-full cursor-pointer rounded-lg border border-slate-200 px-3 py-2 font-medium text-slate-700 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"

@@ -1,8 +1,12 @@
 # Back Office User Guide
 
-Applies to version: `v0.14.2`
+Applies to version: `v0.14.3`
 
-Last verified: 2026-07-05
+Last verified: 2026-07-06
+
+Note (`v0.14.3`): signing out with the sidebar **Logout** button now works from tenant subdomains
+(for example `demo.lvh.me:3200`) as well as the canonical host; it ends the Keycloak single sign-on
+session and returns you to the tenant you were on.
 
 Audience: platform super admins, organization admins, HR reviewers, and tech leads.
 
