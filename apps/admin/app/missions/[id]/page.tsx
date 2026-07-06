@@ -62,7 +62,7 @@ export default async function MissionDetailPage({ params }: MissionDetailPagePro
         <div>
           <h1 className="text-3xl font-bold">{mission.title}</h1>
           <p className="mt-2 text-slate-600">
-            {mission.program.name} â€¢ Week {mission.weekNumber} â€¢ {mission.difficulty}
+            {mission.program.name} {"\u2022"} Week {mission.weekNumber} {"\u2022"} {mission.difficulty}
           </p>
         </div>
         <StatusBadge status={mission.status} />

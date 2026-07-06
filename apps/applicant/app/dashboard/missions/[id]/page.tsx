@@ -45,7 +45,7 @@ export default async function ApplicantMissionDetailPage({ params }: MissionDeta
       </Link>
       <div className="mt-4 rounded-3xl bg-brand-navy p-8 text-white shadow-sm">
         <p className="text-sm font-semibold uppercase tracking-wide text-brand-mist">
-          Week {mission.weekNumber} â€¢ {mission.difficulty}
+          Week {mission.weekNumber} {"\u2022"} {mission.difficulty}
         </p>
         <h1 className="mt-3 text-3xl font-bold">{mission.title}</h1>
         <p className="mt-3 max-w-3xl text-brand-mist">{mission.objective}</p>
