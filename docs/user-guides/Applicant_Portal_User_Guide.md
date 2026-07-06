@@ -1,6 +1,6 @@
 # Applicant Portal User Guide
 
-Applies to version: `v0.14.3`
+Applies to version: `v0.15.0`
 
 Last verified: 2026-07-06
 
@@ -126,7 +126,31 @@ To view missions:
 
 The seeded Week 1 mission is **Build a Public Product Landing Page**.
 
-Mission submission, engineering journal entries, and portfolio publishing are future workflows.
+### Submitting mission work (`v0.15.0`)
+
+Each mission detail page has a **My Submission** section where you provide your evidence:
+
+- **Git repository URL** — must be on `github.com`; your PRD, README, user stories and acceptance
+  criteria live in the repository.
+- **Deployed application URL** — any reachable `http(s)` link to your running application.
+- **Loom walkthrough URL** — must be on `loom.com`.
+- **Engineering journal** — inline Markdown describing what you built, your decisions and what you
+  learned.
+
+Workflow:
+
+1. Fill in your evidence and select **Save draft** as often as you like.
+2. Select **Submit for review** when ready (at least one evidence link is required). Your evidence is
+   locked while under review.
+3. A reviewer either **accepts** your submission or **requests changes** with written feedback. You are
+   notified either way (see **Notifications**), and the feedback appears on the mission page.
+4. If changes are requested, edit your evidence and **Resubmit for review** — this loop can repeat.
+5. An accepted submission is final: it becomes portfolio evidence for the mission's competencies.
+
+The missions list shows a status chip per mission: **Not started**, **Draft saved**, **Submitted**,
+**Revision requested**, or **Accepted**.
+
+Portfolio publishing and a dedicated engineering-journal module are future workflows.
 
 ## Troubleshooting
 
@@ -141,6 +165,7 @@ Mission submission, engineering journal entries, and portfolio publishing are fu
 
 ## Known Limitations
 
-- Applicant mission submission is not implemented yet.
-- Engineering journal and portfolio publishing are not implemented yet.
+- A dedicated engineering-journal module and portfolio publishing are not implemented yet (mission
+  submission with an inline journal shipped in `v0.15.0`).
+- Evidence file attachments are not supported yet — evidence is links plus the inline journal.
 - Screenshots are not part of this guide yet.

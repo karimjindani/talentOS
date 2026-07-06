@@ -456,3 +456,29 @@ was verified end-to-end in a real browser (dashboard logout, admin tenant-subdom
 termination on both, and the `/logged-out` allow-list).
 
 Status: Approved
+
+## D-067
+
+`v0.15.0` delivers Mission Submission MVP-1, activating the `Submission` scaffolding laid down in
+`v0.14.0`. Decisions: (1) **Evidence is URLs + inline journal** — Git repository (host-allowlisted to
+github.com), deployed application (any http/https), Loom walkthrough (loom.com) and an inline
+Engineering Journal in Markdown, matching the Week 1 deliverables in `docs/curriculum.md`; PRD,
+README, user stories and acceptance criteria live inside the repository. File attachments are
+deferred. (2) **Staff-only review** — a new `reviewSubmissions` capability is granted to `ORG_ADMIN`
+and `TECH_LEAD` (SUPER_ADMIN bypasses); HR is read-only and applicants never review each other,
+per `docs/Graduate_Profile.md` ("graduates are not expected to review other engineers' code").
+(3) **Full SEM revision loop** — `DRAFT→SUBMITTED→ACCEPTED|NEEDS_REVISION`,
+`NEEDS_REVISION→SUBMITTED`; written feedback is mandatory when requesting changes (the coaching
+mechanism for building independent engineers); `ACCEPTED` is terminal because an accepted submission
+is portfolio/graduation evidence for the mission's `competencyTags` (kept queryable for a future
+competency-rollup/portfolio view). (4) **One submission row per applicant per mission**
+(unique `[missionId, applicantId]`) — the loop reuses the row. (5) **Schema hardening** — the model
+gains `tenantId` for direct tenant scoping (consistent with every other tenant-owned table) plus
+`reviewerFeedback`/`reviewedAt`/`reviewerUserId`. Applicants submit from the mission detail page in
+the dashboard (with per-mission status chips in the list); admins review from a new
+`/missions/[id]/submissions/[submissionId]` page; the applicant is notified (SUCCESS/WARNING with
+feedback) in the same transaction as the review. Writes are tenant-scoped, ownership-checked,
+status-machine-guarded and audited (`submission.created/updated/submitted/reviewed`). The regression
+suite covers the full loop, the role matrix and cross-tenant isolation.
+
+Status: Approved

@@ -1,6 +1,6 @@
 # Back Office User Guide
 
-Applies to version: `v0.14.3`
+Applies to version: `v0.15.0`
 
 Last verified: 2026-07-06
 
@@ -72,6 +72,8 @@ Back Office access requires both:
 | Manage missions | Yes | Yes | No | No |
 | Review applications | Yes | Yes | Yes | No |
 | View missions | Yes | Yes | Yes | Yes |
+| Review mission submissions (`v0.15.0`) | Yes | Yes | No | Yes |
+| View mission submissions (`v0.15.0`) | Yes | Yes | Yes | Yes |
 | Use local Operations page | Yes | Yes | No | No |
 
 ## Organizations
@@ -123,6 +125,25 @@ HR and Tech Lead users can view missions but cannot create, edit, publish, or ar
 
 The seeded Week 1 mission is **Build a Public Product Landing Page**.
 
+### Reviewing mission submissions (`v0.15.0`)
+
+Each mission detail page lists its applicant submissions (applicant, status, submitted and reviewed
+dates). Org Admins, Tech Leads, and Super Admins review them; HR can view but not decide. Applicants
+never review each other's work (Graduate Profile: graduates are not code reviewers).
+
+1. Open **Missions** and select the mission.
+2. In **Submissions**, select **Review** on a submitted entry.
+3. Inspect the evidence: Git repository, deployed application, Loom walkthrough (links open in a new
+   tab), and the applicant's Engineering Journal.
+4. Either **Accept submission** — final; the submission becomes portfolio evidence for the mission's
+   competency tags — or **Request changes**, which requires written feedback and returns the
+   submission to the applicant for revision.
+5. The applicant is notified automatically (acceptance or revision request with your feedback), and
+   the review is recorded in the audit log.
+
+A submission can be reviewed only while it is in **Submitted** status; after a revision request the
+applicant edits and resubmits, and the loop repeats until acceptance.
+
 ## Settings
 
 Tenant settings control white-label presentation.
@@ -151,8 +172,8 @@ The Operations page must not be used as evidence that production monitoring exis
 
 - Full Back Office user/role management UI is not complete yet.
 - Production deployment operations, backups, alerting, and monitoring are not covered by this guide.
-- Mission submissions, engineering journal review, public portfolios, and hiring intelligence are future
-  workflows.
+- A dedicated engineering-journal module, public portfolios, and hiring intelligence are future
+  workflows (mission submission review shipped in `v0.15.0`).
 - Screenshots are not part of this guide yet.
 
 ## Troubleshooting

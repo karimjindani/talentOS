@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.14.0`
+Code version: `v0.15.0`
 
-Documentation update: `Mission Engine MVP delivered in v0.14.0 (D-063): admin mission management, applicant dashboard mission browsing, seeded Week 1 SEM mission, mission status workflow, mission regression area.`
+Documentation update: `Mission Submission Workflow MVP-1 delivered in v0.15.0 (D-067): applicant evidence submission (repository/deployment/Loom URLs + Engineering Journal markdown), staff review loop with mandatory feedback on revision requests (reviewSubmissions: ORG_ADMIN + TECH_LEAD), applicant notifications, submission regression scenarios.`
 
 ## MVP
 
@@ -75,6 +75,9 @@ Documentation update: `Mission Engine MVP delivered in v0.14.0 (D-063): admin mi
 - Applications module — delivered in `v0.5.0` (authenticated apply → submit → admin review with accept/reject/under-review/waitlist, tenant-scoped and audited).
 - Programs module — delivered in `v0.6.0` (admin CRUD: create/edit/publish/archive, `managePrograms`-gated, tenant-scoped and audited; published programs feed the apply form).
 - Missions module â€” delivered in `v0.14.0` (admin create/edit/publish/archive; accepted applicants see published missions for their accepted program).
+  - Submission workflow MVP-1 delivered in `v0.15.0` (D-067): applicant evidence submission with the
+    SEM review loop (accept / request changes → resubmit). Next slices: Engineering Journal module,
+    competency rollup / portfolio evidence view, file attachments for evidence.
 - AI Mentor boundary
 - Knowledge Base
 - GitHub Integration

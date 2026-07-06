@@ -2,19 +2,40 @@
 
 ## Current Baseline
 
-Version: `v0.14.3`
+Version: `v0.15.0`
 
-Baseline name: `Dashboard Logout and Tenant-Subdomain Logout Fix (D-066)`
+Baseline name: `Mission Submission Workflow MVP-1 (D-067)`
 
 Baseline code commit: _set on merge_
 
 Baseline date: `2026-07-06`
 
-Previous baseline: `v0.14.2`
+Previous baseline: `v0.14.3`
 
-Previous baseline commit: `41c99f0`
+Previous baseline commit: `58e42b3`
 
 ## Baseline Summary
+
+`v0.15.0` delivers Mission Submission MVP-1 (D-067), the evidence half of the SEM learning loop.
+Accepted applicants submit evidence for published missions of their accepted program — Git
+repository URL (github.com-allowlisted), deployed-application URL, Loom URL (loom.com-allowlisted)
+and an inline Engineering Journal (Markdown) — from a new **My Submission** section on the dashboard
+mission detail page (with per-mission status chips in the list). Staff review from a new admin
+`/missions/[id]/submissions/[submissionId]` page gated by the new `reviewSubmissions` capability
+(ORG_ADMIN + TECH_LEAD; HR read-only; no peer review per the Graduate Profile): accept — terminal,
+recording the submission as portfolio/graduation evidence for the mission's `competencyTags` — or
+request changes with mandatory written feedback, returning it to the applicant for revision
+(`DRAFT→SUBMITTED→ACCEPTED|NEEDS_REVISION`, `NEEDS_REVISION→SUBMITTED`). The applicant is notified
+(SUCCESS/WARNING with the feedback) in the same transaction. Schema (migration
+`20260706090000_v0_15_0_mission_submissions`): `Submission` gains `tenantId` (backfilled from the
+parent mission), `reviewerFeedback`, `reviewedAt`, `reviewerUserId`, unique
+`[missionId, applicantId]` and index `[tenantId, status]`; the superseded init-migration
+`missions_tenantId_programId_idx` is dropped. New `packages/db/src/submissions.ts` helpers are
+tenant-scoped, ownership-checked and audited (`submission.created/updated/submitted/reviewed`);
+the submission status machine lives in `packages/auth` next to the mission/program machines.
+`Submission` joins the regression cleanup entity types, and the suite grew to **187 unit tests**
+plus three new scenarios (full loop with notifications/audit/terminal-acceptance, role matrix,
+cross-tenant isolation). See `D-067`.
 
 `v0.14.3` fixes two related logout defects (D-066). Accepted applicants were trapped in the dashboard
 with no sign-out: `ApplicantShell` (which replaces `PortalHeader` on `/dashboard`) had no Logout
