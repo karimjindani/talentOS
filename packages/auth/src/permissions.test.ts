@@ -48,3 +48,22 @@ describe("tenantRolesGrant", () => {
     expect(tenantRolesGrant("manageMissions", ["HR", "TECH_LEAD"])).toBe(false);
   });
 });
+
+// Mission-submission review authority (v0.15.0, D-067): staff review the engineering work —
+// ORG_ADMIN and TECH_LEAD hold reviewSubmissions; HR is read-only; participants never review
+// each other (Graduate Profile: graduates are not expected to review code).
+describe("reviewSubmissions capability", () => {
+  it("is granted to ORG_ADMIN and TECH_LEAD", () => {
+    expect(tenantRolesGrant("reviewSubmissions", ["ORG_ADMIN"])).toBe(true);
+    expect(tenantRolesGrant("reviewSubmissions", ["TECH_LEAD"])).toBe(true);
+  });
+
+  it("is denied to HR and APPLICANT", () => {
+    expect(tenantRolesGrant("reviewSubmissions", ["HR"])).toBe(false);
+    expect(tenantRolesGrant("reviewSubmissions", ["APPLICANT"])).toBe(false);
+  });
+
+  it("is denied to a cross-tenant actor with no membership roles", () => {
+    expect(tenantRolesGrant("reviewSubmissions", [])).toBe(false);
+  });
+});

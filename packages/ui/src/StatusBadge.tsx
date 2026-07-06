@@ -7,7 +7,9 @@ const STATUS_STYLES: Record<string, string> = {
   REJECTED: "bg-rose-100 text-rose-700",
   WAITLISTED: "bg-violet-100 text-violet-700",
   PUBLISHED: "bg-emerald-100 text-emerald-700",
-  ARCHIVED: "bg-slate-200 text-slate-600"
+  ARCHIVED: "bg-slate-200 text-slate-600",
+  // Mission-submission review loop (v0.15.0, D-067).
+  NEEDS_REVISION: "bg-amber-100 text-amber-800"
 };
 
 type StatusBadgeProps = {
