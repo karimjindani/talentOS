@@ -73,7 +73,8 @@ export default async function MissionDetailPage({ params }: MissionDetailPagePro
       <section className="mt-6 max-w-4xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Status</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Published missions are visible to accepted applicants in the matching program.
+          Draft stays staff-only. Published appears to accepted applicants in this mission&apos;s
+          program. Archived is hidden from applicant mission lists.
         </p>
         <form action={setMissionStatusAction} className="mt-4 flex flex-wrap gap-3">
           <input type="hidden" name="missionId" value={mission.id} />

@@ -121,6 +121,12 @@ Organization Admins and Super Admins manage missions.
 4. Publish the mission when it is ready for accepted applicants.
 5. Archive missions that should no longer be visible to applicants.
 
+The mission form includes SEM-aligned authoring guidance. Use the helper text to write objectives as
+learning outcomes, frame the real-world brief, list the evidence applicants must submit, define the
+minimum acceptance bar, and explain how staff should judge quality during review. Competency tags are
+comma-separated; accepted submissions become evidence for those competencies, so keep tag names
+consistent across missions.
+
 HR and Tech Lead users can view missions but cannot create, edit, publish, or archive them.
 
 The demo program seeds the full four-week mission arc (`v0.15.1`) — Week 1 **Build a Public Product
