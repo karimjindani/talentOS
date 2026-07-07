@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.15.1`
+Code version: `v0.16.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.15.1`
+Current documentation update: `v0.16.0`
 
 ## D-001
 
@@ -502,5 +502,27 @@ only in Week 4); no mission asks participants to review each other's code (`docs
 stable ids; Week 1 content is unchanged. Also fixes the `v0.14.0` mojibake week/difficulty separator
 (`Â€¢` → `•`) on the three mission pages via an encoding-proof JSX escape. No schema, capability,
 route or workflow changes.
+
+Status: Approved
+
+## D-069
+
+`v0.16.0` makes the mission loop the dashboard's source of truth and gives program content a real
+owner. Decisions: (1) **Mission-driven progress** — the applicant dashboard's Overall Progress and
+week bars are computed from published missions vs the applicant's ACCEPTED submissions
+(`getApplicantMissionProgress`); drafts and pending reviews do not move the bar, because acceptance
+is the SEM loop's terminal, portfolio-grade state. A **Current Mission** card surfaces the next
+mission (first non-accepted, by week/order) with its submission status. Weekly tasks remain a
+supplementary checklist with their own tile. (2) **`manageProgramContent` capability** — video
+resources, weekly tasks and calendar events (models shipped in `v0.12.0` but writable only by a dev
+seed script) become manageable from a new admin **Program Content** page
+(`/programs/[id]/content`); the capability is granted to `ORG_ADMIN` only (SUPER_ADMIN bypasses;
+HR/TECH_LEAD stay read-only), matching the ownership of programs and missions. (3) **Same
+security conventions as missions (D-064)** — server actions re-resolve the actor through the
+D-051 membership-backed tenant guard; db helpers are transactional, tenant-scoped
+(`updateMany`/`deleteMany` on `{ id, tenantId }`, program-chain check on create) and audited
+(`resource.created|updated|deleted`, `task.*`, `event.*`); admin-entered video URLs must be
+well-formed http(s). No schema change. The regression suite gains a full draft→submit→accept
+progress scenario and a content CRUD + role-denial scenario (unit suite: 202 tests).
 
 Status: Approved

@@ -67,3 +67,21 @@ describe("reviewSubmissions capability", () => {
     expect(tenantRolesGrant("reviewSubmissions", [])).toBe(false);
   });
 });
+
+// Program-content authority (v0.16.0, D-069): curriculum administration — video resources,
+// weekly tasks and calendar events — belongs to the same owners as programs and missions.
+describe("manageProgramContent capability", () => {
+  it("is granted to ORG_ADMIN", () => {
+    expect(tenantRolesGrant("manageProgramContent", ["ORG_ADMIN"])).toBe(true);
+  });
+
+  it("is denied to HR, TECH_LEAD and APPLICANT (read-only consumers)", () => {
+    expect(tenantRolesGrant("manageProgramContent", ["HR"])).toBe(false);
+    expect(tenantRolesGrant("manageProgramContent", ["TECH_LEAD"])).toBe(false);
+    expect(tenantRolesGrant("manageProgramContent", ["APPLICANT"])).toBe(false);
+  });
+
+  it("is denied to a cross-tenant actor with no membership roles", () => {
+    expect(tenantRolesGrant("manageProgramContent", [])).toBe(false);
+  });
+});

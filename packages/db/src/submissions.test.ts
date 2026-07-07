@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const prismaMock = vi.hoisted(() => ({
   submissionFindFirst: vi.fn(),
   submissionFindMany: vi.fn(),
+  missionFindMany: vi.fn(),
   transaction: vi.fn(),
   txMissionFindFirst: vi.fn(),
   txSubmissionFindFirst: vi.fn(),
@@ -19,11 +20,15 @@ vi.mock("./client", () => ({
       findFirst: prismaMock.submissionFindFirst,
       findMany: prismaMock.submissionFindMany
     },
+    mission: {
+      findMany: prismaMock.missionFindMany
+    },
     $transaction: prismaMock.transaction
   }
 }));
 
 import {
+  getApplicantMissionProgress,
   getApplicantSubmission,
   listMissionSubmissions,
   parseEvidenceUrl,
@@ -285,3 +290,87 @@ function draftInput() {
     journalMarkdown: "## Week 1\nBuilt the landing page."
   };
 }
+
+// Mission progress (v0.16.0, D-069): the dashboard's source of truth. Only ACCEPTED submissions
+// move the bar; the current mission is the first published mission not yet accepted.
+describe("getApplicantMissionProgress", () => {
+  beforeEach(() => {
+    prismaMock.missionFindMany.mockReset();
+    prismaMock.submissionFindMany.mockReset();
+  });
+
+  const missions = [
+    { id: "m1", title: "Week 1 Mission", weekNumber: 1, order: 1 },
+    { id: "m2", title: "Week 2 Mission", weekNumber: 2, order: 2 },
+    { id: "m3", title: "Week 3 Mission", weekNumber: 3, order: 3 },
+    { id: "m4", title: "Week 4 Mission", weekNumber: 4, order: 4 }
+  ];
+
+  it("reports zero progress and the Week 1 mission as current when nothing is started", async () => {
+    prismaMock.missionFindMany.mockResolvedValue(missions);
+    prismaMock.submissionFindMany.mockResolvedValue([]);
+
+    const progress = await getApplicantMissionProgress("tenant-1", "user-1", "program-1");
+
+    expect(progress.overall).toEqual({ accepted: 0, total: 4, percentage: 0 });
+    expect(progress.weeks).toHaveLength(4);
+    expect(progress.weeks[0]).toEqual({ weekNumber: 1, totalMissions: 1, acceptedMissions: 0, percentage: 0 });
+    expect(progress.currentMission).toEqual({
+      id: "m1",
+      title: "Week 1 Mission",
+      weekNumber: 1,
+      submissionStatus: null
+    });
+    // Reads are tenant + program scoped and published-only.
+    expect(prismaMock.missionFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId: "tenant-1", programId: "program-1", status: "PUBLISHED" }
+      })
+    );
+  });
+
+  it("counts only ACCEPTED submissions and advances the current mission past them", async () => {
+    prismaMock.missionFindMany.mockResolvedValue(missions);
+    prismaMock.submissionFindMany.mockResolvedValue([
+      { id: "s1", missionId: "m1", status: "ACCEPTED", submittedAt: new Date() },
+      { id: "s2", missionId: "m2", status: "SUBMITTED", submittedAt: new Date() }
+    ]);
+
+    const progress = await getApplicantMissionProgress("tenant-1", "user-1", "program-1");
+
+    expect(progress.overall).toEqual({ accepted: 1, total: 4, percentage: 25 });
+    expect(progress.weeks[0].percentage).toBe(100);
+    expect(progress.weeks[1].percentage).toBe(0);
+    // m1 is done; m2 is the current mission with its pending review visible.
+    expect(progress.currentMission).toEqual({
+      id: "m2",
+      title: "Week 2 Mission",
+      weekNumber: 2,
+      submissionStatus: "SUBMITTED"
+    });
+  });
+
+  it("reports full completion with no current mission when every mission is accepted", async () => {
+    prismaMock.missionFindMany.mockResolvedValue(missions);
+    prismaMock.submissionFindMany.mockResolvedValue(
+      missions.map((m, i) => ({ id: `s${i}`, missionId: m.id, status: "ACCEPTED", submittedAt: new Date() }))
+    );
+
+    const progress = await getApplicantMissionProgress("tenant-1", "user-1", "program-1");
+
+    expect(progress.overall).toEqual({ accepted: 4, total: 4, percentage: 100 });
+    expect(progress.weeks.every((w) => w.percentage === 100)).toBe(true);
+    expect(progress.currentMission).toBeNull();
+  });
+
+  it("always includes weeks 1-4 even when no missions are published", async () => {
+    prismaMock.missionFindMany.mockResolvedValue([]);
+    prismaMock.submissionFindMany.mockResolvedValue([]);
+
+    const progress = await getApplicantMissionProgress("tenant-1", "user-1", "program-1");
+
+    expect(progress.weeks).toHaveLength(4);
+    expect(progress.overall).toEqual({ accepted: 0, total: 0, percentage: 0 });
+    expect(progress.currentMission).toBeNull();
+  });
+});

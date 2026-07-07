@@ -8,6 +8,7 @@ export type Capability =
   | "assignOrgRoles"
   | "managePrograms"
   | "manageMissions"
+  | "manageProgramContent"
   | "reviewApplications"
   | "reviewSubmissions"
   | "evaluateTechnical"
@@ -21,6 +22,9 @@ const ROLE_CAPABILITIES: Record<TenantRole, readonly Capability[]> = {
     "assignOrgRoles",
     "managePrograms",
     "manageMissions",
+    // Program content (video resources, weekly tasks, calendar events) is curriculum
+    // administration (v0.16.0, D-069) — same owners as programs/missions.
+    "manageProgramContent",
     "reviewApplications",
     "reviewSubmissions",
     "evaluateTechnical",
@@ -67,6 +71,7 @@ export function capabilitiesFor(actor: ActorRoles): Capability[] {
       "assignOrgRoles",
       "managePrograms",
       "manageMissions",
+      "manageProgramContent",
       "reviewApplications",
       "reviewSubmissions",
       "evaluateTechnical",

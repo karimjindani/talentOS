@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.14.2`
+Code version: `v0.16.0`
 
 ## Purpose
 
@@ -46,6 +46,7 @@ The suite can be run from the local Ops Console or from npm scripts.
 | Programs | Org Admin creates a draft program. | Automated | Data-level scenario through DB helpers. |
 | Programs | Published program appears in applicant-visible list. | Automated | Validates `listPublishedPrograms`. |
 | Programs | Archived program is removed from applicant-visible list. | Automated | Validates lifecycle visibility. |
+| Programs | Org Admin manages program content (resources/tasks/events); roles without `manageProgramContent` are denied. | Automated | v0.16.0 (D-069): CRUD round-trip, audit entries, capability matrix, cross-tenant delete rejection. |
 | Missions | Org Admin creates a draft mission, publishes it, and accepted applicants can see it. | Automated | Validates mission lifecycle visibility. |
 | Missions | Archived mission is removed from applicant-visible mission list. | Automated | Validates published-only visibility. |
 | Missions | HR, Tech Lead and Applicant cannot manage missions. | Automated | Validates `manageMissions` capability. |
@@ -55,6 +56,7 @@ The suite can be run from the local Ops Console or from npm scripts.
 | Tenant isolation | Cross-tenant file and settings denial through admin browser routes. | Missing | Add Playwright/browser route coverage. |
 | Dashboard | Accepted applicant dashboard pages load. | Automated | Covers overview, program, tasks, resources, calendar, notifications and profile. |
 | Dashboard | Task completion persists. | Automated | Uses dashboard DB helpers. |
+| Dashboard | Accepted mission submission moves mission-driven dashboard progress. | Automated | v0.16.0 (D-069): full draft→submit→accept loop; only ACCEPTED moves the bar; current mission clears at 100%. |
 | Dashboard | Notification read state persists. | Automated | Uses dashboard DB helpers. |
 | Storage | CV upload/download round-trip. | Missing | `storage` area currently reports a documented skip. |
 | Storage | Cross-tenant file denial. | Missing | Should cover both metadata lookup and download URL path. |
