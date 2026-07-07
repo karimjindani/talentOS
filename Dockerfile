@@ -29,6 +29,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV APP_DIR=${APP_DIR}
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/${APP_DIR}/.next/standalone ./
 COPY --from=builder /app/${APP_DIR}/.next/static ./${APP_DIR}/.next/static
 COPY --from=builder /app/${APP_DIR}/public ./${APP_DIR}/public

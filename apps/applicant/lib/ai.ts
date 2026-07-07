@@ -2,7 +2,7 @@ import type { ApplicantContext } from "./ai-context";
 import { contextToPromptSection } from "./ai-context";
 import type { KnowledgeSnippet } from "./knowledge-base";
 import { knowledgeToPromptSection } from "./knowledge-base";
-import { classifyQuestion, type RBSEAction } from "./ai-rbse";
+import { classifyQuestion } from "./ai-rbse";
 
 export type AIInteractionRequest = {
   tenantId: string;
