@@ -2,19 +2,31 @@
 
 ## Current Baseline
 
-Version: `v0.16.0`
+Version: `v0.16.1`
 
-Baseline name: `Mission-Driven Dashboard Progress + Program Content Management (D-069)`
+Baseline name: `Illustrated User Guide with Automated Screenshot Capture`
 
 Baseline code commit: _set on merge_
 
 Baseline date: `2026-07-07`
 
-Previous baseline: `v0.15.1`
+Previous baseline: `v0.16.0`
 
-Previous baseline commit: `28da6ee`
+Previous baseline commit: `a95a42b`
 
 ## Baseline Summary
+
+`v0.16.1` (documentation/tooling patch) adds the illustrated end-user guide
+`docs/user-guide/User_Guide.md`: 26 full-page screenshots (`docs/user-guide/screenshots/`), one per
+user-facing test case, with a coverage map linking each screenshot to its regression test area.
+Screenshots are captured repeatably by the new Playwright script
+`scripts/user-guide/capture-screenshots.ts`, which drives the running local Docker stack through
+the real Keycloak OIDC flows — including self-registration plus a genuine `/apply` submission with
+a generated PDF CV for the applicant journey — as an anonymous visitor, a fresh applicant,
+`accepted@demo.talentos.local`, and `orgadmin@demo.talentos.local` (admin portal + Ops Console),
+with a CLI section filter for partial re-captures. No product code, schema or configuration
+change; unit suite unchanged at 202/202. Plan: `docs/plans/v0.16.1_User_Guide_Screenshots_Plan.md`;
+results: `docs/testing/v0.16.1_User_Guide_Screenshots_Test_Results.md`.
 
 `v0.16.0` closes the loop between the mission engine and the applicant dashboard, and gives
 program content a real owner (D-069). The dashboard's Overall Progress, Missions Accepted tile and
