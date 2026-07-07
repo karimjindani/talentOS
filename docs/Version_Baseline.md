@@ -2,19 +2,32 @@
 
 ## Current Baseline
 
-Version: `v0.15.1`
+Version: `v0.16.0`
 
-Baseline name: `Four-Week Mission Seed (D-068)`
+Baseline name: `Mission-Driven Dashboard Progress + Program Content Management (D-069)`
 
 Baseline code commit: _set on merge_
 
 Baseline date: `2026-07-07`
 
-Previous baseline: `v0.15.0`
+Previous baseline: `v0.15.1`
 
-Previous baseline commit: `4c2a8a3`
+Previous baseline commit: `28da6ee`
 
 ## Baseline Summary
+
+`v0.16.0` closes the loop between the mission engine and the applicant dashboard, and gives
+program content a real owner (D-069). The dashboard's Overall Progress, Missions Accepted tile and
+per-week Program Progress bars are now computed from the applicant's ACCEPTED mission submissions
+(`getApplicantMissionProgress` in `packages/db`) — accepting a submission visibly moves the
+dashboard, and a new **Current Mission** card links to the next mission with its submission-status
+chip; weekly tasks remain a supplementary checklist. A new `manageProgramContent` capability
+(ORG_ADMIN; SUPER_ADMIN bypass) powers the admin **Program Content** page
+(`/programs/[id]/content`) for CRUD over video resources, weekly tasks and calendar events —
+previously seed-script-only. New `packages/db/src/program-content.ts` helpers are transactional,
+tenant-scoped and audited (`resource.*`, `task.*`, `event.*`). No schema change. Unit suite: 202
+tests; regression gains a draft→submit→accept dashboard-progress scenario and a content CRUD +
+role-denial scenario. See `D-069`.
 
 `v0.15.1` seeds the complete four-week mission arc (D-068) so a fresh install demonstrates the full
 AI-Native Software Engineering Apprenticeship, not just Week 1. One continuous product — TaskPilot,

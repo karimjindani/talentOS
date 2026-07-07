@@ -1,6 +1,6 @@
 # Applicant Portal User Guide
 
-Applies to version: `v0.15.1`
+Applies to version: `v0.16.0`
 
 Last verified: 2026-07-07
 
@@ -98,6 +98,16 @@ The dashboard contains:
 - Profile
 
 Applicants without an accepted application are redirected back to their application/status flow.
+
+### Your progress is mission-driven (`v0.16.0`)
+
+The overview page's **Overall Progress**, **Missions Accepted** tile and per-week **Program
+Progress** bars track your missions: a mission counts toward progress only when a reviewer has
+**accepted** your submission. Draft or submitted work does not move the bar yet. The **Current
+Mission** card shows the next mission in your program (with your submission status) and links
+straight to it; when every mission is accepted, your portfolio evidence is complete. Weekly tasks
+remain a separate checklist with their own tile — completing tasks does not change Overall
+Progress.
 
 To sign out from the dashboard, use the **Logout** button at the bottom of the sidebar (below your
 name and email). Signing out ends both the portal session and the Keycloak single sign-on session and

@@ -265,3 +265,93 @@ export async function reviewSubmission({ id, tenantId, status, reviewerFeedback,
     return updated;
   });
 }
+
+// ---------------------------------------------------------------------------
+// Mission progress (v0.16.0, D-069) — the dashboard's source of truth
+// ---------------------------------------------------------------------------
+
+export type MissionWeekProgress = {
+  weekNumber: number;
+  totalMissions: number;
+  acceptedMissions: number;
+  percentage: number;
+};
+
+export type CurrentMission = {
+  id: string;
+  title: string;
+  weekNumber: number;
+  /** The applicant's submission status, or null when they have not started a draft. */
+  submissionStatus: SubmissionStatus | null;
+};
+
+export type MissionProgress = {
+  weeks: MissionWeekProgress[];
+  overall: { accepted: number; total: number; percentage: number };
+  /** First published mission (by week, then order) not yet ACCEPTED — null when all are done. */
+  currentMission: CurrentMission | null;
+};
+
+/**
+ * Per-week and overall mission progress for an applicant in a program. Progress counts a mission
+ * as done only when its submission is ACCEPTED (the SEM learning loop's terminal state) — drafts
+ * and pending reviews do not move the bar. Weeks 1–4 are always present, mirroring
+ * getApplicantProgramProgress in dashboard.ts.
+ */
+export async function getApplicantMissionProgress(
+  tenantId: string,
+  applicantId: string,
+  programId: string
+): Promise<MissionProgress> {
+  const missions = await prisma.mission.findMany({
+    where: { tenantId, programId, status: "PUBLISHED" },
+    select: { id: true, title: true, weekNumber: true, order: true },
+    orderBy: [{ weekNumber: "asc" }, { order: "asc" }, { title: "asc" }]
+  });
+  const submissions = await listApplicantProgramSubmissions(tenantId, applicantId, programId);
+  const statusByMission = new Map(submissions.map((s) => [s.missionId, s.status]));
+
+  const weekMap = new Map<number, { total: number; accepted: number }>();
+  let accepted = 0;
+  let currentMission: CurrentMission | null = null;
+
+  for (const mission of missions) {
+    const entry = weekMap.get(mission.weekNumber) ?? { total: 0, accepted: 0 };
+    entry.total += 1;
+    const status = statusByMission.get(mission.id) ?? null;
+    if (status === "ACCEPTED") {
+      entry.accepted += 1;
+      accepted += 1;
+    } else if (!currentMission) {
+      currentMission = {
+        id: mission.id,
+        title: mission.title,
+        weekNumber: mission.weekNumber,
+        submissionStatus: status
+      };
+    }
+    weekMap.set(mission.weekNumber, entry);
+  }
+
+  const maxWeek = Math.max(4, ...missions.map((m) => m.weekNumber));
+  const weeks: MissionWeekProgress[] = [];
+  for (let w = 1; w <= maxWeek; w++) {
+    const entry = weekMap.get(w) ?? { total: 0, accepted: 0 };
+    weeks.push({
+      weekNumber: w,
+      totalMissions: entry.total,
+      acceptedMissions: entry.accepted,
+      percentage: entry.total === 0 ? 0 : Math.round((entry.accepted / entry.total) * 100)
+    });
+  }
+
+  return {
+    weeks,
+    overall: {
+      accepted,
+      total: missions.length,
+      percentage: missions.length === 0 ? 0 : Math.round((accepted / missions.length) * 100)
+    },
+    currentMission
+  };
+}

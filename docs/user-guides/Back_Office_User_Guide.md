@@ -1,6 +1,6 @@
 # Back Office User Guide
 
-Applies to version: `v0.15.1`
+Applies to version: `v0.16.0`
 
 Last verified: 2026-07-07
 
@@ -74,6 +74,7 @@ Back Office access requires both:
 | View missions | Yes | Yes | Yes | Yes |
 | Review mission submissions (`v0.15.0`) | Yes | Yes | No | Yes |
 | View mission submissions (`v0.15.0`) | Yes | Yes | Yes | Yes |
+| Manage program content (`v0.16.0`) | Yes | Yes | No | No |
 | Use local Operations page | Yes | Yes | No | No |
 
 ## Organizations
@@ -109,6 +110,21 @@ Organization Admins and Super Admins manage programs.
 5. Archive programs that should no longer appear in the applicant apply flow.
 
 Only published programs are visible to applicants.
+
+### Program content (`v0.16.0`)
+
+Organization Admins and Super Admins manage the applicant dashboard's curriculum content per
+program from **Programs → [program] → Manage content** (`/programs/[id]/content`):
+
+- **Video resources** — title, video URL (YouTube/Loom/etc.), description, optional week (1–4).
+  Shown on the applicant Resources page and week views.
+- **Weekly tasks** — title, description, week (1–4), order, optional due date. Shown on the
+  applicant Tasks page; applicants tick them off as a checklist.
+- **Calendar events** — title, description, start/end time, location. Shown on the applicant
+  Calendar page.
+
+Each entry can be edited inline or deleted. All changes are audited. HR and Tech Lead see a
+read-only notice on this page.
 
 ## Missions
 
