@@ -56,11 +56,18 @@ describe("ApplicantShell isApplicantNavActive route matching", () => {
       const item = APPLICANT_NAV_ITEMS.find((i) => i.href === "/dashboard/profile")!;
       expect(isApplicantNavActive("/dashboard/profile", item)).toBe(true);
     });
+
+    it("AI Mentor is active on `/dashboard/mentor` and sub-paths", () => {
+      const item = APPLICANT_NAV_ITEMS.find((i) => i.href === "/dashboard/mentor")!;
+      expect(isApplicantNavActive("/dashboard/mentor", item)).toBe(true);
+      expect(isApplicantNavActive("/dashboard/mentor/session-1", item)).toBe(true);
+      expect(isApplicantNavActive("/dashboard/tasks", item)).toBe(false);
+    });
   });
 
   describe("nav items completeness", () => {
-    it("has exactly 8 nav items", () => {
-      expect(APPLICANT_NAV_ITEMS).toHaveLength(8);
+    it("has exactly 9 nav items", () => {
+      expect(APPLICANT_NAV_ITEMS).toHaveLength(9);
     });
 
     it("includes all expected routes", () => {
@@ -73,6 +80,7 @@ describe("ApplicantShell isApplicantNavActive route matching", () => {
       expect(hrefs).toContain("/dashboard/calendar");
       expect(hrefs).toContain("/dashboard/notifications");
       expect(hrefs).toContain("/dashboard/profile");
+      expect(hrefs).toContain("/dashboard/mentor");
     });
   });
 });
