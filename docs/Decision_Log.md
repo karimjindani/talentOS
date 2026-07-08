@@ -526,3 +526,27 @@ well-formed http(s). No schema change. The regression suite gains a full draft�
 progress scenario and a content CRUD + role-denial scenario (unit suite: 202 tests).
 
 Status: Approved
+
+## D-070
+
+`v0.16.2` (documentation-only patch) realigns the vision and framework docs with the shipped
+`v0.14.0`–`v0.16.1` scope, following an audit of `docs/vision.md` against committed code.
+Decisions: (1) **`docs/vision.md` reflects reality** — the Current State section now covers the
+delivered Mission Engine (`v0.14.0`), Submission & Review loop (`v0.15.0`), four-week seeded
+mission arc (`v0.15.1`) and mission-driven dashboard progress + program content management
+(`v0.16.0`); the Gap Analysis no longer claims "the core learning experience still needs to be
+built"; the 8-phase roadmap uses per-phase `Status:` lines with `[x] item — vX.Y.Z` version
+references (Phases 2–3 delivered, Phase 1 largely delivered, Phase 4 partial, Phases 5–8 not
+started). The audit confirmed `PortfolioArtifact`/`Certificate`/`KnowledgeBaseDocument`/
+`AIInteraction` remain unreferenced schema stubs and the AI Mentor endpoint is a stub, so
+Phases 5–8 stay open. (2) **Canonical 10-step SEM everywhere** — `docs/Mission_Framework.md`'s
+SEM Authoring Guidance listed 8 steps (missing Analyze and Production Readiness Review),
+conflicting with `docs/SEM.md`, `docs/curriculum.md`, `docs/vision.md` and the `v0.15.1` seeds;
+it now lists the canonical 10 steps. (3) **Backlog currency** — `docs/Product_Backlog.md` moves
+off its stale `v0.15.0` header and records the `v0.15.1` (D-068) and `v0.16.0` (D-069) slices as
+delivered. (4) **Accuracy over aspiration** — vision.md now states that TOTP/MFA is enforced only
+for the Ops Console (not the applicant/admin portals) and that competency tags / evaluation
+criteria are free text pending a controlled catalog and rubrics. No application code, schema,
+configuration or Docker change; the unit suite is unchanged at 202 tests.
+
+Status: Approved

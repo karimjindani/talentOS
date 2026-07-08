@@ -2,19 +2,33 @@
 
 ## Current Baseline
 
-Version: `v0.16.1`
+Version: `v0.16.2`
 
-Baseline name: `Illustrated User Guide with Automated Screenshot Capture`
+Baseline name: `Vision Audit and Documentation Realignment`
 
-Baseline code commit: _set on merge_
+Baseline code commit: `5e3b789`
 
-Baseline date: `2026-07-07`
+Baseline date: `2026-07-08`
 
-Previous baseline: `v0.16.0`
+Previous baseline: `v0.16.1`
 
-Previous baseline commit: `a95a42b`
+Previous baseline commit: `639769f`
 
 ## Baseline Summary
+
+`v0.16.2` (documentation-only patch) realigns the vision and framework docs with the shipped
+product after an audit of `docs/vision.md` against committed code (D-070). `docs/vision.md` gets a
+rewritten Current State (now covering the Mission Engine `v0.14.0`, Submission & Review `v0.15.0`,
+four-week mission arc `v0.15.1`, and mission-driven dashboard + program content `v0.16.0`), an
+honest Gap Analysis (journal module, portfolio/certificates, public talent portal/recruiter side,
+AI layer, grading/rubrics, templates, onboarding and portal MFA remain open), and a roadmap with
+per-phase status and version references (Phases 2–3 delivered, Phase 1 largely delivered, Phase 4
+partial, Phases 5–8 not started). `docs/Mission_Framework.md`'s SEM Authoring Guidance is corrected
+from 8 to the canonical 10 lifecycle steps (Analyze and Production Readiness Review were missing),
+and `docs/Product_Backlog.md` moves off its stale `v0.15.0` header, recording the D-068/D-069
+slices as delivered. No product code, schema or configuration change; unit suite unchanged at
+202/202. Plan: `docs/plans/v0.16.2_Vision_Audit_Refresh_Plan.md`; results:
+`docs/testing/v0.16.2_Vision_Audit_Refresh_Test_Results.md`. See `D-070`.
 
 `v0.16.1` (documentation/tooling patch) adds the illustrated end-user guide
 `docs/user-guide/User_Guide.md`: 26 full-page screenshots (`docs/user-guide/screenshots/`), one per
