@@ -1,8 +1,6 @@
 import Link from "next/link";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { auth, signOut } from "@/auth";
-import { buildEndSessionUrl } from "@talentos/auth-web";
+import { auth } from "@/auth";
+import { logoutAction } from "@/lib/logout-action";
 import { getTenantBySlug, getUserByEmail, listApplicantApplications } from "@talentos/db";
 
 type PortalHeaderProps = {
@@ -54,25 +52,8 @@ export async function PortalHeader({ tenantSlug }: PortalHeaderProps) {
               <span className="rounded-lg bg-slate-100 px-3 py-1.5 font-medium text-slate-600">
                 {session.user.email}
               </span>
-              <form
-                action={async () => {
-                  "use server";
-                  const activeSession = await auth();
-                  // Return to the tenant subdomain the user is actually on (AUTH_URL is no longer
-                  // pinned; the request Host header is the source of truth). See v0.12.1 / D-060.
-                  const requestHeaders = await headers();
-                  const host = requestHeaders.get("host") ?? "localhost:3100";
-                  const proto = requestHeaders.get("x-forwarded-proto") ?? "http";
-                  const logoutUrl = buildEndSessionUrl({
-                    issuer: process.env.KEYCLOAK_ISSUER ?? "http://keycloak.lvh.me:8080/realms/talentos",
-                    idToken: activeSession?.idToken,
-                    clientId: process.env.KEYCLOAK_CLIENT_ID ?? "talentos-applicant",
-                    postLogoutRedirectUri: `${proto}://${host}/`
-                  });
-                  await signOut({ redirect: false });
-                  redirect(logoutUrl);
-                }}
-              >
+              {/* Shared RP-initiated Keycloak logout (v0.14.3 / D-066). */}
+              <form action={logoutAction}>
                 <button
                   type="submit"
                   className="cursor-pointer rounded-lg border border-slate-200 px-4 py-2 font-medium text-slate-700 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"

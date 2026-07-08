@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.14.2`
+Code version: `v0.16.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.14.2`
+Current documentation update: `v0.16.0`
 
 ## D-001
 
@@ -430,5 +430,123 @@ import (a drifted live realm had disabled self-registration). No schema or data-
 regression suite grew to **152 tests** (6 new `tenant-guard.test.ts`), and the fix was verified
 end-to-end in a real browser (cross-tenant denial, preserved same-tenant access, open apply funnel, and a
 full register→apply→membership flow under a tenant subdomain).
+
+Status: Approved
+
+## D-066
+
+`v0.14.3` fixes two related logout defects. (1) An accepted applicant had **no way to sign out**: the
+dashboard layout replaces `PortalHeader` (which held the only Logout button) with `ApplicantShell`,
+and since `v0.12.0` redirects accepted applicants from `/` and `/application` to `/dashboard`, they
+could never reach a page with a logout affordance. (2) RP-initiated Keycloak logout was **broken on
+every tenant subdomain** in both portals since `v0.12.1`: the logout forms derived
+`post_logout_redirect_uri` from the request Host, but Keycloak only supports `*` wildcards at the end
+of a redirect-URI pattern — the registered `http://*.lvh.me:{port}/*` hostname wildcards never match,
+so Keycloak answered "Invalid redirect uri" (the `v0.10.2` validation had run on the canonical host
+only). Decision: centralize logout in a shared `buildTenantLogoutUrl` (`packages/auth-web`) that
+always returns through the canonical AUTH_URL origin's new `/logged-out` route — the only origin
+Keycloak can validate — carrying the tenant origin in the OIDC `state` parameter; `/logged-out`
+bounces the user back to their tenant via the existing allow-listed `resolveTenantRedirect` (D-060),
+so this is not an open redirect (verified: foreign and look-alike hosts collapse to the canonical
+origin). The three duplicated inline logout forms (PortalHeader, applicant access-denied page, admin
+root layout) now call shared per-app `logoutAction` server actions, and `ApplicantShell` gains a
+Logout button in the sidebar user block. `/logged-out` is exempted from the admin auth middleware.
+No schema, data-model or capability change; the regression suite grew to **161 tests**, and the fix
+was verified end-to-end in a real browser (dashboard logout, admin tenant-subdomain logout, SSO
+termination on both, and the `/logged-out` allow-list).
+
+Status: Approved
+
+## D-067
+
+`v0.15.0` delivers Mission Submission MVP-1, activating the `Submission` scaffolding laid down in
+`v0.14.0`. Decisions: (1) **Evidence is URLs + inline journal** — Git repository (host-allowlisted to
+github.com), deployed application (any http/https), Loom walkthrough (loom.com) and an inline
+Engineering Journal in Markdown, matching the Week 1 deliverables in `docs/curriculum.md`; PRD,
+README, user stories and acceptance criteria live inside the repository. File attachments are
+deferred. (2) **Staff-only review** — a new `reviewSubmissions` capability is granted to `ORG_ADMIN`
+and `TECH_LEAD` (SUPER_ADMIN bypasses); HR is read-only and applicants never review each other,
+per `docs/Graduate_Profile.md` ("graduates are not expected to review other engineers' code").
+(3) **Full SEM revision loop** — `DRAFT→SUBMITTED→ACCEPTED|NEEDS_REVISION`,
+`NEEDS_REVISION→SUBMITTED`; written feedback is mandatory when requesting changes (the coaching
+mechanism for building independent engineers); `ACCEPTED` is terminal because an accepted submission
+is portfolio/graduation evidence for the mission's `competencyTags` (kept queryable for a future
+competency-rollup/portfolio view). (4) **One submission row per applicant per mission**
+(unique `[missionId, applicantId]`) — the loop reuses the row. (5) **Schema hardening** — the model
+gains `tenantId` for direct tenant scoping (consistent with every other tenant-owned table) plus
+`reviewerFeedback`/`reviewedAt`/`reviewerUserId`. Applicants submit from the mission detail page in
+the dashboard (with per-mission status chips in the list); admins review from a new
+`/missions/[id]/submissions/[submissionId]` page; the applicant is notified (SUCCESS/WARNING with
+feedback) in the same transaction as the review. Writes are tenant-scoped, ownership-checked,
+status-machine-guarded and audited (`submission.created/updated/submitted/reviewed`). The regression
+suite covers the full loop, the role matrix and cross-tenant isolation.
+
+Status: Approved
+
+## D-068
+
+`v0.15.1` seeds the complete four-week mission arc so the demo tenant demonstrates the full
+AI-Native Software Engineering Apprenticeship out of the box (previously only the Week 1 mission
+existed). Decisions: (1) **One continuous product** — all four missions evolve TaskPilot, the
+fictional AI-assisted task planner from the Week 1 brief, embodying the SEM principle that the
+lifecycle stays constant while complexity increases (`docs/SEM.md`); every brief embeds the tailored
+10-step lifecycle. (2) **Difficulty ladder mirrors the curriculum themes** — BEGINNER "Build
+Something Real" → INTERMEDIATE "Build Like an Engineer" → ADVANCED "Build Like a Production Team" →
+EXPERT "Build Like a Production Engineer", with deliverables and acceptance criteria lifted from the
+weekly deliverable tables in `docs/curriculum.md`. (3) **Deployment progression follows the vision
+roadmap** — static hosting → full-stack hosting → Docker + CI/CD → VPS behind a reverse proxy with
+SSL (`docs/vision.md`). (4) **`competencyTags` use `docs/Competency_Framework.md` names verbatim**;
+`Production Readiness` first appears in Week 4, matching the maturity matrix (PRR reaches Mastery
+only in Week 4); no mission asks participants to review each other's code (`docs/Graduate_Profile.md`).
+(5) **Data-driven idempotent seed** — `seed.ts` refactored to a `missionSeeds` array upserted on
+stable ids; Week 1 content is unchanged. Also fixes the `v0.14.0` mojibake week/difficulty separator
+(`Â€¢` → `•`) on the three mission pages via an encoding-proof JSX escape. No schema, capability,
+route or workflow changes.
+
+Status: Approved
+
+## D-069
+
+`v0.16.0` makes the mission loop the dashboard's source of truth and gives program content a real
+owner. Decisions: (1) **Mission-driven progress** — the applicant dashboard's Overall Progress and
+week bars are computed from published missions vs the applicant's ACCEPTED submissions
+(`getApplicantMissionProgress`); drafts and pending reviews do not move the bar, because acceptance
+is the SEM loop's terminal, portfolio-grade state. A **Current Mission** card surfaces the next
+mission (first non-accepted, by week/order) with its submission status. Weekly tasks remain a
+supplementary checklist with their own tile. (2) **`manageProgramContent` capability** — video
+resources, weekly tasks and calendar events (models shipped in `v0.12.0` but writable only by a dev
+seed script) become manageable from a new admin **Program Content** page
+(`/programs/[id]/content`); the capability is granted to `ORG_ADMIN` only (SUPER_ADMIN bypasses;
+HR/TECH_LEAD stay read-only), matching the ownership of programs and missions. (3) **Same
+security conventions as missions (D-064)** — server actions re-resolve the actor through the
+D-051 membership-backed tenant guard; db helpers are transactional, tenant-scoped
+(`updateMany`/`deleteMany` on `{ id, tenantId }`, program-chain check on create) and audited
+(`resource.created|updated|deleted`, `task.*`, `event.*`); admin-entered video URLs must be
+well-formed http(s). No schema change. The regression suite gains a full draft→submit→accept
+progress scenario and a content CRUD + role-denial scenario (unit suite: 202 tests).
+
+Status: Approved
+
+## D-070
+
+`v0.16.2` (documentation-only patch) realigns the vision and framework docs with the shipped
+`v0.14.0`–`v0.16.1` scope, following an audit of `docs/vision.md` against committed code.
+Decisions: (1) **`docs/vision.md` reflects reality** — the Current State section now covers the
+delivered Mission Engine (`v0.14.0`), Submission & Review loop (`v0.15.0`), four-week seeded
+mission arc (`v0.15.1`) and mission-driven dashboard progress + program content management
+(`v0.16.0`); the Gap Analysis no longer claims "the core learning experience still needs to be
+built"; the 8-phase roadmap uses per-phase `Status:` lines with `[x] item — vX.Y.Z` version
+references (Phases 2–3 delivered, Phase 1 largely delivered, Phase 4 partial, Phases 5–8 not
+started). The audit confirmed `PortfolioArtifact`/`Certificate`/`KnowledgeBaseDocument`/
+`AIInteraction` remain unreferenced schema stubs and the AI Mentor endpoint is a stub, so
+Phases 5–8 stay open. (2) **Canonical 10-step SEM everywhere** — `docs/Mission_Framework.md`'s
+SEM Authoring Guidance listed 8 steps (missing Analyze and Production Readiness Review),
+conflicting with `docs/SEM.md`, `docs/curriculum.md`, `docs/vision.md` and the `v0.15.1` seeds;
+it now lists the canonical 10 steps. (3) **Backlog currency** — `docs/Product_Backlog.md` moves
+off its stale `v0.15.0` header and records the `v0.15.1` (D-068) and `v0.16.0` (D-069) slices as
+delivered. (4) **Accuracy over aspiration** — vision.md now states that TOTP/MFA is enforced only
+for the Ops Console (not the applicant/admin portals) and that competency tags / evaluation
+criteria are free text pending a controlled catalog and rubrics. No application code, schema,
+configuration or Docker change; the unit suite is unchanged at 202 tests.
 
 Status: Approved

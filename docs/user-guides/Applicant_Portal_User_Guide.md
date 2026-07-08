@@ -1,8 +1,8 @@
 # Applicant Portal User Guide
 
-Applies to version: `v0.14.2`
+Applies to version: `v0.16.0`
 
-Last verified: 2026-07-05
+Last verified: 2026-07-07
 
 Audience: applicants and accepted program participants.
 
@@ -99,6 +99,20 @@ The dashboard contains:
 
 Applicants without an accepted application are redirected back to their application/status flow.
 
+### Your progress is mission-driven (`v0.16.0`)
+
+The overview page's **Overall Progress**, **Missions Accepted** tile and per-week **Program
+Progress** bars track your missions: a mission counts toward progress only when a reviewer has
+**accepted** your submission. Draft or submitted work does not move the bar yet. The **Current
+Mission** card shows the next mission in your program (with your submission status) and links
+straight to it; when every mission is accepted, your portfolio evidence is complete. Weekly tasks
+remain a separate checklist with their own tile — completing tasks does not change Overall
+Progress.
+
+To sign out from the dashboard, use the **Logout** button at the bottom of the sidebar (below your
+name and email). Signing out ends both the portal session and the Keycloak single sign-on session and
+returns you to your tenant's portal home page (`v0.14.3`).
+
 ### Access to an organization you have not joined
 
 The Dashboard and Application pages are restricted to members of the tenant whose subdomain you are on. If
@@ -120,9 +134,41 @@ To view missions:
 4. Open a mission to review the objective, acceptance criteria, deliverables, evaluation criteria, and
    competency tags.
 
-The seeded Week 1 mission is **Build a Public Product Landing Page**.
+The demo program seeds the full four-week mission arc (`v0.15.1`), evolving one product — TaskPilot —
+from idea to production:
 
-Mission submission, engineering journal entries, and portfolio publishing are future workflows.
+| Week | Mission | Difficulty |
+| --- | --- | --- |
+| 1 | Build a Public Product Landing Page | Beginner |
+| 2 | Design and Build the TaskPilot Application | Intermediate |
+| 3 | Containerize, Automate and Load-Test TaskPilot | Advanced |
+| 4 | Take TaskPilot to Production | Expert |
+
+### Submitting mission work (`v0.15.0`)
+
+Each mission detail page has a **My Submission** section where you provide your evidence:
+
+- **Git repository URL** — must be on `github.com`; your PRD, README, user stories and acceptance
+  criteria live in the repository.
+- **Deployed application URL** — any reachable `http(s)` link to your running application.
+- **Loom walkthrough URL** — must be on `loom.com`.
+- **Engineering journal** — inline Markdown describing what you built, your decisions and what you
+  learned.
+
+Workflow:
+
+1. Fill in your evidence and select **Save draft** as often as you like.
+2. Select **Submit for review** when ready (at least one evidence link is required). Your evidence is
+   locked while under review.
+3. A reviewer either **accepts** your submission or **requests changes** with written feedback. You are
+   notified either way (see **Notifications**), and the feedback appears on the mission page.
+4. If changes are requested, edit your evidence and **Resubmit for review** — this loop can repeat.
+5. An accepted submission is final: it becomes portfolio evidence for the mission's competencies.
+
+The missions list shows a status chip per mission: **Not started**, **Draft saved**, **Submitted**,
+**Revision requested**, or **Accepted**.
+
+Portfolio publishing and a dedicated engineering-journal module are future workflows.
 
 ## Troubleshooting
 
@@ -137,6 +183,7 @@ Mission submission, engineering journal entries, and portfolio publishing are fu
 
 ## Known Limitations
 
-- Applicant mission submission is not implemented yet.
-- Engineering journal and portfolio publishing are not implemented yet.
+- A dedicated engineering-journal module and portfolio publishing are not implemented yet (mission
+  submission with an inline journal shipped in `v0.15.0`).
+- Evidence file attachments are not supported yet — evidence is links plus the inline journal.
 - Screenshots are not part of this guide yet.

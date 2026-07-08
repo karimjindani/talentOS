@@ -1,9 +1,16 @@
 # Data Dictionary
 
-Code version: `v0.14.0`
+Code version: `v0.15.0`
 
-Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.0` commit set on merge
 
+> `v0.15.0` (Mission Submission Workflow, D-067) activates `submissions`: adds `tenantId`
+> (FK→tenants), `reviewerFeedback`, `reviewedAt`, `reviewerUserId` (FK→users, SetNull), unique
+> `[missionId, applicantId]` and index `[tenantId, status]`; drops the superseded
+> `missions_tenantId_programId_idx`. Audit actions in use: `submission.created`,
+> `submission.updated`, `submission.submitted`, `submission.reviewed`.
+> Migration: `20260706090000_v0_15_0_mission_submissions`.
+>
 > `v0.14.0` (Mission Engine MVP) adds `MissionStatus` and extends `missions` with `status`,
 > `weekNumber`, `order`, `objective`, `acceptanceCriteria`, `deliverables`, `evaluationCriteria` and
 > `competencyTags`. Audit actions in use: `mission.created`, `mission.updated`,
@@ -161,6 +168,23 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 | `deliverables` | Required artifacts such as PRD, repository, deployment URL and Loom video. |
 | `evaluationCriteria` | Completion level or grading rubric. |
 | `competencyTags` | Competency mapping labels. |
+
+## Submission
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant (direct scoping, consistent with other tenant-owned tables). |
+| `missionId` | Mission the evidence is for; unique together with `applicantId` (one row per applicant per mission; the revision loop reuses it). |
+| `applicantId` | Participant who owns the submission. |
+| `status` | `DRAFT`, `SUBMITTED`, `NEEDS_REVISION` or `ACCEPTED` (terminal; `REVIEWED` reserved/unused). |
+| `repositoryUrl` | Git repository evidence link (host-allowlisted to github.com); PRD/README/user stories live in the repo. |
+| `deploymentUrl` | Deployed-application evidence link (any http/https). |
+| `loomUrl` | Loom walkthrough evidence link (host-allowlisted to loom.com). |
+| `journalMarkdown` | Inline Engineering Journal (Markdown). |
+| `submittedAt` | Last submitted-for-review timestamp. |
+| `reviewerFeedback` | Written staff feedback shown to the applicant. |
+| `reviewedAt` | Last review timestamp. |
+| `reviewerUserId` | Staff reviewer (ORG_ADMIN / TECH_LEAD / SUPER_ADMIN); `SetNull` on user delete. |
 
 ## AuditLog
 

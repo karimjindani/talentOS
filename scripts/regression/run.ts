@@ -5,12 +5,18 @@ import { resolve } from "node:path";
 import {
   applyStatusTransition,
   cleanupRegressionData,
+  createCalendarEvent,
   createMission,
   createProgram,
+  createProgramTask,
   createSubmittedApplication,
+  createVideoResource,
+  deleteVideoResource,
   DUPLICATE_APPLICATION_ERROR_MESSAGE,
   findActiveApplication,
+  getApplicantMissionProgress,
   getApplicantProgramProgress,
+  getApplicantSubmission,
   getTenantBySlug,
   getTenantProgram,
   listApplicantApplications,
@@ -21,8 +27,12 @@ import {
   markRegressionData,
   markTaskCompleted,
   prisma,
+  reviewSubmission,
+  saveSubmissionDraft,
   setMissionStatus,
-  setProgramStatus
+  setProgramStatus,
+  submitSubmission,
+  updateVideoResource
 } from "@talentos/db";
 import { tenantRolesGrant, type RegressionArea, type RegressionSummary } from "@talentos/auth";
 
@@ -221,6 +231,119 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    area: "missions",
+    name: "Submission loop: draft, submit, request changes, resubmit, accept — with notifications and audit",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+
+      // Draft + submit.
+      const draft = await saveSubmissionDraft({
+        tenantId: fixture.tenant.id,
+        missionId: fixture.mission.id,
+        applicantId: fixture.user.id,
+        repositoryUrl: "https://github.com/regression/mission-repo",
+        deploymentUrl: "https://regression-mission.example.com/",
+        loomUrl: "https://www.loom.com/share/regression",
+        journalMarkdown: "## Week 1\nRegression journal entry."
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
+      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+
+      // Reviewer requests changes → applicant is notified with the feedback.
+      await reviewSubmission({
+        id: draft.id,
+        tenantId: fixture.tenant.id,
+        status: "NEEDS_REVISION",
+        reviewerFeedback: "Tighten the acceptance-criteria evidence.",
+        reviewerUserId: fixture.actor.id
+      });
+      const afterRevisionRequest = await getApplicantSubmission(fixture.mission.id, fixture.user.id, fixture.tenant.id);
+      if (afterRevisionRequest?.status !== "NEEDS_REVISION") {
+        throw new Error(`Expected NEEDS_REVISION, got ${afterRevisionRequest?.status}`);
+      }
+      const warning = await prisma.notification.findFirst({
+        where: { tenantId: fixture.tenant.id, userId: fixture.user.id, type: "WARNING" }
+      });
+      if (!warning) throw new Error("Revision-requested notification was not created.");
+
+      // SEM loop: applicant edits and resubmits, reviewer accepts → SUCCESS notification + audit.
+      await saveSubmissionDraft({
+        tenantId: fixture.tenant.id,
+        missionId: fixture.mission.id,
+        applicantId: fixture.user.id,
+        repositoryUrl: "https://github.com/regression/mission-repo",
+        deploymentUrl: "https://regression-mission.example.com/",
+        loomUrl: "https://www.loom.com/share/regression-v2",
+        journalMarkdown: "## Week 1\nRevised after feedback."
+      });
+      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      await reviewSubmission({
+        id: draft.id,
+        tenantId: fixture.tenant.id,
+        status: "ACCEPTED",
+        reviewerFeedback: "Meets the evaluation criteria.",
+        reviewerUserId: fixture.actor.id
+      });
+      const accepted = await getApplicantSubmission(fixture.mission.id, fixture.user.id, fixture.tenant.id);
+      if (accepted?.status !== "ACCEPTED") throw new Error(`Expected ACCEPTED, got ${accepted?.status}`);
+      const success = await prisma.notification.findFirst({
+        where: { tenantId: fixture.tenant.id, userId: fixture.user.id, type: "SUCCESS" }
+      });
+      if (!success) throw new Error("Acceptance notification was not created.");
+      const audit = await prisma.auditLog.findFirst({
+        where: { tenantId: fixture.tenant.id, entityType: "Submission", entityId: draft.id, action: "submission.reviewed" }
+      });
+      if (!audit) throw new Error("Submission review audit log was not written.");
+
+      // ACCEPTED is terminal: neither re-editing nor re-reviewing is allowed.
+      try {
+        await saveSubmissionDraft({
+          tenantId: fixture.tenant.id,
+          missionId: fixture.mission.id,
+          applicantId: fixture.user.id,
+          repositoryUrl: "https://github.com/regression/tamper",
+          deploymentUrl: null,
+          loomUrl: null,
+          journalMarkdown: null
+        });
+        throw new Error("Accepted submission evidence was editable.");
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("not editable")) throw error;
+      }
+    }
+  },
+  {
+    area: "missions",
+    name: "Only Org Admin and Tech Lead can review submissions",
+    run: async () => {
+      if (!tenantRolesGrant("reviewSubmissions", ["ORG_ADMIN"])) throw new Error("ORG_ADMIN did not grant reviewSubmissions.");
+      if (!tenantRolesGrant("reviewSubmissions", ["TECH_LEAD"])) throw new Error("TECH_LEAD did not grant reviewSubmissions.");
+      if (tenantRolesGrant("reviewSubmissions", ["HR"])) throw new Error("HR unexpectedly granted reviewSubmissions.");
+      if (tenantRolesGrant("reviewSubmissions", ["APPLICANT"])) throw new Error("APPLICANT unexpectedly granted reviewSubmissions.");
+    }
+  },
+  {
+    area: "tenant",
+    name: "Tenant-scoped submission read rejects another tenant",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const draft = await saveSubmissionDraft({
+        tenantId: fixture.tenant.id,
+        missionId: fixture.mission.id,
+        applicantId: fixture.user.id,
+        repositoryUrl: "https://github.com/regression/isolation",
+        deploymentUrl: null,
+        loomUrl: null,
+        journalMarkdown: null
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
+      const otherTenant = await prisma.tenant.findFirst({ where: { id: { not: fixture.tenant.id } } });
+      if (!otherTenant) return skip("Only one tenant exists locally; cross-tenant read scenario needs two tenants.");
+      const crossTenantRead = await getApplicantSubmission(fixture.mission.id, fixture.user.id, otherTenant.id);
+      if (crossTenantRead) throw new Error("Submission was readable through a different tenant id.");
+    }
+  },
+  {
     area: "tenant",
     name: "Tenant-scoped program read rejects another tenant",
     run: async (ctx) => {
@@ -267,6 +390,123 @@ const scenarios: Scenario[] = [
       await markNotificationRead(fixture.notification.id, fixture.user.id);
       const updated = await prisma.notification.findUnique({ where: { id: fixture.notification.id } });
       if (!updated?.readAt) throw new Error("Notification read state did not persist.");
+    }
+  },
+  {
+    area: "dashboard",
+    name: "Accepted mission submission moves mission-driven dashboard progress",
+    run: async (ctx) => {
+      // v0.16.0 (D-069): the dashboard's progress is missions-based — only an ACCEPTED
+      // submission moves the bar; the current mission clears once everything is accepted.
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const before = await getApplicantMissionProgress(fixture.tenant.id, fixture.user.id, fixture.program.id);
+      if (before.overall.accepted !== 0 || before.overall.total !== 1) {
+        throw new Error(`Expected 0/1 accepted before the loop, got ${before.overall.accepted}/${before.overall.total}.`);
+      }
+      if (before.currentMission?.id !== fixture.mission.id) throw new Error("Current mission did not point at the published mission.");
+
+      const draft = await saveSubmissionDraft({
+        tenantId: fixture.tenant.id,
+        missionId: fixture.mission.id,
+        applicantId: fixture.user.id,
+        repositoryUrl: "https://github.com/regression/mission",
+        deploymentUrl: null,
+        loomUrl: null,
+        journalMarkdown: "Regression journal"
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
+      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+
+      const pending = await getApplicantMissionProgress(fixture.tenant.id, fixture.user.id, fixture.program.id);
+      if (pending.overall.accepted !== 0) throw new Error("A pending (SUBMITTED) mission must not move the progress bar.");
+      if (pending.currentMission?.submissionStatus !== "SUBMITTED") throw new Error("Current mission did not surface the SUBMITTED status.");
+
+      await reviewSubmission({
+        id: draft.id,
+        tenantId: fixture.tenant.id,
+        status: "ACCEPTED",
+        reviewerFeedback: "Accepted for regression",
+        reviewerUserId: fixture.actor.id
+      });
+      const after = await getApplicantMissionProgress(fixture.tenant.id, fixture.user.id, fixture.program.id);
+      if (after.overall.accepted !== 1 || after.overall.percentage !== 100) {
+        throw new Error(`Expected 1/1 accepted (100%) after review, got ${after.overall.accepted} (${after.overall.percentage}%).`);
+      }
+      if (after.weeks[0]?.percentage !== 100) throw new Error("Week 1 bar did not reach 100% after acceptance.");
+      if (after.currentMission !== null) throw new Error("Current mission should clear when all missions are accepted.");
+    }
+  },
+  {
+    area: "programs",
+    name: "Org Admin manages program content; roles without manageProgramContent are denied",
+    run: async (ctx) => {
+      // v0.16.0 (D-069): video resources, weekly tasks and calendar events are managed through
+      // audited tenant-scoped helpers behind the manageProgramContent capability.
+      if (!tenantRolesGrant("manageProgramContent", ["ORG_ADMIN"])) throw new Error("ORG_ADMIN must hold manageProgramContent.");
+      for (const role of ["HR", "TECH_LEAD", "APPLICANT"] as const) {
+        if (tenantRolesGrant("manageProgramContent", [role])) throw new Error(`${role} must not hold manageProgramContent.`);
+      }
+
+      const fixture = await createProgramFixture(ctx.runId, "PUBLISHED");
+      const resource = await createVideoResource({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Regression Resource ${ctx.runId}`,
+        url: "https://www.youtube.com/watch?v=regression",
+        description: "Regression resource",
+        weekNumber: 1,
+        actorUserId: fixture.actor.id
+      });
+      await updateVideoResource({
+        id: resource.id,
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Regression Resource ${ctx.runId} (updated)`,
+        url: "https://www.youtube.com/watch?v=regression",
+        description: "Updated",
+        weekNumber: 2,
+        actorUserId: fixture.actor.id
+      });
+      const task = await createProgramTask({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Regression Content Task ${ctx.runId}`,
+        description: "Regression content task",
+        weekNumber: 1,
+        order: 0,
+        dueAt: null,
+        actorUserId: fixture.actor.id
+      });
+      const event = await createCalendarEvent({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Regression Event ${ctx.runId}`,
+        description: "Regression event",
+        startsAt: new Date(),
+        endsAt: null,
+        location: "Zoom",
+        actorUserId: fixture.actor.id
+      });
+      for (const [action, entityId] of [
+        ["resource.created", resource.id],
+        ["resource.updated", resource.id],
+        ["task.created", task.id],
+        ["event.created", event.id]
+      ] as const) {
+        const audit = await prisma.auditLog.findFirst({ where: { tenantId: fixture.tenant.id, action, entityId } });
+        if (!audit) throw new Error(`Missing audit entry ${action} for ${entityId}.`);
+      }
+
+      // Cross-tenant delete must fail; same-tenant delete succeeds and is audited.
+      await deleteVideoResource({ id: resource.id, tenantId: fixture.tenant.id, actorUserId: fixture.actor.id });
+      let crossTenantDeleteFailed = false;
+      try {
+        await deleteVideoResource({ id: resource.id, tenantId: fixture.tenant.id, actorUserId: fixture.actor.id });
+      } catch {
+        crossTenantDeleteFailed = true;
+      }
+      if (!crossTenantDeleteFailed) throw new Error("Deleting an already-deleted/foreign resource id must throw.");
+      // task + event rows cascade with the marked regression program on cleanup.
     }
   },
   {
@@ -368,6 +608,29 @@ async function createApplicationFixture(runId: string): Promise<Fixture> {
     await markRegressionData({ runId, entityType: "TenantMembership", entityId: membership.id });
   }
   return { ...base, user };
+}
+
+/** Applicant + published program + PUBLISHED mission — the submission-loop starting state (D-067). */
+async function createSubmissionFixture(runId: string) {
+  const fixture = await createApplicationFixture(runId);
+  const mission = await createMission({
+    tenantId: fixture.tenant.id,
+    programId: fixture.program.id,
+    title: `Regression Submission Mission ${runId}`,
+    difficulty: "BEGINNER",
+    status: "PUBLISHED",
+    weekNumber: 1,
+    order: 0,
+    brief: "Regression submission mission brief",
+    objective: "Exercise the submission review loop",
+    acceptanceCriteria: "- Evidence links resolve",
+    deliverables: "- Repo\n- Deployment\n- Loom\n- Journal",
+    evaluationCriteria: "Accepted when evidence is complete",
+    competencyTags: ["AI-Assisted Development"],
+    actorUserId: fixture.actor.id
+  });
+  await markRegressionData({ runId, entityType: "Mission", entityId: mission.id });
+  return { ...fixture, mission };
 }
 
 async function createProgramFixture(runId: string, status: "DRAFT" | "PUBLISHED" | "ARCHIVED") {

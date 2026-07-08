@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The shell imports the shared logout server action (v0.14.3 / D-066); mock it — like @/auth in
+// tenant-guard.test.ts — because vitest does not resolve the app-level "@/" alias.
+vi.mock("@/lib/logout-action", () => ({ logoutAction: vi.fn() }));
+
 import { isApplicantNavActive, APPLICANT_NAV_ITEMS } from "./ApplicantShell";
 
 describe("ApplicantShell isApplicantNavActive route matching", () => {

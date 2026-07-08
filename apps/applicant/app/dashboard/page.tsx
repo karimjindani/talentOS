@@ -8,8 +8,9 @@ import {
   listProgramTasks,
   listCalendarEvents,
   listUserNotifications,
-  getApplicantProgramProgress,
+  getApplicantMissionProgress,
   listCompletedTaskIds,
+  type SubmissionStatus,
 } from "@talentos/db";
 
 function formatDate(value: Date | null | undefined) {
@@ -40,12 +41,13 @@ export default async function DashboardPage() {
   const completedTaskIds = await listCompletedTaskIds(user.id, program.id);
   const events = await listCalendarEvents(tenant.id, program.id);
   const notifications = await listUserNotifications(user.id, tenant.id);
-  const weekProgress = await getApplicantProgramProgress(user.id, tenant.id, program.id);
+  // Mission-driven progress (v0.16.0, D-069): the SEM learning loop is the source of truth — only
+  // ACCEPTED mission submissions move the bar. Tasks remain a supplementary checklist below.
+  const missionProgress = await getApplicantMissionProgress(tenant.id, user.id, program.id);
 
   const totalTasks = tasks.length;
   const completedTasks = completedTaskIds.length;
-  const pendingTasks = totalTasks - completedTasks;
-  const overallPercentage = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+  const overallPercentage = missionProgress.overall.percentage;
 
   const now = new Date();
   const daysRemaining = program.endsAt
@@ -77,15 +79,17 @@ export default async function DashboardPage() {
           <div className="mt-2 h-2 rounded-full bg-slate-100">
             <div className="h-2 rounded-full bg-brand-blue" style={{ width: `${overallPercentage}%` }} />
           </div>
+          <p className="mt-1 text-xs text-slate-500">accepted missions</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-slate-500">Missions Accepted</p>
+          <p className="mt-2 text-2xl font-bold text-emerald-600">{missionProgress.overall.accepted}</p>
+          <p className="mt-1 text-xs text-slate-500">of {missionProgress.overall.total} total</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Tasks Completed</p>
-          <p className="mt-2 text-2xl font-bold text-emerald-600">{completedTasks}</p>
+          <p className="mt-2 text-2xl font-bold text-amber-600">{completedTasks}</p>
           <p className="mt-1 text-xs text-slate-500">of {totalTasks} total</p>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">Tasks Pending</p>
-          <p className="mt-2 text-2xl font-bold text-amber-600">{pendingTasks}</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Days Remaining</p>
@@ -103,12 +107,12 @@ export default async function DashboardPage() {
             </Link>
           </div>
           <div className="space-y-3">
-            {weekProgress.map((week) => (
+            {missionProgress.weeks.map((week) => (
               <div key={week.weekNumber}>
                 <div className="mb-1 flex items-center justify-between text-sm">
                   <span className="font-medium text-slate-700">Week {week.weekNumber}</span>
                   <span className="text-slate-500">
-                    {week.completedTasks}/{week.totalTasks} tasks · {week.percentage}%
+                    {week.acceptedMissions}/{week.totalMissions} missions · {week.percentage}%
                   </span>
                 </div>
                 <div className="h-2 rounded-full bg-slate-100">
@@ -117,6 +121,36 @@ export default async function DashboardPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Current mission (v0.16.0, D-069) — the next step in the SEM loop */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-brand-navy">Current Mission</h2>
+            <Link href="/dashboard/missions" className="text-sm font-medium text-brand-blue hover:underline">
+              View all →
+            </Link>
+          </div>
+          {missionProgress.currentMission ? (
+            <Link
+              href={`/dashboard/missions/${missionProgress.currentMission.id}`}
+              className="block rounded-xl border border-slate-100 p-4 transition hover:border-brand-blue"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-blue">
+                Week {missionProgress.currentMission.weekNumber}
+              </p>
+              <p className="mt-1 text-base font-semibold text-slate-800">{missionProgress.currentMission.title}</p>
+              <div className="mt-3">
+                <SubmissionStatusChip status={missionProgress.currentMission.submissionStatus} />
+              </div>
+            </Link>
+          ) : missionProgress.overall.total > 0 ? (
+            <p className="rounded-xl bg-emerald-50 p-4 text-sm font-medium text-emerald-700">
+              All missions accepted — your portfolio evidence is complete. 🎉
+            </p>
+          ) : (
+            <p className="text-sm text-slate-500">No published missions yet.</p>
+          )}
         </div>
 
         {/* Current week tasks */}
@@ -200,4 +234,27 @@ export default async function DashboardPage() {
       </div>
     </div>
   );
+}
+
+function SubmissionStatusChip({ status }: { status: SubmissionStatus | null }) {
+  if (!status) {
+    return (
+      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">Not started</span>
+    );
+  }
+  const styles: Record<SubmissionStatus, string> = {
+    DRAFT: "bg-slate-100 text-slate-700",
+    SUBMITTED: "bg-blue-100 text-blue-700",
+    REVIEWED: "bg-slate-100 text-slate-700",
+    NEEDS_REVISION: "bg-amber-100 text-amber-800",
+    ACCEPTED: "bg-emerald-100 text-emerald-700"
+  };
+  const labels: Record<SubmissionStatus, string> = {
+    DRAFT: "Draft saved",
+    SUBMITTED: "Submitted — awaiting review",
+    REVIEWED: "Reviewed",
+    NEEDS_REVISION: "Revision requested",
+    ACCEPTED: "Accepted"
+  };
+  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${styles[status]}`}>{labels[status]}</span>;
 }

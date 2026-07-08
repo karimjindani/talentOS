@@ -7,7 +7,11 @@ import {
   assertProgramStatusTransition,
   nextMissionStatuses,
   canTransitionMissionStatus,
-  assertMissionStatusTransition
+  assertMissionStatusTransition,
+  nextSubmissionStatuses,
+  canTransitionSubmissionStatus,
+  assertSubmissionStatusTransition,
+  isSubmissionEditable
 } from "./workflow";
 
 describe("nextStatusesFor", () => {
@@ -77,5 +81,45 @@ describe("mission status transitions", () => {
   it("asserts and rejects invalid mission transitions", () => {
     expect(() => assertMissionStatusTransition("DRAFT", "PUBLISHED")).not.toThrow();
     expect(() => assertMissionStatusTransition("ARCHIVED", "PUBLISHED")).toThrow("Invalid mission status");
+  });
+});
+
+// Mission-submission review loop (v0.15.0, D-067): DRAFT → SUBMITTED → ACCEPTED | NEEDS_REVISION,
+// with NEEDS_REVISION → SUBMITTED for resubmission. ACCEPTED is terminal graduation evidence.
+describe("submission status transitions", () => {
+  it("a draft can only be submitted", () => {
+    expect(nextSubmissionStatuses("DRAFT")).toEqual(["SUBMITTED"]);
+    expect(canTransitionSubmissionStatus("DRAFT", "ACCEPTED")).toBe(false);
+  });
+
+  it("a submitted submission can be accepted or sent back for revision", () => {
+    expect(nextSubmissionStatuses("SUBMITTED")).toEqual(["ACCEPTED", "NEEDS_REVISION"]);
+  });
+
+  it("a needs-revision submission can only be resubmitted (the SEM loop)", () => {
+    expect(nextSubmissionStatuses("NEEDS_REVISION")).toEqual(["SUBMITTED"]);
+    expect(canTransitionSubmissionStatus("NEEDS_REVISION", "ACCEPTED")).toBe(false);
+  });
+
+  it("ACCEPTED is terminal (portfolio/graduation evidence is immutable)", () => {
+    expect(nextSubmissionStatuses("ACCEPTED")).toEqual([]);
+    expect(canTransitionSubmissionStatus("ACCEPTED", "NEEDS_REVISION")).toBe(false);
+  });
+
+  it("the unused REVIEWED enum value has no transitions in MVP-1", () => {
+    expect(nextSubmissionStatuses("REVIEWED")).toEqual([]);
+  });
+
+  it("asserts and rejects invalid submission transitions", () => {
+    expect(() => assertSubmissionStatusTransition("DRAFT", "SUBMITTED")).not.toThrow();
+    expect(() => assertSubmissionStatusTransition("DRAFT", "ACCEPTED")).toThrow("Invalid submission status");
+    expect(() => assertSubmissionStatusTransition("ACCEPTED", "SUBMITTED")).toThrow("Invalid submission status");
+  });
+
+  it("evidence is editable only in DRAFT and NEEDS_REVISION", () => {
+    expect(isSubmissionEditable("DRAFT")).toBe(true);
+    expect(isSubmissionEditable("NEEDS_REVISION")).toBe(true);
+    expect(isSubmissionEditable("SUBMITTED")).toBe(false);
+    expect(isSubmissionEditable("ACCEPTED")).toBe(false);
   });
 });

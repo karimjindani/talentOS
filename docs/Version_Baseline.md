@@ -2,19 +2,106 @@
 
 ## Current Baseline
 
-Version: `v0.14.2`
+Version: `v0.16.2`
 
-Baseline name: `Applicant Portal Tenant Isolation (D-065)`
+Baseline name: `Vision Audit and Documentation Realignment`
 
-Baseline code commit: `41c99f0a58ae81646c6b4c2b101402888042d2b4`
+Baseline code commit: `5e3b789`
 
-Baseline date: `2026-07-05`
+Baseline date: `2026-07-08`
 
-Previous baseline: `v0.14.1`
+Previous baseline: `v0.16.1`
 
-Previous baseline commit: `5a686c6`
+Previous baseline commit: `639769f`
 
 ## Baseline Summary
+
+`v0.16.2` (documentation-only patch) realigns the vision and framework docs with the shipped
+product after an audit of `docs/vision.md` against committed code (D-070). `docs/vision.md` gets a
+rewritten Current State (now covering the Mission Engine `v0.14.0`, Submission & Review `v0.15.0`,
+four-week mission arc `v0.15.1`, and mission-driven dashboard + program content `v0.16.0`), an
+honest Gap Analysis (journal module, portfolio/certificates, public talent portal/recruiter side,
+AI layer, grading/rubrics, templates, onboarding and portal MFA remain open), and a roadmap with
+per-phase status and version references (Phases 2–3 delivered, Phase 1 largely delivered, Phase 4
+partial, Phases 5–8 not started). `docs/Mission_Framework.md`'s SEM Authoring Guidance is corrected
+from 8 to the canonical 10 lifecycle steps (Analyze and Production Readiness Review were missing),
+and `docs/Product_Backlog.md` moves off its stale `v0.15.0` header, recording the D-068/D-069
+slices as delivered. No product code, schema or configuration change; unit suite unchanged at
+202/202. Plan: `docs/plans/v0.16.2_Vision_Audit_Refresh_Plan.md`; results:
+`docs/testing/v0.16.2_Vision_Audit_Refresh_Test_Results.md`. See `D-070`.
+
+`v0.16.1` (documentation/tooling patch) adds the illustrated end-user guide
+`docs/user-guide/User_Guide.md`: 26 full-page screenshots (`docs/user-guide/screenshots/`), one per
+user-facing test case, with a coverage map linking each screenshot to its regression test area.
+Screenshots are captured repeatably by the new Playwright script
+`scripts/user-guide/capture-screenshots.ts`, which drives the running local Docker stack through
+the real Keycloak OIDC flows — including self-registration plus a genuine `/apply` submission with
+a generated PDF CV for the applicant journey — as an anonymous visitor, a fresh applicant,
+`accepted@demo.talentos.local`, and `orgadmin@demo.talentos.local` (admin portal + Ops Console),
+with a CLI section filter for partial re-captures. No product code, schema or configuration
+change; unit suite unchanged at 202/202. Plan: `docs/plans/v0.16.1_User_Guide_Screenshots_Plan.md`;
+results: `docs/testing/v0.16.1_User_Guide_Screenshots_Test_Results.md`.
+
+`v0.16.0` closes the loop between the mission engine and the applicant dashboard, and gives
+program content a real owner (D-069). The dashboard's Overall Progress, Missions Accepted tile and
+per-week Program Progress bars are now computed from the applicant's ACCEPTED mission submissions
+(`getApplicantMissionProgress` in `packages/db`) — accepting a submission visibly moves the
+dashboard, and a new **Current Mission** card links to the next mission with its submission-status
+chip; weekly tasks remain a supplementary checklist. A new `manageProgramContent` capability
+(ORG_ADMIN; SUPER_ADMIN bypass) powers the admin **Program Content** page
+(`/programs/[id]/content`) for CRUD over video resources, weekly tasks and calendar events —
+previously seed-script-only. New `packages/db/src/program-content.ts` helpers are transactional,
+tenant-scoped and audited (`resource.*`, `task.*`, `event.*`). No schema change. Unit suite: 202
+tests; regression gains a draft→submit→accept dashboard-progress scenario and a content CRUD +
+role-denial scenario. See `D-069`.
+
+`v0.15.1` seeds the complete four-week mission arc (D-068) so a fresh install demonstrates the full
+AI-Native Software Engineering Apprenticeship, not just Week 1. One continuous product — TaskPilot,
+from the Week 1 brief — is taken from idea to production across four published missions:
+Week 1 "Build a Public Product Landing Page" (BEGINNER, unchanged), Week 2 "Design and Build the
+TaskPilot Application" (INTERMEDIATE, design-first full stack), Week 3 "Containerize, Automate and
+Load-Test TaskPilot" (ADVANCED, Docker/CI-CD/performance/threat model) and Week 4 "Take TaskPilot to
+Production" (EXPERT, VPS + reverse proxy/SSL, VA/PT, Production Readiness Review). Every mission
+embeds the tailored 10-step SEM lifecycle, the curriculum's weekly deliverables, measurable
+acceptance criteria, Bronze→Platinum evaluation criteria, and `competencyTags` from the Competency
+Framework. `seed.ts` is refactored to a data-driven idempotent `missionSeeds` upsert. Also fixes the
+`v0.14.0` mojibake week/difficulty separator (`Â€¢` → `•`) on the three mission pages. No schema
+change. See `D-068`.
+
+`v0.15.0` delivers Mission Submission MVP-1 (D-067), the evidence half of the SEM learning loop.
+Accepted applicants submit evidence for published missions of their accepted program — Git
+repository URL (github.com-allowlisted), deployed-application URL, Loom URL (loom.com-allowlisted)
+and an inline Engineering Journal (Markdown) — from a new **My Submission** section on the dashboard
+mission detail page (with per-mission status chips in the list). Staff review from a new admin
+`/missions/[id]/submissions/[submissionId]` page gated by the new `reviewSubmissions` capability
+(ORG_ADMIN + TECH_LEAD; HR read-only; no peer review per the Graduate Profile): accept — terminal,
+recording the submission as portfolio/graduation evidence for the mission's `competencyTags` — or
+request changes with mandatory written feedback, returning it to the applicant for revision
+(`DRAFT→SUBMITTED→ACCEPTED|NEEDS_REVISION`, `NEEDS_REVISION→SUBMITTED`). The applicant is notified
+(SUCCESS/WARNING with the feedback) in the same transaction. Schema (migration
+`20260706090000_v0_15_0_mission_submissions`): `Submission` gains `tenantId` (backfilled from the
+parent mission), `reviewerFeedback`, `reviewedAt`, `reviewerUserId`, unique
+`[missionId, applicantId]` and index `[tenantId, status]`; the superseded init-migration
+`missions_tenantId_programId_idx` is dropped. New `packages/db/src/submissions.ts` helpers are
+tenant-scoped, ownership-checked and audited (`submission.created/updated/submitted/reviewed`);
+the submission status machine lives in `packages/auth` next to the mission/program machines.
+`Submission` joins the regression cleanup entity types, and the suite grew to **187 unit tests**
+plus three new scenarios (full loop with notifications/audit/terminal-acceptance, role matrix,
+cross-tenant isolation). See `D-067`.
+
+`v0.14.3` fixes two related logout defects (D-066). Accepted applicants were trapped in the dashboard
+with no sign-out: `ApplicantShell` (which replaces `PortalHeader` on `/dashboard`) had no Logout
+button, while `v0.12.0` redirects accepted applicants away from every page that had one. Separately,
+RP-initiated Keycloak logout had been silently broken on every tenant subdomain in both portals since
+`v0.12.1`, because Keycloak does not match hostname wildcards (`http://*.lvh.me:{port}/*`) in
+`post_logout_redirect_uri` patterns ("Invalid redirect uri"). The fix centralizes logout in
+`buildTenantLogoutUrl` (`packages/auth-web`): logout always returns through the canonical AUTH_URL
+origin's new `/logged-out` route with the tenant origin carried in the OIDC `state` parameter, and
+`/logged-out` bounces the user back to their tenant via the allow-listed `resolveTenantRedirect`
+(no open redirect). Shared per-app `logoutAction` server actions replace the three duplicated inline
+forms; `ApplicantShell` gains a sidebar Logout button; `/logged-out` is exempted from the admin auth
+middleware. No schema or data-model change; the regression suite grew to 161 tests and the fix was
+verified end-to-end in a real browser. See `D-066`.
 
 `v0.14.2` is a security patch that closes the tenant-isolation gap in the **applicant** portal — the
 D-051 fix had only ever covered the admin portal. Sessions are shared across subdomains
