@@ -1,8 +1,24 @@
 # Data Model
 
-Code version: `v0.15.0`
+Code version: `v0.18.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.0` commit set on merge
+
+> `v0.18.0` (Mission Assignment MVP) adds `MissionAssignment`, a tenant-scoped assignment row that
+> links an accepted applicant to one published mission for a program/week. Applicants now see assigned
+> missions instead of every published mission in their accepted program. Week 1 demo mission variants
+> are stored as Markdown seed specs and imported into existing `Mission` fields during seed; those
+> Markdown paths are not runtime dependencies. Migration:
+> `20260708120000_v0_18_0_mission_assignment_mvp`.
+
+> `v0.17.0` (Engineering Journal MVP) adds a dedicated `EngineeringJournalEntry` model for daily
+> applicant reflections linked to tenant, applicant, program, mission and derived week number. It
+> stores the structured journal prompts (worked on, challenge, solution, learning, AI usage),
+> confidence rating, time spent and evidence links. Nullable AI review/scoring fields are included
+> as placeholders for a future reviewer/mentor workflow; no real AI scoring is implemented in this
+> slice. `User.preferredJournalLanguage` stores the applicant's default journal language.
+> Migrations: `20260707190000_v0_17_0_engineering_journal_mvp`,
+> `20260708100000_v0_17_1_journal_entry_date_unique`.
 
 > `v0.15.0` (Mission Submission Workflow, D-067) activates the previously scaffolded `Submission`
 > model: adds `tenantId` (FK→tenants, Cascade — direct tenant scoping, backfilled from the parent
@@ -98,6 +114,14 @@ erDiagram
     User ||--o{ Submission : submits
     Tenant ||--o{ Submission : owns
     User |o--o{ Submission : reviews
+    Tenant ||--o{ MissionAssignment : owns
+    Program ||--o{ MissionAssignment : schedules
+    User ||--o{ MissionAssignment : receives
+    Mission ||--o{ MissionAssignment : assigned_as
+    Tenant ||--o{ EngineeringJournalEntry : owns
+    User ||--o{ EngineeringJournalEntry : writes
+    Program ||--o{ EngineeringJournalEntry : contains
+    Mission ||--o{ EngineeringJournalEntry : anchors
     Tenant ||--o{ KnowledgeBaseDocument : owns
     Tenant ||--o{ AIInteraction : records
     Tenant ||--o{ StoredFile : owns
@@ -108,18 +132,25 @@ erDiagram
 ## Core Entities
 
 - `Tenant`: white-label organization using TalentOS.
-- `User`: shared identity for applicants, tenant owners and admins.
+- `User`: shared identity for applicants, tenant owners and admins; stores the applicant's preferred
+  journal language.
 - `TenantMembership`: user role within a tenant.
 - `Program`: tenant-owned learning/recruitment program.
 - `Application`: applicant submission to a program; optionally links a CV (`cvFile` → `StoredFile`) and carries optional `githubUrl` / `linkedinUrl`.
 - `ApplicationAnswer`: structured answers inside an application.
 - `AuditLog`: security and business action history.
-- `Mission`: tenant/program-scoped SEM assignment managed by admins and visible to accepted applicants
-  when published.
+- `Mission`: tenant/program-scoped SEM assignment managed by admins. Published missions are eligible
+  to be assigned to accepted applicants.
+- `MissionAssignment`: tenant/program/applicant/week assignment row. It gives an accepted applicant
+  access to one published mission for a program week, with uniqueness on tenant + program + applicant
+  + week.
 - `Submission`: participant mission evidence (repository/deployment/Loom URLs + Engineering Journal
   markdown) moving through the SEM review loop; tenant-scoped, one row per applicant per mission,
   reviewed by staff (`reviewerUserId`, `reviewerFeedback`, `reviewedAt`); an `ACCEPTED` submission is
   terminal portfolio/graduation evidence for the mission's `competencyTags`.
+- `EngineeringJournalEntry`: dedicated daily reflection entry for an accepted applicant, linked to a
+  published mission in the applicant's accepted program. Each applicant can have only one entry per
+  tenant/date. AI scoring columns are nullable placeholders only.
 - `StoredFile`: tenant-scoped metadata for an object stored in MinIO (bytes live in the object store).
 - `RegressionDataMarker`: local/dev marker rows identifying records created by regression workflows and
   safe to remove during regression cleanup.

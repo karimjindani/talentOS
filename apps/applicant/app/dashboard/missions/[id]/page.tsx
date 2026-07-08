@@ -5,7 +5,7 @@ import { getTenantContext } from "@talentos/ui";
 import { isSubmissionEditable } from "@talentos/auth";
 import {
   getApplicantSubmission,
-  getPublishedProgramMission,
+  getAssignedProgramMission,
   getTenantBySlug,
   getUserByEmail,
   listApplicantApplications,
@@ -31,7 +31,7 @@ export default async function ApplicantMissionDetailPage({ params }: MissionDeta
     return null;
   }
 
-  const mission = await getPublishedProgramMission(id, tenant.id, acceptedApp.program.id);
+  const mission = await getAssignedProgramMission(id, tenant.id, user.id, acceptedApp.program.id);
   if (!mission) {
     notFound();
   }
@@ -97,8 +97,7 @@ export default async function ApplicantMissionDetailPage({ params }: MissionDeta
               defaults={{
                 repositoryUrl: submission?.repositoryUrl ?? "",
                 deploymentUrl: submission?.deploymentUrl ?? "",
-                loomUrl: submission?.loomUrl ?? "",
-                journalMarkdown: submission?.journalMarkdown ?? ""
+                loomUrl: submission?.loomUrl ?? ""
               }}
             />
           ) : (
@@ -150,14 +149,13 @@ function SubmittedEvidence({ submission }: { submission: Submission }) {
           </li>
         ))}
       </ul>
-      {submission.journalMarkdown ? (
-        <div>
-          <p className="font-medium text-slate-700">Engineering journal</p>
-          <pre className="mt-2 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 font-mono text-xs leading-6 text-slate-700">
-            {submission.journalMarkdown}
-          </pre>
-        </div>
-      ) : null}
+      <p className="text-sm text-slate-600">
+        Write your daily reflection in the{" "}
+        <Link href="/dashboard/journal" className="font-semibold text-brand-blue underline">
+          Engineering Journal
+        </Link>
+        .
+      </p>
       {submission.submittedAt ? (
         <p className="text-xs text-slate-500">
           Submitted {submission.submittedAt.toLocaleString()} — evidence is locked while under review.

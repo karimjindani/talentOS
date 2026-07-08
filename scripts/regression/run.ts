@@ -630,6 +630,33 @@ async function createSubmissionFixture(runId: string) {
     actorUserId: fixture.actor.id
   });
   await markRegressionData({ runId, entityType: "Mission", entityId: mission.id });
+
+  const application = await createSubmittedApplication({
+    tenantId: fixture.tenant.id,
+    programId: fixture.program.id,
+    applicantId: fixture.user.id,
+    answers: [{ questionKey: "motivation", questionLabel: "Why do you want to join?", answer: "Submission regression" }]
+  });
+  await markRegressionData({ runId, entityType: "Application", entityId: application.id });
+  await applyStatusTransition({
+    id: application.id,
+    tenantId: fixture.tenant.id,
+    toStatus: "ACCEPTED",
+    actorUserId: fixture.actor.id,
+    reviewerNotes: "Accepted for submission regression"
+  });
+  const assignment = await prisma.missionAssignment.findFirst({
+    where: {
+      tenantId: fixture.tenant.id,
+      programId: fixture.program.id,
+      applicantId: fixture.user.id,
+      missionId: mission.id
+    }
+  });
+  if (!assignment) {
+    throw new Error("Submission fixture did not create a mission assignment.");
+  }
+  await markRegressionData({ runId, entityType: "MissionAssignment", entityId: assignment.id });
   return { ...fixture, mission };
 }
 

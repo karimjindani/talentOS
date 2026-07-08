@@ -86,7 +86,7 @@ export type SubmissionEvidenceInput = {
   repositoryUrl: string | null;
   deploymentUrl: string | null;
   loomUrl: string | null;
-  journalMarkdown: string | null;
+  journalMarkdown?: string | null;
 };
 
 /**
@@ -96,11 +96,16 @@ export type SubmissionEvidenceInput = {
 export async function saveSubmissionDraft(input: SubmissionEvidenceInput) {
   return prisma.$transaction(async (tx) => {
     const mission = await tx.mission.findFirst({
-      where: { id: input.missionId, tenantId: input.tenantId, status: "PUBLISHED" },
+      where: {
+        id: input.missionId,
+        tenantId: input.tenantId,
+        status: "PUBLISHED",
+        assignments: { some: { tenantId: input.tenantId, applicantId: input.applicantId } }
+      },
       select: { id: true }
     });
     if (!mission) {
-      throw new Error("Mission not found for this tenant.");
+      throw new Error("Mission is not assigned to this applicant.");
     }
 
     const existing = await tx.submission.findFirst({
@@ -108,12 +113,19 @@ export async function saveSubmissionDraft(input: SubmissionEvidenceInput) {
       select: { id: true, status: true }
     });
 
-    const evidence = {
+    const evidence: {
+      repositoryUrl: string | null;
+      deploymentUrl: string | null;
+      loomUrl: string | null;
+      journalMarkdown?: string | null;
+    } = {
       repositoryUrl: input.repositoryUrl,
       deploymentUrl: input.deploymentUrl,
-      loomUrl: input.loomUrl,
-      journalMarkdown: input.journalMarkdown
+      loomUrl: input.loomUrl
     };
+    if (Object.prototype.hasOwnProperty.call(input, "journalMarkdown")) {
+      evidence.journalMarkdown = input.journalMarkdown ?? null;
+    }
 
     if (!existing) {
       const created = await tx.submission.create({
@@ -288,12 +300,12 @@ export type CurrentMission = {
 export type MissionProgress = {
   weeks: MissionWeekProgress[];
   overall: { accepted: number; total: number; percentage: number };
-  /** First published mission (by week, then order) not yet ACCEPTED — null when all are done. */
+  /** First assigned published mission (by week, then order) not yet ACCEPTED — null when all are done. */
   currentMission: CurrentMission | null;
 };
 
 /**
- * Per-week and overall mission progress for an applicant in a program. Progress counts a mission
+ * Per-week and overall mission progress for an applicant in a program. Progress counts an assigned mission
  * as done only when its submission is ACCEPTED (the SEM learning loop's terminal state) — drafts
  * and pending reviews do not move the bar. Weeks 1–4 are always present, mirroring
  * getApplicantProgramProgress in dashboard.ts.
@@ -303,11 +315,13 @@ export async function getApplicantMissionProgress(
   applicantId: string,
   programId: string
 ): Promise<MissionProgress> {
-  const missions = await prisma.mission.findMany({
-    where: { tenantId, programId, status: "PUBLISHED" },
-    select: { id: true, title: true, weekNumber: true, order: true },
-    orderBy: [{ weekNumber: "asc" }, { order: "asc" }, { title: "asc" }]
+  const assignments = await prisma.missionAssignment.findMany({
+    where: { tenantId, programId, applicantId, mission: { status: "PUBLISHED" } },
+    include: { mission: { select: { id: true, title: true, weekNumber: true, order: true } } }
   });
+  const missions = assignments
+    .map((assignment) => assignment.mission)
+    .sort((a, b) => a.weekNumber - b.weekNumber || a.order - b.order || a.title.localeCompare(b.title));
   const submissions = await listApplicantProgramSubmissions(tenantId, applicantId, programId);
   const statusByMission = new Map(submissions.map((s) => [s.missionId, s.status]));
 

@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.16.0`
+Code version: `v0.18.0`
 
 Architecture baseline commit: `4c2a8a39b5992f601488732efb9578842513b240`
 
-Current documentation update: `v0.16.0`
+Current documentation update: `v0.18.0`
 
 ## Overview
 
@@ -32,8 +32,8 @@ pages: overview, program (4-week breakdown), tasks, resources (embedded videos),
 profile. Data is served by `packages/db/src/dashboard.ts` (11 query/helper functions).
 
 As of `v0.16.0` (D-069) the overview page's Overall Progress, Missions Accepted tile and per-week
-Program Progress bars are **mission-driven**: they derive from the applicant's ACCEPTED mission
-submissions (`getApplicantMissionProgress` in `packages/db/src/submissions.ts`), not task
+Program Progress bars are **mission-driven**: they derive from the applicant's assigned missions and
+ACCEPTED mission submissions (`getApplicantMissionProgress` in `packages/db/src/submissions.ts`), not task
 checkboxes — a **Current Mission** card links to the next mission with its submission-status chip,
 and weekly tasks remain a supplementary checklist. The dashboard's video resources, weekly tasks
 and calendar events are managed by admins from the Program Content page (`/programs/[id]/content`,
@@ -43,10 +43,12 @@ and calendar events are managed by admins from the Program Content page (`/progr
 
 `v0.14.0` turns the placeholder `Mission` model into the first learning-engine capability. Admins manage
 missions through `/missions`, `/missions/new` and `/missions/[id]`; `SUPER_ADMIN` and `ORG_ADMIN` can
-create/edit/publish/archive while HR and Tech Lead are read-only. Accepted applicants see published
-missions for their accepted program at `/dashboard/missions` and `/dashboard/missions/[id]`. Mission
-content is structured as SEM-oriented text fields: brief, objective, deliverables, acceptance criteria,
-evaluation criteria and competency tags.
+create/edit/publish/archive while HR and Tech Lead are read-only. As of `v0.18.0`, accepted applicants
+see assigned published missions for their accepted program at `/dashboard/missions` and
+`/dashboard/missions/[id]`; published missions are the assignment pool rather than automatic applicant
+visibility. Mission content is structured as SEM-oriented text fields: brief, objective, deliverables,
+acceptance criteria, evaluation criteria and competency tags. Week 1 demo variants are sourced from
+Markdown seed specs and imported into those mission fields during seed.
 
 ## Container Topology
 
@@ -398,6 +400,9 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
    - Mission-driven dashboard progress (v0.16.0, D-069): the applicant dashboard's Overall
      Progress, Missions Accepted tile and per-week bars derive from ACCEPTED submissions
      (getApplicantMissionProgress), with a Current Mission card linking to the next mission.
+   - Mission assignment MVP (v0.18.0): accepted applicants receive assigned published missions instead
+     of seeing the whole published mission pool. Week 1 seed variants are authored in Markdown and
+     imported into mission fields for future AI-review context.
    - Next: competency rollup / portfolio view over accepted submissions.
 
 6. AI Mentor Boundary

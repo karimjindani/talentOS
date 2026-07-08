@@ -1,8 +1,22 @@
 # Data Dictionary
 
-Code version: `v0.15.0`
+Code version: `v0.18.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.0` commit set on merge
+
+> `v0.18.0` (Mission Assignment MVP) adds `mission_assignments`, a tenant-scoped table connecting
+> accepted applicants to assigned published missions by program and week. Accepted applicants now see
+> assigned missions only. Week 1 assignment variants are authored as Markdown seed files and imported
+> into normal `missions` fields during seed. Migration:
+> `20260708120000_v0_18_0_mission_assignment_mvp`.
+
+> `v0.17.0` (Engineering Journal MVP) adds `engineering_journal_entries`, a tenant-scoped daily
+> reflection table linked to user, program and mission, plus `User.preferredJournalLanguage`.
+> Journal entries store structured reflection fields, confidence, time spent and evidence links.
+> AI review/scoring columns are nullable placeholders; real AI scoring remains future work.
+> Audit actions in use: `journal.created`, `journal.updated`.
+> Migrations: `20260707190000_v0_17_0_engineering_journal_mvp`,
+> `20260708100000_v0_17_1_journal_entry_date_unique`.
 
 > `v0.15.0` (Mission Submission Workflow, D-067) activates `submissions`: adds `tenantId`
 > (FK→tenants), `reviewerFeedback`, `reviewedAt`, `reviewerUserId` (FK→users, SetNull), unique
@@ -106,6 +120,7 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 | `status` | `ACTIVE`, `INVITED` or `DISABLED`. |
 | `totpSecretEncrypted` | Legacy TOTP secret; MFA is owned by Keycloak as of `v0.3.0`. |
 | `totpEnabledAt` | Legacy 2FA enablement timestamp. |
+| `preferredJournalLanguage` | Applicant's preferred default language for Engineering Journal entries, such as English, Roman Urdu, Roman Hindi or a custom value. |
 
 ## TenantMembership
 
@@ -159,7 +174,7 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 | `programId` | Program the mission belongs to. |
 | `title` | Mission title shown to admins and accepted applicants. |
 | `difficulty` | `BEGINNER`, `INTERMEDIATE`, `ADVANCED` or `EXPERT`. |
-| `status` | `DRAFT`, `PUBLISHED` or `ARCHIVED`; only published missions appear to applicants. |
+| `status` | `DRAFT`, `PUBLISHED` or `ARCHIVED`; only published missions can be assigned to applicants. |
 | `weekNumber` | Program week/sequence bucket. |
 | `order` | Sort order within the week. |
 | `brief` | Main mission brief and business context. |
@@ -168,6 +183,19 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 | `deliverables` | Required artifacts such as PRD, repository, deployment URL and Loom video. |
 | `evaluationCriteria` | Completion level or grading rubric. |
 | `competencyTags` | Competency mapping labels. |
+
+## MissionAssignment
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant; keeps assignments isolated by organization. |
+| `programId` | Program context for the assignment. |
+| `applicantId` | Applicant/user receiving the mission. |
+| `missionId` | Published mission assigned to the applicant. |
+| `weekNumber` | Program week for the assignment. One assignment is allowed per tenant + program + applicant + week. |
+| `assignedAt` | Timestamp for when the assignment was made. |
+| `createdAt` | Row creation timestamp. |
+| `updatedAt` | Row update timestamp. |
 
 ## Submission
 
@@ -185,6 +213,35 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 | `reviewerFeedback` | Written staff feedback shown to the applicant. |
 | `reviewedAt` | Last review timestamp. |
 | `reviewerUserId` | Staff reviewer (ORG_ADMIN / TECH_LEAD / SUPER_ADMIN); `SetNull` on user delete. |
+
+## EngineeringJournalEntry
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant. |
+| `applicantId` | Applicant/user who wrote the entry. |
+| `programId` | Accepted program context for the entry. |
+| `missionId` | Published mission the entry is linked to. |
+| `weekNumber` | Mission week number, derived from the selected mission instead of user input. |
+| `entryDate` | Day the applicant is reflecting on. Stored as a normalized calendar date; one entry is allowed per applicant/date within a tenant. |
+| `language` | Language used for this entry, defaulting from the user's preferred journal language. |
+| `workedOn` | Answer to "What did you work on today?" |
+| `challenge` | Answer to "What challenge did you face?" |
+| `solution` | Answer to "How did you solve it?" |
+| `learned` | Answer to "What did you learn?" |
+| `aiUsage` | Applicant's statement of whether and how AI was used. |
+| `confidenceRating` | Self-rating from 1 to 5. |
+| `timeSpentHours` | Time spent, in hours. |
+| `evidenceLinks` | URL list for GitHub, PRs, deployed apps, videos or other evidence. |
+| `reflectionDepthScore` | Nullable AI/manual scoring placeholder, 0-10 target. |
+| `problemSolvingScore` | Nullable AI/manual scoring placeholder, 0-10 target. |
+| `learningQualityScore` | Nullable AI/manual scoring placeholder, 0-10 target. |
+| `communicationClarityScore` | Nullable AI/manual scoring placeholder, 0-10 target. |
+| `consistencyScore` | Nullable AI/manual scoring placeholder, 0-10 target. |
+| `totalScore` | Nullable total scoring placeholder, 0-50 target. |
+| `aiReviewFeedback` | Nullable future AI mentor/reviewer feedback. |
+| `aiReviewedAt` | Nullable timestamp for future AI review. |
+| `aiReviewMetadata` | Nullable metadata for future AI review implementation details. |
 
 ## AuditLog
 

@@ -71,11 +71,11 @@ Reflection
 
 ## Current Mission Fields
 
-The implemented Mission Engine stores one mission per tenant program. Mission authoring currently uses
+The implemented Mission Engine stores missions per tenant program. Mission authoring currently uses
 these fields:
 
-- Program: the program that owns the mission. Applicants only see published missions for their accepted
-  program.
+- Program: the program that owns the mission. Published missions are eligible to be assigned to accepted
+  applicants in that program.
 - Difficulty: expected complexity (`BEGINNER`, `INTERMEDIATE`, `ADVANCED`, `EXPERT`). Difficulty does
   not change access, grading or workflow behavior.
 - Title: a short mission name that appears in admin and applicant mission lists.
@@ -94,17 +94,32 @@ these fields:
 Missions currently support three statuses:
 
 - Draft: staff-only; hidden from applicant mission lists.
-- Published: visible to accepted applicants in the mission's program.
+- Published: eligible for applicant assignment in the mission's program.
 - Archived: hidden from applicant mission lists.
 
 Status transitions are controlled by the Mission Engine workflow. Archiving a mission hides it from
 applicant mission lists; it does not delete submissions or change the submission review workflow.
 
+## Mission Assignments
+
+As of the Mission Assignment MVP, accepted applicants see assigned missions instead of every published
+mission in their accepted program. A `MissionAssignment` row links a tenant, program, applicant, mission
+and week number. The database allows only one assignment per tenant + program + applicant + week.
+
+When an application becomes `ACCEPTED`, TalentOS assigns one Week 1 published mission for that applicant.
+The assignment helper is idempotent, so repeating the acceptance transition does not create duplicates.
+When several Week 1 missions are available, the helper chooses from the least-assigned missions with a
+random tie-break so interns can receive different starter assignments.
+
+Week 1 seed assignments are authored as Markdown files under `packages/db/prisma/seed-data/missions/`.
+The seed script imports those Markdown specs into normal `Mission` fields. The app does not depend on
+those Markdown file paths at runtime; they preserve source context for future AI review work.
+
 ## Submissions Dependency
 
-The Mission Submission Workflow depends on published missions. Applicants can create or revise
-submissions only for published missions that belong to their accepted program and tenant. The mission
-title is used in review context and notifications.
+The Mission Submission Workflow depends on assigned, published missions. Applicants can create or
+revise submissions only for missions assigned to their account within their accepted program and tenant.
+The mission title is used in review context and notifications.
 
 When staff accept a mission submission, that accepted submission becomes evidence for the mission's
 competency tags. Keep competency tag names consistent because they become evidence metadata for later
