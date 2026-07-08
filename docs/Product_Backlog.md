@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.15.0`
+Code version: `v0.16.2`
 
-Documentation update: `Mission Submission Workflow MVP-1 delivered in v0.15.0 (D-067): applicant evidence submission (repository/deployment/Loom URLs + Engineering Journal markdown), staff review loop with mandatory feedback on revision requests (reviewSubmissions: ORG_ADMIN + TECH_LEAD), applicant notifications, submission regression scenarios.`
+Documentation update: `Backlog refreshed as part of the v0.16.2 vision audit (D-070): recorded the v0.15.1 four-week mission seed (D-068) and the v0.16.0 mission-driven dashboard progress + program content management (D-069) as delivered.`
 
 ## MVP
 
@@ -74,10 +74,15 @@ Documentation update: `Mission Submission Workflow MVP-1 delivered in v0.15.0 (D
 
 - Applications module — delivered in `v0.5.0` (authenticated apply → submit → admin review with accept/reject/under-review/waitlist, tenant-scoped and audited).
 - Programs module — delivered in `v0.6.0` (admin CRUD: create/edit/publish/archive, `managePrograms`-gated, tenant-scoped and audited; published programs feed the apply form).
-- Missions module â€” delivered in `v0.14.0` (admin create/edit/publish/archive; accepted applicants see published missions for their accepted program).
+- Missions module — delivered in `v0.14.0` (admin create/edit/publish/archive; accepted applicants see published missions for their accepted program).
   - Submission workflow MVP-1 delivered in `v0.15.0` (D-067): applicant evidence submission with the
     SEM review loop (accept / request changes → resubmit). Next slices: Engineering Journal module,
     competency rollup / portfolio evidence view, file attachments for evidence.
+  - Four-week mission arc seeded in `v0.15.1` (D-068): the full TaskPilot apprenticeship
+    (BEGINNER → EXPERT) with the 10-step SEM lifecycle, Bronze→Platinum criteria and competency tags.
+  - Mission-driven dashboard progress + program content management delivered in `v0.16.0` (D-069):
+    dashboard progress computed from ACCEPTED submissions; admin Program Content CRUD
+    (`manageProgramContent`) for video resources, weekly tasks and calendar events.
 - AI Mentor boundary
 - Knowledge Base
 - GitHub Integration
