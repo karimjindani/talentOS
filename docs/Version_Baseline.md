@@ -6,7 +6,7 @@ Version: `v0.16.2`
 
 Baseline name: `Vision Audit and Documentation Realignment`
 
-Baseline code commit: `pending`
+Baseline code commit: `5e3b789`
 
 Baseline date: `2026-07-08`
 
