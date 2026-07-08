@@ -2,7 +2,7 @@
 
 Code version: `v0.16.3`
 
-Architecture baseline commit: `pending`
+Architecture baseline commit: `3856f61`
 
 Current documentation update: `v0.16.3` (documentation refresh; the latest product-code baseline
 is `v0.16.0`)

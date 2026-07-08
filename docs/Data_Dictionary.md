@@ -2,7 +2,7 @@
 
 Code version: `v0.16.3`
 
-Baseline commit: `pending`
+Baseline commit: `3856f61`
 
 > `v0.16.3` (SSDLC docs refresh, D-071) is a documentation-only baseline — no schema change. It
 > adds the previously missing field tables for the five `v0.12.0` dashboard models (`ProgramTask`,

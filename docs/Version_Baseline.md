@@ -6,7 +6,7 @@ Version: `v0.16.3`
 
 Baseline name: `SSDLC Documentation Audit and Refresh`
 
-Baseline code commit: `pending`
+Baseline code commit: `3856f61`
 
 Baseline date: `2026-07-08`
 

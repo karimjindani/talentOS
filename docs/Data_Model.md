@@ -2,7 +2,7 @@
 
 Code version: `v0.16.3`
 
-Baseline commit: `pending`
+Baseline commit: `3856f61`
 
 > `v0.16.3` (SSDLC docs refresh, D-071) is a documentation-only baseline — no schema change. It
 > realigns this document with the actual schema: the ER diagram is regenerated to cover all models
