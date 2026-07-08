@@ -45,8 +45,7 @@ export default async function NewMissionPage() {
     <>
       <h1 className="text-3xl font-bold">New mission</h1>
       <p className="mt-2 text-slate-600">
-        Create a SEM-aligned engineering assignment that helps applicants discover, specify, build,
-        test, deploy, and reflect inside one practical mission.
+        Create a real-world engineering assignment that follows the Spiral Engineering Method.
       </p>
       <MissionForm action={createMissionAction} programs={programs} submitLabel="Create mission" />
     </>

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { logoutAction } from "@/lib/logout-action";
 
 export type ApplicantNavItem = {
   href: string;
@@ -75,8 +74,7 @@ export function ApplicantShell({
             );
           })}
         </nav>
-        {/* User info + logout pinned to bottom. The dashboard replaces PortalHeader entirely, so
-            the shell must carry its own sign-out affordance (v0.14.3 / D-066). */}
+        {/* User info pinned to bottom */}
         <div className="mt-auto border-t border-slate-200 px-5 py-4">
           <p className="truncate text-sm font-medium text-slate-700">
             {userName ?? userEmail ?? "Applicant"}
@@ -84,14 +82,6 @@ export function ApplicantShell({
           {userEmail ? (
             <p className="truncate text-xs text-slate-500">{userEmail}</p>
           ) : null}
-          <form action={logoutAction} className="mt-3">
-            <button
-              type="submit"
-              className="w-full cursor-pointer rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
-            >
-              Logout
-            </button>
-          </form>
         </div>
       </aside>
 

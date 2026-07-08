@@ -1,7 +1,5 @@
 # TalentOS Vision
 
-Code version: `v0.16.2`
-
 ## Vision Statement
 
 TalentOS exists to bridge the gap between AI-assisted coding and production-grade software engineering.
@@ -191,11 +189,6 @@ Each week increases the participant's engineering responsibility and introduces 
 | DevOps & Operations | NI | I | F | A |
 | Communication & Presentation | F | A | A | M |
 | Production Readiness | NI | NI | I | M |
-
-The matrix rows above are the weekly curriculum skill areas (see `docs/curriculum.md`, whose
-Competency Coverage table expands this matrix). The canonical competency *names* used by the
-platform — including `Mission.competencyTags` and the seeded four-week mission arc (D-068) — are
-defined in `docs/Competency_Framework.md`.
 
 ## Graduate Outcome
 
@@ -524,157 +517,110 @@ Participants should verify:
 
 # Current State
 
-As of `v0.16.1`, the platform has a strong SaaS foundation **and** a live core learning loop:
-missions → evidence submission → staff review → dashboard progress.
+The platform has already established a strong SaaS foundation.
 
 ## Implemented
 
 ### Platform Foundation
 
-* Multi-tenant architecture (subdomain-based tenant resolution)
-* Organization management with SUPER_ADMIN Organizations console — `v0.10.0`
-* Org-admin auto-provisioning via Keycloak Admin API — `v0.11.0`
-* White-label branding: per-tenant name, colors, logo applied live — `v0.9.0`
-* Tenant isolation enforced through DB `TenantMembership` guards — `v0.10.3`, `v0.14.2`
+* Multi-tenant architecture
+* Organization management
+* White-label support
+* Tenant isolation
 
 ### Identity & Access
 
-* Keycloak integration (OIDC via NextAuth v5, realm import) — `v0.3.0`
-* Authentication with cross-subdomain sessions and RP-initiated logout — `v0.10.2`, `v0.12.1`, `v0.14.3`
-* Role-based authorization: 5-role model with capability matrix — `v0.3.0`
-* Applicant self-signup via Keycloak self-registration — `v0.7.1`
-* TOTP/MFA infrastructure (currently enforced only for the Ops Console; disabled on the
-  applicant/admin portals)
+* Keycloak integration
+* Authentication
+* Authorization
+* MFA support
 
 ### Applicant Portal
 
-* Registration, login, apply with CV upload and profile links — `v0.5.0`, `v0.7.3`
-* Application status tracking
-* Accepted-applicant dashboard: overview, program, tasks, resources, calendar,
-  notifications, profile — `v0.12.0`
-* Mission list and mission detail with submission workflow — `v0.14.0`, `v0.15.0`
-* Dashboard progress computed from accepted mission submissions, with Current Mission card — `v0.16.0`
-
-### Mission Engine
-
-* Mission authoring (status, week/order, difficulty BEGINNER→EXPERT, SEM-oriented content,
-  competency tags) — `v0.14.0`
-* Seeded four-week TaskPilot mission arc embedding the 10-step SEM lifecycle,
-  Bronze→Platinum completion criteria and competency tags — `v0.15.1`
-
-### Submission & Review
-
-* Evidence submission: Git repository URL, deployment URL, Loom URL, inline Engineering
-  Journal (Markdown) — `v0.15.0`
-* Staff review workflow (`reviewSubmissions`): accept or request changes with mandatory
-  written feedback, applicant notifications, full audit trail — `v0.15.0`
+* Registration
+* Login
+* Applications
+* Dashboard
 
 ### Back Office
 
-* HR management and application review pipeline — `v0.5.0`
-* Program management (draft/publish/archive) — `v0.6.0`
-* Program content management: video resources, weekly tasks, calendar events — `v0.16.0`
-* Organization administration and tenant branding settings — `v0.9.0`, `v0.10.0`
-
-### Quality & Operations
-
-* Scenario-based regression suite runnable from the Ops Console — `v0.8.0`, `v0.13.0`
-* Role-facing user guides as living documentation — `v0.14.1`
-* Illustrated end-user guide with automated screenshot capture — `v0.16.1`
+* HR management
+* Recruiter workflows
+* Program management
+* Organization administration
 
 ### Infrastructure
 
-* Docker Compose topology (portals, PostgreSQL, Keycloak, MinIO)
-* PostgreSQL + Prisma data layer
-* MinIO object storage with presigned uploads — `v0.7.0`
-* CI pipeline (typecheck, lint, test, build, realm-import validation)
-* Alibaba Cloud deployment baseline — `v0.4.0`
+* Docker
+* PostgreSQL
+* Prisma
+* MinIO
+* CI/CD foundations
+* Deployment foundations
 
 ---
 
 # Gap Analysis
 
-The platform foundation **and** the core SEM learning loop (missions → evidence submission →
-staff review → dashboard progress) are live.
+The platform foundation exists.
 
-What still needs to be built to realize the full vision:
-
-* Structured Engineering Journal module (daily entries, weekly summaries, reflection framework) —
-  today the journal is a single Markdown field per submission
-* Portfolio Engine and Certificates — `PortfolioArtifact`/`Certificate` exist as schema stubs only;
-  accepted submissions are already recorded as future portfolio evidence
-* Public Talent Portal and the entire recruiter side (registration, search, dashboards, rankings,
-  employability scoring)
-* AI-Native Layer — the AI Mentor endpoint is a stub; no LLM integration exists yet
-* Structured grading framework: rubrics, scoring, a controlled competency catalog
-  (reviews today are accept/request-changes; evaluation criteria and competency tags are free text)
-* Assignment templates for mission authoring
-* Guided onboarding experience
-* Enforced MFA on the applicant/admin portals
+The core TalentOS learning experience still needs to be built.
 
 ---
 
 # Roadmap To Achieve The Vision
 
-Delivered items are checked with the version baseline that shipped them
-(see `docs/Version_Baseline.md`).
-
 ## Phase 1 – Complete Foundation
 
-Status: Largely delivered
+### TODO
 
-* [x] Finalize platform architecture documentation — living docs (`docs/Architecture.md`,
-  policies added in `v0.11.2`)
-* [x] Finalize product documentation — living docs plus user guides (`v0.14.1`, `v0.16.1`)
-* [x] Finalize tenant branding experience — `v0.9.0`
-* [ ] Finalize onboarding experience (self-signup `v0.7.1` and org-admin auto-provisioning
-  `v0.11.0` exist; no guided onboarding yet)
+* [ ] Finalize platform architecture documentation
+* [ ] Finalize product documentation
+* [ ] Finalize onboarding experience
+* [ ] Finalize tenant branding experience
 
 ---
 
 ## Phase 2 – Mission Engine
 
-Status: Delivered (`v0.14.0`–`v0.15.1`)
+### TODO
 
-* [x] Create Mission Management module — `v0.14.0`
-* [x] Define difficulty levels — `v0.14.0` (BEGINNER → EXPERT)
-* [x] Define evaluation criteria — `v0.14.0` (free-text field; structured rubrics still open)
-* [x] Define competency mappings — `v0.14.0` (free-text tags; controlled catalog still open)
+* [ ] Create Mission Management module
 * [ ] Create Assignment templates
-* [ ] Define grading framework (reviews are accept/request-changes only; no scoring)
+* [ ] Define difficulty levels
+* [ ] Define evaluation criteria
+* [ ] Define competency mappings
+* [ ] Define grading framework
 
 ---
 
 ## Phase 3 – Submission Engine
 
-Status: Delivered (`v0.15.0`)
+### TODO
 
-* [x] Assignment submission workflow — `v0.15.0`
-* [x] GitHub repository submission — `v0.15.0`
-* [x] Deployment URL submission — `v0.15.0`
-* [x] Loom video submission — `v0.15.0`
-* [x] Reviewer workflow — `v0.15.0` (accept / request changes with mandatory feedback)
-* [ ] Documentation submission (file attachments for evidence)
+* [ ] Assignment submission workflow
+* [ ] GitHub repository submission
+* [ ] Deployment URL submission
+* [ ] Loom video submission
+* [ ] Documentation submission
+* [ ] Reviewer workflow
 
 ---
 
 ## Phase 4 – Engineering Journal
 
-Status: Partial (inline journal shipped in `v0.15.0`)
+### TODO
 
-* [x] Inline Engineering Journal (Markdown) per mission submission — `v0.15.0`
 * [ ] Daily journal entries
 * [ ] Weekly summaries
-* [ ] Progress tracking (mission progress exists on the dashboard — `v0.16.0` — but journal
-  progress does not)
+* [ ] Progress tracking
 * [ ] Reflection framework
 
 ---
 
 ## Phase 5 – Portfolio Engine
 
-Status: Not started (`PortfolioArtifact`/`Certificate` schema stubs exist; accepted submissions
-are recorded as portfolio evidence groundwork — `v0.15.0`)
+### TODO
 
 * [ ] Participant portfolio generation
 * [ ] Public portfolio pages
@@ -687,7 +633,7 @@ are recorded as portfolio evidence groundwork — `v0.15.0`)
 
 ## Phase 6 – Public Talent Portal
 
-Status: Not started
+### TODO
 
 * [ ] Public profiles
 * [ ] Recruiter registration
@@ -700,7 +646,7 @@ Status: Not started
 
 ## Phase 7 – AI-Native Layer
 
-Status: Not started (AI Mentor endpoint exists as a stub; no LLM integration)
+### TODO
 
 * [ ] AI Mentor
 * [ ] AI Reviewer
@@ -715,7 +661,7 @@ Status: Not started (AI Mentor endpoint exists as a stub; no LLM integration)
 
 ## Phase 8 – Hiring Intelligence
 
-Status: Not started
+### TODO
 
 * [ ] Recruiter dashboards
 * [ ] Talent recommendations

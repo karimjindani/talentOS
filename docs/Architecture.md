@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.16.0`
+Code version: `v0.14.0`
 
-Architecture baseline commit: `4c2a8a39b5992f601488732efb9578842513b240`
+Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.16.0`
+Current documentation update: `v0.14.0`
 
 ## Overview
 
@@ -30,14 +30,6 @@ The dashboard layout (`app/dashboard/layout.tsx`) checks for an accepted applica
 for accepted applicants. The `PortalHeader` conditionally shows "Dashboard" instead of "Apply". Seven
 pages: overview, program (4-week breakdown), tasks, resources (embedded videos), calendar, notifications,
 profile. Data is served by `packages/db/src/dashboard.ts` (11 query/helper functions).
-
-As of `v0.16.0` (D-069) the overview page's Overall Progress, Missions Accepted tile and per-week
-Program Progress bars are **mission-driven**: they derive from the applicant's ACCEPTED mission
-submissions (`getApplicantMissionProgress` in `packages/db/src/submissions.ts`), not task
-checkboxes — a **Current Mission** card links to the next mission with its submission-status chip,
-and weekly tasks remain a supplementary checklist. The dashboard's video resources, weekly tasks
-and calendar events are managed by admins from the Program Content page (`/programs/[id]/content`,
-`manageProgramContent` capability).
 
 ### Mission Engine MVP (`v0.14.0`)
 
@@ -383,22 +375,12 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
      `DRAFT ⇄ PUBLISHED ⇄ ARCHIVED` state machine, tenant scoping and `AuditLog` events
      (`program.created`, `program.updated`, `program.status_changed`). Published programs feed the
      applicant apply form.
-   - Program content (v0.16.0, D-069): video resources, weekly tasks and calendar events are
-     managed from /programs/[id]/content behind the manageProgramContent capability
-     (ORG_ADMIN/SUPER_ADMIN) via audited tenant-scoped helpers (packages/db/src/program-content.ts,
-     actions resource.*/task.*/event.*).
    - Next: cohorts and public per-program application entry points.
 
-5. Missions — mission engine delivered in `v0.14.0`, submissions in `v0.15.0`, full seed in `v0.15.1`
-   - Done: admin create/edit/publish/archive missions; accepted applicants view published missions in
-     their dashboard; mission submission + staff review loop (`v0.15.0`, D-067:
-     `DRAFT→SUBMITTED→ACCEPTED|NEEDS_REVISION`, evidence = GitHub/deployment/Loom URLs + inline
-     engineering journal, `reviewSubmissions` capability); demo seed provides the complete four-week
-     TaskPilot SEM mission arc (`v0.15.1`, D-068).
-   - Mission-driven dashboard progress (v0.16.0, D-069): the applicant dashboard's Overall
-     Progress, Missions Accepted tile and per-week bars derive from ACCEPTED submissions
-     (getApplicantMissionProgress), with a Current Mission card linking to the next mission.
-   - Next: competency rollup / portfolio view over accepted submissions.
+5. Missions â€” delivered in `v0.14.0`
+   - Done: admin create/edit/publish/archive missions, accepted applicants view published missions in
+     their dashboard, and demo seed includes the Week 1 "Build a Public Product Landing Page" SEM mission.
+   - Next: mission submissions and reviewer workflow.
 
 6. AI Mentor Boundary
    - Expand the current AI service boundary into tenant-aware, auditable mentor workflows.

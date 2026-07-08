@@ -12,5 +12,3 @@ export * from "./regression";
 export * from "./dashboard";
 export * from "./missions";
 export * from "./mentor";
-export * from "./submissions";
-export * from "./program-content";

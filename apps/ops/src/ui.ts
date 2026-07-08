@@ -631,12 +631,6 @@ time { font-variant-numeric: tabular-nums; }
 .card.healthy::before { background: var(--green); }
 .card.degraded::before { background: var(--amber); }
 .card.unhealthy::before { background: var(--red); }
-.card.passed::before { background: var(--green); }
-.card.failed {
-  border-color: var(--red-border);
-  background: var(--red-soft);
-}
-.card.failed::before { background: var(--red); }
 .card-head {
   display: flex;
   justify-content: space-between;
@@ -661,43 +655,6 @@ time { font-variant-numeric: tabular-nums; }
   color: var(--metric);
   font-weight: 750;
   font-variant-numeric: tabular-nums;
-}
-.regression-area-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-.regression-area-card .card-detail {
-  display: grid;
-  gap: 8px;
-}
-.regression-counts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.regression-count {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  border: 1px solid var(--line-soft);
-  border-radius: 999px;
-  background: var(--meta-bg);
-  color: var(--meta-text);
-  padding: 4px 8px;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1;
-}
-.regression-count.failed {
-  border-color: var(--red-border);
-  background: var(--red-soft);
-  color: var(--red);
-}
-.regression-count.skipped {
-  border-color: var(--amber-border);
-  background: var(--amber-soft);
-  color: var(--amber);
 }
 .lower-grid {
   display: grid;
@@ -831,7 +788,6 @@ pre::-webkit-scrollbar-track { background: var(--console-bg); }
   .auth-controls { justify-content: start; margin-top: 10px; }
   .step { grid-template-columns: 1fr; }
   .step-meta { justify-content: start; }
-  .regression-area-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
   h1 { font-size: 24px; }
@@ -1138,28 +1094,9 @@ function renderJob(job) {
     '<span class="meta-chip">Started <strong>' + new Date(job.startedAt).toLocaleString() + '</strong></span>',
     job.completedAt ? '<span class="meta-chip">Completed <strong>' + new Date(job.completedAt).toLocaleString() + '</strong></span>' : '<span class="meta-chip">Status <strong>' + escapeHtml(job.status) + '</strong></span>'
   ].filter(Boolean).join(" ");
-  steps.innerHTML = job.kind === "regression" && Array.isArray(job.regressionSummaries) && job.regressionSummaries.length
-    ? renderRegressionAreaCards(job.regressionSummaries)
-    : job.steps.map((step) => (
-      '<div class="step ' + step.status + '"><div><strong>' + escapeHtml(step.name) + '</strong><code>' + escapeHtml(step.command) + '</code>' + (step.regressionSummary ? '<p class="step-detail">' + escapeHtml(formatRegressionSummary(step.regressionSummary)) + '</p>' : '') + '</div><div class="step-meta"><span class="pill ' + step.status + '">' + step.status + '</span><span class="duration">' + (step.durationMs ? formatDuration(step.durationMs) : "") + '</span></div></div>'
-    )).join("");
-}
-
-function renderRegressionAreaCards(summaries) {
-  return '<div class="regression-area-grid">' + summaries.map((area) => {
-    const status = area.failed > 0 ? "failed" : "passed";
-    return '<article class="card regression-area-card ' + status + '">'
-      + '<div class="card-head"><h3>' + escapeHtml(titleCase(area.area)) + '</h3><span class="pill ' + status + '">' + status + '</span></div>'
-      + '<div class="card-detail">'
-      + '<div class="regression-counts">'
-      + '<span class="regression-count">Passed ' + area.passed + '</span>'
-      + '<span class="regression-count failed">Failed ' + area.failed + '</span>'
-      + '<span class="regression-count skipped">Skipped ' + area.skipped + '</span>'
-      + '</div>'
-      + '<span class="metric">' + escapeHtml(formatDuration(area.durationMs)) + '</span>'
-      + '</div>'
-      + '</article>';
-  }).join("") + '</div>';
+  steps.innerHTML = job.steps.map((step) => (
+    '<div class="step ' + step.status + '"><div><strong>' + escapeHtml(step.name) + '</strong><code>' + escapeHtml(step.command) + '</code>' + (step.regressionSummary ? '<p class="step-detail">' + escapeHtml(formatRegressionSummary(step.regressionSummary)) + '</p>' : '') + '</div><div class="step-meta"><span class="pill ' + step.status + '">' + step.status + '</span><span class="duration">' + (step.durationMs ? step.durationMs + "ms" : "") + '</span></div></div>'
+  )).join("");
 }
 
 function healthResultStep({ title, status, detail, command }) {
@@ -1183,16 +1120,6 @@ function prepareJobView(kind, area) {
 
 function formatRegressionSummary(summary) {
   return summary.passed + "/" + summary.total + " passed, " + summary.failed + " failed, " + summary.skipped + " skipped";
-}
-
-function formatDuration(ms) {
-  if (typeof ms !== "number" || !Number.isFinite(ms)) return "";
-  if (ms < 1000) return Math.round(ms) + "ms";
-  const seconds = ms / 1000;
-  if (seconds < 60) return seconds.toFixed(seconds < 10 ? 1 : 0) + "s";
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.round(seconds % 60);
-  return minutes + "m " + remainingSeconds + "s";
 }
 
 function prepareHealthView() {

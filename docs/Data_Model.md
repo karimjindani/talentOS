@@ -1,20 +1,9 @@
 # Data Model
 
-Code version: `v0.15.0`
+Code version: `v0.14.0`
 
-Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.0` commit set on merge
+Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-> `v0.15.0` (Mission Submission Workflow, D-067) activates the previously scaffolded `Submission`
-> model: adds `tenantId` (FK→tenants, Cascade — direct tenant scoping, backfilled from the parent
-> mission), `reviewerFeedback` (String?), `reviewedAt` (DateTime?), `reviewerUserId` (FK→users,
-> SetNull), a unique `[missionId, applicantId]` (one submission per applicant per mission; the SEM
-> revision loop reuses the row) and an index on `[tenantId, status]`. The `User` relation splits into
-> named `SubmissionApplicant` / `SubmissionReviewer` relations. Also drops the superseded
-> `missions_tenantId_programId_idx`. `SubmissionStatus` transitions used by MVP-1:
-> `DRAFT→SUBMITTED→ACCEPTED|NEEDS_REVISION`, `NEEDS_REVISION→SUBMITTED` (`REVIEWED` unused). Audit
-> actions: `submission.created`, `submission.updated`, `submission.submitted`, `submission.reviewed`.
-> Migration: `20260706090000_v0_15_0_mission_submissions`.
->
 > `v0.14.0` (Mission Engine MVP) extends `Mission` from a placeholder into a managed learning
 > assignment: `MissionStatus` enum (`DRAFT`, `PUBLISHED`, `ARCHIVED`), `status`, `weekNumber`, `order`,
 > `objective`, `acceptanceCriteria`, `deliverables`, `evaluationCriteria`, and `competencyTags`.
@@ -96,8 +85,6 @@ erDiagram
     Program ||--o{ Mission : contains
     Mission ||--o{ Submission : receives
     User ||--o{ Submission : submits
-    Tenant ||--o{ Submission : owns
-    User |o--o{ Submission : reviews
     Tenant ||--o{ KnowledgeBaseDocument : owns
     Tenant ||--o{ AIInteraction : records
     Tenant ||--o{ StoredFile : owns
@@ -116,10 +103,7 @@ erDiagram
 - `AuditLog`: security and business action history.
 - `Mission`: tenant/program-scoped SEM assignment managed by admins and visible to accepted applicants
   when published.
-- `Submission`: participant mission evidence (repository/deployment/Loom URLs + Engineering Journal
-  markdown) moving through the SEM review loop; tenant-scoped, one row per applicant per mission,
-  reviewed by staff (`reviewerUserId`, `reviewerFeedback`, `reviewedAt`); an `ACCEPTED` submission is
-  terminal portfolio/graduation evidence for the mission's `competencyTags`.
+- `Submission`: participant mission deliverable.
 - `StoredFile`: tenant-scoped metadata for an object stored in MinIO (bytes live in the object store).
 - `RegressionDataMarker`: local/dev marker rows identifying records created by regression workflows and
   safe to remove during regression cleanup.

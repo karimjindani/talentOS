@@ -101,7 +101,6 @@ model Tenant {
   notifications       Notification[]
   calendarEvents      CalendarEvent[]
   mentorConversations MentorConversation[]
-  submissions     Submission[]
 
   @@map("tenants")
 }
@@ -125,8 +124,7 @@ model User {
   memberships           TenantMembership[]
   applications          Application[]      @relation("ApplicantApplications")
   auditLogs             AuditLog[]
-  submissions           Submission[]       @relation("SubmissionApplicant")
-  reviewedSubmissions   Submission[]       @relation("SubmissionReviewer")
+  submissions           Submission[]
   aiInteractions        AIInteraction[]
   storedFiles           StoredFile[]
   notifications         Notification[]
@@ -267,33 +265,23 @@ model Mission {
 }
 
 model Submission {
-  id               String           @id @default(cuid())
-  // Direct tenant scoping (v0.15.0, D-067), consistent with every other tenant-owned table.
-  tenantId         String
-  missionId        String
-  applicantId      String
-  status           SubmissionStatus @default(DRAFT)
-  repositoryUrl    String?
-  deploymentUrl    String?
-  loomUrl          String?
-  journalMarkdown  String?
-  submittedAt      DateTime?
-  reviewerFeedback String?
-  reviewedAt       DateTime?
-  reviewerUserId   String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  id             String            @id @default(cuid())
+  missionId       String
+  applicantId     String
+  status          SubmissionStatus @default(DRAFT)
+  repositoryUrl   String?
+  deploymentUrl   String?
+  loomUrl         String?
+  journalMarkdown String?
+  submittedAt     DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
-  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   mission         Mission           @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  applicant       User              @relation("SubmissionApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
-  reviewer        User?             @relation("SubmissionReviewer", fields: [reviewerUserId], references: [id], onDelete: SetNull)
+  applicant       User              @relation(fields: [applicantId], references: [id], onDelete: Cascade)
 
-  // One submission row per applicant per mission; the SEM revision loop reuses the row.
-  @@unique([missionId, applicantId])
   @@index([missionId, status])
   @@index([applicantId])
-  @@index([tenantId, status])
   @@map("submissions")
 }
 
