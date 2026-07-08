@@ -2,19 +2,33 @@
 
 ## Current Baseline
 
-Version: `v0.16.3`
+Version: `v0.16.4`
 
-Baseline name: `SSDLC Documentation Audit and Refresh`
+Baseline name: `SSDLC Compliance Audit`
 
-Baseline code commit: `3856f61`
+Baseline code commit: `2b07e4ae9364fd981e7d5f4da859e21f3c74032e`
 
-Baseline date: `2026-07-08`
+Baseline date: `2026-07-09`
 
-Previous baseline: `v0.16.2`
+Previous baseline: `v0.16.3`
 
-Previous baseline commit: `5e3b789`
+Previous baseline commit: `3856f61`
 
 ## Baseline Summary
+
+`v0.16.4` is an audit-only baseline that checks the current repository against `docs/sdlc.md`
+without changing product code, schema, Docker configuration or package files. The audit concludes
+that TalentOS is substantially SSDLC-aligned but not 100% compliant: Principles 2, 4, 5 and 6 are
+compliant; Principles 0, 1, 3 and 7 are partially compliant due to governance and automation gaps.
+Key findings: the latest `CODEOWNERS` update appears unversioned; the current two-line `CODEOWNERS`
+pattern likely does not express Karim + Waseem as joint owners; GitHub branch-protection enforcement
+requires UI verification; scenario regression is not enforced in CI; security scanning is still a
+documented target rather than an implemented gate; and three scenario checks remain skipped. Local
+validation passed after regenerating Prisma Client: 202/202 unit tests, typecheck, lint, build,
+Docker Compose config, local doctor, and `regression:all` with 19 passed, 0 failed and 3 skipped.
+Plan: `docs/plans/v0.16.4_SSDLC_Compliance_Audit_Plan.md`; audit:
+`docs/audits/v0.16.4_SSDLC_Compliance_Audit.md`; results:
+`docs/testing/v0.16.4_SSDLC_Compliance_Audit_Test_Results.md`. See `D-072`.
 
 `v0.16.3` (documentation-only patch) completes the documentation audit started in `v0.16.2` by
 realigning the eight SSDLC docs with the shipped `v0.13.0`–`v0.16.1` scope (D-071). The biggest
