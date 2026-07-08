@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.16.0`
+Code version: `v0.16.3`
 
 ## Purpose
 
@@ -28,6 +28,11 @@ The suite can be run from the local Ops Console or from npm scripts.
 
 ## Scenario Matrix
 
+The matrix below is finer-grained than the runner: `scripts/regression/run.ts` currently contains
+**22 scenario objects**, and several matrix rows map onto a single combined runner scenario (for
+example, applicant submit + duplicate block are one scenario, and the three Programs lifecycle rows
+are one scenario).
+
 | Logical area | Scenario | Status | Notes |
 | --- | --- | --- | --- |
 | Unit | Existing Vitest regression suite passes. | Automated | Run as the `unit` area. |
@@ -50,7 +55,10 @@ The suite can be run from the local Ops Console or from npm scripts.
 | Missions | Org Admin creates a draft mission, publishes it, and accepted applicants can see it. | Automated | Validates mission lifecycle visibility. |
 | Missions | Archived mission is removed from applicant-visible mission list. | Automated | Validates published-only visibility. |
 | Missions | HR, Tech Lead and Applicant cannot manage missions. | Automated | Validates `manageMissions` capability. |
+| Missions | Submission loop: draft, submit, request changes, resubmit, accept — with notifications and audit. | Automated | v0.15.0 (D-067): full SEM review loop; acceptance is terminal and notifies the applicant. |
+| Missions | Only Org Admin and Tech Lead can review submissions. | Automated | v0.15.0 (D-067): validates the `reviewSubmissions` capability (HR read-only, applicants denied). |
 | Tenant isolation | Tenant-scoped program read rejects another tenant. | Partially automated | Skips when only one local tenant exists. Needs a second marked tenant fixture. |
+| Tenant isolation | Tenant-scoped submission read rejects another tenant. | Automated | v0.15.0 (D-067): cross-tenant submission access is denied. |
 | Tenant isolation | Realm role alone does not grant authority without `TenantMembership`. | Automated | Validates the D-051 authorization principle. |
 | Tenant isolation | Applicant portal denies a non-member of the Host-resolved tenant (`/dashboard`, `/application` → `/access-denied`; SUPER_ADMIN bypass). | Automated | Unit-covered by `apps/applicant/lib/tenant-guard.test.ts`; also validated end-to-end via browser. Ports the D-051 guard to the applicant portal. |
 | Tenant isolation | Cross-tenant file and settings denial through admin browser routes. | Missing | Add Playwright/browser route coverage. |
@@ -75,6 +83,7 @@ Current marker-tagged entity types:
 - `TenantMembership`
 - `Program`
 - `Mission`
+- `Submission`
 - `Application`
 - `ApplicationAnswer`
 
@@ -93,7 +102,7 @@ Cleanup rules:
 5. Prefer deterministic regression names such as `regression-<runId>` and
    `applicant+<runId>@regression.talentos.local`.
 
-## Known Gaps After `v0.14.0`
+## Known Gaps (as of `v0.16.3`)
 
 - Full browser-level Playwright coverage is not yet complete for every scenario. The runner currently
   combines OIDC HTTP login flows with DB/service-level scenario checks.

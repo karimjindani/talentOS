@@ -1,8 +1,8 @@
 # Testing Strategy
 
-Code version: `v0.14.1`
+Code version: `v0.16.3`
 
-Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+Baseline commit: `3856f61`
 
 ## Goals
 
@@ -16,6 +16,11 @@ The regression suite has two layers:
 
 The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts after
 each run.
+
+Current totals (as of `v0.16.3`): **202 unit tests across 30 files** (`npm test`) and **22 scenarios
+across 11 areas** (`scripts/regression/run.ts`). CI (`.github/workflows/ci.yml`) runs the **unit
+suite only**; scenario regression is a local capability driven from npm scripts or the Ops Console
+against the running Docker stack.
 
 ## Test Levels
 
@@ -82,6 +87,37 @@ each run.
   audit entries are written.
 - The bucket is private: unsigned direct object access is denied (403).
 - File access is tenant-scoped: a file id from another tenant is not resolvable.
+- Note: the presign/round-trip and cross-tenant checks are validated at unit and manual level; the
+  `storage` **scenario** area is a documented skip in `scripts/regression/run.ts` (see
+  `docs/Regression_Scenarios.md`) pending automation.
+
+### Mission Submission Tests (v0.15.0)
+
+- Submission state machine (`DRAFT→SUBMITTED→ACCEPTED|NEEDS_REVISION`, `NEEDS_REVISION→SUBMITTED`)
+  offers only valid transitions (unit, `packages/auth` workflow tests).
+- `packages/db/src/submissions.test.ts` (20 tests): draft save/update, submit, ownership checks,
+  URL host-allowlists (github.com / loom.com), tenant scoping, review accept / request-changes with
+  mandatory feedback, notification + audit writes (`submission.*`), and
+  `getApplicantMissionProgress`.
+- `reviewSubmissions` capability: ORG_ADMIN + TECH_LEAD may review, HR is read-only, applicants are
+  denied (unit + `missions` scenario area).
+- Scenario coverage: full submission loop with notifications/audit/terminal acceptance, reviewer
+  role matrix, and cross-tenant submission-read denial (see `docs/Regression_Scenarios.md`).
+
+### Program Content & Mission-Driven Progress Tests (v0.16.0)
+
+- `packages/db/src/program-content.test.ts` (6 tests): tenant-scoped, audited CRUD for video
+  resources, weekly tasks and calendar events; `manageProgramContent` granted to ORG_ADMIN only
+  (SUPER_ADMIN bypass; HR/TECH_LEAD read-only).
+- Scenario coverage: accepted mission submission moves the mission-driven dashboard progress
+  (draft→submit→accept; only ACCEPTED moves the bar), and program-content CRUD with role denial.
+
+### User-Guide Screenshot Capture (v0.16.1, manual)
+
+- `scripts/user-guide/capture-screenshots.ts` (Playwright/Chromium) drives the running local Docker
+  stack through real Keycloak OIDC flows to capture the 26 illustrated user-guide screenshots
+  (`docs/user-guide/`), with a section filter for partial re-captures. It is run manually per
+  release when user-facing screens change; it is not part of CI or scenario regression.
 
 ### Integration Tests
 
@@ -142,8 +178,8 @@ parses this payload and displays the summary per run and per step.
 
 Scenario data ownership rules:
 
-- Scenario-created users, memberships, programs, missions, applications and answers must be tagged with
-  `RegressionDataMarker`.
+- Scenario-created users, memberships, programs, missions, submissions, applications and answers must be
+  tagged with `RegressionDataMarker`.
 - Cleanup must delete only marker-tagged records.
 - Seeded demo data and user-created data are never cleanup targets unless explicitly marker-tagged.
 
@@ -225,3 +261,33 @@ unit suite is **146 tests** before final v0.14.0 validation, and the missions sc
 From `v0.14.1`, the regression baseline also covers user-guide currency: Applicant Portal and Back
 Office guide updates are mandatory for user-facing workflow, route, role, permission, status, form or
 navigation changes.
+
+From `v0.14.2`, the regression baseline also covers the applicant-portal tenant guard
+(`apps/applicant/lib/tenant-guard.test.ts`, 6 tests): `/dashboard` and `/application` require
+`accessApplicantPortal` membership in the Host-resolved tenant (SUPER_ADMIN bypass); non-members are
+redirected to `/access-denied`. The suite is **152 tests**.
+
+From `v0.14.3`, the regression baseline also covers centralized logout (`buildTenantLogoutUrl` in
+`packages/auth-web`): logout returns through the canonical host's `/logged-out` route with the tenant
+carried in OIDC `state`, and redirect targets are allow-listed (no open redirect). The suite is
+**161 tests**.
+
+From `v0.15.0`, the regression baseline also covers the mission submission workflow: the submission
+state machine, tenant-scoped/ownership-checked/audited DB helpers (`submissions.test.ts`, 20 tests),
+`reviewSubmissions` authorization, and three new scenarios (full submission loop with
+notifications/audit/terminal acceptance; reviewer role matrix; cross-tenant submission-read denial).
+The suite is **187 tests**; `Submission` joins the regression cleanup entity types.
+
+From `v0.15.1`, the regression baseline also covers the seeded four-week mission arc: the
+data-driven `missionSeeds` upsert must remain idempotent and the four published TaskPilot missions
+must be visible to the seeded accepted applicant.
+
+From `v0.16.0`, the regression baseline also covers program content management and mission-driven
+dashboard progress: `manageProgramContent` authorization with tenant-scoped audited CRUD
+(`program-content.test.ts`, 6 tests), `getApplicantMissionProgress`, and two new scenarios
+(draft→submit→accept moves the dashboard progress; content CRUD + role denial). The suite is
+**202 tests** — the current baseline.
+
+From `v0.16.1`, the regression baseline also covers illustrated-guide currency: the Playwright
+capture script must be re-run for releases that change user-facing screens, keeping
+`docs/user-guide/` screenshots in sync with the running product.

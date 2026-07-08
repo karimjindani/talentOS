@@ -2,19 +2,38 @@
 
 ## Current Baseline
 
-Version: `v0.16.2`
+Version: `v0.16.3`
 
-Baseline name: `Vision Audit and Documentation Realignment`
+Baseline name: `SSDLC Documentation Audit and Refresh`
 
-Baseline code commit: `5e3b789`
+Baseline code commit: `3856f61`
 
 Baseline date: `2026-07-08`
 
-Previous baseline: `v0.16.1`
+Previous baseline: `v0.16.2`
 
-Previous baseline commit: `639769f`
+Previous baseline commit: `5e3b789`
 
 ## Baseline Summary
+
+`v0.16.3` (documentation-only patch) completes the documentation audit started in `v0.16.2` by
+realigning the eight SSDLC docs with the shipped `v0.13.0`–`v0.16.1` scope (D-071). The biggest
+factual fixes: `docs/Deployment.md` (was stamped `v0.12.2`) gains the required `v0.14.0`/`v0.15.0`
+migration notes, current validation URLs and mission/submission/progress smoke tests;
+`docs/Data_Model.md`/`docs/Data_Dictionary.md` gain the five `v0.12.0` dashboard models in the
+entity list, a regenerated ER diagram covering all 20 models, field tables for the dashboard models
+and the four migrated-but-unused schema stubs, plus the missing `Tenant.logoFileId` and
+`User.lastLoginAt` rows; `docs/Testing_Strategy.md` (was `v0.14.1`) now states the real totals
+(202 unit tests, 22 scenarios) and covers submissions/program-content/mission-progress/Playwright
+capture; `docs/Regression_Scenarios.md` gains the three `v0.15.0` submission scenario rows and
+`Submission` in the marker entity list; `docs/Architecture.md` now describes `apps/ops` as the
+third application, includes `packages/storage`, and its portal diagram shows the
+missions/submission-review/program-content/`/logged-out` routes; the two policy docs' headers and
+merge-gate description now include the `realm-import` CI job. This file's Portal Scope and Package
+Scope sections are refreshed from their `v0.3.0` snapshot to current reality. No product code,
+schema or configuration change; unit suite unchanged at 202/202. Plan:
+`docs/plans/v0.16.3_SSDLC_Docs_Refresh_Plan.md`; results:
+`docs/testing/v0.16.3_SSDLC_Docs_Refresh_Test_Results.md`. See `D-071`.
 
 `v0.16.2` (documentation-only patch) realigns the vision and framework docs with the shipped
 product after an audit of `docs/vision.md` against committed code (D-070). `docs/vision.md` gets a
@@ -380,38 +399,58 @@ documentation for architecture, data model, data dictionary, deployment and test
 
 ## Portal Scope
 
+As of `v0.16.3` (previously a `v0.3.0` snapshot).
+
 Public Applicant Portal routes (`apps/applicant`, container `talentos-applicant`):
 
 - `/`
 - `/apply`
 - `/login` (Keycloak sign-in)
 - `/application` (authenticated)
+- `/access-denied` (`v0.14.2` tenant guard)
+- `/logged-out` (`v0.14.3` post-logout return, canonical host)
+- `/dashboard` + `program`, `tasks`, `resources`, `calendar`, `notifications`, `profile` (`v0.12.0`, accepted applicants)
+- `/dashboard/missions`, `/dashboard/missions/[id]` (`v0.14.0`; My Submission section `v0.15.0`)
 - `/api/auth/[...nextauth]`
+- `/api/branding/logo` (public tenant logo, `v0.9.0`)
+- `/api/ai/mentor` (stub boundary)
 
 (Signup and 2FA setup are owned by Keycloak as of `v0.3.0`.)
 
 Program Admin Portal routes (`apps/admin`, container `talentos-admin`, served at root, RBAC-gated):
 
 - `/`
-- `/applications`
-- `/applications/[id]`
-- `/programs`
-- `/settings`
-- `/organizations` (SUPER_ADMIN only)
+- `/applications`, `/applications/[id]`
+- `/programs`, `/programs/new`, `/programs/[id]`
+- `/programs/[id]/content` (`v0.16.0`, `manageProgramContent`)
+- `/missions`, `/missions/new`, `/missions/[id]` (`v0.14.0`)
+- `/missions/[id]/submissions/[submissionId]` (`v0.15.0` submission review)
+- `/operations` (`v0.8.0`)
+- `/settings` (`v0.9.0` branding)
+- `/organizations` (SUPER_ADMIN only, `v0.10.0`)
 - `/forbidden`
+- `/logged-out` (`v0.14.3`)
 - `/api/auth/[...nextauth]`
+- `/api/files/presign-upload`, `/api/files/[id]/confirm`, `/api/files/[id]/download` (`v0.7.0`)
+- `/api/operations/health`
+
+Local Ops Console (`apps/ops`, host-run on `127.0.0.1:3300`, not containerized): Keycloak-gated
+operations UI running regression/cleanup/reset jobs (`v0.8.0`/`v0.12.2`/`v0.13.0`).
 
 ## Package Scope
 
-Packages, apps and infrastructure included as of `v0.3.0`:
+Packages, apps and infrastructure included as of `v0.16.3`:
 
 - `apps/applicant`
 - `apps/admin`
+- `apps/ops` (host-run local Ops Console)
 - `packages/auth`
 - `packages/auth-web`
 - `packages/db`
+- `packages/storage` (`v0.7.0`, MinIO/S3)
 - `packages/ui`
 - `keycloak/import` (realm definition)
+- `scripts/` (seed, regression runner, local bootstrap, user-guide capture)
 
 ## Documentation Rule
 
