@@ -550,3 +550,37 @@ criteria are free text pending a controlled catalog and rubrics. No application 
 configuration or Docker change; the unit suite is unchanged at 202 tests.
 
 Status: Approved
+
+## D-071
+
+`v0.16.3` (documentation-only patch) extends the D-070 audit to the eight SSDLC docs the user
+flagged as release-stale (`Architecture.md`, `CI_CD_Pipeline.md`, `Data_Dictionary.md`,
+`Data_Model.md`, `Deployment.md`, `Regression_Scenarios.md`, `Source_Control_Policy.md`,
+`Testing_Strategy.md`) and refreshes all of them in one docs-only baseline. Decisions:
+(1) **Operational accuracy first** — `Deployment.md` (stamped `v0.12.2`) was the most dangerous
+drift: its migration changelog stopped at `v0.12.0`, omitting the required
+`20260704160000_v0_14_0_mission_engine_mvp` and `20260706090000_v0_15_0_mission_submissions`
+migrations; it now documents them plus current validation URLs and mission/submission/progress
+smoke tests. (2) **The data docs document the whole schema** — the five `v0.12.0` dashboard models
+existed only in changelog prose; they now have Core Entities entries and Data Dictionary field
+tables, the ER diagram is regenerated to cover all 20 models and missing relations
+(`Tenant→logoFile`, notifications, task completions, program content), and the four
+migrated-but-unused models (`PortfolioArtifact`, `Certificate`, `KnowledgeBaseDocument`,
+`AIInteraction`) are consistently framed as schema stubs in both docs rather than "future"
+entities. (3) **Testing docs state current reality** — `Testing_Strategy.md` (stamped `v0.14.1`,
+citing 146 tests) now states 202 unit tests / 22 scenarios, adds sections for `v0.15.0`
+submissions, `v0.16.0` program content + mission-driven progress and the `v0.16.1` Playwright
+capture, and notes CI runs the unit suite only; `Regression_Scenarios.md` gains the three
+`v0.15.0` submission scenario rows, `Submission` in the marker entity list, and a note that the
+matrix is finer-grained than the runner's 22 scenario objects. (4) **`apps/ops` is documented as
+the third application** — `Architecture.md` now describes the host-run, Keycloak-gated Ops Console
+(`127.0.0.1:3300`, not containerized), includes `packages/storage` in the shared-package list,
+shows the missions/submission-review/program-content/`/logged-out` routes in its portal diagram,
+and drops the obsolete `v0.3.1` label for the still-future Users/Roles UI. (5) **Merge gate names
+both CI jobs** — `Source_Control_Policy.md` and `CI_CD_Pipeline.md` now state that the `ci` job
+*and* the `realm-import` job must pass. (6) **`Version_Baseline.md` Portal/Package Scope
+refreshed** from their `v0.3.0` snapshot to the current route/app/package inventory. No
+application code, schema, configuration or Docker change; the unit suite is unchanged at 202
+tests.
+
+Status: Approved

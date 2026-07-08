@@ -1,8 +1,8 @@
 # Source Control & Branching Policy
 
-Code version: `v0.11.2`
+Code version: `v0.16.3`
 
-Baseline commit: `7bc6d5e`
+Baseline commit: `pending`
 
 This policy documents how source control is operated for TalentOS. It **codifies the workflow the
 repository already follows** (see git history) and fills the governance gaps that were previously
@@ -63,8 +63,9 @@ ci: add github actions pipeline
 - **Every change to `main` goes through a Pull Request.** No direct pushes.
 - **At least one approving review** is required before merge (routed via
   [`CODEOWNERS`](../.github/CODEOWNERS)).
-- **CI must be green** — all jobs in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
-  (`db:generate → typecheck → lint → test → build`) must pass on the PR before it can merge.
+- **CI must be green** — all jobs in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) must
+  pass on the PR before it can merge: the `ci` job (`db:generate → typecheck → lint → test → build`)
+  **and** the `realm-import` job (Keycloak realm-import boot guard).
 - **An author does not merge their own unreviewed PR.**
 - The **PR description** (see the [PR template](../.github/pull_request_template.md)) links the target
   version and Decision-Log ID, and confirms the `docs/plans/` and `docs/testing/` entries required by

@@ -1,11 +1,35 @@
 # Deployment
 
-Code version: `v0.12.2`
+Code version: `v0.16.3`
 
-Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+Baseline commit: `pending`
 
-Current deployment update: `v0.12.2`
+Current deployment update: `v0.16.3` (documentation refresh; the latest deployment-affecting
+baselines are `v0.14.0` and `v0.15.0` — both require a database migration)
 
+> `v0.16.0`–`v0.16.3` require **no deployment, infra or migration change**. `v0.16.0`
+> (mission-driven dashboard progress + Program Content admin CRUD) is code-only — rebuild with
+> `docker compose up -d --build applicant admin`; `v0.16.1`–`v0.16.3` are docs/tooling baselines.
+>
+> `v0.15.1` (four-week mission seed, D-068) has no schema or topology change, but a fresh install's
+> demo content comes from the reworked idempotent seed — run `npm run db:seed` (or
+> `local:bootstrap`) to upsert the four TaskPilot missions into an existing local environment.
+>
+> `v0.15.0` (Mission Submission Workflow, D-067) **requires a database migration**:
+> `20260706090000_v0_15_0_mission_submissions` (extends `submissions` with `tenantId`, reviewer
+> fields and the unique `[missionId, applicantId]`). After pulling the code, run
+> `npx prisma migrate deploy --schema packages/db/prisma/schema.prisma` against the target
+> database, then rebuild both containers: `docker compose up -d --build applicant admin`.
+>
+> `v0.14.0` (Mission Engine MVP) **requires a database migration**:
+> `20260704160000_v0_14_0_mission_engine_mvp` (extends `missions` with status, week/order and the
+> SEM content fields). Same procedure: `migrate deploy`, then rebuild both containers.
+> `v0.14.2` (applicant tenant guard) and `v0.14.3` (logout fixes) are code-only rebuilds; `v0.14.3`
+> also adds the `/logged-out` route on the canonical host of each portal. `v0.14.1` is docs-only.
+>
+> `v0.13.0` (scenario regression) makes no topology change — it adds the host-run regression runner
+> (`scripts/regression/run.ts`, `npm run regression:*`) surfaced in the Ops Console.
+>
 > `v0.12.2` hardens local development deployment. Run `npm.cmd run local:bootstrap` from the repo root
 > to repair/create ignored `.env`, rebuild Compose services, run Prisma setup, seed demo/dashboard data,
 > non-destructively repair stale Keycloak clients in an existing local realm, and start the host-only Ops
@@ -201,6 +225,10 @@ Keycloak production mode, backups, monitoring, and an evaluation of Alibaba Clou
 - `postgres`: application PostgreSQL database container.
 - `minio`: self-hosted S3-compatible object storage (`talentos-minio`); API `9000`, console `9001`,
   private `talentos` bucket created by the one-shot `minio-setup` service.
+- `ops` (**host-run, not a Compose service**): the local Ops Console (`apps/ops`), a standalone Node
+  HTTP server bound to `127.0.0.1:3300`, Keycloak-gated (clients `talentos-ops`/`talentos-ops-mfa`;
+  `SUPER_ADMIN`/`ORG_ADMIN` only). Started by `local:bootstrap` or `npm run ops:start`; it runs
+  regression, cleanup and stack-reset jobs on the host and is intentionally not containerized.
 - `worker`: planned future background job container for AI, email, GitHub sync and certificates.
 
 The `applicant` and `admin` services build from the single root `Dockerfile` using the `APP_NAME` and
@@ -253,6 +281,9 @@ Applicant container (`APPLICANT_PORT=3100`):
 - Apply page (authenticated): `http://demo.lvh.me:3100/apply`
 - Applicant application page (authenticated): `http://demo.lvh.me:3100/application`
 - Accepted applicant dashboard: `http://demo.lvh.me:3100/dashboard`
+- Applicant missions (`v0.14.0`): `http://demo.lvh.me:3100/dashboard/missions`
+- Access denied page (`v0.14.2`, non-members of the host tenant): `http://demo.lvh.me:3100/access-denied`
+- Post-logout return route (`v0.14.3`, canonical host): `http://lvh.me:3100/logged-out`
 
 Admin container (`ADMIN_PORT=3200`, routes at root, RBAC-gated):
 
@@ -260,8 +291,14 @@ Admin container (`ADMIN_PORT=3200`, routes at root, RBAC-gated):
 - Demo tenant admin: `http://demo.lvh.me:3200`
 - Admin applications: `http://demo.lvh.me:3200/applications`
 - Admin programs: `http://demo.lvh.me:3200/programs`
+- Program content management (`v0.16.0`, ORG_ADMIN): `http://demo.lvh.me:3200/programs/<programId>/content`
+- Admin missions (`v0.14.0`): `http://demo.lvh.me:3200/missions`
+- Submission review (`v0.15.0`): `http://demo.lvh.me:3200/missions/<missionId>/submissions/<submissionId>`
+- Admin operations page: `http://demo.lvh.me:3200/operations`
+- Organizations console (SUPER_ADMIN only): `http://lvh.me:3200/organizations`
 - Admin settings: `http://demo.lvh.me:3200/settings`
 - Forbidden page: `http://demo.lvh.me:3200/forbidden`
+- Post-logout return route (`v0.14.3`, canonical host): `http://lvh.me:3200/logged-out`
 - Local Ops Console: `http://127.0.0.1:3300`
 
 ## Smoke Tests
@@ -285,3 +322,15 @@ After deployment, verify:
 - CV & profile links (`v0.7.3`): on `/apply`, a CV (PDF, ≤ 5 MB) is required and GitHub/LinkedIn URLs
   are optional; the admin application-detail page shows a working **Download CV** link plus the profile
   links. Submitting without a CV, a non-PDF/over-size CV, or a non-github.com/linkedin.com URL is rejected.
+- Missions (`v0.14.0`): sign in as `accepted@demo.talentos.local` and confirm
+  `/dashboard/missions` lists the four seeded published TaskPilot missions (`v0.15.1`); sign in to
+  the admin portal as `orgadmin@demo.talentos.local` and confirm `/missions` lists and can edit them.
+- Submission loop (`v0.15.0`): as `accepted@…`, open a mission, save a draft with a
+  `https://github.com/...` repository URL and a journal, submit it; as `orgadmin@…` (or
+  `techlead@…`), open the submission from the mission's submissions page and accept it or request
+  changes with feedback; the applicant sees the status chip and a notification.
+- Mission-driven dashboard progress (`v0.16.0`): after accepting a submission, the applicant
+  dashboard's Overall Progress / Missions Accepted tile moves and the **Current Mission** card
+  advances to the next mission.
+- Scenario regression (`v0.13.0`): `npm run regression:all` completes with no failures (documented
+  skips allowed), or run it from the Ops Console at `http://127.0.0.1:3300`.

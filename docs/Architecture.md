@@ -1,23 +1,29 @@
 # TalentOS Architecture
 
-Code version: `v0.16.0`
+Code version: `v0.16.3`
 
-Architecture baseline commit: `4c2a8a39b5992f601488732efb9578842513b240`
+Architecture baseline commit: `pending`
 
-Current documentation update: `v0.16.0`
+Current documentation update: `v0.16.3` (documentation refresh; the latest product-code baseline
+is `v0.16.0`)
 
 ## Overview
 
 TalentOS is a Dockerized, multi-tenant, white-label SaaS platform for talent discovery, mission-based learning and recruitment.
 
-The platform exposes two portals, and as of `v0.2.0` each portal is an isolated application running in its own container:
+The platform consists of three applications. The two portals are isolated containers as of
+`v0.2.0`; the Ops Console is a host-run local tool:
 
 - Public Applicant Portal (`apps/applicant`, container `talentos-applicant`) for landing pages, applications and applicant workflows.
 - Program Admin Portal (`apps/admin`, container `talentos-admin`) for organization admins, HR, tech leads and platform super admins.
+- Local Ops Console (`apps/ops`, **host-run, not containerized**): a standalone Node HTTP server on
+  `127.0.0.1:3300`, authenticated via Keycloak OIDC (clients `talentos-ops`/`talentos-ops-mfa`,
+  roles `SUPER_ADMIN`/`ORG_ADMIN`, optional TOTP), that runs regression, cleanup and stack-reset
+  jobs against the local stack. It is a development/operations tool, not a deployed product surface.
 
-The two modules share only the `packages/*` libraries (`auth`, `auth-web`, `db`, `ui`). They no longer share a process or attack surface, so they can be deployed, scaled and secured independently.
+The portal modules share only the `packages/*` libraries (`auth`, `auth-web`, `db`, `storage`, `ui`). They no longer share a process or attack surface, so they can be deployed, scaled and secured independently.
 
-`v0.2.0` realized this separation at the container level. As of `v0.3.0`, **Keycloak is the live IAM**: both portals authenticate via OIDC (Auth.js / NextAuth v5), and the Admin Portal enforces role-based access. Signup, password policy and authenticator-app 2FA are owned by Keycloak. The full Admin user/org/role management UI (Keycloak Admin REST API) follows in `v0.3.1`.
+`v0.2.0` realized this separation at the container level. As of `v0.3.0`, **Keycloak is the live IAM**: both portals authenticate via OIDC (Auth.js / NextAuth v5), and the Admin Portal enforces role-based access. Signup, password policy and authenticator-app 2FA are owned by Keycloak. Org creation auto-provisions the org admin in Keycloak as of `v0.11.0`; a full Admin user/org/role management UI remains future work (see Engineering To-Do).
 
 The architecture follows the SSDLC principle that every iteration updates architecture, data model, deployment and testing documentation.
 
@@ -58,6 +64,7 @@ evaluation criteria and competency tags.
 | App database | `packages/db` | `talentos-postgres` | `55432`/`5432` (`POSTGRES_PORT`) | `5432` |
 | Keycloak database | — | `talentos-keycloak-postgres` | — (internal) | `5432` |
 | Object storage | `minio/minio` | `talentos-minio` | `9000`/`9001` (`S3_PORT`/`S3_CONSOLE_PORT`) | `9000`/`9001` |
+| Ops Console | `apps/ops` | — (host-run, not containerized) | `3300` (`OPS_PORT`, loopback only) | — |
 
 ## Technology Stack
 
@@ -82,6 +89,9 @@ flowchart LR
     AdminWeb -->|presigned URLs| MinIO["MinIO (object storage)"]
     AppWeb -->|"CV upload (server-action proxy)"| MinIO
     AppWeb --> AI["AI Service Boundary (Stub)"]
+    Operator["Operator Browser (local)"] --> Ops["apps/ops (host-run :3300)"]
+    Ops -->|OIDC| KC
+    Ops -->|"regression / cleanup / reset jobs"| DB
     DB --> Audit["Audit Logs"]
 ```
 
@@ -122,24 +132,37 @@ flowchart TD
       Login --> Apply["/apply (open funnel)"]
       Login --> Application["/application (tenant member)"]
       Application --> Dashboard["/dashboard (accepted)"]
+      Dashboard --> DashMissions["/dashboard/missions"]
+      DashMissions --> DashMission["/dashboard/missions/[id] (+ My Submission)"]
       Apply --> Application
       Application -. non-member .-> AccessDenied["/access-denied"]
       Dashboard -. non-member .-> AccessDenied
+      LoggedOutA["/logged-out (post-logout return)"]
     end
     Login -. OIDC .-> KC["Keycloak :8080"]
     subgraph AdminC["talentos-admin :3200 (RBAC-gated)"]
       AdminHome["/"] --> Applications["/applications"]
       Applications --> Detail["/applications/[id]"]
       AdminHome --> Programs["/programs"]
+      Programs --> ProgramDetail["/programs/[id]"]
+      ProgramDetail --> ProgramContent["/programs/[id]/content (ORG_ADMIN)"]
       AdminHome --> Missions["/missions"]
+      Missions --> MissionDetail["/missions/new, /missions/[id]"]
+      MissionDetail --> SubmissionReview["/missions/[id]/submissions/[submissionId] (review)"]
       AdminHome --> Operations["/operations"]
       AdminHome --> Settings["/settings"]
       AdminHome --> Organizations["/organizations (SUPER_ADMIN)"]
       AdminHome --> Forbidden["/forbidden"]
+      LoggedOutB["/logged-out (post-logout return)"]
     end
     AdminHome -. OIDC .-> KC
     AdminHome -. NEXT_PUBLIC_APPLICANT_URL .-> Landing
 ```
+
+As of `v0.14.3`, logout on both portals is centralized (`buildTenantLogoutUrl` in
+`packages/auth-web`): Keycloak RP-initiated logout returns through the canonical host's
+`/logged-out` route with the tenant origin carried in the OIDC `state` parameter, then bounces the
+user back to their tenant subdomain via the allow-listed `resolveTenantRedirect`.
 
 ## Portal Separation Direction
 
@@ -258,7 +281,8 @@ errors. The same pattern is used for browser-visible object storage URLs with `h
   route handlers (candidate-CV download, operations health). The Keycloak realm role now serves only as
   the coarse *portal-entry* gate (middleware). Defense-in-depth: `updateProgram`/`setProgramStatus`/
   `applyStatusTransition` write via `updateMany({ where: { id, tenantId } })` so a raw id cannot cross
-  tenants. Remaining `v0.3.1` work is Keycloak user/role *auto-provisioning*, not isolation.
+  tenants. (Keycloak org-admin auto-provisioning has since shipped in `v0.11.0`; the remaining
+  related work is the full Admin Users/Roles management UI — see the Engineering To-Do.)
 - **Per-tenant RBAC for the applicant portal (`v0.14.2`, D-065 — parity with D-051):** the applicant
   portal now applies the same binding. A mirror guard (`apps/applicant/lib/tenant-guard.ts` →
   `resolveTenantAccess`/`requireTenantAccess`, same `getActorTenantRoles` + `tenantRolesGrant`
