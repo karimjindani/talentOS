@@ -6,7 +6,7 @@ Version: `v0.18.2`
 
 Baseline name: `Regression And Documentation Completeness`
 
-Baseline code commit: `pending`
+Baseline code commit: `6ef1ef7`
 
 Baseline date: `2026-07-09`
 
