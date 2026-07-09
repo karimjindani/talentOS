@@ -37,7 +37,7 @@ D-057).
 **Both jobs — all stages of `ci` plus `realm-import` — must pass** for a PR to merge (see the PR
 policy in the Source Control Policy). This is the mandatory pre-merge gate.
 
-Note: the Vitest stage runs the **unit suite** (202 tests as of `v0.16.0`). Scenario regression
+Note: the Vitest stage runs the **unit suite** (243 tests as of `v0.18.2`). Scenario regression
 (`npm run regression:*`, see [`Testing_Strategy.md`](Testing_Strategy.md)) needs the running Docker
 stack and is a local/Ops-Console capability, not a CI stage.
 

@@ -2,19 +2,45 @@
 
 ## Current Baseline
 
-Version: `v0.18.1`
+Version: `v0.18.2`
 
-Baseline name: `Plan Test Scenarios Requirement`
+Baseline name: `Regression And Documentation Completeness`
 
-Baseline code commit: `3b1e636`
+Baseline code commit: `pending`
 
 Baseline date: `2026-07-09`
 
-Previous baseline: `v0.18.0`
+Previous baseline: `v0.18.1`
 
-Previous baseline commit: `bf59ca4`
+Previous baseline commit: `3b1e636`
 
 ## Baseline Summary
+
+`v0.18.2` closes the specific regression and documentation gaps found in manual PR review of the
+`engineering-journal-mvp` branch (D-077). A new `journal` regression area
+(`scripts/regression/run.ts`, `packages/auth/src/operations.ts`, `apps/ops`,
+`npm run regression:journal`) adds four scenarios: create/edit against the assigned mission with
+list/audit assertions, rejection against a published-but-unassigned mission, the
+one-entry-per-calendar-day conflict, and lock-after-submission. Two new `missions`-area scenarios add
+assigned-mission-only visibility/detail/submission-drafting scoping, and a scenario that deliberately
+documents a real PR-review finding — an applicant `ACCEPTED` before any `MissionAssignment` existed
+gets no automatic backfill and sees zero missions, now a locked-in regression assertion pending a
+product decision (backfill script, lazy on-read assignment, or accepted limitation).
+`EngineeringJournalEntry` joins the `RegressionDataMarker` cleanup entity types. The suite grows from
+22 to **28 scenarios across 12 areas**; `regression:all` verified 27/28 passed, 1 pre-existing
+documented skip, 0 failed. Documentation review corrected: `docs/Deployment.md` (never updated for
+`v0.17.0`/`v0.17.1`/`v0.18.0` — added migration procedures plus a `v0.17.1` migration-safety
+operational note, and fixed a stale smoke-test claim that accepted applicants see all four seeded
+missions rather than their one assigned mission); `docs/vision.md` (Gap Analysis/Phase 4 still
+described Engineering Journal as undelivered after `v0.17.0`/`v0.17.1` shipped it); `docs/
+Product_Backlog.md` (listed Engineering Journal as a future "next slice" after it shipped);
+`docs/user-guides/Back_Office_User_Guide.md` (disambiguated the legacy inline "Engineering journal"
+submission field from the unrelated dedicated Engineering Journal module — same name, different
+features); `docs/CI_CD_Pipeline.md` (stale unit-test count); `docs/Architecture.md`,
+`docs/Testing_Strategy.md`, `docs/Regression_Scenarios.md` and the root `README.md` version history.
+No schema change; unit suite unchanged at 243/243; full local gate re-verified clean. Plan:
+`docs/plans/v0.18.2_Regression_And_Documentation_Completeness.md`; results:
+`docs/testing/v0.18.2_Regression_And_Documentation_Completeness_Test_Results.md`. See `D-077`.
 
 `v0.18.1` is a governance-only patch (no product code, schema, Docker configuration or package file
 changed) closing a process gap found auditing `v0.17.0`–`v0.18.0`: the Engineering Journal plan never

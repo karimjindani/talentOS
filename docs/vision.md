@@ -1,6 +1,6 @@
 # TalentOS Vision
 
-Code version: `v0.16.2`
+Code version: `v0.18.2`
 
 ## Vision Statement
 
@@ -599,8 +599,9 @@ staff review → dashboard progress) are live.
 
 What still needs to be built to realize the full vision:
 
-* Structured Engineering Journal module (daily entries, weekly summaries, reflection framework) —
-  today the journal is a single Markdown field per submission
+* Engineering Journal maturity — daily structured entries now exist (`v0.17.0`/`v0.17.1`); weekly
+  summaries, a reflection framework beyond free-text fields, and real AI review/scoring (current
+  score fields are schema placeholders) remain open
 * Portfolio Engine and Certificates — `PortfolioArtifact`/`Certificate` exist as schema stubs only;
   accepted submissions are already recorded as future portfolio evidence
 * Public Talent Portal and the entire recruiter side (registration, search, dashboards, rankings,
@@ -634,13 +635,16 @@ Status: Largely delivered
 
 ## Phase 2 – Mission Engine
 
-Status: Delivered (`v0.14.0`–`v0.15.1`)
+Status: Delivered (`v0.14.0`–`v0.18.0`)
 
 * [x] Create Mission Management module — `v0.14.0`
 * [x] Define difficulty levels — `v0.14.0` (BEGINNER → EXPERT)
 * [x] Define evaluation criteria — `v0.14.0` (free-text field; structured rubrics still open)
 * [x] Define competency mappings — `v0.14.0` (free-text tags; controlled catalog still open)
-* [ ] Create Assignment templates
+* [x] Per-applicant mission assignment — `v0.18.0` (accepted applicants receive one assigned Week 1
+  mission from the published pool instead of seeing every published mission; a known gap remains for
+  applicants accepted before `v0.18.0` shipped — see `docs/Regression_Scenarios.md` Known Gaps)
+* [ ] Create Assignment templates (authoring templates, not applicant mission assignment above)
 * [ ] Define grading framework (reviews are accept/request-changes only; no scoring)
 
 ---
@@ -660,14 +664,18 @@ Status: Delivered (`v0.15.0`)
 
 ## Phase 4 – Engineering Journal
 
-Status: Partial (inline journal shipped in `v0.15.0`)
+Status: Largely delivered (`v0.17.0`–`v0.18.0`)
 
-* [x] Inline Engineering Journal (Markdown) per mission submission — `v0.15.0`
-* [ ] Daily journal entries
+* [x] Inline Engineering Journal (Markdown) per mission submission — `v0.15.0` (retained as legacy
+  submission evidence; distinct from the module below)
+* [x] Daily journal entries — dedicated `EngineeringJournalEntry` module, `/dashboard/journal` —
+  `v0.17.0`; one entry per calendar date enforced at the database layer — `v0.17.1`; entries scoped
+  to the applicant's assigned mission and locked once that mission's evidence is submitted — `v0.18.0`
 * [ ] Weekly summaries
 * [ ] Progress tracking (mission progress exists on the dashboard — `v0.16.0` — but journal
   progress does not)
-* [ ] Reflection framework
+* [ ] Reflection framework beyond the fixed structured fields (worked-on/challenge/solution/learned)
+* [ ] Real AI review/scoring (current per-entry score fields are schema placeholders only)
 
 ---
 

@@ -1,8 +1,8 @@
 # Testing Strategy
 
-Code version: `v0.18.1`
+Code version: `v0.18.2`
 
-Baseline commit: `3b1e636`
+Baseline commit: `pending`
 
 ## Goals
 
@@ -17,8 +17,8 @@ The regression suite has two layers:
 The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts after
 each run.
 
-Current totals (as of `v0.18.0`): **243 unit tests across 34 files** (`npm test`) and **22 scenarios
-across 11 areas** (`scripts/regression/run.ts`), verified 21 passed / 0 failed / 1 pre-existing
+Current totals (as of `v0.18.2`): **243 unit tests across 34 files** (`npm test`) and **28 scenarios
+across 12 areas** (`scripts/regression/run.ts`), verified 27 passed / 0 failed / 1 pre-existing
 documented skip (storage upload/download) against a freshly migrated local database. CI
 (`.github/workflows/ci.yml`) runs the **unit suite only**; scenario regression is a local capability
 driven from npm scripts or the Ops Console against the running Docker stack.
@@ -125,7 +125,10 @@ driven from npm scripts or the Ops Console against the running Docker stack.
   and detail pages.
 - `apps/applicant/components/ApplicantShell.test.ts`: journal nav item present in
   `APPLICANT_NAV_ITEMS`.
-- No scenario-level regression coverage yet — see `docs/Regression_Scenarios.md` Known Gaps.
+- Scenario coverage (`journal` area, added `v0.18.2`/D-077): create + edit against the assigned
+  mission with list/audit assertions; create rejected against a published-but-unassigned mission;
+  one entry per calendar date enforced (`JournalEntryDateConflictError`); entries lock once the
+  mission's assignment is submitted. See `docs/Regression_Scenarios.md`.
 
 ### Mission Assignment Tests (v0.18.0)
 
@@ -136,10 +139,12 @@ driven from npm scripts or the Ops Console against the running Docker stack.
   drafting and journal mission selection are all scoped to assigned missions.
 - `packages/db/src/mission-seed.test.ts` (1 test): the Week 1 Markdown mission specs seed correctly
   into `Mission` fields.
-- Scenario coverage: the submission fixture in `scripts/regression/run.ts` asserts that accepting an
-  application creates exactly one `MissionAssignment` row (`missions` area). Full visibility-scoping
-  (a published-but-unassigned mission must not be visible/usable) is unit-covered only — see
-  `docs/Regression_Scenarios.md` Known Gaps.
+- Scenario coverage (`missions` area): the submission fixture in `scripts/regression/run.ts` asserts
+  that accepting an application creates exactly one `MissionAssignment` row. Added `v0.18.2`/D-077:
+  a published-but-unassigned mission is excluded from `listAssignedProgramMissions`/
+  `getAssignedProgramMission` and rejected by `saveSubmissionDraft`; and a scenario documenting the
+  known backfill gap for applicants accepted before assignment existed (see
+  `docs/Regression_Scenarios.md` Known Gaps).
 
 ### User-Guide Screenshot Capture (v0.16.1, manual)
 
@@ -196,6 +201,7 @@ Commands:
 - `npm.cmd run regression:admin`
 - `npm.cmd run regression:programs`
 - `npm.cmd run regression:missions`
+- `npm.cmd run regression:journal`
 - `npm.cmd run regression:tenant`
 - `npm.cmd run regression:dashboard`
 - `npm.cmd run regression:storage`
@@ -207,8 +213,8 @@ parses this payload and displays the summary per run and per step.
 
 Scenario data ownership rules:
 
-- Scenario-created users, memberships, programs, missions, submissions, applications and answers must be
-  tagged with `RegressionDataMarker`.
+- Scenario-created users, memberships, programs, missions, mission assignments, journal entries,
+  submissions, applications and answers must be tagged with `RegressionDataMarker`.
 - Cleanup must delete only marker-tagged records.
 - Seeded demo data and user-created data are never cleanup targets unless explicitly marker-tagged.
 
@@ -346,3 +352,11 @@ Known Gaps (deferred, with a reason) in the same iteration; test-results docs mu
 found auditing `v0.17.0`: the Engineering Journal plan never named scenario-level test cases, so the
 feature shipped with 23 solid unit tests (`journal.test.ts`) and no scenario-level regression coverage
 at all — see `docs/Regression_Scenarios.md` Known Gaps and `D-076`.
+
+From `v0.18.2`, the regression baseline adds a new `journal` scenario area (four scenarios: create/edit
+with audit assertions, assigned-mission-only creation, one-entry-per-day conflict, lock-after-submission)
+and two new `missions`-area scenarios (assigned-mission-only visibility/detail/submission-drafting;
+and a scenario documenting the known gap that applicants accepted before Mission Assignment existed get
+no automatic backfill). `EngineeringJournalEntry` joins the `RegressionDataMarker` cleanup entity types
+(`packages/db/src/regression.ts`). The suite is **28 scenarios across 12 areas**; `regression:all` is
+verified 27/28 passed, 1 pre-existing documented skip, 0 failed. See `D-077`.

@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.18.0`
+Code version: `v0.18.2`
 
-Architecture baseline commit: `bf59ca4`
+Architecture baseline commit: `pending`
 
-Current documentation update: `v0.18.0`
+Current documentation update: `v0.18.2`
 
 ## Overview
 
@@ -387,9 +387,9 @@ TalentOS now has two regression layers:
 
 The Ops Console exposes the scenario suite as an area selector. Operators can run the full suite or one
 area at a time: `auth`, `applicant`, `admin`, `programs`, `tenant`, `dashboard`, `storage`, `ops`, or
-`unit`. As of `v0.14.0`, `missions` is also an area. Each run emits a machine-readable `REGRESSION_RESULT_JSON` payload containing total, passed,
-failed, skipped and duration counts; the Ops job runner parses that payload and renders the summary and
-raw logs.
+`unit`. As of `v0.14.0`, `missions` is also an area; as of `v0.18.2`, `journal` is too. Each run emits
+a machine-readable `REGRESSION_RESULT_JSON` payload containing total, passed, failed, skipped and
+duration counts; the Ops job runner parses that payload and renders the summary and raw logs.
 
 Scenario-generated records must be tagged through `RegressionDataMarker` before cleanup is allowed.
 The cleanup path deletes only marker-tagged records in dependency order and must not touch seeded demo

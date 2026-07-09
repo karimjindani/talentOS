@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.16.2`
+Code version: `v0.18.2`
 
-Documentation update: `Backlog refreshed as part of the v0.16.2 vision audit (D-070): recorded the v0.15.1 four-week mission seed (D-068) and the v0.16.0 mission-driven dashboard progress + program content management (D-069) as delivered.`
+Documentation update: `Backlog refreshed as part of the v0.16.2 vision audit (D-070): recorded the v0.15.1 four-week mission seed (D-068) and the v0.16.0 mission-driven dashboard progress + program content management (D-069) as delivered. Refreshed again during v0.18.2 (D-077): corrected the stale "Engineering Journal module" next-slice entry (delivered in v0.17.0/v0.17.1) and the pre-v0.18.0 mission-visibility wording.`
 
 ## MVP
 
@@ -78,10 +78,14 @@ source specs and imported into database mission fields.
 
 - Applications module — delivered in `v0.5.0` (authenticated apply → submit → admin review with accept/reject/under-review/waitlist, tenant-scoped and audited).
 - Programs module — delivered in `v0.6.0` (admin CRUD: create/edit/publish/archive, `managePrograms`-gated, tenant-scoped and audited; published programs feed the apply form).
-- Missions module — delivered in `v0.14.0` (admin create/edit/publish/archive; accepted applicants see published missions for their accepted program).
+- Missions module — delivered in `v0.14.0` (admin create/edit/publish/archive; accepted applicants
+  see assigned published missions for their accepted program as of `v0.18.0` — see the update above).
   - Submission workflow MVP-1 delivered in `v0.15.0` (D-067): applicant evidence submission with the
-    SEM review loop (accept / request changes → resubmit). Next slices: Engineering Journal module,
-    competency rollup / portfolio evidence view, file attachments for evidence.
+    SEM review loop (accept / request changes → resubmit).
+  - Engineering Journal module delivered in `v0.17.0`/`v0.17.1` (D-073/D-074): dedicated daily
+    structured-reflection entries, separate from the legacy `Submission.journalMarkdown` evidence
+    field. Next slices: competency rollup / portfolio evidence view, file attachments for evidence,
+    real AI review/scoring for journal entries.
   - Four-week mission arc seeded in `v0.15.1` (D-068): the full TaskPilot apprenticeship
     (BEGINNER → EXPERT) with the 10-step SEM lifecycle, Bronze→Platinum criteria and competency tags.
   - Mission-driven dashboard progress + program content management delivered in `v0.16.0` (D-069):
