@@ -2,19 +2,70 @@
 
 ## Current Baseline
 
-Version: `v0.16.4`
+Version: `v0.18.0`
 
-Baseline name: `SSDLC Compliance Audit`
+Baseline name: `Mission Assignment MVP`
 
-Baseline code commit: `2b07e4ae9364fd981e7d5f4da859e21f3c74032e`
+Baseline code commit: `pending`
 
 Baseline date: `2026-07-09`
 
-Previous baseline: `v0.16.3`
+Previous baseline: `v0.16.4`
 
-Previous baseline commit: `3856f61`
+Previous baseline commit: `2b07e4ae9364fd981e7d5f4da859e21f3c74032e`
 
 ## Baseline Summary
+
+`v0.18.0` gives each accepted applicant an assigned Week 1 mission instead of visibility into every
+published mission in their accepted program (D-075). A new `MissionAssignment` model (migration
+`20260708120000_v0_18_0_mission_assignment_mvp`) links tenant, program, applicant, mission and week,
+unique on `[tenantId, programId, applicantId, weekNumber]`; when an application transitions to
+`ACCEPTED`, an idempotent helper assigns one Week 1 published mission, picking from the least-assigned
+variants with a random tie-break so applicants don't all land on the same brief. Applicant mission
+listing, mission detail access, submission drafting and Engineering Journal mission selection
+(`v0.17.0`) are all now scoped to the applicant's assigned missions rather than every published mission
+in the program, and a journal entry locks once its mission's assignment has been submitted
+(`packages/db/src/journal.ts`, `assertJournalMissionNotLocked`). Week 1 now ships four TaskPilot mission
+variants (`bugbrief-status-page`, `careercraft-profile-page`, `launchlist-waitlist-page`,
+`taskpilot-landing-page`) authored as Markdown under
+`packages/db/prisma/seed-data/missions/ai-native-engineering/week-1/` and imported into standard
+`Mission` fields by `seed.ts`; the app never reads the Markdown paths at runtime. No auth, Keycloak or
+permission-matrix change. Unit suite: 243 tests (34 files); `regression:all` 21/22 passed, 1
+pre-existing documented skip, 0 failed, verified after applying this baseline's migrations to a clean
+local database. Plan: `docs/plans/v0.18.0_Mission_Assignment_MVP.md`; results:
+`docs/testing/v0.18.0_Mission_Assignment_MVP_Test_Results.md`. See `D-075`.
+
+`v0.17.1` is a patch that enforces the Engineering Journal's "one entry per applicant per calendar
+date" rule at the database layer (D-074). Migration
+`20260708100000_v0_17_1_journal_entry_date_unique` normalizes existing `EngineeringJournalEntry.entryDate`
+values to a calendar day and replaces the `v0.17.0` non-unique index with a real unique index on
+`[tenantId, applicantId, entryDate]`; `packages/db/src/journal.ts` already enforced this rule in
+application code (`JournalEntryDateConflictError`), so this is a defense-in-depth backstop, not a
+behavior change. No application code change. Plan:
+`docs/plans/v0.17.1_Journal_Entry_Date_Unique.md`; results:
+`docs/testing/v0.17.1_Journal_Entry_Date_Unique_Test_Results.md`. See `D-074`.
+
+`v0.17.0` delivers the first dedicated Engineering Journal module for the Applicant Portal (D-073), a
+daily structured-reflection system separate from the older inline `Submission.journalMarkdown` field
+used during mission submission review. A new `EngineeringJournalEntry` model (migration
+`20260707190000_v0_17_0_engineering_journal_mvp`) links tenant, applicant, program, mission and a
+derived week number, and carries structured reflection fields (`workedOn`, `challenge`, `solution`,
+`learned`, `aiUsage`, `confidenceRating`, `timeSpentHours`, `evidenceLinks`) plus nullable AI-review/scoring
+fields as schema placeholders only — no real AI scoring is active. `User` gains
+`preferredJournalLanguage`. New applicant dashboard pages (`/dashboard/journal`,
+`/dashboard/journal/new`, `/dashboard/journal/[id]`) let an accepted applicant list, create and edit
+entries; a profile setting controls the preferred journal language. Writes are tenant-scoped and
+applicant-owned, validated against the applicant's published mission in their accepted program (tightened
+to assigned-mission-only by `v0.18.0`), and audited (`journal.created`/`journal.updated`). Saved entries
+open read-only by default and can only be changed through an explicit Edit action. No auth, Keycloak,
+workflow or permission-matrix change. Plan: `docs/plans/v0.17.0_Engineering_Journal_MVP.md`; results:
+`docs/testing/v0.17.0_Engineering_Journal_MVP_Test_Results.md`. See `D-073`.
+
+**Process note:** `v0.17.0`, `v0.17.1` and `v0.18.0` shipped from a single implementation commit
+(`c7413eb`, branch `engineering-journal-mvp`) instead of one commit per version, and that branch does
+not follow the `<type>/vX.Y.Z-<slug>` naming convention. This is recorded as an accepted one-time
+process exception rather than corrected by rewriting already-pushed history — see `D-073` in
+`docs/Decision_Log.md`.
 
 `v0.16.4` is an audit-only baseline that checks the current repository against `docs/sdlc.md`
 without changing product code, schema, Docker configuration or package files. The audit concludes
@@ -413,7 +464,7 @@ documentation for architecture, data model, data dictionary, deployment and test
 
 ## Portal Scope
 
-As of `v0.16.3` (previously a `v0.3.0` snapshot).
+As of `v0.18.0` (previously a `v0.3.0` snapshot, refreshed at `v0.16.3`).
 
 Public Applicant Portal routes (`apps/applicant`, container `talentos-applicant`):
 
@@ -424,7 +475,8 @@ Public Applicant Portal routes (`apps/applicant`, container `talentos-applicant`
 - `/access-denied` (`v0.14.2` tenant guard)
 - `/logged-out` (`v0.14.3` post-logout return, canonical host)
 - `/dashboard` + `program`, `tasks`, `resources`, `calendar`, `notifications`, `profile` (`v0.12.0`, accepted applicants)
-- `/dashboard/missions`, `/dashboard/missions/[id]` (`v0.14.0`; My Submission section `v0.15.0`)
+- `/dashboard/missions`, `/dashboard/missions/[id]` (`v0.14.0`; My Submission section `v0.15.0`; assigned-missions-only `v0.18.0`)
+- `/dashboard/journal`, `/dashboard/journal/new`, `/dashboard/journal/[id]` (`v0.17.0`, Engineering Journal)
 - `/api/auth/[...nextauth]`
 - `/api/branding/logo` (public tenant logo, `v0.9.0`)
 - `/api/ai/mentor` (stub boundary)
@@ -453,7 +505,7 @@ operations UI running regression/cleanup/reset jobs (`v0.8.0`/`v0.12.2`/`v0.13.0
 
 ## Package Scope
 
-Packages, apps and infrastructure included as of `v0.16.3`:
+Packages, apps and infrastructure included as of `v0.18.0` (no new top-level package since `v0.16.3`):
 
 - `apps/applicant`
 - `apps/admin`

@@ -1,11 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.16.3`
+Code version: `v0.18.0`
 
-Architecture baseline commit: `3856f61`
+Architecture baseline commit: `pending`
 
-Current documentation update: `v0.16.3` (documentation refresh; the latest product-code baseline
-is `v0.16.0`)
+Current documentation update: `v0.18.0`
 
 ## Overview
 
@@ -55,6 +54,37 @@ see assigned published missions for their accepted program at `/dashboard/missio
 visibility. Mission content is structured as SEM-oriented text fields: brief, objective, deliverables,
 acceptance criteria, evaluation criteria and competency tags. Week 1 demo variants are sourced from
 Markdown seed specs and imported into those mission fields during seed.
+
+### Engineering Journal MVP (`v0.17.0`)
+
+`v0.17.0` adds the first dedicated daily-reflection module to the Applicant Portal, separate from the
+older inline `Submission.journalMarkdown` field used during mission submission review. Accepted
+applicants list, create and edit structured entries at `/dashboard/journal`, `/dashboard/journal/new`
+and `/dashboard/journal/[id]` (`JournalEntryForm.tsx`, `actions.ts`, `view-model.ts`); a Profile page
+setting (`LanguagePreferenceForm.tsx`) controls the applicant's preferred journal language
+(`User.preferredJournalLanguage`, default `"English"`). All journal data access goes through
+`packages/db/src/journal.ts` — tenant-scoped and applicant-owned, validated against the applicant's
+mission and program, and audited (`journal.created`/`journal.updated`). Saved entries render read-only
+by default and only change through an explicit Edit action; once a mission's assignment has been
+submitted, `isJournalMissionLockedForApplicant`/`assertJournalMissionNotLocked` lock that mission's
+journal entries against further edits. `v0.17.1` adds a database-level unique index on
+`[tenantId, applicantId, entryDate]` backing the one-entry-per-calendar-date rule that
+`createJournalEntry`/`updateJournalEntry` already enforced in application code
+(`JournalEntryDateConflictError`). AI-review/scoring fields on the entry are schema placeholders only
+— no AI review or scoring is active yet (see `docs/developer-notes/Engineering_Journal_Notes.md`).
+
+### Mission Assignment MVP (`v0.18.0`)
+
+`v0.18.0` changes applicant mission visibility from "every published mission in the accepted program"
+to "the missions explicitly assigned to this applicant." A new `MissionAssignment` row (tenant,
+program, applicant, mission, week; unique per tenant+program+applicant+week) is created idempotently
+when an application transitions to `ACCEPTED`, choosing one Week 1 published mission from the
+least-assigned variants with a random tie-break. Mission listing/detail, submission drafting and
+Engineering Journal mission selection are all scoped to the applicant's assignments
+(`packages/db/src/mission-assignments.ts`). Four Week 1 TaskPilot mission variants are authored as
+Markdown source under `packages/db/prisma/seed-data/missions/ai-native-engineering/week-1/` and
+imported into standard `Mission` fields by the seed script; the app never reads the Markdown file
+paths at runtime, only the imported database content.
 
 ## Container Topology
 
@@ -429,23 +459,32 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
      imported into mission fields for future AI-review context.
    - Next: competency rollup / portfolio view over accepted submissions.
 
-6. AI Mentor Boundary
+6. Engineering Journal — delivered in `v0.17.0`, date-uniqueness hardened in `v0.17.1`
+   - Done: dedicated daily structured-reflection module (`EngineeringJournalEntry`) at
+     `/dashboard/journal`, separate from the older inline `Submission.journalMarkdown` field;
+     tenant-scoped, applicant-owned, audited (`journal.created`/`journal.updated`); one entry per
+     applicant per calendar date enforced at the database layer (`v0.17.1`, D-074); entries lock once
+     their mission's assignment is submitted (`v0.18.0`).
+   - Next: real AI review/scoring (current fields are schema placeholders only), recruiter/admin
+     visibility, export/weekly-summary features.
+
+7. AI Mentor Boundary
    - Expand the current AI service boundary into tenant-aware, auditable mentor workflows.
 
-7. Knowledge Base
+8. Knowledge Base
    - Add tenant-owned knowledge documents for AI assistance and program support.
 
-8. GitHub Integration
+9. GitHub Integration
    - Connect participant repositories and collect project evidence.
 
-9. Portfolio
-   - Generate participant-facing public portfolio artifacts.
+10. Portfolio
+    - Generate participant-facing public portfolio artifacts.
 
-10. Certificates
+11. Certificates
     - Support tenant-branded certificate creation and issuance.
 
-11. Leaderboard
+12. Leaderboard
     - Add transparent progress and achievement visibility.
 
-12. Hiring Recommendations
+13. Hiring Recommendations
     - Produce admin-facing candidate readiness and hiring signals.
