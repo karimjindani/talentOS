@@ -584,3 +584,25 @@ application code, schema, configuration or Docker change; the unit suite is unch
 tests.
 
 Status: Approved
+
+## D-072
+
+`v0.16.4` creates an audit-only SSDLC compliance baseline against current `main` at commit
+`2b07e4ae9364fd981e7d5f4da859e21f3c74032e`. Decision: TalentOS is **substantially aligned but not
+100% compliant** with `docs/sdlc.md`. Principles 2, 4, 5 and 6 are assessed as compliant because the
+architecture, Docker runtime, deployment documentation and data-model/data-dictionary documents are
+current. Principles 0, 1, 3 and 7 are assessed as partially compliant because governance and
+automation controls still need hardening: the latest `CODEOWNERS` update appears unversioned, the
+current `CODEOWNERS` pattern likely does not express Karim + Waseem as joint owners, GitHub branch
+protection enforcement must be verified in the GitHub UI, scenario regression is local/Ops-based
+rather than enforced in CI, security scanning is documented but not implemented, and three scenario
+regression checks remain skipped.
+
+No product code, schema, Docker configuration or package file is changed in this audit baseline.
+Validation passed after repairing local generated Prisma Client drift with `npm.cmd run db:generate`:
+unit suite 202/202, typecheck, lint, build, Docker Compose config, local doctor and
+`regression:all` with 19 passed, 0 failed and 3 skipped. Follow-up remediation should be split into
+separate versioned work: governance/CODEOWNERS and branch-protection verification, CI/security gates,
+and regression fixture hardening for skipped cross-tenant/storage scenarios.
+
+Status: Approved
