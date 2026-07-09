@@ -95,8 +95,8 @@ export async function POST(request: Request) {
     // Build real applicant context (Phase 4) — safe fallback if no data
     const context = await buildApplicantContext(tenant.id, actorUserId);
 
-    // Retrieve relevant knowledge snippets (Phase 5) — keyword-based, no LLM
-    const knowledge = retrieveKnowledge(prompt);
+    // Retrieve relevant knowledge snippets (Phase 5) — limit to top 2 for faster LLM response
+    const knowledge = retrieveKnowledge(prompt, 2);
 
     // Generate the mentor response
     const response = await requestAIInteraction({

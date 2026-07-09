@@ -39,10 +39,10 @@ const ZHIPUAI_API_KEY = process.env.GLM_Z_API_KEY ?? process.env.ZHIPUAI_API_KEY
 const ZHIPUAI_BASE_URL =
   process.env.ZHIPUAI_BASE_URL ?? "https://api.z.ai/api/coding/paas/v4";
 const ZHIPUAI_MODEL = process.env.ZHIPUAI_MODEL ?? "glm-4.5-air";
-const LLM_MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS ?? "256", 10); // Reduced from 1024 to 256 for faster responses
+const LLM_MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS ?? "1024", 10); // 1024 is enough for complete structured responses
 const LLM_TEMPERATURE = parseFloat(process.env.LLM_TEMPERATURE ?? "0.7");
-const LLM_TIMEOUT_MS = 120_000; // 120 second timeout (increased from 90s)
-const LLM_MAX_RETRIES = 2; // Add retry mechanism
+const LLM_TIMEOUT_MS = 60_000; // 60 second timeout — fail fast, don't make user wait 2 minutes
+const LLM_MAX_RETRIES = 1; // Only retry on network/server errors, not timeouts
 
 /** Whether a real LLM API key is configured. */
 function hasLLMConfig(): boolean {
@@ -60,68 +60,14 @@ function buildSystemPrompt(
 ): string {
   const parts: string[] = [
     "You are an AI Mentor for TalentOS, a platform that develops AI-native software engineers.",
+    "Guide interns through tasks, missions, progress, and engineering practices (SDLC, SEM, testing, deployment).",
     "",
-    "Your role:",
-    "- Guide the intern through their program — tasks, missions, progress, and engineering practices.",
-    "- Answer questions about SDLC, SEM (Spiral Engineering Method), missions, testing, deployment, and competencies.",
-    "- Provide actionable, specific advice tailored to the intern's current context.",
-    "",
-    "Guardrails (CRITICAL):",
-    "- NEVER complete assignments or write full mission solutions for the intern.",
-    "- Guide, hint, and explain concepts — but let the intern do the work.",
-    "- Encourage the intern to follow the full SEM lifecycle: Discover → Analyze → Specify → Design → Build → Test → Deploy → Present → Reflect.",
-    "- Keep responses concise and focused (under 500 words unless the intern asks for detail).",
+    "RULES:",
+    "- Answer concisely using bullet points and Markdown.",
+    "- Use sections: **Summary**, **Details**, **Key Concepts**, **Example** (if relevant), **Recommended Action**.",
+    "- Keep responses under 300 words unless the user explicitly asks for a detailed explanation.",
+    "- NEVER complete assignments for the intern — guide and explain only.",
     "- If you don't know something, say so honestly.",
-    "",
-    "RESPONSE FORMATTING RULES (STRICTLY FOLLOW):",
-    "1. Use Markdown formatting for better readability",
-    "2. Structure responses with clear sections when appropriate:",
-    "   - **Summary**: Brief overview (1-2 sentences)",
-    "   - **Details**: Main explanation",
-    "   - **Important Points**: Key takeaways as bullet points",
-    "   - **Example**: Code or practical example when relevant",
-    "   - **Recommended Action**: Specific next steps",
-    "   - **Resources**: Links or references",
-    "3. Use headings (##, ###), bullet points (-), and numbered lists",
-    "4. For code examples, use triple backticks with language specification",
-    "5. Use bold (**text**) for emphasis on important terms",
-    "6. Never return one huge paragraph - break content into logical sections",
-    "",
-    "SUGGESTED RESPONSE TEMPLATES:",
-    "For task-related questions:",
-    "## 📋 Task Overview",
-    "**Summary**: [Brief description]",
-    "**Details**: [Detailed explanation]",
-    "**Important Points**:",
-    "- [Key point 1]",
-    "- [Key point 2]",
-    "**Recommended Action**: [Specific next step]",
-    "",
-    "For progress-related questions:",
-    "## 📊 Progress Status",
-    "**Summary**: [Current status]",
-    "**Details**: [Progress breakdown]",
-    "**Next Milestones**:",
-    "1. [Milestone 1]",
-    "2. [Milestone 2]",
-    "**Tips for Success**:",
-    "- [Tip 1]",
-    "- [Tip 2]",
-    "",
-    "For technical explanations:",
-    "## 💡 Technical Explanation",
-    "**Summary**: [Brief concept]",
-    "**Details**: [Detailed explanation]",
-    "**Key Concepts**:",
-    "- [Concept 1]",
-    "- [Concept 2]",
-    "**Example**:",
-    "```[language]",
-    "[code example]",
-    "```",
-    "**Resources**:",
-    "- [Resource 1]",
-    "- [Resource 2]",
   ];
 
   // Applicant context (Phase 4)
@@ -129,10 +75,11 @@ function buildSystemPrompt(
     parts.push("", "--- Applicant Context ---", contextToPromptSection(context));
   }
 
-  // Knowledge snippets (Phase 5)
-  const knowledgeSection = knowledgeToPromptSection(knowledge ?? []);
+  // Knowledge snippets (Phase 5) — limit to top 2 to keep prompt small
+  const topKnowledge = (knowledge ?? []).slice(0, 2);
+  const knowledgeSection = knowledgeToPromptSection(topKnowledge);
   if (knowledgeSection) {
-    parts.push("", "--- Knowledge Base ---", knowledgeSection);
+    parts.push("", knowledgeSection);
   }
 
   return parts.join("\n");
@@ -171,9 +118,11 @@ type GLMChatResponse = {
  */
 async function callGLM(
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  maxTokens?: number
 ): Promise<{ content: string; usage?: GLMChatResponse["usage"] }> {
   const url = `${ZHIPUAI_BASE_URL}/chat/completions`;
+  const effectiveMaxTokens = maxTokens ?? LLM_MAX_TOKENS;
 
   const body: GLMChatRequest = {
     model: ZHIPUAI_MODEL,
@@ -181,14 +130,15 @@ async function callGLM(
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    max_tokens: LLM_MAX_TOKENS,
+    max_tokens: effectiveMaxTokens,
     temperature: LLM_TEMPERATURE,
     stream: false,
   };
 
-  console.log(`[ai-mentor] callGLM: URL=${url}, model=${ZHIPUAI_MODEL}, max_tokens=${LLM_MAX_TOKENS}, systemPromptLength=${systemPrompt.length}, userPromptLength=${userPrompt.length}`);
+  console.log(`[ai-mentor] callGLM: model=${ZHIPUAI_MODEL}, max_tokens=${effectiveMaxTokens}, systemPromptLen=${systemPrompt.length}, userPromptLen=${userPrompt.length}`);
   
   let lastError: Error | null = null;
+  let retryCount = 0;
   
   for (let attempt = 1; attempt <= LLM_MAX_RETRIES + 1; attempt++) {
     console.log(`[ai-mentor] callGLM: Attempt ${attempt}/${LLM_MAX_RETRIES + 1}`);
@@ -234,10 +184,13 @@ async function callGLM(
       }
 
       clearTimeout(timeoutId);
+      console.log(`[ai-mentor] callGLM: Success on attempt ${attempt}, contentLen=${content.length}, tokens=${data.usage?.completion_tokens ?? '?'}, retries=${retryCount}`);
       return { content, usage: data.usage };
     } catch (err) {
       clearTimeout(timeoutId);
-      console.log(`[ai-mentor] callGLM: Attempt ${attempt} failed: ${err instanceof Error ? err.name : 'unknown'}: ${err instanceof Error ? err.message : String(err)}`);
+      const errName = err instanceof Error ? err.name : 'unknown';
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.log(`[ai-mentor] callGLM: Attempt ${attempt} failed: ${errName}: ${errMsg}`);
       
       if (err instanceof Error && err.name === "AbortError") {
         lastError = new Error("LLM_TIMEOUT");
@@ -247,15 +200,17 @@ async function callGLM(
         lastError = new Error("LLM_NETWORK_ERROR");
       }
       
-      // Don't retry on auth errors
-      if (lastError.message === "LLM_AUTH_ERROR") {
+      // Don't retry on auth errors or timeouts — these won't succeed on retry
+      if (lastError.message === "LLM_AUTH_ERROR" || lastError.message === "LLM_TIMEOUT") {
         throw lastError;
       }
       
-      // Wait before retry (exponential backoff)
+      // Only retry on network/server errors (5xx, network failures)
+      // Don't retry just because the response is slow
       if (attempt <= LLM_MAX_RETRIES) {
-        const delay = 1000 * attempt; // 1s, 2s, etc.
-        console.log(`[ai-mentor] callGLM: Waiting ${delay}ms before retry`);
+        retryCount++;
+        const delay = 1000 * attempt;
+        console.log(`[ai-mentor] callGLM: Retrying (reason: ${errMsg}) after ${delay}ms`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -471,11 +426,18 @@ export async function requestAIInteraction(
   // Step 3: Call LLM with context and knowledge
   try {
     const systemPrompt = buildSystemPrompt(context, knowledge);
-    console.log(`[ai-mentor] Calling GLM with system prompt length: ${systemPrompt.length}, user prompt length: ${prompt.length}`);
+    
+    // Use more tokens for explicitly detailed questions, fewer for simple ones
+    const lowerPrompt = prompt.toLowerCase();
+    const isDetailedRequest = lowerPrompt.includes("detailed") || lowerPrompt.includes("complete") || 
+      lowerPrompt.includes("in detail") || lowerPrompt.includes("all phases") || lowerPrompt.includes("explain everything");
+    const maxTokens = isDetailedRequest ? Math.max(LLM_MAX_TOKENS, 2048) : LLM_MAX_TOKENS;
+    
+    console.log(`[ai-mentor] Calling GLM: model=${ZHIPUAI_MODEL}, maxTokens=${maxTokens}, promptLen=${prompt.length}, systemPromptLen=${systemPrompt.length}, detailed=${isDetailedRequest}`);
     const startTime = Date.now();
-    const { content } = await callGLM(systemPrompt, prompt);
-    const endTime = Date.now();
-    console.log(`[ai-mentor] GLM call succeeded in ${endTime - startTime}ms`);
+    const { content, usage } = await callGLM(systemPrompt, prompt, maxTokens);
+    const duration = Date.now() - startTime;
+    console.log(`[ai-mentor] GLM call succeeded in ${duration}ms, responseLen=${content.length}, tokens=${usage?.completion_tokens ?? '?'}`);
     
     return {
       status: "ok",
