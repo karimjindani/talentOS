@@ -72,6 +72,10 @@ Documentation update: `Backlog refreshed as part of the v0.16.2 vision audit (D-
 
 ### MVP Engineering Deliverables
 
+Mission assignment update (`v0.18.0`): accepted applicants now see assigned published missions, not
+every published mission in the accepted program. Week 1 mission variants are seeded from Markdown
+source specs and imported into database mission fields.
+
 - Applications module — delivered in `v0.5.0` (authenticated apply → submit → admin review with accept/reject/under-review/waitlist, tenant-scoped and audited).
 - Programs module — delivered in `v0.6.0` (admin CRUD: create/edit/publish/archive, `managePrograms`-gated, tenant-scoped and audited; published programs feed the apply form).
 - Missions module — delivered in `v0.14.0` (admin create/edit/publish/archive; accepted applicants see published missions for their accepted program).

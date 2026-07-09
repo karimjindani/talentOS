@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.16.0`
+Code version: `v0.18.0`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.16.0`
+Current documentation update: `v0.18.0`
 
 ## D-001
 
@@ -604,5 +604,80 @@ unit suite 202/202, typecheck, lint, build, Docker Compose config, local doctor 
 `regression:all` with 19 passed, 0 failed and 3 skipped. Follow-up remediation should be split into
 separate versioned work: governance/CODEOWNERS and branch-protection verification, CI/security gates,
 and regression fixture hardening for skipped cross-tenant/storage scenarios.
+
+Status: Approved
+
+## D-073
+
+`v0.17.0` adds the first dedicated Engineering Journal module to the Applicant Portal: a daily
+structured-reflection system (`EngineeringJournalEntry`, migration
+`20260707190000_v0_17_0_engineering_journal_mvp`), separate from the older inline
+`Submission.journalMarkdown` field used during mission submission review. Decision: keep the two
+journal concepts separate rather than migrating `Submission.journalMarkdown` into the new model —
+`Submission.journalMarkdown` remains as legacy submission evidence (removal is deferred future work),
+while the new module is the applicant-owned, mission-linked daily-reflection surface with placeholder
+(non-functional) AI review/scoring fields. New pages `/dashboard/journal`, `/dashboard/journal/new`,
+`/dashboard/journal/[id]`; a new `User.preferredJournalLanguage` profile setting; writes are
+tenant-scoped, applicant-owned, validated against the applicant's published mission in their accepted
+program, and audited (`journal.created`/`journal.updated`). No auth, Keycloak, workflow or
+permission-matrix change.
+
+**Process exception:** this baseline, `D-074` (`v0.17.1`) and `D-075` (`v0.18.0`) all shipped from a
+single implementation commit (`c7413eb`, "Implement Engineering Journal and mission assignment MVP")
+on branch `engineering-journal-mvp`, instead of one commit per version with a Conventional-Commits
+message and `(vX.Y.Z, D-0NN)` trailer per `docs/Source_Control_Policy.md`. The branch name also does
+not follow the required `<type>/vX.Y.Z-<slug>` pattern. Both commits were already pushed to
+`origin/engineering-journal-mvp` before this compliance pass; rewriting that history would require a
+force-push to a branch that may already have review activity, so — by explicit decision during this
+pass — the existing commits and branch name are kept as-is and recorded here as a one-time accepted
+exception, closed out going forward by adding new, correctly-formatted commits (docs remediation +
+baseline-record) on top rather than rewriting what is already public.
+
+Plan: `docs/plans/v0.17.0_Engineering_Journal_MVP.md`; results:
+`docs/testing/v0.17.0_Engineering_Journal_MVP_Test_Results.md`.
+
+Status: Approved
+
+## D-074
+
+`v0.17.1` is a patch that adds a database-layer unique constraint
+(`[tenantId, applicantId, entryDate]`, migration `20260708100000_v0_17_1_journal_entry_date_unique`)
+enforcing the Engineering Journal's "one entry per applicant per calendar date" rule, which `v0.17.0`
+(`D-073`) had only enforced in application code (`JournalEntryDateConflictError` in
+`packages/db/src/journal.ts`). Decision: normalize existing `entryDate` values to a calendar day
+(`date_trunc('day', ...)`) before adding the constraint, and treat this as defense-in-depth rather than
+a behavior change, since the application-level check already prevented the conflict for every caller
+going through the documented helpers. No product code change. This migration and its plan/test-results
+docs were originally shipped undocumented as part of the same commit as `D-073`; the docs were added
+retroactively during this pre-push SSDLC compliance pass — see the process-exception note under
+`D-073`.
+
+Plan: `docs/plans/v0.17.1_Journal_Entry_Date_Unique.md`; results:
+`docs/testing/v0.17.1_Journal_Entry_Date_Unique_Test_Results.md`.
+
+Status: Approved
+
+## D-075
+
+`v0.18.0` gives each accepted applicant one assigned Week 1 mission instead of visibility into every
+published mission in their accepted program. Decision: introduce a `MissionAssignment` model (migration
+`20260708120000_v0_18_0_mission_assignment_mvp`; unique on
+`[tenantId, programId, applicantId, weekNumber]`) and assign one Week 1 published mission
+idempotently when an application becomes `ACCEPTED`, choosing from the least-assigned published
+Week 1 missions with a random tie-break so applicants don't all land on the same brief. Applicant
+mission listing, mission detail access, submission drafting and Engineering Journal (`D-073`) mission
+selection are all scoped to assigned missions; a journal entry locks once its mission's assignment has
+been submitted. Four Week 1 TaskPilot mission variants are authored as Markdown source under
+`packages/db/prisma/seed-data/missions/ai-native-engineering/week-1/` and imported into normal
+`Mission` fields by the seed script — the app never depends on the Markdown file paths at runtime, only
+on the imported database content. No auth, Keycloak or permission-matrix change. Verified after
+applying this baseline's migrations to a clean local database: unit suite 243/243, typecheck, lint,
+build, and `regression:all` 21/22 passed (1 pre-existing documented skip, 0 failed) — including the
+`missions` and `dashboard` regression areas, which an earlier local run had reported failing due to a
+stale local database state unrelated to this migration (see
+`docs/testing/v0.18.0_Mission_Assignment_MVP_Test_Results.md`).
+
+Plan: `docs/plans/v0.18.0_Mission_Assignment_MVP.md`; results:
+`docs/testing/v0.18.0_Mission_Assignment_MVP_Test_Results.md`.
 
 Status: Approved

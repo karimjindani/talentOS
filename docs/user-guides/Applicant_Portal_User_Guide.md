@@ -1,8 +1,8 @@
 # Applicant Portal User Guide
 
-Applies to version: `v0.16.0`
+Applies to version: `v0.18.0`
 
-Last verified: 2026-07-07
+Last verified: 2026-07-08
 
 Audience: applicants and accepted program participants.
 
@@ -26,6 +26,7 @@ Local development URLs:
 - Application Status: `http://demo.lvh.me:3100/application`
 - Accepted Applicant Dashboard: `http://demo.lvh.me:3100/dashboard`
 - Missions: `http://demo.lvh.me:3100/dashboard/missions`
+- Engineering Journal: `http://demo.lvh.me:3100/dashboard/journal`
 
 Production URL: to be provided by the tenant or platform operator.
 
@@ -92,6 +93,7 @@ The dashboard contains:
 - My Program
 - Tasks
 - Missions
+- Journal
 - Resources
 - Calendar
 - Notifications
@@ -123,8 +125,8 @@ an application is what enrolls you as an `APPLICANT` in that tenant.
 
 ## Missions
 
-Missions are the learning-by-building assignments in TalentOS. In `v0.14.0`, accepted applicants can view
-published missions for their accepted program.
+Missions are the learning-by-building assignments in TalentOS. As of `v0.18.0`, accepted applicants can
+view assigned published missions for their accepted program.
 
 To view missions:
 
@@ -137,9 +139,12 @@ To view missions:
 The demo program seeds the full four-week mission arc (`v0.15.1`), evolving one product — TaskPilot —
 from idea to production:
 
+In `v0.18.0`, Week 1 has multiple seeded variants so interns do not all start with the exact same
+assignment. The assigned mission is the one that appears in your dashboard.
+
 | Week | Mission | Difficulty |
 | --- | --- | --- |
-| 1 | Build a Public Product Landing Page | Beginner |
+| 1 | One seeded Week 1 variant assigned to you | Beginner |
 | 2 | Design and Build the TaskPilot Application | Intermediate |
 | 3 | Containerize, Automate and Load-Test TaskPilot | Advanced |
 | 4 | Take TaskPilot to Production | Expert |
@@ -168,7 +173,32 @@ Workflow:
 The missions list shows a status chip per mission: **Not started**, **Draft saved**, **Submitted**,
 **Revision requested**, or **Accepted**.
 
-Portfolio publishing and a dedicated engineering-journal module are future workflows.
+The inline mission-submission journal remains part of the review evidence for that mission.
+
+## Engineering Journal (`v0.17.0`)
+
+The dedicated **Journal** dashboard page stores daily structured reflections. Entries are linked to
+your tenant, user account, accepted program, selected published mission and the mission's week number.
+You can create back-dated entries, but each date can have only one journal entry. If you already wrote
+an entry for a date, edit that entry instead of creating another one.
+
+Each journal entry asks for:
+
+- What you worked on today
+- What challenge you faced
+- How you solved it
+- What you learned
+- How you used AI, or that no AI was used
+- Confidence rating from 1 to 5
+- Time spent in hours
+- Evidence links such as GitHub, PR, deployed URL or video links
+
+You may write in English, Roman Urdu, Roman Hindi or another language. Use **Profile** to set your
+Preferred Journal Language; new journal entries use that preference by default. TalentOS does not
+translate or process languages automatically yet.
+
+AI scoring columns exist in the database for future mentor/reviewer workflows, but real AI scoring is
+not active in this version.
 
 ## Troubleshooting
 
@@ -178,12 +208,11 @@ Portfolio publishing and a dedicated engineering-journal module are future workf
 | Asked to change password | First-login security requirement | Complete the Keycloak password update. |
 | "Access denied — not a member of this organization" | You opened a tenant subdomain where you have no membership | Use your own tenant's URL, or select **Apply to join** to apply to that organization. |
 | Dashboard is not visible | Application is not accepted | Check application status first. |
-| No missions are visible | No published missions for accepted program | Contact the program administrator. |
+| No missions are visible | No assigned published mission for your accepted program | Contact the program administrator. |
 | Apply form does not show a program | No published program exists for the tenant | Contact the program administrator. |
 
 ## Known Limitations
 
-- A dedicated engineering-journal module and portfolio publishing are not implemented yet (mission
-  submission with an inline journal shipped in `v0.15.0`).
-- Evidence file attachments are not supported yet — evidence is links plus the inline journal.
+- Real AI journal scoring, weekly AI summaries and portfolio publishing are not implemented yet.
+- Evidence file attachments are not supported yet; journal and mission evidence use URL links.
 - Screenshots are not part of this guide yet.

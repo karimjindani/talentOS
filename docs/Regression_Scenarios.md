@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.16.3`
+Code version: `v0.18.0`
 
 ## Purpose
 
@@ -57,6 +57,9 @@ are one scenario).
 | Missions | HR, Tech Lead and Applicant cannot manage missions. | Automated | Validates `manageMissions` capability. |
 | Missions | Submission loop: draft, submit, request changes, resubmit, accept — with notifications and audit. | Automated | v0.15.0 (D-067): full SEM review loop; acceptance is terminal and notifies the applicant. |
 | Missions | Only Org Admin and Tech Lead can review submissions. | Automated | v0.15.0 (D-067): validates the `reviewSubmissions` capability (HR read-only, applicants denied). |
+| Missions | Accepting an application creates exactly one `MissionAssignment` for the applicant, idempotently. | Automated | v0.18.0 (D-075): asserted as part of the submission fixture; the runner fails loudly if no assignment row is created. |
+| Missions | Applicant mission list/detail, submission drafting and journal mission selection are limited to assigned missions (a published-but-unassigned mission is not visible/usable). | Missing | Unit-covered (`packages/db/src/mission-assignments.test.ts`), not yet a scenario-level check. |
+| Journal | Applicant creates/edits a daily Engineering Journal entry against an assigned mission; entry locks once the mission's assignment is submitted; one entry per calendar date is enforced. | Missing | Unit-covered (`packages/db/src/journal.test.ts`, 21 tests), no scenario-level check yet for `v0.17.0`/`v0.17.1`. |
 | Tenant isolation | Tenant-scoped program read rejects another tenant. | Partially automated | Skips when only one local tenant exists. Needs a second marked tenant fixture. |
 | Tenant isolation | Tenant-scoped submission read rejects another tenant. | Automated | v0.15.0 (D-067): cross-tenant submission access is denied. |
 | Tenant isolation | Realm role alone does not grant authority without `TenantMembership`. | Automated | Validates the D-051 authorization principle. |
@@ -83,6 +86,7 @@ Current marker-tagged entity types:
 - `TenantMembership`
 - `Program`
 - `Mission`
+- `MissionAssignment`
 - `Submission`
 - `Application`
 - `ApplicationAnswer`
@@ -102,7 +106,7 @@ Cleanup rules:
 5. Prefer deterministic regression names such as `regression-<runId>` and
    `applicant+<runId>@regression.talentos.local`.
 
-## Known Gaps (as of `v0.16.3`)
+## Known Gaps (as of `v0.18.0`)
 
 - Full browser-level Playwright coverage is not yet complete for every scenario. The runner currently
   combines OIDC HTTP login flows with DB/service-level scenario checks.
@@ -110,3 +114,9 @@ Cleanup rules:
 - Cross-tenant route-level denial needs a second regression tenant fixture and browser route checks.
 - Admin review should expand from one accepted-path status transition to all reviewer transitions and
   role-specific denial paths.
+- Engineering Journal (`v0.17.0`/`v0.17.1`, D-073/D-074) has no scenario-level regression coverage yet
+  — only unit tests. A future slice should add a runner scenario covering create/edit, the
+  assigned-mission validation, the submission-lock rule and the one-entry-per-day conflict.
+- Mission Assignment (`v0.18.0`, D-075) visibility scoping (a published-but-unassigned mission must not
+  be visible or usable by an applicant) is unit-covered but not yet a scenario-level check; the current
+  scenario only asserts that acceptance creates an assignment row.

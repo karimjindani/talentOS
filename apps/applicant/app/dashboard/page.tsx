@@ -149,7 +149,7 @@ export default async function DashboardPage() {
               All missions accepted — your portfolio evidence is complete. 🎉
             </p>
           ) : (
-            <p className="text-sm text-slate-500">No published missions yet.</p>
+            <p className="text-sm text-slate-500">No assigned missions yet.</p>
           )}
         </div>
 

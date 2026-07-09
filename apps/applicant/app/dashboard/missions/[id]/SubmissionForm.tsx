@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { saveSubmissionAction, type SubmissionFormState } from "./actions";
 
@@ -11,7 +12,6 @@ type SubmissionFormProps = {
     repositoryUrl: string;
     deploymentUrl: string;
     loomUrl: string;
-    journalMarkdown: string;
   };
   /** True when this is a resubmission after NEEDS_REVISION. */
   isRevision: boolean;
@@ -69,16 +69,13 @@ export function SubmissionForm({ missionId, defaults, isRevision }: SubmissionFo
         />
       </label>
 
-      <label className="grid gap-1.5 text-sm font-medium text-slate-700">
-        Engineering journal (Markdown)
-        <textarea
-          name="journalMarkdown"
-          defaultValue={defaults.journalMarkdown}
-          rows={8}
-          placeholder={"## What I built\n\n## Decisions and trade-offs\n\n## What I learned"}
-          className={`${inputClass} font-mono`}
-        />
-      </label>
+      <p className="rounded-xl border border-brand-mist bg-brand-mist/40 px-4 py-3 text-sm text-slate-700">
+        Write your daily reflection in the{" "}
+        <Link href="/dashboard/journal" className="font-semibold text-brand-blue underline">
+          Engineering Journal
+        </Link>
+        .
+      </p>
 
       <div className="flex flex-wrap gap-3">
         <button

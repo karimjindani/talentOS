@@ -4,6 +4,7 @@ const prismaMock = vi.hoisted(() => ({
   submissionFindFirst: vi.fn(),
   submissionFindMany: vi.fn(),
   missionFindMany: vi.fn(),
+  missionAssignmentFindMany: vi.fn(),
   transaction: vi.fn(),
   txMissionFindFirst: vi.fn(),
   txSubmissionFindFirst: vi.fn(),
@@ -22,6 +23,9 @@ vi.mock("./client", () => ({
     },
     mission: {
       findMany: prismaMock.missionFindMany
+    },
+    missionAssignment: {
+      findMany: prismaMock.missionAssignmentFindMany
     },
     $transaction: prismaMock.transaction
   }
@@ -107,7 +111,12 @@ describe("submission data access", () => {
     await saveSubmissionDraft(draftInput());
 
     expect(prismaMock.txMissionFindFirst).toHaveBeenCalledWith({
-      where: { id: "mission-1", tenantId: "tenant-1", status: "PUBLISHED" },
+      where: {
+        id: "mission-1",
+        tenantId: "tenant-1",
+        status: "PUBLISHED",
+        assignments: { some: { tenantId: "tenant-1", applicantId: "user-1" } }
+      },
       select: { id: true }
     });
     expect(prismaMock.txSubmissionCreate).toHaveBeenCalledWith({
@@ -118,9 +127,33 @@ describe("submission data access", () => {
     });
   });
 
+  it("creates a draft when the legacy inline journal field is omitted", async () => {
+    prismaMock.txSubmissionFindFirst.mockResolvedValue(null);
+
+    await saveSubmissionDraft(draftInputWithoutJournal());
+
+    const createdData = prismaMock.txSubmissionCreate.mock.calls[0][0].data;
+    expect(createdData).toEqual(
+      expect.objectContaining({
+        tenantId: "tenant-1",
+        applicantId: "user-1",
+        repositoryUrl: "https://github.com/u/r",
+        status: "DRAFT"
+      })
+    );
+    expect(createdData).not.toHaveProperty("journalMarkdown");
+  });
+
   it("rejects drafts for missions outside the tenant or not published", async () => {
     prismaMock.txMissionFindFirst.mockResolvedValue(null);
-    await expect(saveSubmissionDraft(draftInput())).rejects.toThrow("Mission not found for this tenant.");
+    await expect(saveSubmissionDraft(draftInput())).rejects.toThrow("Mission is not assigned");
+    expect(prismaMock.txSubmissionCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects drafts for missions not assigned to the applicant", async () => {
+    prismaMock.txMissionFindFirst.mockResolvedValue(null);
+
+    await expect(saveSubmissionDraft(draftInput())).rejects.toThrow("Mission is not assigned to this applicant.");
     expect(prismaMock.txSubmissionCreate).not.toHaveBeenCalled();
   });
 
@@ -139,6 +172,16 @@ describe("submission data access", () => {
       where: { id: "sub-1" },
       data: expect.objectContaining({ repositoryUrl: "https://github.com/u/r" })
     });
+  });
+
+  it("preserves existing legacy journal markdown when new drafts omit that field", async () => {
+    prismaMock.txSubmissionFindFirst.mockResolvedValue({ id: "sub-1", status: "DRAFT" });
+
+    await saveSubmissionDraft(draftInputWithoutJournal());
+
+    const updateData = prismaMock.txSubmissionUpdate.mock.calls[0][0].data;
+    expect(updateData).toEqual(expect.objectContaining({ repositoryUrl: "https://github.com/u/r" }));
+    expect(updateData).not.toHaveProperty("journalMarkdown");
   });
 
   it("submits only the applicant's own draft and requires at least one evidence link", async () => {
@@ -291,11 +334,17 @@ function draftInput() {
   };
 }
 
+function draftInputWithoutJournal() {
+  const { journalMarkdown: _journalMarkdown, ...input } = draftInput();
+  return input;
+}
+
 // Mission progress (v0.16.0, D-069): the dashboard's source of truth. Only ACCEPTED submissions
 // move the bar; the current mission is the first published mission not yet accepted.
 describe("getApplicantMissionProgress", () => {
   beforeEach(() => {
     prismaMock.missionFindMany.mockReset();
+    prismaMock.missionAssignmentFindMany.mockReset();
     prismaMock.submissionFindMany.mockReset();
   });
 
@@ -307,7 +356,7 @@ describe("getApplicantMissionProgress", () => {
   ];
 
   it("reports zero progress and the Week 1 mission as current when nothing is started", async () => {
-    prismaMock.missionFindMany.mockResolvedValue(missions);
+    prismaMock.missionAssignmentFindMany.mockResolvedValue(asAssignments(missions));
     prismaMock.submissionFindMany.mockResolvedValue([]);
 
     const progress = await getApplicantMissionProgress("tenant-1", "user-1", "program-1");
@@ -322,15 +371,14 @@ describe("getApplicantMissionProgress", () => {
       submissionStatus: null
     });
     // Reads are tenant + program scoped and published-only.
-    expect(prismaMock.missionFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { tenantId: "tenant-1", programId: "program-1", status: "PUBLISHED" }
-      })
-    );
+    expect(prismaMock.missionAssignmentFindMany).toHaveBeenCalledWith({
+      where: { tenantId: "tenant-1", programId: "program-1", applicantId: "user-1", mission: { status: "PUBLISHED" } },
+      include: { mission: { select: { id: true, title: true, weekNumber: true, order: true } } }
+    });
   });
 
   it("counts only ACCEPTED submissions and advances the current mission past them", async () => {
-    prismaMock.missionFindMany.mockResolvedValue(missions);
+    prismaMock.missionAssignmentFindMany.mockResolvedValue(asAssignments(missions));
     prismaMock.submissionFindMany.mockResolvedValue([
       { id: "s1", missionId: "m1", status: "ACCEPTED", submittedAt: new Date() },
       { id: "s2", missionId: "m2", status: "SUBMITTED", submittedAt: new Date() }
@@ -351,7 +399,7 @@ describe("getApplicantMissionProgress", () => {
   });
 
   it("reports full completion with no current mission when every mission is accepted", async () => {
-    prismaMock.missionFindMany.mockResolvedValue(missions);
+    prismaMock.missionAssignmentFindMany.mockResolvedValue(asAssignments(missions));
     prismaMock.submissionFindMany.mockResolvedValue(
       missions.map((m, i) => ({ id: `s${i}`, missionId: m.id, status: "ACCEPTED", submittedAt: new Date() }))
     );
@@ -364,7 +412,7 @@ describe("getApplicantMissionProgress", () => {
   });
 
   it("always includes weeks 1-4 even when no missions are published", async () => {
-    prismaMock.missionFindMany.mockResolvedValue([]);
+    prismaMock.missionAssignmentFindMany.mockResolvedValue([]);
     prismaMock.submissionFindMany.mockResolvedValue([]);
 
     const progress = await getApplicantMissionProgress("tenant-1", "user-1", "program-1");
@@ -374,3 +422,7 @@ describe("getApplicantMissionProgress", () => {
     expect(progress.currentMission).toBeNull();
   });
 });
+
+function asAssignments(missions: { id: string; title: string; weekNumber: number; order: number }[]) {
+  return missions.map((mission) => ({ mission }));
+}

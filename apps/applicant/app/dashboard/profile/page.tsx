@@ -5,6 +5,7 @@ import {
   getUserByEmail,
   listApplicantApplications,
 } from "@talentos/db";
+import { LanguagePreferenceForm } from "./LanguagePreferenceForm";
 
 function formatDate(value: Date | null | undefined) {
   if (!value) return "—";
@@ -47,6 +48,15 @@ export default async function ProfilePage() {
               <dd className="mt-0.5 font-medium text-slate-800">{formatDate(user.createdAt)}</dd>
             </div>
           </dl>
+        </div>
+
+        {/* Journal preferences */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-brand-navy">Journal Preferences</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Choose the language you prefer for Engineering Journal entries. TalentOS does not require English.
+          </p>
+          <LanguagePreferenceForm defaultLanguage={user.preferredJournalLanguage} />
         </div>
 
         {/* Application info */}

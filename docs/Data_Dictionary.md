@@ -1,9 +1,25 @@
 # Data Dictionary
 
-Code version: `v0.16.3`
+Code version: `v0.18.0`
 
-Baseline commit: `3856f61`
+Baseline commit: `bf59ca4`
 
+> `v0.18.0` (Mission Assignment MVP, D-075) adds `mission_assignments`: `id`, `tenantId` (FK→tenants),
+> `programId` (FK→programs), `applicantId` (FK→users), `missionId` (FK→missions), `weekNumber`,
+> `assignedAt`, `createdAt`, `updatedAt`; unique `[tenantId, programId, applicantId, weekNumber]`,
+> indexes on `[tenantId, programId, weekNumber]`, `applicantId`, `missionId`. Migration:
+> `20260708120000_v0_18_0_mission_assignment_mvp`.
+>
+> `v0.17.1` (journal entry date uniqueness, D-074) replaces the non-unique
+> `engineering_journal_entries_tenantId_applicantId_entryDate_idx` index with a unique index of the
+> same columns, after normalizing existing `entryDate` values to a calendar day. Migration:
+> `20260708100000_v0_17_1_journal_entry_date_unique`.
+>
+> `v0.17.0` (Engineering Journal MVP, D-073) adds `engineering_journal_entries` (see the
+> `EngineeringJournalEntry` table below) and `users.preferredJournalLanguage`. Audit actions in use:
+> `journal.created`, `journal.updated`. Migration:
+> `20260707190000_v0_17_0_engineering_journal_mvp`.
+>
 > `v0.16.3` (SSDLC docs refresh, D-071) is a documentation-only baseline — no schema change. It
 > adds the previously missing field tables for the five `v0.12.0` dashboard models (`ProgramTask`,
 > `VideoResource`, `Notification`, `CalendarEvent`, `UserTaskCompletion`), the `Tenant.logoFileId`
@@ -119,6 +135,7 @@ Baseline commit: `3856f61`
 | `totpSecretEncrypted` | Legacy TOTP secret; MFA is owned by Keycloak as of `v0.3.0`. |
 | `totpEnabledAt` | Legacy 2FA enablement timestamp. |
 | `lastLoginAt` | Timestamp of the user's most recent login, when recorded. |
+| `preferredJournalLanguage` | Applicant's preferred Engineering Journal entry language; defaults to `"English"` (`v0.17.0`). |
 
 ## TenantMembership
 
@@ -172,7 +189,7 @@ Baseline commit: `3856f61`
 | `programId` | Program the mission belongs to. |
 | `title` | Mission title shown to admins and accepted applicants. |
 | `difficulty` | `BEGINNER`, `INTERMEDIATE`, `ADVANCED` or `EXPERT`. |
-| `status` | `DRAFT`, `PUBLISHED` or `ARCHIVED`; only published missions appear to applicants. |
+| `status` | `DRAFT`, `PUBLISHED` or `ARCHIVED`; only published missions can be assigned to applicants. |
 | `weekNumber` | Program week/sequence bucket. |
 | `order` | Sort order within the week. |
 | `brief` | Main mission brief and business context. |
@@ -181,6 +198,54 @@ Baseline commit: `3856f61`
 | `deliverables` | Required artifacts such as PRD, repository, deployment URL and Loom video. |
 | `evaluationCriteria` | Completion level or grading rubric. |
 | `competencyTags` | Competency mapping labels. |
+
+## MissionAssignment
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant; keeps assignments isolated by organization. |
+| `programId` | Program context for the assignment. |
+| `applicantId` | Applicant/user receiving the mission. |
+| `missionId` | Published mission assigned to the applicant. |
+| `weekNumber` | Program week for the assignment. One assignment is allowed per tenant + program + applicant + week. |
+| `assignedAt` | Timestamp for when the assignment was made. |
+| `createdAt` | Row creation timestamp. |
+| `updatedAt` | Row update timestamp. |
+
+## EngineeringJournalEntry
+
+Applicant-owned daily structured-reflection entry, distinct from the older `Submission.journalMarkdown`
+field. Unique on `[tenantId, applicantId, entryDate]` — one entry per applicant per calendar date
+(`v0.17.1`, D-074, database-enforced; `v0.17.0` already enforced it in application code).
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant; keeps journal entries isolated by organization. |
+| `applicantId` | Applicant who owns the entry; entries are visible/editable only by their owner. |
+| `programId` | Program context for the entry. |
+| `missionId` | Mission the reflection is written against; must be assigned to the applicant (`v0.18.0`). |
+| `weekNumber` | Program week, derived from the selected mission — not trusted from the client. |
+| `entryDate` | Calendar date of the reflection; unique per applicant per tenant. |
+| `language` | Entry language, seeded from `User.preferredJournalLanguage`. |
+| `workedOn` | What the applicant worked on that day. |
+| `challenge` | The main challenge encountered. |
+| `solution` | How the challenge was addressed. |
+| `learned` | Key takeaway/learning. |
+| `aiUsage` | How AI tools were used during the work. |
+| `confidenceRating` | Applicant's self-rated confidence for the day's work. |
+| `timeSpentHours` | Hours spent, self-reported. |
+| `evidenceLinks` | Optional list of supporting evidence URLs. |
+| `reflectionDepthScore` | Nullable AI-review score placeholder; no scoring logic is active yet. |
+| `problemSolvingScore` | Nullable AI-review score placeholder; no scoring logic is active yet. |
+| `learningQualityScore` | Nullable AI-review score placeholder; no scoring logic is active yet. |
+| `communicationClarityScore` | Nullable AI-review score placeholder; no scoring logic is active yet. |
+| `consistencyScore` | Nullable AI-review score placeholder; no scoring logic is active yet. |
+| `totalScore` | Nullable AI-review score placeholder; no scoring logic is active yet. |
+| `aiReviewFeedback` | Nullable AI-review feedback placeholder; no AI review is active yet. |
+| `aiReviewedAt` | Nullable AI-review timestamp placeholder; no AI review is active yet. |
+| `aiReviewMetadata` | Nullable AI-review metadata (JSON) placeholder; no AI review is active yet. |
+| `createdAt` | Row creation timestamp. |
+| `updatedAt` | Row update timestamp. |
 
 ## Submission
 

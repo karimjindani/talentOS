@@ -1,9 +1,29 @@
 # Data Model
 
-Code version: `v0.16.3`
+Code version: `v0.18.0`
 
-Baseline commit: `3856f61`
+Baseline commit: `bf59ca4`
 
+> `v0.18.0` (Mission Assignment MVP, D-075) adds `MissionAssignment` — tenant/program/applicant/week
+> assignment row (`id`, `tenantId`, `programId`, `applicantId`, `missionId`, `weekNumber`, `assignedAt`,
+> `createdAt`, `updatedAt`), unique on `[tenantId, programId, applicantId, weekNumber]`, with indexes on
+> `[tenantId, programId, weekNumber]`, `applicantId` and `missionId`. Migration:
+> `20260708120000_v0_18_0_mission_assignment_mvp`.
+>
+> `v0.17.1` (journal entry date uniqueness, D-074) replaces `EngineeringJournalEntry`'s non-unique
+> `[tenantId, applicantId, entryDate]` index with a real unique index of the same columns, after
+> normalizing existing `entryDate` values to a calendar day. Migration:
+> `20260708100000_v0_17_1_journal_entry_date_unique`.
+>
+> `v0.17.0` (Engineering Journal MVP, D-073) adds `EngineeringJournalEntry` — tenant/applicant/program/mission-scoped
+> daily reflection row (`id`, `tenantId`, `applicantId`, `programId`, `missionId`, `weekNumber`,
+> `entryDate`, `language`, `workedOn`, `challenge`, `solution`, `learned`, `aiUsage`,
+> `confidenceRating`, `timeSpentHours`, `evidenceLinks[]`, nullable AI-review/scoring fields
+> `reflectionDepthScore`/`problemSolvingScore`/`learningQualityScore`/`communicationClarityScore`/`consistencyScore`/`totalScore`/`aiReviewFeedback`/`aiReviewedAt`/`aiReviewMetadata`,
+> timestamps) and `User.preferredJournalLanguage` (String, default `"English"`). The AI-review/scoring
+> fields are schema placeholders only — no application code populates them yet. Migration:
+> `20260707190000_v0_17_0_engineering_journal_mvp`.
+>
 > `v0.16.3` (SSDLC docs refresh, D-071) is a documentation-only baseline — no schema change. It
 > realigns this document with the actual schema: the ER diagram is regenerated to cover all models
 > and relations (it previously showed 12 of 20), the five `v0.12.0` dashboard models join the Core
@@ -114,6 +134,14 @@ erDiagram
     User ||--o{ Submission : submits
     Tenant ||--o{ Submission : owns
     User |o--o{ Submission : reviews
+    Tenant ||--o{ MissionAssignment : owns
+    Program ||--o{ MissionAssignment : schedules
+    Mission ||--o{ MissionAssignment : "assigned via"
+    User ||--o{ MissionAssignment : "is assigned"
+    Tenant ||--o{ EngineeringJournalEntry : owns
+    Program ||--o{ EngineeringJournalEntry : contains
+    Mission ||--o{ EngineeringJournalEntry : "journaled against"
+    User ||--o{ EngineeringJournalEntry : writes
     Tenant ||--o{ ProgramTask : owns
     Program ||--o{ ProgramTask : schedules
     ProgramTask ||--o{ UserTaskCompletion : "completed via"
@@ -145,12 +173,19 @@ erDiagram
 - `Application`: applicant submission to a program; optionally links a CV (`cvFile` → `StoredFile`) and carries optional `githubUrl` / `linkedinUrl`.
 - `ApplicationAnswer`: structured answers inside an application.
 - `AuditLog`: security and business action history.
-- `Mission`: tenant/program-scoped SEM assignment managed by admins and visible to accepted applicants
-  when published.
+- `Mission`: tenant/program-scoped SEM assignment managed by admins. Published missions are eligible
+  to be assigned to accepted applicants.
+- `MissionAssignment`: tenant/program/applicant/week assignment row. It gives an accepted applicant
+  access to one published mission for a program week, with uniqueness on tenant + program + applicant
+  + week.
 - `Submission`: participant mission evidence (repository/deployment/Loom URLs + Engineering Journal
   markdown) moving through the SEM review loop; tenant-scoped, one row per applicant per mission,
   reviewed by staff (`reviewerUserId`, `reviewerFeedback`, `reviewedAt`); an `ACCEPTED` submission is
   terminal portfolio/graduation evidence for the mission's `competencyTags`.
+- `EngineeringJournalEntry`: applicant-owned daily structured-reflection entry against an assigned
+  mission, distinct from the older `Submission.journalMarkdown` field. Unique on
+  `[tenantId, applicantId, entryDate]` (one entry per applicant per calendar date); carries nullable
+  AI-review/scoring fields as schema placeholders only.
 - `ProgramTask`: weekly task/assignment (week 1-4) within a program, shown on the applicant
   dashboard; completion tracked per user via `UserTaskCompletion`.
 - `VideoResource`: external video resource (YouTube/Loom URL) curated per program and optionally
