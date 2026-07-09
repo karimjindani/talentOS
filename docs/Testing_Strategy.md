@@ -1,8 +1,8 @@
 # Testing Strategy
 
-Code version: `v0.18.0`
+Code version: `v0.18.1`
 
-Baseline commit: `bf59ca4`
+Baseline commit: `pending`
 
 ## Goals
 
@@ -337,3 +337,12 @@ on `ACCEPTED` (`mission-assignments.test.ts`, 7 tests), Week 1 Markdown mission 
 exactly one `MissionAssignment` row. The suite is **243 tests across 34 files**;
 `regression:all` is verified 21/22 passed, 1 pre-existing documented skip, 0 failed against a freshly
 migrated local database.
+
+From `v0.18.1`, every implementation plan must use `docs/plans/TEMPLATE.md` and fill in a **Test
+Scenarios** section — end-to-end behavioral cases distinct from unit tests, written before or during
+implementation — and every scenario listed there must be added to this document (automated) or to its
+Known Gaps (deferred, with a reason) in the same iteration; test-results docs must use
+`docs/testing/TEMPLATE.md` and report one Scenario Results row per plan scenario. This closes the gap
+found auditing `v0.17.0`: the Engineering Journal plan never named scenario-level test cases, so the
+feature shipped with 23 solid unit tests (`journal.test.ts`) and no scenario-level regression coverage
+at all — see `docs/Regression_Scenarios.md` Known Gaps and `D-076`.

@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.18.0`
+Code version: `v0.18.1`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.18.0`
+Current documentation update: `v0.18.1`
 
 ## D-001
 
@@ -679,5 +679,31 @@ stale local database state unrelated to this migration (see
 
 Plan: `docs/plans/v0.18.0_Mission_Assignment_MVP.md`; results:
 `docs/testing/v0.18.0_Mission_Assignment_MVP_Test_Results.md`.
+
+Status: Approved
+
+## D-076
+
+`v0.18.1` is a governance-only patch (no code/schema change) closing a process gap found while
+auditing `v0.17.0`–`v0.18.0`: `D-073`'s Engineering Journal plan
+(`docs/plans/v0.17.0_Engineering_Journal_MVP.md`) specified scope and security rules but never named
+scenario-level test cases, so the feature shipped with strong unit coverage
+(`journal.test.ts`, 23 tests) and **zero scenario-level regression coverage** — a gap only surfaced
+later by manual audit, not by any process check. Decision: require every implementation plan to use a
+new required template, [`docs/plans/TEMPLATE.md`](../plans/TEMPLATE.md), whose **Test Scenarios**
+section forces end-to-end/behavioral scenarios to be named before or during implementation — actor,
+preconditions, steps, expected result, and an explicit automation call (added this iteration, or
+deferred with a stated reason). Every scenario named there must be reflected in
+`docs/Regression_Scenarios.md` in the same iteration — automated or as an explicit Known Gap — and
+every test-results doc must use the new [`docs/testing/TEMPLATE.md`](../testing/TEMPLATE.md), which
+requires one Scenario Results row per plan scenario so a plan can no longer ship without its scenarios
+being either verified or explicitly and visibly deferred. `docs/sdlc.md` (Version and Documentation
+Control, rule 7), `CONTRIBUTING.md` and `.github/pull_request_template.md` are updated to point at the
+template and make it a PR-review checklist item, not just prose in `sdlc.md` that's easy to miss (as
+this very gap demonstrated). No product code, schema, Docker configuration or package file is
+changed.
+
+Plan: `docs/plans/v0.18.1_Plan_Test_Scenarios_Requirement.md`; results:
+`docs/testing/v0.18.1_Plan_Test_Scenarios_Requirement_Test_Results.md`.
 
 Status: Approved

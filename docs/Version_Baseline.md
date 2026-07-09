@@ -2,19 +2,32 @@
 
 ## Current Baseline
 
-Version: `v0.18.0`
+Version: `v0.18.1`
 
-Baseline name: `Mission Assignment MVP`
+Baseline name: `Plan Test Scenarios Requirement`
 
-Baseline code commit: `bf59ca4`
+Baseline code commit: `pending`
 
 Baseline date: `2026-07-09`
 
-Previous baseline: `v0.16.4`
+Previous baseline: `v0.18.0`
 
-Previous baseline commit: `2b07e4ae9364fd981e7d5f4da859e21f3c74032e`
+Previous baseline commit: `bf59ca4`
 
 ## Baseline Summary
+
+`v0.18.1` is a governance-only patch (no product code, schema, Docker configuration or package file
+changed) closing a process gap found auditing `v0.17.0`–`v0.18.0`: the Engineering Journal plan never
+named scenario-level test cases, so the feature shipped with strong unit coverage
+(`journal.test.ts`, 23 tests) and zero scenario-level regression coverage — a gap only caught later by
+manual audit. New required templates `docs/plans/TEMPLATE.md` and `docs/testing/TEMPLATE.md` make a
+**Test Scenarios** section (actor/preconditions/steps/expected result/explicit automation call)
+mandatory for every future plan, with a matching Scenario Results table required in its test-results
+doc; `docs/sdlc.md` (Version and Documentation Control, rule 7), `CONTRIBUTING.md` and
+`.github/pull_request_template.md` all point at the templates so the requirement is visible at
+write-time and enforced at PR-review time, not left as prose easy to skip. Plan:
+`docs/plans/v0.18.1_Plan_Test_Scenarios_Requirement.md`; results:
+`docs/testing/v0.18.1_Plan_Test_Scenarios_Requirement_Test_Results.md`. See `D-076`.
 
 `v0.18.0` gives each accepted applicant an assigned Week 1 mission instead of visibility into every
 published mission in their accepted program (D-075). A new `MissionAssignment` model (migration
@@ -522,9 +535,11 @@ Packages, apps and infrastructure included as of `v0.18.0` (no new top-level pac
 
 All future documentation updates must reference the relevant code version.
 
-All future implementation plans must be stored in `docs/plans/`.
+All future implementation plans must be stored in `docs/plans/`, using `docs/plans/TEMPLATE.md`,
+with its **Test Scenarios** section filled in before or during implementation (`v0.18.1`, D-076).
 
-All future testing details and results must be stored in `docs/testing/`.
+All future testing details and results must be stored in `docs/testing/`, using
+`docs/testing/TEMPLATE.md`, with one Scenario Results row per plan scenario (`v0.18.1`, D-076).
 
 ## Versioning Convention
 
