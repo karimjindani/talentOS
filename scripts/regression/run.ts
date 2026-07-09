@@ -6,6 +6,7 @@ import {
   applyStatusTransition,
   cleanupRegressionData,
   createCalendarEvent,
+  createJournalEntry,
   createMission,
   createProgram,
   createProgramTask,
@@ -17,9 +18,14 @@ import {
   getApplicantMissionProgress,
   getApplicantProgramProgress,
   getApplicantSubmission,
+  getAssignedProgramMission,
   getTenantBySlug,
   getTenantProgram,
+  isJournalMissionLockedForApplicant,
+  JournalEntryDateConflictError,
   listApplicantApplications,
+  listApplicantJournalEntries,
+  listAssignedProgramMissions,
   listCompletedTaskIds,
   listPublishedProgramMissions,
   listPublishedPrograms,
@@ -32,6 +38,7 @@ import {
   setMissionStatus,
   setProgramStatus,
   submitSubmission,
+  updateJournalEntry,
   updateVideoResource
 } from "@talentos/db";
 import { tenantRolesGrant, type RegressionArea, type RegressionSummary } from "@talentos/auth";
@@ -65,6 +72,7 @@ const AREAS: RegressionArea[] = [
   "admin",
   "programs",
   "missions",
+  "journal",
   "tenant",
   "dashboard",
   "storage",
@@ -320,6 +328,311 @@ const scenarios: Scenario[] = [
       if (!tenantRolesGrant("reviewSubmissions", ["TECH_LEAD"])) throw new Error("TECH_LEAD did not grant reviewSubmissions.");
       if (tenantRolesGrant("reviewSubmissions", ["HR"])) throw new Error("HR unexpectedly granted reviewSubmissions.");
       if (tenantRolesGrant("reviewSubmissions", ["APPLICANT"])) throw new Error("APPLICANT unexpectedly granted reviewSubmissions.");
+    }
+  },
+  {
+    area: "missions",
+    name: "Applicant mission visibility, detail access and submission drafting are limited to assigned missions",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const unassignedMission = await createMission({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Regression Unassigned Mission ${ctx.runId}`,
+        difficulty: "BEGINNER",
+        status: "PUBLISHED",
+        weekNumber: 1,
+        order: 1,
+        brief: "Published but never assigned to this applicant.",
+        objective: "Exercise assignment-only visibility scoping (v0.18.0, D-075).",
+        acceptanceCriteria: "- n/a",
+        deliverables: "- n/a",
+        evaluationCriteria: "n/a",
+        competencyTags: ["Requirements Engineering"],
+        actorUserId: fixture.actor.id
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Mission", entityId: unassignedMission.id });
+
+      const assigned = await listAssignedProgramMissions(fixture.tenant.id, fixture.user.id, fixture.program.id);
+      if (assigned.some((mission) => mission.id === unassignedMission.id)) {
+        throw new Error("Unassigned published mission appeared in the applicant's assigned mission list.");
+      }
+      if (!assigned.some((mission) => mission.id === fixture.mission.id)) {
+        throw new Error("Assigned mission was missing from the applicant's assigned mission list.");
+      }
+
+      const detail = await getAssignedProgramMission(unassignedMission.id, fixture.tenant.id, fixture.user.id, fixture.program.id);
+      if (detail) throw new Error("Unassigned published mission was readable through assigned-mission detail lookup.");
+
+      try {
+        await saveSubmissionDraft({
+          tenantId: fixture.tenant.id,
+          missionId: unassignedMission.id,
+          applicantId: fixture.user.id,
+          repositoryUrl: "https://github.com/regression/unassigned",
+          deploymentUrl: null,
+          loomUrl: null,
+          journalMarkdown: null
+        });
+        throw new Error("Submission draft was allowed against an unassigned mission.");
+      } catch (error) {
+        if (!(error instanceof Error) || error.message !== "Mission is not assigned to this applicant.") throw error;
+      }
+    }
+  },
+  {
+    area: "missions",
+    name: "An applicant already accepted before any mission assignment exists sees no missions (documented backfill gap)",
+    run: async (ctx) => {
+      const fixture = await createApplicationFixture(ctx.runId);
+      const mission = await createMission({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Regression Legacy-Accept Mission ${ctx.runId}`,
+        difficulty: "BEGINNER",
+        status: "PUBLISHED",
+        weekNumber: 1,
+        order: 0,
+        brief: "Published mission that predates the applicant's acceptance.",
+        objective: "Exercise the no-backfill gap for applicants accepted before mission assignment existed.",
+        acceptanceCriteria: "- n/a",
+        deliverables: "- n/a",
+        evaluationCriteria: "n/a",
+        competencyTags: ["Requirements Engineering"],
+        actorUserId: fixture.actor.id
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Mission", entityId: mission.id });
+
+      // Simulate an application already ACCEPTED before mission assignment shipped: write the
+      // ACCEPTED row directly (bypassing applyStatusTransition, the only place that currently
+      // creates a MissionAssignment) instead of going through the accept transition.
+      const application = await prisma.application.create({
+        data: {
+          tenantId: fixture.tenant.id,
+          programId: fixture.program.id,
+          applicantId: fixture.user.id,
+          status: "ACCEPTED",
+          submittedAt: new Date(),
+          reviewedAt: new Date(),
+          reviewerNotes: "Simulated pre-existing acceptance for regression (no backfill run)."
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Application", entityId: application.id });
+
+      const assigned = await listAssignedProgramMissions(fixture.tenant.id, fixture.user.id, fixture.program.id);
+      if (assigned.length !== 0) {
+        throw new Error(
+          "Known-gap scenario changed behavior: a pre-existing accepted applicant now has an assigned " +
+            "mission. If a backfill was intentionally added, update this scenario and Regression_Scenarios.md."
+        );
+      }
+    }
+  },
+  {
+    area: "journal",
+    name: "Applicant creates and edits a journal entry against their assigned mission; entries are listed and audited",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const entryDate = new Date("2026-01-05T00:00:00.000Z");
+      const entry = await createJournalEntry({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        missionId: fixture.mission.id,
+        entryDate,
+        language: "English",
+        workedOn: "Implemented the landing page hero section.",
+        challenge: "Responsive layout on small screens.",
+        solution: "Used a CSS grid with named areas.",
+        learned: "Grid areas simplify responsive reflow.",
+        aiUsage: "Used AI to draft the initial CSS grid.",
+        confidenceRating: 4,
+        timeSpentHours: 3,
+        evidenceLinks: []
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "EngineeringJournalEntry", entityId: entry.id });
+
+      const listed = await listApplicantJournalEntries(fixture.tenant.id, fixture.user.id, fixture.program.id);
+      if (!listed.some((candidate) => candidate.id === entry.id)) {
+        throw new Error("Created journal entry did not appear in the applicant's journal list.");
+      }
+      const createdAudit = await prisma.auditLog.findFirst({
+        where: { tenantId: fixture.tenant.id, entityType: "EngineeringJournalEntry", entityId: entry.id, action: "journal.created" }
+      });
+      if (!createdAudit) throw new Error("Journal creation audit log was not written.");
+
+      const updated = await updateJournalEntry({
+        id: entry.id,
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        missionId: fixture.mission.id,
+        entryDate,
+        language: "English",
+        workedOn: "Implemented the landing page hero section and nav.",
+        challenge: "Responsive layout on small screens.",
+        solution: "Used a CSS grid with named areas plus a mobile breakpoint.",
+        learned: "Grid areas simplify responsive reflow.",
+        aiUsage: "Used AI to draft the initial CSS grid.",
+        confidenceRating: 5,
+        timeSpentHours: 3.5,
+        evidenceLinks: ["https://github.com/regression/journal-evidence"]
+      });
+      if (updated.workedOn !== "Implemented the landing page hero section and nav.") {
+        throw new Error("Journal entry update did not persist.");
+      }
+      const updatedAudit = await prisma.auditLog.findFirst({
+        where: { tenantId: fixture.tenant.id, entityType: "EngineeringJournalEntry", entityId: entry.id, action: "journal.updated" }
+      });
+      if (!updatedAudit) throw new Error("Journal update audit log was not written.");
+    }
+  },
+  {
+    area: "journal",
+    name: "Applicant cannot create a journal entry against a published mission that is not assigned to them",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const unassignedMission = await createMission({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Regression Unassigned Journal Mission ${ctx.runId}`,
+        difficulty: "BEGINNER",
+        status: "PUBLISHED",
+        weekNumber: 1,
+        order: 1,
+        brief: "Published but never assigned to this applicant.",
+        objective: "Exercise assigned-mission-only journal validation.",
+        acceptanceCriteria: "- n/a",
+        deliverables: "- n/a",
+        evaluationCriteria: "n/a",
+        competencyTags: ["Requirements Engineering"],
+        actorUserId: fixture.actor.id
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Mission", entityId: unassignedMission.id });
+
+      try {
+        await createJournalEntry({
+          tenantId: fixture.tenant.id,
+          applicantId: fixture.user.id,
+          missionId: unassignedMission.id,
+          entryDate: new Date("2026-01-06T00:00:00.000Z"),
+          language: "English",
+          workedOn: "n/a",
+          challenge: "n/a",
+          solution: "n/a",
+          learned: "n/a",
+          aiUsage: "n/a",
+          confidenceRating: 3,
+          timeSpentHours: 1,
+          evidenceLinks: []
+        });
+        throw new Error("Journal entry was created against an unassigned mission.");
+      } catch (error) {
+        if (!(error instanceof Error) || error.message !== "Mission is not assigned to this applicant.") throw error;
+      }
+    }
+  },
+  {
+    area: "journal",
+    name: "One journal entry per applicant per calendar date is enforced",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const entryDate = new Date("2026-01-07T00:00:00.000Z");
+      const first = await createJournalEntry({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        missionId: fixture.mission.id,
+        entryDate,
+        language: "English",
+        workedOn: "First entry for the day.",
+        challenge: "n/a",
+        solution: "n/a",
+        learned: "n/a",
+        aiUsage: "n/a",
+        confidenceRating: 3,
+        timeSpentHours: 1,
+        evidenceLinks: []
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "EngineeringJournalEntry", entityId: first.id });
+
+      try {
+        await createJournalEntry({
+          tenantId: fixture.tenant.id,
+          applicantId: fixture.user.id,
+          missionId: fixture.mission.id,
+          entryDate: new Date("2026-01-07T18:00:00.000Z"),
+          language: "English",
+          workedOn: "Second entry same day.",
+          challenge: "n/a",
+          solution: "n/a",
+          learned: "n/a",
+          aiUsage: "n/a",
+          confidenceRating: 3,
+          timeSpentHours: 1,
+          evidenceLinks: []
+        });
+        throw new Error("A second journal entry for the same calendar date was allowed.");
+      } catch (error) {
+        if (!(error instanceof JournalEntryDateConflictError)) throw error;
+      }
+    }
+  },
+  {
+    area: "journal",
+    name: "Journal entries lock once the mission's assignment is submitted",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const entry = await createJournalEntry({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        missionId: fixture.mission.id,
+        entryDate: new Date("2026-01-08T00:00:00.000Z"),
+        language: "English",
+        workedOn: "Pre-submission entry.",
+        challenge: "n/a",
+        solution: "n/a",
+        learned: "n/a",
+        aiUsage: "n/a",
+        confidenceRating: 3,
+        timeSpentHours: 1,
+        evidenceLinks: []
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "EngineeringJournalEntry", entityId: entry.id });
+
+      const draft = await saveSubmissionDraft({
+        tenantId: fixture.tenant.id,
+        missionId: fixture.mission.id,
+        applicantId: fixture.user.id,
+        repositoryUrl: "https://github.com/regression/journal-lock",
+        deploymentUrl: null,
+        loomUrl: null,
+        journalMarkdown: null
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
+      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+
+      const locked = await isJournalMissionLockedForApplicant(fixture.tenant.id, fixture.user.id, fixture.mission.id);
+      if (!locked) throw new Error("Mission was not reported as locked after its submission was submitted.");
+
+      try {
+        await updateJournalEntry({
+          id: entry.id,
+          tenantId: fixture.tenant.id,
+          applicantId: fixture.user.id,
+          missionId: fixture.mission.id,
+          entryDate: new Date("2026-01-08T00:00:00.000Z"),
+          language: "English",
+          workedOn: "Attempted edit after submission.",
+          challenge: "n/a",
+          solution: "n/a",
+          learned: "n/a",
+          aiUsage: "n/a",
+          confidenceRating: 3,
+          timeSpentHours: 1,
+          evidenceLinks: []
+        });
+        throw new Error("Journal entry was editable after its mission's submission was submitted.");
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("locked")) throw error;
+      }
     }
   },
   {
@@ -630,6 +943,33 @@ async function createSubmissionFixture(runId: string) {
     actorUserId: fixture.actor.id
   });
   await markRegressionData({ runId, entityType: "Mission", entityId: mission.id });
+
+  const application = await createSubmittedApplication({
+    tenantId: fixture.tenant.id,
+    programId: fixture.program.id,
+    applicantId: fixture.user.id,
+    answers: [{ questionKey: "motivation", questionLabel: "Why do you want to join?", answer: "Submission regression" }]
+  });
+  await markRegressionData({ runId, entityType: "Application", entityId: application.id });
+  await applyStatusTransition({
+    id: application.id,
+    tenantId: fixture.tenant.id,
+    toStatus: "ACCEPTED",
+    actorUserId: fixture.actor.id,
+    reviewerNotes: "Accepted for submission regression"
+  });
+  const assignment = await prisma.missionAssignment.findFirst({
+    where: {
+      tenantId: fixture.tenant.id,
+      programId: fixture.program.id,
+      applicantId: fixture.user.id,
+      missionId: mission.id
+    }
+  });
+  if (!assignment) {
+    throw new Error("Submission fixture did not create a mission assignment.");
+  }
+  await markRegressionData({ runId, entityType: "MissionAssignment", entityId: assignment.id });
   return { ...fixture, mission };
 }
 

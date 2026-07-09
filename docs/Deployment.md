@@ -1,15 +1,40 @@
 # Deployment
 
-Code version: `v0.16.3`
+Code version: `v0.18.2`
 
-Baseline commit: `3856f61`
+Baseline commit: `6ef1ef7`
 
-Current deployment update: `v0.16.3` (documentation refresh; the latest deployment-affecting
-baselines are `v0.14.0` and `v0.15.0` — both require a database migration)
+Current deployment update: `v0.18.2` (the latest deployment-affecting baselines are `v0.17.0`,
+`v0.17.1` and `v0.18.0` — all three require a database migration; `v0.18.1`/`v0.18.2` are docs/tooling
+baselines with no deployment, infra or migration change)
 
-> `v0.16.0`–`v0.16.3` require **no deployment, infra or migration change**. `v0.16.0`
+> `v0.18.1`/`v0.18.2` require **no deployment, infra or migration change** — `v0.18.1` is the
+> plan-template governance patch and `v0.18.2` adds regression scenarios and documentation only; no
+> product code, schema or Docker configuration changed in either.
+>
+> `v0.18.0` (Mission Assignment MVP, D-075) **requires a database migration**:
+> `20260708120000_v0_18_0_mission_assignment_mvp` (adds `mission_assignments`). After pulling the
+> code, run `npx prisma migrate deploy --schema packages/db/prisma/schema.prisma`, then rebuild both
+> containers: `docker compose up -d --build applicant admin`. No topology change.
+>
+> `v0.17.1` (journal entry date uniqueness, D-074) **requires a database migration**:
+> `20260708100000_v0_17_1_journal_entry_date_unique`. **Operational note — check before applying to
+> any environment with real data:** this migration normalizes existing `EngineeringJournalEntry`
+> rows to a calendar day (`date_trunc('day', ...)`) and then adds a unique index on
+> `[tenantId, applicantId, entryDate]`. If a target database already has two entries for the same
+> applicant on the same calendar day (possible if `v0.17.0` was ever used ahead of this patch), the
+> `CREATE UNIQUE INDEX` step will fail the migration outright — it does not silently drop or merge
+> data, but it does block deploy until the duplicate is resolved manually (e.g. delete or re-date one
+> of the conflicting rows before re-running `migrate deploy`). Not applicable to any environment
+> today; this hasn't been deployed beyond local dev. See `docs/Regression_Scenarios.md` Known Gaps.
+>
+> `v0.17.0` (Engineering Journal MVP, D-073) **requires a database migration**:
+> `20260707190000_v0_17_0_engineering_journal_mvp` (adds `engineering_journal_entries` and
+> `users.preferredJournalLanguage`). Same procedure: `migrate deploy`, then rebuild both containers.
+>
+> `v0.16.0`–`v0.16.4` require **no deployment, infra or migration change**. `v0.16.0`
 > (mission-driven dashboard progress + Program Content admin CRUD) is code-only — rebuild with
-> `docker compose up -d --build applicant admin`; `v0.16.1`–`v0.16.3` are docs/tooling baselines.
+> `docker compose up -d --build applicant admin`; `v0.16.1`–`v0.16.4` are docs/tooling baselines.
 >
 > `v0.15.1` (four-week mission seed, D-068) has no schema or topology change, but a fresh install's
 > demo content comes from the reworked idempotent seed — run `npm run db:seed` (or
@@ -281,7 +306,8 @@ Applicant container (`APPLICANT_PORT=3100`):
 - Apply page (authenticated): `http://demo.lvh.me:3100/apply`
 - Applicant application page (authenticated): `http://demo.lvh.me:3100/application`
 - Accepted applicant dashboard: `http://demo.lvh.me:3100/dashboard`
-- Applicant missions (`v0.14.0`): `http://demo.lvh.me:3100/dashboard/missions`
+- Applicant missions (`v0.14.0`, assigned-only as of `v0.18.0`): `http://demo.lvh.me:3100/dashboard/missions`
+- Engineering Journal (`v0.17.0`): `http://demo.lvh.me:3100/dashboard/journal`
 - Access denied page (`v0.14.2`, non-members of the host tenant): `http://demo.lvh.me:3100/access-denied`
 - Post-logout return route (`v0.14.3`, canonical host): `http://lvh.me:3100/logged-out`
 
@@ -322,9 +348,14 @@ After deployment, verify:
 - CV & profile links (`v0.7.3`): on `/apply`, a CV (PDF, ≤ 5 MB) is required and GitHub/LinkedIn URLs
   are optional; the admin application-detail page shows a working **Download CV** link plus the profile
   links. Submitting without a CV, a non-PDF/over-size CV, or a non-github.com/linkedin.com URL is rejected.
-- Missions (`v0.14.0`): sign in as `accepted@demo.talentos.local` and confirm
-  `/dashboard/missions` lists the four seeded published TaskPilot missions (`v0.15.1`); sign in to
-  the admin portal as `orgadmin@demo.talentos.local` and confirm `/missions` lists and can edit them.
+- Missions (`v0.14.0`; assigned-only as of `v0.18.0`): sign in as `accepted@demo.talentos.local` and
+  confirm `/dashboard/missions` lists only that applicant's one assigned Week 1 mission — not all
+  four seeded published TaskPilot missions (`v0.15.1`); sign in to the admin portal as
+  `orgadmin@demo.talentos.local` and confirm `/missions` lists and can edit all of them.
+- Engineering Journal (`v0.17.0`/`v0.17.1`): as `accepted@…`, open `/dashboard/journal/new` against
+  the assigned mission, submit an entry, and confirm it appears read-only on `/dashboard/journal`;
+  a second entry for the same calendar date is rejected; after submitting the mission's evidence, the
+  entry can no longer be edited.
 - Submission loop (`v0.15.0`): as `accepted@…`, open a mission, save a draft with a
   `https://github.com/...` repository URL and a journal, submit it; as `orgadmin@…` (or
   `techlead@…`), open the submission from the mission's submissions page and accept it or request

@@ -158,7 +158,10 @@ never review each other's work (Graduate Profile: graduates are not code reviewe
 1. Open **Missions** and select the mission.
 2. In **Submissions**, select **Review** on a submitted entry.
 3. Inspect the evidence: Git repository, deployed application, Loom walkthrough (links open in a new
-   tab), and the applicant's Engineering Journal.
+   tab), and the submission's inline "Engineering journal" text field. This is the legacy
+   `Submission.journalMarkdown` evidence field carried over from `v0.15.0` — it is **not** the same as
+   the dedicated Engineering Journal dashboard module (`v0.17.0`, `/dashboard/journal`), which staff
+   cannot currently view from the admin portal.
 4. Either **Accept submission** — final; the submission becomes portfolio evidence for the mission's
    competency tags — or **Request changes**, which requires written feedback and returns the
    submission to the applicant for revision.

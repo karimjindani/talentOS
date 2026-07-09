@@ -14,6 +14,7 @@ export const APPLICANT_NAV_ITEMS: ApplicantNavItem[] = [
   { href: "/dashboard", label: "Dashboard", exact: true },
   { href: "/dashboard/program", label: "My Program" },
   { href: "/dashboard/missions", label: "Missions" },
+  { href: "/dashboard/journal", label: "Journal" },
   { href: "/dashboard/tasks", label: "Tasks" },
   { href: "/dashboard/resources", label: "Resources" },
   { href: "/dashboard/calendar", label: "Calendar" },

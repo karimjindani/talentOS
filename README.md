@@ -2,7 +2,7 @@
 
 TalentOS is a platform for developing AI-native software engineers through real, production-oriented work rather than passive coursework. Its core learning model is the Spiral Engineering Method (SEM): participants repeatedly complete the full engineering lifecycle — discover, analyze, specify, design, build, test, deploy, present, reflect, and review production readiness — from the very first week, with each cycle increasing in complexity. The platform treats AI as a mentor and accelerator, not a substitute for thinking, and is designed to help learners build secure, maintainable, deployable software while producing a public portfolio that organizations can use for talent discovery and recruitment.
 
-Current documentation version: `v0.15.0`
+Current documentation version: `v0.18.2`
 
 TalentOS is an AI-powered Talent Discovery, Learning and Recruitment Platform designed to bridge the gap between AI-assisted coding and production-grade software engineering.
 
@@ -46,6 +46,15 @@ TalentOS has moved beyond product discovery into an initial platform scaffold wi
 - `v0.14.2`: Applicant portal tenant-membership isolation (parity with the D-051 admin fix).
 - `v0.14.3`: Dashboard logout button and tenant-subdomain Keycloak logout fix (canonical `/logged-out` bounce).
 - `v0.15.0`: Mission Submission Workflow MVP-1 — applicant evidence submission (repo/deployment/Loom + Engineering Journal) with staff review loop (accept / request changes) and notifications.
+- `v0.15.1`: Seeded the complete four-week TaskPilot mission arc (Week 1 → Week 4, Beginner → Expert).
+- `v0.16.0`: Mission-driven dashboard progress and admin Program Content management (video resources, weekly tasks, calendar events).
+- `v0.16.1`: Illustrated end-user guide with automated Playwright screenshot capture.
+- `v0.16.2`–`v0.16.4`: Documentation-only audits realigning vision, SSDLC docs and governance with shipped scope.
+- `v0.17.0`: Engineering Journal MVP — dedicated daily structured-reflection module (`/dashboard/journal`), distinct from the legacy inline submission journal field.
+- `v0.17.1`: Database-level uniqueness (one journal entry per applicant per calendar date).
+- `v0.18.0`: Mission Assignment MVP — accepted applicants receive one assigned Week 1 mission instead of seeing every published mission; Week 1 mission variants seeded from Markdown.
+- `v0.18.1`: Governance patch — every implementation plan must name end-to-end Test Scenarios, not just unit tests.
+- `v0.18.2`: Added the `journal` regression area and mission-assignment visibility scenarios; documentation completeness pass (Deployment, vision, Product Backlog, user guides).
 
 ## Current Implementation
 

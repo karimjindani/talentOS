@@ -6,6 +6,8 @@ export type RegressionEntityType =
   | "Application"
   | "StoredFile"
   | "Submission"
+  | "EngineeringJournalEntry"
+  | "MissionAssignment"
   | "Mission"
   | "Program"
   | "TenantMembership"
@@ -23,6 +25,10 @@ export const REGRESSION_CLEANUP_ORDER: readonly RegressionEntityType[] = [
   "StoredFile",
   // Submissions reference missions/users, so they are removed before both (v0.15.0, D-067).
   "Submission",
+  // Journal entries reference tenant/applicant/program/mission, so they are removed before Mission
+  // and User (v0.18.2 — added when journal scenarios joined the regression suite).
+  "EngineeringJournalEntry",
+  "MissionAssignment",
   "Mission",
   "Program",
   "TenantMembership",
@@ -86,6 +92,10 @@ async function deleteMarkedEntities(
       return (await tx.storedFile.deleteMany({ where: { id: { in: ids } } })).count;
     case "Submission":
       return (await tx.submission.deleteMany({ where: { id: { in: ids } } })).count;
+    case "EngineeringJournalEntry":
+      return (await tx.engineeringJournalEntry.deleteMany({ where: { id: { in: ids } } })).count;
+    case "MissionAssignment":
+      return (await tx.missionAssignment.deleteMany({ where: { id: { in: ids } } })).count;
     case "Mission":
       return (await tx.mission.deleteMany({ where: { id: { in: ids } } })).count;
     case "Program":

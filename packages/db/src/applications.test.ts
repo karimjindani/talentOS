@@ -6,6 +6,9 @@ const prismaMock = vi.hoisted(() => ({
   transaction: vi.fn(),
   txApplicationFindFirst: vi.fn(),
   txApplicationCreate: vi.fn(),
+  txApplicationUpdateMany: vi.fn(),
+  txApplicationFindFirstOrThrow: vi.fn(),
+  txAssignMission: vi.fn(),
   txAuditLogCreate: vi.fn()
 }));
 
@@ -18,8 +21,13 @@ vi.mock("./client", () => ({
   }
 }));
 
+vi.mock("./mission-assignments", () => ({
+  assignWeekMissionToAcceptedApplicantTx: prismaMock.txAssignMission
+}));
+
 import {
   APPLICATION_DUPLICATE_POLICY_CASES,
+  applyStatusTransition,
   canApplyAfterPreviousApplicationStatus,
   createSubmittedApplication,
   DUPLICATE_APPLICATION_ERROR_MESSAGE,
@@ -42,13 +50,18 @@ describe("application duplicate policy", () => {
     prismaMock.transaction.mockReset();
     prismaMock.txApplicationFindFirst.mockReset();
     prismaMock.txApplicationCreate.mockReset();
+    prismaMock.txApplicationUpdateMany.mockReset();
+    prismaMock.txApplicationFindFirstOrThrow.mockReset();
+    prismaMock.txAssignMission.mockReset();
     prismaMock.txAuditLogCreate.mockReset();
 
     prismaMock.transaction.mockImplementation(async (callback) =>
       callback({
         application: {
           findFirst: prismaMock.txApplicationFindFirst,
-          create: prismaMock.txApplicationCreate
+          create: prismaMock.txApplicationCreate,
+          updateMany: prismaMock.txApplicationUpdateMany,
+          findFirstOrThrow: prismaMock.txApplicationFindFirstOrThrow
         },
         auditLog: {
           create: prismaMock.txAuditLogCreate
@@ -56,6 +69,15 @@ describe("application duplicate policy", () => {
       })
     );
     prismaMock.txApplicationCreate.mockResolvedValue({ id: "application-1" });
+    prismaMock.txApplicationUpdateMany.mockResolvedValue({ count: 1 });
+    prismaMock.txApplicationFindFirstOrThrow.mockResolvedValue({
+      id: "application-1",
+      tenantId: "tenant-1",
+      programId: "program-1",
+      applicantId: "applicant-1",
+      status: "ACCEPTED"
+    });
+    prismaMock.txAssignMission.mockResolvedValue({ id: "assignment-1" });
     prismaMock.txAuditLogCreate.mockResolvedValue({ id: "audit-1" });
   });
 
@@ -129,5 +151,25 @@ describe("application duplicate policy", () => {
         answers: [{ questionKey: "motivation", questionLabel: "Motivation", answer: "Because." }]
       })
     ).rejects.toThrow(DUPLICATE_APPLICATION_ERROR_MESSAGE);
+  });
+
+  it("assigns a Week 1 mission when an application becomes accepted", async () => {
+    await applyStatusTransition({
+      id: "application-1",
+      toStatus: "ACCEPTED",
+      reviewerNotes: "Welcome.",
+      actorUserId: "reviewer-1",
+      tenantId: "tenant-1"
+    });
+
+    expect(prismaMock.txApplicationUpdateMany).toHaveBeenCalledWith({
+      where: { id: "application-1", tenantId: "tenant-1" },
+      data: { status: "ACCEPTED", reviewedAt: expect.any(Date), reviewerNotes: "Welcome." }
+    });
+    expect(prismaMock.txAssignMission).toHaveBeenCalledWith(expect.any(Object), {
+      tenantId: "tenant-1",
+      programId: "program-1",
+      applicantId: "applicant-1"
+    });
   });
 });

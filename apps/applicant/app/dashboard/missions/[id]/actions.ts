@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireTenantAccess } from "@/lib/tenant-guard";
 import {
-  getPublishedProgramMission,
+  getAssignedProgramMission,
   listApplicantApplications,
   parseEvidenceUrl,
   saveSubmissionDraft,
@@ -38,15 +38,14 @@ export async function saveSubmissionAction(
     if (!acceptedApp) {
       return { ok: false, error: "Missions are available after your application is accepted." };
     }
-    const mission = await getPublishedProgramMission(missionId, tenant.id, acceptedApp.program.id);
+    const mission = await getAssignedProgramMission(missionId, tenant.id, actorUserId, acceptedApp.program.id);
     if (!mission) {
-      return { ok: false, error: "Mission not found for your program." };
+      return { ok: false, error: "Mission is not assigned to your account." };
     }
 
     const repositoryUrl = parseEvidenceUrl(String(formData.get("repositoryUrl") ?? ""), "repository");
     const deploymentUrl = parseEvidenceUrl(String(formData.get("deploymentUrl") ?? ""), "deployment");
     const loomUrl = parseEvidenceUrl(String(formData.get("loomUrl") ?? ""), "loom");
-    const journalRaw = String(formData.get("journalMarkdown") ?? "").trim();
 
     const draft = await saveSubmissionDraft({
       tenantId: tenant.id,
@@ -54,8 +53,7 @@ export async function saveSubmissionAction(
       applicantId: actorUserId,
       repositoryUrl,
       deploymentUrl,
-      loomUrl,
-      journalMarkdown: journalRaw || null
+      loomUrl
     });
 
     if (formData.get("intent") === "submit") {

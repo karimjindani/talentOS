@@ -4,9 +4,9 @@ import { getTenantContext } from "@talentos/ui";
 import {
   getTenantBySlug,
   getUserByEmail,
+  listAssignedProgramMissions,
   listApplicantApplications,
   listApplicantProgramSubmissions,
-  listPublishedProgramMissions,
   type SubmissionStatus
 } from "@talentos/db";
 
@@ -24,7 +24,7 @@ export default async function ApplicantMissionsPage() {
   }
 
   const program = acceptedApp.program;
-  const missions = await listPublishedProgramMissions(tenant.id, program.id);
+  const missions = await listAssignedProgramMissions(tenant.id, user.id, program.id);
   // Per-mission submission status chips (v0.15.0, D-067).
   const submissions = await listApplicantProgramSubmissions(tenant.id, user.id, program.id);
   const statusByMission = new Map(submissions.map((submission) => [submission.missionId, submission.status]));
@@ -38,7 +38,7 @@ export default async function ApplicantMissionsPage() {
 
       {missions.length === 0 ? (
         <p className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
-          No published missions are available yet.
+          No assigned missions are available yet.
         </p>
       ) : (
         <div className="mt-8 grid gap-4">

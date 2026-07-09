@@ -1,6 +1,11 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { PrismaClient, type MissionDifficulty, type TenantRole } from "@prisma/client";
+import { assignWeekMissionToAcceptedApplicantTx } from "../src/mission-assignments";
 
 const prisma = new PrismaClient();
+const seedDir = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Four-week mission arc (docs/curriculum.md, docs/SEM.md, docs/vision.md).
@@ -11,7 +16,7 @@ const prisma = new PrismaClient();
  * static hosting → full-stack hosting → Docker + CI/CD → VPS with reverse proxy/SSL.
  * Competency tags use the names in docs/Competency_Framework.md.
  */
-const missionSeeds: {
+type MissionSeed = {
   id: string;
   title: string;
   difficulty: MissionDifficulty;
@@ -23,73 +28,83 @@ const missionSeeds: {
   acceptanceCriteria: string;
   evaluationCriteria: string;
   competencyTags: string[];
-}[] = [
+};
+
+const weekOneMissionSpecs: { id: string; specFile: string; order: number }[] = [
   {
     id: "seed-mission-week-1-landing-page",
-    title: "Build a Public Product Landing Page",
+    specFile: "taskpilot-landing-page.md",
+    order: 1
+  },
+  {
+    id: "seed-mission-week-1-bugbrief-status-page",
+    specFile: "bugbrief-status-page.md",
+    order: 2
+  },
+  {
+    id: "seed-mission-week-1-careercraft-profile",
+    specFile: "careercraft-profile-page.md",
+    order: 3
+  },
+  {
+    id: "seed-mission-week-1-launchlist-waitlist",
+    specFile: "launchlist-waitlist-page.md",
+    order: 4
+  },
+];
+
+function loadWeekOneMissionSeed({ id, specFile, order }: { id: string; specFile: string; order: number }): MissionSeed {
+  const markdown = readFileSync(join(seedDir, "seed-data", "missions", "ai-native-engineering", "week-1", specFile), "utf8");
+
+  return {
+    id,
+    title: extractTitle(markdown),
     difficulty: "BEGINNER",
     weekNumber: 1,
-    order: 1,
-    objective: "Convert a rough business idea into a deployed public landing page.",
-    brief: `A small startup is preparing to launch a new product but does not yet have a public website. Your mission is to turn a rough business idea into a deployed product landing page that explains the product, captures user interest, and demonstrates professional engineering discipline.
+    order,
+    objective: extractSection(markdown, "Objective"),
+    brief: extractSection(markdown, "Mission Brief"),
+    deliverables: extractSection(markdown, "Deliverables"),
+    acceptanceCriteria: extractSection(markdown, "Acceptance Criteria"),
+    evaluationCriteria: extractSection(markdown, "Evaluation Criteria"),
+    competencyTags: extractListSection(markdown, "Competency Tags")
+  };
+}
 
-Business context:
-The client wants a simple public website for a product called TaskPilot, an AI-assisted task planning tool for small teams.
+function extractTitle(markdown: string): string {
+  const title = markdown
+    .split(/\r?\n/)
+    .find((line) => line.startsWith("# "))
+    ?.replace(/^#\s+/, "")
+    .trim();
+  if (!title) {
+    throw new Error("Mission spec is missing a level-1 title.");
+  }
+  return title;
+}
 
-The site should help visitors understand:
-- What the product does
-- Who it is for
-- Why it is useful
-- How to express interest before launch
+function extractSection(markdown: string, heading: string): string {
+  const lines = markdown.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.trim() === `## ${heading}`);
+  if (start === -1) {
+    throw new Error(`Mission spec is missing ## ${heading}.`);
+  }
+  const end = lines.findIndex((line, index) => index > start && line.startsWith("## "));
+  return lines
+    .slice(start + 1, end === -1 ? undefined : end)
+    .join("\n")
+    .trim();
+}
 
-You are expected to use AI tools, but you must document how AI helped you and what decisions you made independently.
+function extractListSection(markdown: string, heading: string): string[] {
+  return extractSection(markdown, heading)
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/^-\s+/, ""))
+    .filter(Boolean);
+}
 
-SEM lifecycle:
-1. Discover: write at least 5 clarification questions you would ask the client.
-2. Analyze: summarize the business problem and target users.
-3. Specify: create a short PRD with product goal, users, features, out-of-scope items and acceptance criteria.
-4. Design: create a basic page structure or wireframe.
-5. Build: build a responsive landing page.
-6. Test: create and execute a manual test checklist.
-7. Deploy: publish the site using Vercel, Netlify, GitHub Pages or similar.
-8. Present: record a 3-5 minute Loom demo.
-9. Reflect: write an engineering journal entry.
-10. Production Readiness Review: evaluate whether the solution is ready for real users.`,
-    deliverables: `- PRD
-- User stories
-- Acceptance criteria
-- Wireframe or page structure
-- GitHub repository URL
-- Deployment URL
-- README
-- Manual test checklist
-- Loom demo video
-- Engineering journal entry
-- AI usage disclosure`,
-    acceptanceCriteria: `- The landing page is publicly accessible.
-- The page is responsive on desktop and mobile.
-- The GitHub repository contains a clear README.
-- The PRD and user stories are included in documentation.
-- The deployment URL works without login.
-- The participant has submitted a Loom demo.
-- AI usage is documented transparently.
-- Manual testing evidence is included.`,
-    evaluationCriteria: `Bronze: working deployed landing page with README and basic demo.
-Silver: includes PRD, user stories, acceptance criteria and test checklist.
-Gold: responsive polished UI, clear documentation, AI usage disclosure and strong Loom presentation.
-Platinum: professional-grade landing page with excellent UX, clear commit history, accessibility checks and thoughtful production readiness reflection.`,
-    competencyTags: [
-      "Problem Discovery",
-      "Requirements Engineering",
-      "AI Collaboration",
-      "Software Construction",
-      "Quality Engineering",
-      "Deployment & Operations",
-      "Documentation",
-      "Communication",
-      "Professionalism"
-    ]
-  },
+const missionSeeds: MissionSeed[] = [
+  ...weekOneMissionSpecs.map(loadWeekOneMissionSeed),
   {
     id: "seed-mission-week-2-taskpilot-app",
     title: "Design and Build the TaskPilot Application",
@@ -453,6 +468,8 @@ async function main() {
     }
   }
 
+  await assignAcceptedApplicantsToWeekOne(tenant.id, program.id);
+
   await prisma.auditLog.create({
     data: {
       tenantId: tenant.id,
@@ -463,6 +480,23 @@ async function main() {
       metadata: { programId: program.id }
     }
   });
+}
+
+async function assignAcceptedApplicantsToWeekOne(tenantId: string, programId: string) {
+  const acceptedApplications = await prisma.application.findMany({
+    where: { tenantId, programId, status: "ACCEPTED" },
+    select: { applicantId: true }
+  });
+
+  for (const application of acceptedApplications) {
+    await prisma.$transaction((tx) =>
+      assignWeekMissionToAcceptedApplicantTx(tx, {
+        tenantId,
+        programId,
+        applicantId: application.applicantId
+      })
+    );
+  }
 }
 
 main()

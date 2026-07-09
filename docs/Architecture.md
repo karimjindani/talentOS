@@ -1,11 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.16.3`
+Code version: `v0.18.2`
 
-Architecture baseline commit: `3856f61`
+Architecture baseline commit: `6ef1ef7`
 
-Current documentation update: `v0.16.3` (documentation refresh; the latest product-code baseline
-is `v0.16.0`)
+Current documentation update: `v0.18.2`
 
 ## Overview
 
@@ -38,8 +37,8 @@ pages: overview, program (4-week breakdown), tasks, resources (embedded videos),
 profile. Data is served by `packages/db/src/dashboard.ts` (11 query/helper functions).
 
 As of `v0.16.0` (D-069) the overview page's Overall Progress, Missions Accepted tile and per-week
-Program Progress bars are **mission-driven**: they derive from the applicant's ACCEPTED mission
-submissions (`getApplicantMissionProgress` in `packages/db/src/submissions.ts`), not task
+Program Progress bars are **mission-driven**: they derive from the applicant's assigned missions and
+ACCEPTED mission submissions (`getApplicantMissionProgress` in `packages/db/src/submissions.ts`), not task
 checkboxes — a **Current Mission** card links to the next mission with its submission-status chip,
 and weekly tasks remain a supplementary checklist. The dashboard's video resources, weekly tasks
 and calendar events are managed by admins from the Program Content page (`/programs/[id]/content`,
@@ -49,10 +48,43 @@ and calendar events are managed by admins from the Program Content page (`/progr
 
 `v0.14.0` turns the placeholder `Mission` model into the first learning-engine capability. Admins manage
 missions through `/missions`, `/missions/new` and `/missions/[id]`; `SUPER_ADMIN` and `ORG_ADMIN` can
-create/edit/publish/archive while HR and Tech Lead are read-only. Accepted applicants see published
-missions for their accepted program at `/dashboard/missions` and `/dashboard/missions/[id]`. Mission
-content is structured as SEM-oriented text fields: brief, objective, deliverables, acceptance criteria,
-evaluation criteria and competency tags.
+create/edit/publish/archive while HR and Tech Lead are read-only. As of `v0.18.0`, accepted applicants
+see assigned published missions for their accepted program at `/dashboard/missions` and
+`/dashboard/missions/[id]`; published missions are the assignment pool rather than automatic applicant
+visibility. Mission content is structured as SEM-oriented text fields: brief, objective, deliverables,
+acceptance criteria, evaluation criteria and competency tags. Week 1 demo variants are sourced from
+Markdown seed specs and imported into those mission fields during seed.
+
+### Engineering Journal MVP (`v0.17.0`)
+
+`v0.17.0` adds the first dedicated daily-reflection module to the Applicant Portal, separate from the
+older inline `Submission.journalMarkdown` field used during mission submission review. Accepted
+applicants list, create and edit structured entries at `/dashboard/journal`, `/dashboard/journal/new`
+and `/dashboard/journal/[id]` (`JournalEntryForm.tsx`, `actions.ts`, `view-model.ts`); a Profile page
+setting (`LanguagePreferenceForm.tsx`) controls the applicant's preferred journal language
+(`User.preferredJournalLanguage`, default `"English"`). All journal data access goes through
+`packages/db/src/journal.ts` — tenant-scoped and applicant-owned, validated against the applicant's
+mission and program, and audited (`journal.created`/`journal.updated`). Saved entries render read-only
+by default and only change through an explicit Edit action; once a mission's assignment has been
+submitted, `isJournalMissionLockedForApplicant`/`assertJournalMissionNotLocked` lock that mission's
+journal entries against further edits. `v0.17.1` adds a database-level unique index on
+`[tenantId, applicantId, entryDate]` backing the one-entry-per-calendar-date rule that
+`createJournalEntry`/`updateJournalEntry` already enforced in application code
+(`JournalEntryDateConflictError`). AI-review/scoring fields on the entry are schema placeholders only
+— no AI review or scoring is active yet (see `docs/developer-notes/Engineering_Journal_Notes.md`).
+
+### Mission Assignment MVP (`v0.18.0`)
+
+`v0.18.0` changes applicant mission visibility from "every published mission in the accepted program"
+to "the missions explicitly assigned to this applicant." A new `MissionAssignment` row (tenant,
+program, applicant, mission, week; unique per tenant+program+applicant+week) is created idempotently
+when an application transitions to `ACCEPTED`, choosing one Week 1 published mission from the
+least-assigned variants with a random tie-break. Mission listing/detail, submission drafting and
+Engineering Journal mission selection are all scoped to the applicant's assignments
+(`packages/db/src/mission-assignments.ts`). Four Week 1 TaskPilot mission variants are authored as
+Markdown source under `packages/db/prisma/seed-data/missions/ai-native-engineering/week-1/` and
+imported into standard `Mission` fields by the seed script; the app never reads the Markdown file
+paths at runtime, only the imported database content.
 
 ## Container Topology
 
@@ -355,9 +387,9 @@ TalentOS now has two regression layers:
 
 The Ops Console exposes the scenario suite as an area selector. Operators can run the full suite or one
 area at a time: `auth`, `applicant`, `admin`, `programs`, `tenant`, `dashboard`, `storage`, `ops`, or
-`unit`. As of `v0.14.0`, `missions` is also an area. Each run emits a machine-readable `REGRESSION_RESULT_JSON` payload containing total, passed,
-failed, skipped and duration counts; the Ops job runner parses that payload and renders the summary and
-raw logs.
+`unit`. As of `v0.14.0`, `missions` is also an area; as of `v0.18.2`, `journal` is too. Each run emits
+a machine-readable `REGRESSION_RESULT_JSON` payload containing total, passed, failed, skipped and
+duration counts; the Ops job runner parses that payload and renders the summary and raw logs.
 
 Scenario-generated records must be tagged through `RegressionDataMarker` before cleanup is allowed.
 The cleanup path deletes only marker-tagged records in dependency order and must not touch seeded demo
@@ -422,25 +454,37 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
    - Mission-driven dashboard progress (v0.16.0, D-069): the applicant dashboard's Overall
      Progress, Missions Accepted tile and per-week bars derive from ACCEPTED submissions
      (getApplicantMissionProgress), with a Current Mission card linking to the next mission.
+   - Mission assignment MVP (v0.18.0): accepted applicants receive assigned published missions instead
+     of seeing the whole published mission pool. Week 1 seed variants are authored in Markdown and
+     imported into mission fields for future AI-review context.
    - Next: competency rollup / portfolio view over accepted submissions.
 
-6. AI Mentor Boundary
+6. Engineering Journal — delivered in `v0.17.0`, date-uniqueness hardened in `v0.17.1`
+   - Done: dedicated daily structured-reflection module (`EngineeringJournalEntry`) at
+     `/dashboard/journal`, separate from the older inline `Submission.journalMarkdown` field;
+     tenant-scoped, applicant-owned, audited (`journal.created`/`journal.updated`); one entry per
+     applicant per calendar date enforced at the database layer (`v0.17.1`, D-074); entries lock once
+     their mission's assignment is submitted (`v0.18.0`).
+   - Next: real AI review/scoring (current fields are schema placeholders only), recruiter/admin
+     visibility, export/weekly-summary features.
+
+7. AI Mentor Boundary
    - Expand the current AI service boundary into tenant-aware, auditable mentor workflows.
 
-7. Knowledge Base
+8. Knowledge Base
    - Add tenant-owned knowledge documents for AI assistance and program support.
 
-8. GitHub Integration
+9. GitHub Integration
    - Connect participant repositories and collect project evidence.
 
-9. Portfolio
-   - Generate participant-facing public portfolio artifacts.
+10. Portfolio
+    - Generate participant-facing public portfolio artifacts.
 
-10. Certificates
+11. Certificates
     - Support tenant-branded certificate creation and issuance.
 
-11. Leaderboard
+12. Leaderboard
     - Add transparent progress and achievement visibility.
 
-12. Hiring Recommendations
+13. Hiring Recommendations
     - Produce admin-facing candidate readiness and hiring signals.

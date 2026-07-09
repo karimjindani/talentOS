@@ -29,6 +29,7 @@ export type RegressionArea =
   | "admin"
   | "programs"
   | "missions"
+  | "journal"
   | "tenant"
   | "dashboard"
   | "storage"

@@ -11,6 +11,12 @@ describe("regression data cleanup", () => {
       REGRESSION_CLEANUP_ORDER.indexOf("User")
     );
     expect(REGRESSION_CLEANUP_ORDER.indexOf("Mission")).toBeLessThan(REGRESSION_CLEANUP_ORDER.indexOf("Program"));
+    expect(REGRESSION_CLEANUP_ORDER.indexOf("EngineeringJournalEntry")).toBeLessThan(
+      REGRESSION_CLEANUP_ORDER.indexOf("Mission")
+    );
+    expect(REGRESSION_CLEANUP_ORDER.indexOf("EngineeringJournalEntry")).toBeLessThan(
+      REGRESSION_CLEANUP_ORDER.indexOf("User")
+    );
   });
 
   it("does not include unmarkable broad tables in cleanup order", () => {
