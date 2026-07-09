@@ -239,6 +239,64 @@ export async function buildApplicantContext(
 }
 
 /**
+ * Build a stable context signature (cache key component) from the applicant context.
+ *
+ * This signature captures all dynamic fields that could change the AI's answer:
+ * - program id
+ * - task ids + completion status + due dates
+ * - submission ids + status
+ * - progress counts (total, completed, percentage)
+ * - mission ids
+ * - days remaining
+ *
+ * If any of these change (e.g. user completes a task, submits a mission, a deadline
+ * passes), the signature changes and the LLM cache misses — forcing a fresh LLM call.
+ *
+ * When there is no program, the signature is "no-program" so that all no-program
+ * users share the same cache namespace for a given prompt.
+ */
+export function buildContextSignature(ctx: ApplicantContext): string {
+  if (!ctx.program) {
+    return "no-program";
+  }
+
+  const parts: string[] = [`p:${ctx.program.id}`];
+
+  // Progress counts
+  if (ctx.progress) {
+    parts.push(
+      `pg:${ctx.progress.completedTasks}/${ctx.progress.totalTasks}/${ctx.progress.overallPercentage}`
+    );
+  }
+
+  // Task ids + status + due dates (sorted for stability)
+  const taskSig = ctx.upcomingTasks
+    .map((t) => `${t.id}:${t.completed ? 1 : 0}:${t.overdue ? 1 : 0}:${t.dueAt ?? "none"}`)
+    .sort()
+    .join(",");
+  parts.push(`t:${taskSig}`);
+
+  // Mission ids (sorted)
+  const missionSig = ctx.missions
+    .map((m) => m.id)
+    .sort()
+    .join(",");
+  parts.push(`m:${missionSig}`);
+
+  // Submission ids + status (sorted)
+  const subSig = ctx.submissions
+    .map((s) => `${s.missionId}:${s.status}`)
+    .sort()
+    .join(",");
+  parts.push(`s:${subSig}`);
+
+  // Days remaining
+  parts.push(`d:${ctx.daysRemaining ?? "none"}`);
+
+  return parts.join("|");
+}
+
+/**
  * Render the applicant context as a human-readable system prompt section.
  *
  * This is what would be prepended to the LLM system prompt in Phase 6.

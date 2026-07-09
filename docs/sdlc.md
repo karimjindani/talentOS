@@ -1,8 +1,8 @@
 # Principles of Software Development
 
-Current code version: `v0.14.2`
+Current code version: `v0.15.0`
 
-Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+Baseline commit: `10dce46`
 
 0. Do what is documented. Always document what you do. Documents should be updated in docs folder in markdown format.
 1. Every iteration of development must ensure that previously committed and tested work remains functional.

@@ -159,6 +159,18 @@ and a knowledge base drawn from platform documentation.
 The mentor can render rich cards inside responses, including task cards, progress indicators, timelines,
 tips, badges, and warnings.
 
+### Response caching
+
+The mentor caches LLM responses to avoid redundant API calls and reduce latency:
+
+- **Dynamic questions** (about your tasks, progress, timeline) are cached per user and per context — if
+  your program state hasn't changed, asking the same question again returns the cached response
+  instantly.
+- **Static knowledge questions** (e.g., "Explain SDLC") are cached across all users, so common
+  questions are fast for everyone.
+- Cached responses expire after 5 minutes. If you complete a task or your context changes, the cache
+  is automatically invalidated for dynamic questions.
+
 ## Troubleshooting
 
 | Issue | Likely Cause | Action |

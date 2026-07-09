@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.14.2`
+Code version: `v0.15.0`
 
 ## Purpose
 
@@ -56,6 +56,12 @@ The suite can be run from the local Ops Console or from npm scripts.
 | Dashboard | Accepted applicant dashboard pages load. | Automated | Covers overview, program, tasks, resources, calendar, notifications and profile. |
 | Dashboard | Task completion persists. | Automated | Uses dashboard DB helpers. |
 | Dashboard | Notification read state persists. | Automated | Uses dashboard DB helpers. |
+| AI Mentor | Cache hit: same dynamic prompt + same context returns cached response (no LLM call). | Automated | `ai-cache.test.ts` — verifies fetch call count stays at 1. |
+| AI Mentor | Cache miss: context changed (task completed) forces fresh LLM call. | Automated | `ai-cache.test.ts` — different context signature triggers new fetch. |
+| AI Mentor | Static cache: knowledge prompt shared across users. | Automated | `ai-cache.test.ts` — 1 fetch for 2 different users on same static prompt. |
+| AI Mentor | Errors are never cached: failed LLM retries on next call. | Automated | `ai-cache.test.ts` — error then success on same prompt. |
+| AI Mentor | User isolation: same dynamic prompt for different users → separate cache entries. | Automated | `ai-cache.test.ts` — 2 fetch calls for 2 users. |
+| AI Mentor | RBSE direct answers bypass cache entirely. | Automated | `ai-cache.test.ts` — no fetch call for direct_answer patterns. |
 | Storage | CV upload/download round-trip. | Missing | `storage` area currently reports a documented skip. |
 | Storage | Cross-tenant file denial. | Missing | Should cover both metadata lookup and download URL path. |
 | Ops | Run full regression from Ops UI and show counts. | Automated/API + manual UI check | Unit/server coverage plus local manual validation. |

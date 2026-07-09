@@ -250,6 +250,13 @@ The AI Mentor feature (`v0.15.0`) requires the following environment variables i
 | `LLM_MAX_TOKENS` | Maximum tokens in LLM response. | `1024` |
 | `LLM_TEMPERATURE` | LLM sampling temperature. | `0.7` |
 
+**Cache constants** (code-level, not environment-configurable — see D-070):
+
+| Constant | Purpose | Value |
+| --- | --- | --- |
+| `LLM_CACHE_TTL_MS` | Time-to-live for cached LLM responses. | `300_000` (5 minutes) |
+| `LLM_CACHE_MAX_SIZE` | Maximum cache entries before LRU eviction. | `200` |
+
 When `GLM_Z_API_KEY` is absent or the LLM call fails, the API route falls back to a stub response so the
 mentor UI remains functional during development.
 

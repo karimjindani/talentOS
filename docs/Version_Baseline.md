@@ -25,9 +25,11 @@ models: `MentorConversation` and `MentorMessage`. The API route (`/api/ai/mentor
 guards auth, builds tenant-scoped applicant context, retrieves knowledge-base snippets, and calls the
 LLM (ZhipuAI GLM-4.5-air, 1024 max tokens, 60 s timeout, 1 retry). A rule-based system engine (RBSE)
 classifies user input into `blocked` / `direct_answer` / `allow_llm` actions against an allowed-topics
-list. On LLM failure, a stub response keeps the UI functional. Key files: `apps/applicant/lib/ai.ts`,
+list. On LLM failure, a stub response keeps the UI functional. A **smart in-memory LLM response cache**
+(D-070) avoids redundant LLM calls: dynamic prompts are keyed per user + context signature, static
+knowledge prompts are shared across users; 5-minute TTL, 200-entry LRU cap, errors never cached. Key files: `apps/applicant/lib/ai.ts`,
 `apps/applicant/lib/ai-rbse.ts`, `apps/applicant/lib/knowledge-base.ts`,
-`apps/applicant/lib/ai-context.ts`, `packages/db/src/mentor.ts`. See D-066 through D-069.
+`apps/applicant/lib/ai-context.ts`, `apps/applicant/lib/ai-cache.test.ts`, `packages/db/src/mentor.ts`. See D-066 through D-070.
 
 `v0.14.2` is a security patch that closes the tenant-isolation gap in the **applicant** portal — the
 D-051 fix had only ever covered the admin portal. Sessions are shared across subdomains

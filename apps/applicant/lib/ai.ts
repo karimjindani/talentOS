@@ -1,5 +1,5 @@
 import type { ApplicantContext } from "./ai-context";
-import { contextToPromptSection } from "./ai-context";
+import { contextToPromptSection, buildContextSignature } from "./ai-context";
 import type { KnowledgeSnippet } from "./knowledge-base";
 import { knowledgeToPromptSection } from "./knowledge-base";
 import { classifyQuestion } from "./ai-rbse";
@@ -43,6 +43,76 @@ const LLM_MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS ?? "1024", 10); // 10
 const LLM_TEMPERATURE = parseFloat(process.env.LLM_TEMPERATURE ?? "0.7");
 const LLM_TIMEOUT_MS = 60_000; // 60 second timeout — fail fast, don't make user wait 2 minutes
 const LLM_MAX_RETRIES = 1; // Only retry on network/server errors, not timeouts
+
+// ---------------------------------------------------------------------------
+// Smart LLM Response Cache (in-memory, context-signature-aware)
+// ---------------------------------------------------------------------------
+
+const LLM_RESPONSE_CACHE = new Map<string, { content: string; timestamp: number }>();
+const LLM_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const LLM_CACHE_MAX_SIZE = 200; // prevent unbounded growth
+
+/**
+ * Determine if a prompt is a dynamic action (depends on applicant data)
+ * vs. a static knowledge question (depends only on the topic).
+ *
+ * Dynamic actions: task, progress, timeline, missions, submission, deadline, schedule.
+ * Static knowledge: SDLC, SEM, testing, deployment, PRD, engineering concepts.
+ */
+function isDynamicAction(prompt: string): boolean {
+  const lower = prompt.toLowerCase();
+  const dynamicKeywords = [
+    "my task", "today's task", "current task", "next task", "what should i work on",
+    "my progress", "show my progress", "how am i doing", "completion status",
+    "my timeline", "my schedule", "upcoming weeks", "next week",
+    "my mission", "my missions",
+    "my submission", "submission status", "my submissions",
+    "deadline", "due date", "remaining",
+  ];
+  return dynamicKeywords.some((kw) => lower.includes(kw));
+}
+
+/**
+ * Build the cache key for an LLM response.
+ *
+ * - Dynamic actions: include tenantId, userId, contextSignature, and prompt.
+ *   If the applicant's data changes, the signature changes → cache miss → fresh LLM call.
+ * - Static knowledge: include only the prompt (no user-specific data).
+ *   These answers are the same for all users.
+ */
+function buildLLMCacheKey(
+  tenantId: string,
+  userId: string | undefined,
+  prompt: string,
+  contextSig: string
+): string {
+  if (isDynamicAction(prompt)) {
+    return `dynamic:${tenantId}:${userId ?? "anon"}:${contextSig}:${prompt}`;
+  }
+  // Static knowledge — simpler key, shared across users
+  return `static:${prompt}`;
+}
+
+/** Check the cache for a valid (non-expired) entry. */
+function getCachedLLMResponse(cacheKey: string): string | null {
+  const cached = LLM_RESPONSE_CACHE.get(cacheKey);
+  if (!cached) return null;
+  if (Date.now() - cached.timestamp > LLM_CACHE_TTL_MS) {
+    LLM_RESPONSE_CACHE.delete(cacheKey);
+    return null;
+  }
+  return cached.content;
+}
+
+/** Store an LLM response in the cache. Evicts oldest entries when at capacity. */
+function setCachedLLMResponse(cacheKey: string, content: string): void {
+  // Evict oldest if at capacity
+  if (LLM_RESPONSE_CACHE.size >= LLM_CACHE_MAX_SIZE) {
+    const oldestKey = LLM_RESPONSE_CACHE.keys().next().value;
+    if (oldestKey) LLM_RESPONSE_CACHE.delete(oldestKey);
+  }
+  LLM_RESPONSE_CACHE.set(cacheKey, { content, timestamp: Date.now() });
+}
 
 /** Whether a real LLM API key is configured. */
 function hasLLMConfig(): boolean {
@@ -423,7 +493,17 @@ export async function requestAIInteraction(
     return generateStubResponse(prompt, context, knowledge);
   }
 
-  // Step 3: Call LLM with context and knowledge
+  // Step 3: Call LLM with context and knowledge (with smart caching)
+  const contextSig = context ? buildContextSignature(context) : "no-context";
+  const cacheKey = buildLLMCacheKey(request.tenantId, request.userId, prompt, contextSig);
+
+  // Check cache first — only for successful "ok" responses, never errors
+  const cached = getCachedLLMResponse(cacheKey);
+  if (cached) {
+    console.log(`[ai-mentor] Cache HIT for key: ${cacheKey.substring(0, 80)}...`);
+    return { status: "ok", message: cached };
+  }
+
   try {
     const systemPrompt = buildSystemPrompt(context, knowledge);
     
@@ -439,6 +519,10 @@ export async function requestAIInteraction(
     const duration = Date.now() - startTime;
     console.log(`[ai-mentor] GLM call succeeded in ${duration}ms, responseLen=${content.length}, tokens=${usage?.completion_tokens ?? '?'}`);
     
+    // Cache the successful response — never cache errors
+    setCachedLLMResponse(cacheKey, content);
+    console.log(`[ai-mentor] Cached response for key: ${cacheKey.substring(0, 80)}...`);
+    
     return {
       status: "ok",
       message: content,
@@ -448,7 +532,7 @@ export async function requestAIInteraction(
     const errorMsg = err instanceof Error ? err.message : "unknown";
     console.error(`[ai-mentor] LLM call failed (${errorMsg}), falling back to stub`);
 
-    // Return stub with error status so the frontend can indicate degradation
+    // Return stub with error status — NOT cached
     const stub = await generateStubResponse(prompt, context, knowledge);
     return {
       ...stub,

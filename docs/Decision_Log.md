@@ -472,3 +472,27 @@ feedback during LLM calls. Conversations persist to both `localStorage` (instant
 database (`MentorConversation` / `MentorMessage`) for cross-device access.
 
 Status: Approved
+
+## D-070
+
+`v0.15.0` — Smart in-memory LLM response cache with context-signature-aware keys. The cache
+(`LLM_RESPONSE_CACHE` in `apps/applicant/lib/ai.ts`) is a `Map<string, { content, timestamp }>` with a
+5-minute TTL (`LLM_CACHE_TTL_MS = 300_000`) and a 200-entry cap (`LLM_CACHE_MAX_SIZE = 200`) with LRU
+eviction. Cache keys are built by `buildLLMCacheKey`, which distinguishes **dynamic** prompts (containing
+user-specific keywords like "my task", "my progress", "my timeline") from **static** knowledge prompts:
+
+- **Dynamic key** — `dynamic:{tenantId}:{userId}:{contextSignature}:{prompt}` — scoped per user + context
+  so a context change (task completed, progress updated) invalidates the entry and forces a fresh LLM
+  call. The context signature (`buildContextSignature` in `ai-context.ts`) is a stable pipe-separated
+  hash of program id, progress counts, task ids/status/dueDates, mission ids, submission ids/status, and
+  days remaining.
+- **Static key** — `static:{prompt}` — shared across all users/tenants for general knowledge questions
+  (e.g., "Explain SDLC"), maximising cache hit rate for non-personal content.
+
+Errors are **never cached** — a failed LLM call (500, 429, timeout, network error) returns a stub
+response but does not populate the cache, so the next identical request retries the LLM. RBSE
+`direct_answer` and `blocked` actions bypass the cache entirely (no LLM call, no cache read/write).
+Verified by 6 dedicated cache tests (`ai-cache.test.ts`): cache hit, cache miss on context change,
+static cache sharing across users, error non-caching, user isolation, and RBSE bypass.
+
+Status: Approved

@@ -395,14 +395,19 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
      knowledge-base snippets, calls the LLM, and persists the exchange.
    - **LLM integration** (`apps/applicant/lib/ai.ts`): `callGLM` calls ZhipuAI GLM-4.5-air with
      1024 max tokens, 60 s timeout, and 1 retry. `buildSystemPrompt` assembles the system persona.
-     `requestAIInteraction` orchestrates: RBSE classification → LLM call → stub fallback on failure.
-   - **RBSE classifier** (`apps/applicant/lib/ai-rbse.ts`): rule-based engine that classifies user
+     `requestAIInteraction` orchestrates: RBSE classification → LLM call → stub fallback on failure.    A **smart in-memory response cache** (`LLM_RESPONSE_CACHE`, D-070) avoids redundant LLM calls:
+    dynamic prompts (user-specific) are keyed by `tenant + user + contextSignature + prompt`, while
+    static knowledge prompts are keyed by `prompt` only (shared across users). The cache has a 5-minute
+    TTL, 200-entry cap with LRU eviction, and never caches errors. The context signature
+    (`buildContextSignature` in `ai-context.ts`) hashes program, progress, task, mission, and submission
+    state so any context change invalidates the dynamic cache entry.   - **RBSE classifier** (`apps/applicant/lib/ai-rbse.ts`): rule-based engine that classifies user
      input into `blocked`, `direct_answer`, or `allow_llm` actions against an `ALLOWED_TOPICS` list.
    - **Knowledge base** (`apps/applicant/lib/knowledge-base.ts`): keyword-based retrieval from
      platform docs (SDLC, SEM, Mission Framework, etc.) with score ranking and a limit of 2 snippets.
    - **Applicant context** (`apps/applicant/lib/ai-context.ts`): `buildApplicantContext` assembles
      program, progress, upcoming tasks, missions — all tenant-scoped.
-   - Next: LiteLLM proxy integration, streaming responses, multi-turn context windowing.
+   - Next: LiteLLM proxy integration, streaming responses, multi-turn context windowing,
+    edge/Redis-backed cache for multi-instance deployments.
 
 7. Knowledge Base
    - The initial knowledge base is implemented as keyword-based retrieval from platform documentation
