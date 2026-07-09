@@ -432,3 +432,43 @@ end-to-end in a real browser (cross-tenant denial, preserved same-tenant access,
 full register→apply→membership flow under a tenant subdomain).
 
 Status: Approved
+
+## D-066
+
+`v0.15.0` — LLM provider selection: **ZhipuAI GLM-4.5-air** via the `api.z.ai` coding endpoint. Chosen
+for its fast air-tier latency (~3–5 s), low cost, and strong code/instruction following. The integration
+(`apps/applicant/lib/ai.ts` → `callGLM`) uses 1024 max tokens, 0.7 temperature, 60 s timeout, and 1
+retry. A LiteLLM proxy path is planned for multi-model routing but not yet integrated. When the API key
+is absent or the call fails, a stub response preserves UX continuity.
+
+Status: Approved
+
+## D-067
+
+`v0.15.0` — Rule-Based System Engine (RBSE) as the first-line input classifier. The RBSE
+(`apps/applicant/lib/ai-rbse.ts`) classifies user input into `blocked`, `direct_answer`, or `allow_llm`
+actions against an `ALLOWED_TOPICS` list before any LLM call. This avoids unnecessary LLM costs for
+off-topic questions, provides deterministic safety guardrails, and keeps the mentor on-topic for
+software engineering and program guidance. The RBSE is intentionally simple (keyword matching) so it can
+be audited and extended without model retraining.
+
+Status: Approved
+
+## D-068
+
+`v0.15.0` — Knowledge base design: keyword-based retrieval from platform documentation. The knowledge
+base (`apps/applicant/lib/knowledge-base.ts`) scores snippets from SDLC, SEM, Mission Framework, and
+other docs by keyword overlap, returning the top 2 snippets. This keeps the context window small and
+response times fast. A future `KnowledgeBaseDocument` model will support tenant-owned content.
+
+Status: Approved
+
+## D-069
+
+`v0.15.0` — Token limit and prompt strategy: 1024 max tokens (up from an initial 256 that caused
+response truncation), system prompt trimmed to essential persona + context + knowledge to keep latency
+under ~40 s. Per-conversation loading state and a "Still working..." timer (5 s threshold) provide UX
+feedback during LLM calls. Conversations persist to both `localStorage` (instant UI restore) and the
+database (`MentorConversation` / `MentorMessage`) for cross-device access.
+
+Status: Approved

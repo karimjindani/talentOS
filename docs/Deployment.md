@@ -238,6 +238,21 @@ containers.
   validation only; keep the console `9001/tcp` closed and set strong root credentials server-side
   (never commit them). The same S3 code can target Alibaba OSS by config alone if ever preferred.
 
+## LLM / AI Mentor Environment Variables
+
+The AI Mentor feature (`v0.15.0`) requires the following environment variables in the applicant container:
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `GLM_Z_API_KEY` | ZhipuAI / GLM API key for LLM access. | _(none — required for live LLM)_ |
+| `ZHIPUAI_BASE_URL` | ZhipuAI API base URL. | `https://api.z.ai/api/coding/paas/v4` |
+| `ZHIPUAI_MODEL` | Model identifier to use. | `glm-4.5-air` |
+| `LLM_MAX_TOKENS` | Maximum tokens in LLM response. | `1024` |
+| `LLM_TEMPERATURE` | LLM sampling temperature. | `0.7` |
+
+When `GLM_Z_API_KEY` is absent or the LLM call fails, the API route falls back to a stub response so the
+mentor UI remains functional during development.
+
 ## Local Validation URLs
 
 Keycloak (`KEYCLOAK_PORT=8080`):

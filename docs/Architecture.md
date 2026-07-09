@@ -382,11 +382,32 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
      their dashboard, and demo seed includes the Week 1 "Build a Public Product Landing Page" SEM mission.
    - Next: mission submissions and reviewer workflow.
 
-6. AI Mentor Boundary
-   - Expand the current AI service boundary into tenant-aware, auditable mentor workflows.
+6. AI Mentor — delivered in `v0.15.0`
+   - Done: full conversational AI mentor at `/dashboard/mentor` for accepted applicants. The chat UI
+     (`apps/applicant/app/dashboard/mentor/page.tsx`) supports multi-conversation management with
+     per-conversation loading state, auto-scroll, suggested questions, and a "Still working..." timer.
+     Messages render Markdown (`react-markdown` + `remark-gfm` + Prism syntax highlighting) and rich
+     cards (`CardRenderer.tsx`: task, progress, timeline, tips, badge, warning) via a `cardsJson` field.
+     Conversations persist to `localStorage` (`talentos:mentor-conversations`) and to the database
+     (`MentorConversation` / `MentorMessage` models in `packages/db/src/mentor.ts`).
+   - **API route** (`apps/applicant/app/api/ai/mentor/route.ts`): `GET` loads conversation history,
+     `POST` accepts a prompt with auth guard + Zod validation, builds applicant context, retrieves
+     knowledge-base snippets, calls the LLM, and persists the exchange.
+   - **LLM integration** (`apps/applicant/lib/ai.ts`): `callGLM` calls ZhipuAI GLM-4.5-air with
+     1024 max tokens, 60 s timeout, and 1 retry. `buildSystemPrompt` assembles the system persona.
+     `requestAIInteraction` orchestrates: RBSE classification → LLM call → stub fallback on failure.
+   - **RBSE classifier** (`apps/applicant/lib/ai-rbse.ts`): rule-based engine that classifies user
+     input into `blocked`, `direct_answer`, or `allow_llm` actions against an `ALLOWED_TOPICS` list.
+   - **Knowledge base** (`apps/applicant/lib/knowledge-base.ts`): keyword-based retrieval from
+     platform docs (SDLC, SEM, Mission Framework, etc.) with score ranking and a limit of 2 snippets.
+   - **Applicant context** (`apps/applicant/lib/ai-context.ts`): `buildApplicantContext` assembles
+     program, progress, upcoming tasks, missions — all tenant-scoped.
+   - Next: LiteLLM proxy integration, streaming responses, multi-turn context windowing.
 
 7. Knowledge Base
-   - Add tenant-owned knowledge documents for AI assistance and program support.
+   - The initial knowledge base is implemented as keyword-based retrieval from platform documentation
+     (`apps/applicant/lib/knowledge-base.ts`). Future: tenant-owned knowledge documents for AI
+     assistance and program support via a `KnowledgeBaseDocument` model.
 
 8. GitHub Integration
    - Connect participant repositories and collect project evidence.

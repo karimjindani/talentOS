@@ -62,6 +62,15 @@ The suite can be run from the local Ops Console or from npm scripts.
 | Ops | Run one selected area from Ops UI. | Automated/API + manual UI check | Ops API accepts `area`; UI includes selector. |
 | Ops | Cleanup is a safe no-op when no markers exist. | Automated via existing cleanup command behavior | Should gain a direct scenario assertion in a later hardening pass. |
 | Ops | Cleanup removes marked data only. | Automated by runner + cleanup validation | Scenario data uses `RegressionDataMarker`. |
+| AI Mentor | Mentor page loads for accepted applicant. | Manual | `/dashboard/mentor` renders chat UI with conversation list and input. |
+| AI Mentor | Send a message and receive a mentor response. | Manual | Validates API route, LLM/stub fallback, and message persistence. |
+| AI Mentor | New Chat creates an isolated conversation. | Manual | Previous conversation history is preserved; new conversation starts empty. |
+| AI Mentor | Conversation persists across page reloads. | Manual | localStorage + DB persistence; conversations reload on refresh. |
+| AI Mentor | Per-conversation loading state is independent. | Manual | Sending a message in one conversation does not show loading in another. |
+| AI Mentor | Auto-scroll to latest message on response. | Manual | Chat container scrolls to bottom when new message arrives. |
+| AI Mentor | RBSE blocks off-topic questions. | Manual | Questions outside allowed topics receive a blocked response. |
+| AI Mentor | Markdown and code blocks render correctly. | Manual | `react-markdown` + Prism syntax highlighting in MessageBubble. |
+| AI Mentor | LLM failure falls back to stub response. | Manual | API route returns stub when `GLM_Z_API_KEY` is absent or call fails. |
 
 ## Data Ownership and Cleanup
 

@@ -2,19 +2,32 @@
 
 ## Current Baseline
 
-Version: `v0.14.2`
+Version: `v0.15.0`
 
-Baseline name: `Applicant Portal Tenant Isolation (D-065)`
+Baseline name: `Applicant AI Mentor (D-066–D-069)`
 
-Baseline code commit: `41c99f0a58ae81646c6b4c2b101402888042d2b4`
+Baseline code commit: `10dce46`
 
-Baseline date: `2026-07-05`
+Baseline date: `2026-07-06`
 
-Previous baseline: `v0.14.1`
+Previous baseline: `v0.14.2`
 
-Previous baseline commit: `5a686c6`
+Previous baseline commit: `41c99f0a58ae81646c6b4c2b101402888042d2b4`
 
 ## Baseline Summary
+
+`v0.15.0` delivers the Applicant AI Mentor — a full conversational AI assistant for accepted applicants
+at `/dashboard/mentor`. The chat UI supports multi-conversation management with per-conversation loading
+state, auto-scroll, suggested questions, and a "Still working..." timer. Messages render Markdown
+(`react-markdown` + `remark-gfm` + Prism syntax highlighting) and rich cards (task, progress, timeline,
+tips, badge, warning). Conversations persist to `localStorage` and to the database via two new Prisma
+models: `MentorConversation` and `MentorMessage`. The API route (`/api/ai/mentor`) validates input,
+guards auth, builds tenant-scoped applicant context, retrieves knowledge-base snippets, and calls the
+LLM (ZhipuAI GLM-4.5-air, 1024 max tokens, 60 s timeout, 1 retry). A rule-based system engine (RBSE)
+classifies user input into `blocked` / `direct_answer` / `allow_llm` actions against an allowed-topics
+list. On LLM failure, a stub response keeps the UI functional. Key files: `apps/applicant/lib/ai.ts`,
+`apps/applicant/lib/ai-rbse.ts`, `apps/applicant/lib/knowledge-base.ts`,
+`apps/applicant/lib/ai-context.ts`, `packages/db/src/mentor.ts`. See D-066 through D-069.
 
 `v0.14.2` is a security patch that closes the tenant-isolation gap in the **applicant** portal — the
 D-051 fix had only ever covered the admin portal. Sessions are shared across subdomains

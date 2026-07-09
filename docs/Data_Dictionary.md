@@ -201,6 +201,32 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
 Cleanup must delete only marked records. Seeded and user-created unmarked records must remain untouched.
 
+## MentorConversation
+
+| Field | Purpose |
+| --- | --- |
+| `id` | Unique conversation ID (cuid). |
+| `tenantId` | Owning tenant — cascades on tenant delete. |
+| `userId` | Owning user — cascades on user delete. |
+| `title` | Conversation title; defaults to `"New Conversation"`. |
+| `createdAt` | Creation timestamp. |
+| `updatedAt` | Last-update timestamp (auto-updated). |
+
+Index: `(tenantId, userId, updatedAt)` for efficient per-user conversation listing.
+
+## MentorMessage
+
+| Field | Purpose |
+| --- | --- |
+| `id` | Unique message ID (cuid). |
+| `conversationId` | Parent conversation — cascades on conversation delete. |
+| `role` | Message author role: `"user"` or `"mentor"`. |
+| `content` | Message text content. |
+| `cardsJson` | Optional JSON-serialised `MentorCard[]` for rich card rendering. |
+| `createdAt` | Creation timestamp. |
+
+Index: `(conversationId, createdAt)` for chronological message retrieval.
+
 ## Tenant Isolation
 
 Tenant-owned reads and writes must include the active `tenantId`. Org admins can only act inside tenants where they have `ORG_ADMIN` membership; platform `SUPER_ADMIN` acts across organizations.

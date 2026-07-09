@@ -107,6 +107,9 @@ erDiagram
 - `StoredFile`: tenant-scoped metadata for an object stored in MinIO (bytes live in the object store).
 - `RegressionDataMarker`: local/dev marker rows identifying records created by regression workflows and
   safe to remove during regression cleanup.
+- `MentorConversation`: persistent AI mentor conversation scoped to a tenant and user (`v0.15.0`).
+- `MentorMessage`: single message within a mentor conversation (role `user` or `mentor`, optional
+  `cardsJson` for rich card payloads).
 
 ## Future-Ready Entities
 

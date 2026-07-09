@@ -124,6 +124,41 @@ The seeded Week 1 mission is **Build a Public Product Landing Page**.
 
 Mission submission, engineering journal entries, and portfolio publishing are future workflows.
 
+## AI Mentor
+
+The AI Mentor is a conversational assistant available to accepted applicants at
+`http://demo.lvh.me:3100/dashboard/mentor`.
+
+### What the AI Mentor does
+
+The mentor answers questions about your program, tasks, missions, software engineering practices (SDLC,
+SEM, mission framework), and general career guidance. It uses a rule-based classifier to stay on-topic
+and a knowledge base drawn from platform documentation.
+
+### Using the AI Mentor
+
+1. Sign in as an accepted applicant.
+2. Open the dashboard.
+3. Select **AI Mentor** in the sidebar.
+4. Type a question in the chat input and press **Enter** or click **Send**.
+5. The mentor's response appears as a formatted message with Markdown rendering and syntax-highlighted
+   code blocks.
+6. Use the **suggested questions** chips above the input for quick prompts.
+
+### Conversation management
+
+- **New Chat**: Click the **New Chat** button to start a fresh conversation.
+- **Conversation history**: Previous conversations are listed in the sidebar. Click any to resume.
+- **Persistence**: Conversations are saved to your browser's local storage and to the database, so they
+  persist across sessions.
+- **Loading indicator**: Each conversation shows its own loading spinner while the mentor is thinking.
+  A "Still working..." message appears if the response takes more than a few seconds.
+
+### Rich cards
+
+The mentor can render rich cards inside responses, including task cards, progress indicators, timelines,
+tips, badges, and warnings.
+
 ## Troubleshooting
 
 | Issue | Likely Cause | Action |
