@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -7,10 +7,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
+// Dynamic imports with vi.resetModules() are slow under the full suite —
+// give these tests a longer timeout.
+beforeAll(() => {
+  vi.setConfig({ testTimeout: 15_000 });
+});
+
 // We need to control env vars for hasLLMConfig / callGLM
 beforeEach(() => {
   fetchMock.mockReset();
-  vi.restoreAllMocks();
 });
 
 // Import after mocks are set up — ai.ts reads process.env at module load,
@@ -49,11 +54,13 @@ function mockErrorResponse(status: number) {
   };
 }
 
-const sampleContext = {
+import type { ApplicantContext } from "./ai-context";
+
+const sampleContext: ApplicantContext = {
   tenantId: "t1",
   userId: "u1",
   program: { id: "p1", name: "Full-Stack Engineering", slug: "fse", startsAt: null, endsAt: null },
-  applicationStatus: "ACCEPTED" as const,
+  applicationStatus: "ACCEPTED",
   progress: {
     totalTasks: 10,
     completedTasks: 4,
@@ -83,7 +90,7 @@ describe("AI Integration — requestAIInteraction", () => {
       userId: "u1",
       purpose: "mentor",
       prompt: "What is my task today?",
-      context: sampleContext as any,
+      context: sampleContext,
     });
 
     expect(result.status).toBe("stubbed");
@@ -155,7 +162,7 @@ describe("AI Integration — requestAIInteraction", () => {
       userId: "u1",
       purpose: "mentor",
       prompt: "What is my progress?",
-      context: sampleContext as any,
+      context: sampleContext,
     });
 
     expect(result.status).toBe("stubbed");
@@ -276,7 +283,7 @@ describe("AI Integration — buildSystemPrompt", () => {
       userId: "u1",
       purpose: "mentor",
       prompt: "Explain SDLC in detail",
-      context: sampleContext as any,
+      context: sampleContext,
     });
 
     const callArgs = fetchMock.mock.calls[0];
