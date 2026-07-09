@@ -2,7 +2,7 @@
 
 Code version: `v0.18.0`
 
-Architecture baseline commit: `pending`
+Architecture baseline commit: `bf59ca4`
 
 Current documentation update: `v0.18.0`
 

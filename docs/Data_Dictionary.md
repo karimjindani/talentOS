@@ -2,7 +2,7 @@
 
 Code version: `v0.18.0`
 
-Baseline commit: `pending`
+Baseline commit: `bf59ca4`
 
 > `v0.18.0` (Mission Assignment MVP, D-075) adds `mission_assignments`: `id`, `tenantId` (FK→tenants),
 > `programId` (FK→programs), `applicantId` (FK→users), `missionId` (FK→missions), `weekNumber`,

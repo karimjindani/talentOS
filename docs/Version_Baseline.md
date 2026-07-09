@@ -6,7 +6,7 @@ Version: `v0.18.0`
 
 Baseline name: `Mission Assignment MVP`
 
-Baseline code commit: `pending`
+Baseline code commit: `bf59ca4`
 
 Baseline date: `2026-07-09`
 
