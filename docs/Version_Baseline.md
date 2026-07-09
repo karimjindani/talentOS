@@ -6,7 +6,7 @@ Version: `v0.18.1`
 
 Baseline name: `Plan Test Scenarios Requirement`
 
-Baseline code commit: `pending`
+Baseline code commit: `3b1e636`
 
 Baseline date: `2026-07-09`
 
