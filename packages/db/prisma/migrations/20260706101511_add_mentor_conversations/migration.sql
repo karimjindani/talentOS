@@ -1,6 +1,3 @@
--- DropIndex
-DROP INDEX "missions_tenantId_programId_idx";
-
 -- CreateTable
 CREATE TABLE "mentor_conversations" (
     "id" TEXT NOT NULL,
