@@ -223,6 +223,13 @@ export default function MentorPage() {
         // Silently fall back to welcome message
       } finally {
         setIsLoadingHistory(false);
+        // If no conversation was loaded (fresh user), create one so Send works
+        if (!activeConversationId) {
+          const newConv = createNewConversation();
+          setConversations([newConv]);
+          setActiveConversationId(newConv.id);
+          saveConversationsToStorage([newConv]);
+        }
       }
     }
 
@@ -280,8 +287,15 @@ export default function MentorPage() {
     if (!trimmed || isSending) return;
 
     // Capture the conversation ID at send time so the response always lands here
-    const targetConvId = activeConversationId;
-    if (!targetConvId) return;
+    let targetConvId = activeConversationId;
+    if (!targetConvId) {
+      // No active conversation — create one on the fly so Send works
+      const newConv = createNewConversation();
+      setConversations((prev) => [...prev, newConv]);
+      setActiveConversationId(newConv.id);
+      saveConversationsToStorage([newConv]);
+      targetConvId = newConv.id;
+    }
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
