@@ -173,7 +173,8 @@ Workflow:
 The missions list shows a status chip per mission: **Not started**, **Draft saved**, **Submitted**,
 **Revision requested**, or **Accepted**.
 
-The inline mission-submission journal remains part of the review evidence for that mission.
+Daily reflection is recorded only through the dedicated Engineering Journal. The legacy inline
+mission-submission journal is no longer shown in applicant or admin interfaces.
 
 ## Engineering Journal (`v0.17.0`)
 

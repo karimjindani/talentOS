@@ -89,17 +89,6 @@ export default async function SubmissionReviewPage({ params }: SubmissionReviewP
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Submission Journal</h2>
-          {submission.journalMarkdown?.trim() ? (
-            <div className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-              {submission.journalMarkdown}
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-slate-600">No submission journal was provided.</p>
-          )}
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold">Engineering Journal</h2>
           {journalEntries.length === 0 ? (
             <p className="mt-3 text-sm text-slate-600">

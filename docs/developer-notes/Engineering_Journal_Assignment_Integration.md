@@ -10,7 +10,7 @@ The Engineering Journal already existed as a dedicated Applicant Portal module. 
 
 The reason for this link is review accuracy. A mission can be repeated, so mission ID alone is not enough to identify which body of work and reflection belongs to a particular submission. The agreed design keeps one continuous journal experience for the applicant while associating each individual entry with the relevant `MissionAssignment` attempt. Submitting an attempt freezes only the entries attached to that attempt; later attempts retain separate history.
 
-The legacy `Submission.journalMarkdown` field remains available for backward compatibility. It is displayed separately from dedicated Engineering Journal entries during admin review.
+The legacy `Submission.journalMarkdown` field remains available for backward compatibility, but it is not displayed in applicant or admin interfaces. Admin review uses dedicated Engineering Journal entries.
 
 ## 2. Work Completed
 
@@ -57,10 +57,7 @@ Legacy journal rows without an assignment link retain a compatibility check agai
 
 ### Admin submission review visibility
 
-The admin submission review page now shows two read-only sections:
-
-- **Submission Journal** for legacy `Submission.journalMarkdown`, when present.
-- **Engineering Journal** for dedicated entries matching the submission's tenant, applicant, mission, and assignment attempt.
+The admin submission review page shows an **Engineering Journal** section containing dedicated entries matching the submission's tenant, applicant, mission, and assignment attempt. The legacy inline Submission Journal section has been removed.
 
 `listEngineeringJournalEntriesForSubmissionReview` returns only the fields needed for review and sorts entries by entry date and creation time. Reviewers cannot edit or delete journal entries from the admin page.
 
@@ -114,7 +111,7 @@ The existing runner and `REGRESSION_RESULT_JSON` format were reused. No separate
 | --- | --- |
 | Missions | Submission lifecycle remains operational; journals link to the active assignment; submitting locks only that assignment's journals; repeat attempts preserve separate journal/submission history; repeat/re-review does not duplicate rows or loop. |
 | Applicant | A journal linked to a submitted assignment rejects edits and remains preserved; no applicant delete flow exists. |
-| Admin | Review loads legacy submission journal and exact-attempt Engineering Journal context, then completes the existing review action. Numeric score submission is not represented because it is not implemented. |
+| Admin | Review loads exact-attempt Engineering Journal context, then completes the existing review action. Numeric score submission is not represented because it is not implemented. |
 | Tenant | Journal review queries exclude rows from another tenant even when applicant, mission, and assignment IDs match. |
 | Unit | Journal, assignment, submission, workflow, cleanup, and Ops result-parser tests run through the existing Vitest unit regression scenario. |
 
@@ -147,7 +144,7 @@ This table reflects the working-tree diff against baseline commit `c7413eb` at d
 
 | File path | Purpose | Change |
 | --- | --- | --- |
-| `apps/admin/app/missions/[id]/submissions/[submissionId]/page.tsx` | Shows legacy and dedicated journals read-only, assignment attempt context, and the Repeat week review option. | Modified |
+| `apps/admin/app/missions/[id]/submissions/[submissionId]/page.tsx` | Shows dedicated Engineering Journal entries read-only, assignment attempt context, and the Repeat week review option; the legacy Submission Journal UI is removed. | Modified |
 | `apps/admin/app/missions/submission-actions.ts` | Accepts `REPEAT` as a review decision and requires feedback for repeat/revision outcomes. | Modified |
 | `apps/applicant/app/dashboard/journal/[id]/page.tsx` | Uses persisted `lockedAt` for read-only behavior and retains legacy lock compatibility. | Modified |
 | `apps/applicant/app/dashboard/missions/[id]/page.tsx` | Displays the `REPEAT` submission state. | Modified |
@@ -210,7 +207,7 @@ Prisma Client must be regenerated after schema changes so generated model types 
 ### Included decisions
 
 - Keep one continuous applicant journal, with each entry linked internally to an assignment attempt.
-- Preserve legacy `Submission.journalMarkdown` and display it separately during review.
+- Preserve legacy `Submission.journalMarkdown` only for data compatibility; do not display it in applicant or admin interfaces.
 - Keep ambiguous legacy assignment links nullable rather than guessing.
 - Use a fresh attempt for Repeat week while preserving old evidence and reflections.
 - Keep the previous 24-hour journal creation wait disabled; one-entry-per-applicant-per-entry-date still applies.
