@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.16.0`
+Code version: `v0.18.2`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.16.0`
+Current documentation update: `v0.18.2`
 
 ## D-001
 
@@ -524,5 +524,232 @@ D-051 membership-backed tenant guard; db helpers are transactional, tenant-scope
 (`resource.created|updated|deleted`, `task.*`, `event.*`); admin-entered video URLs must be
 well-formed http(s). No schema change. The regression suite gains a full draft→submit→accept
 progress scenario and a content CRUD + role-denial scenario (unit suite: 202 tests).
+
+Status: Approved
+
+## D-070
+
+`v0.16.2` (documentation-only patch) realigns the vision and framework docs with the shipped
+`v0.14.0`–`v0.16.1` scope, following an audit of `docs/vision.md` against committed code.
+Decisions: (1) **`docs/vision.md` reflects reality** — the Current State section now covers the
+delivered Mission Engine (`v0.14.0`), Submission & Review loop (`v0.15.0`), four-week seeded
+mission arc (`v0.15.1`) and mission-driven dashboard progress + program content management
+(`v0.16.0`); the Gap Analysis no longer claims "the core learning experience still needs to be
+built"; the 8-phase roadmap uses per-phase `Status:` lines with `[x] item — vX.Y.Z` version
+references (Phases 2–3 delivered, Phase 1 largely delivered, Phase 4 partial, Phases 5–8 not
+started). The audit confirmed `PortfolioArtifact`/`Certificate`/`KnowledgeBaseDocument`/
+`AIInteraction` remain unreferenced schema stubs and the AI Mentor endpoint is a stub, so
+Phases 5–8 stay open. (2) **Canonical 10-step SEM everywhere** — `docs/Mission_Framework.md`'s
+SEM Authoring Guidance listed 8 steps (missing Analyze and Production Readiness Review),
+conflicting with `docs/SEM.md`, `docs/curriculum.md`, `docs/vision.md` and the `v0.15.1` seeds;
+it now lists the canonical 10 steps. (3) **Backlog currency** — `docs/Product_Backlog.md` moves
+off its stale `v0.15.0` header and records the `v0.15.1` (D-068) and `v0.16.0` (D-069) slices as
+delivered. (4) **Accuracy over aspiration** — vision.md now states that TOTP/MFA is enforced only
+for the Ops Console (not the applicant/admin portals) and that competency tags / evaluation
+criteria are free text pending a controlled catalog and rubrics. No application code, schema,
+configuration or Docker change; the unit suite is unchanged at 202 tests.
+
+Status: Approved
+
+## D-071
+
+`v0.16.3` (documentation-only patch) extends the D-070 audit to the eight SSDLC docs the user
+flagged as release-stale (`Architecture.md`, `CI_CD_Pipeline.md`, `Data_Dictionary.md`,
+`Data_Model.md`, `Deployment.md`, `Regression_Scenarios.md`, `Source_Control_Policy.md`,
+`Testing_Strategy.md`) and refreshes all of them in one docs-only baseline. Decisions:
+(1) **Operational accuracy first** — `Deployment.md` (stamped `v0.12.2`) was the most dangerous
+drift: its migration changelog stopped at `v0.12.0`, omitting the required
+`20260704160000_v0_14_0_mission_engine_mvp` and `20260706090000_v0_15_0_mission_submissions`
+migrations; it now documents them plus current validation URLs and mission/submission/progress
+smoke tests. (2) **The data docs document the whole schema** — the five `v0.12.0` dashboard models
+existed only in changelog prose; they now have Core Entities entries and Data Dictionary field
+tables, the ER diagram is regenerated to cover all 20 models and missing relations
+(`Tenant→logoFile`, notifications, task completions, program content), and the four
+migrated-but-unused models (`PortfolioArtifact`, `Certificate`, `KnowledgeBaseDocument`,
+`AIInteraction`) are consistently framed as schema stubs in both docs rather than "future"
+entities. (3) **Testing docs state current reality** — `Testing_Strategy.md` (stamped `v0.14.1`,
+citing 146 tests) now states 202 unit tests / 22 scenarios, adds sections for `v0.15.0`
+submissions, `v0.16.0` program content + mission-driven progress and the `v0.16.1` Playwright
+capture, and notes CI runs the unit suite only; `Regression_Scenarios.md` gains the three
+`v0.15.0` submission scenario rows, `Submission` in the marker entity list, and a note that the
+matrix is finer-grained than the runner's 22 scenario objects. (4) **`apps/ops` is documented as
+the third application** — `Architecture.md` now describes the host-run, Keycloak-gated Ops Console
+(`127.0.0.1:3300`, not containerized), includes `packages/storage` in the shared-package list,
+shows the missions/submission-review/program-content/`/logged-out` routes in its portal diagram,
+and drops the obsolete `v0.3.1` label for the still-future Users/Roles UI. (5) **Merge gate names
+both CI jobs** — `Source_Control_Policy.md` and `CI_CD_Pipeline.md` now state that the `ci` job
+*and* the `realm-import` job must pass. (6) **`Version_Baseline.md` Portal/Package Scope
+refreshed** from their `v0.3.0` snapshot to the current route/app/package inventory. No
+application code, schema, configuration or Docker change; the unit suite is unchanged at 202
+tests.
+
+Status: Approved
+
+## D-072
+
+`v0.16.4` creates an audit-only SSDLC compliance baseline against current `main` at commit
+`2b07e4ae9364fd981e7d5f4da859e21f3c74032e`. Decision: TalentOS is **substantially aligned but not
+100% compliant** with `docs/sdlc.md`. Principles 2, 4, 5 and 6 are assessed as compliant because the
+architecture, Docker runtime, deployment documentation and data-model/data-dictionary documents are
+current. Principles 0, 1, 3 and 7 are assessed as partially compliant because governance and
+automation controls still need hardening: the latest `CODEOWNERS` update appears unversioned, the
+current `CODEOWNERS` pattern likely does not express Karim + Waseem as joint owners, GitHub branch
+protection enforcement must be verified in the GitHub UI, scenario regression is local/Ops-based
+rather than enforced in CI, security scanning is documented but not implemented, and three scenario
+regression checks remain skipped.
+
+No product code, schema, Docker configuration or package file is changed in this audit baseline.
+Validation passed after repairing local generated Prisma Client drift with `npm.cmd run db:generate`:
+unit suite 202/202, typecheck, lint, build, Docker Compose config, local doctor and
+`regression:all` with 19 passed, 0 failed and 3 skipped. Follow-up remediation should be split into
+separate versioned work: governance/CODEOWNERS and branch-protection verification, CI/security gates,
+and regression fixture hardening for skipped cross-tenant/storage scenarios.
+
+Status: Approved
+
+## D-073
+
+`v0.17.0` adds the first dedicated Engineering Journal module to the Applicant Portal: a daily
+structured-reflection system (`EngineeringJournalEntry`, migration
+`20260707190000_v0_17_0_engineering_journal_mvp`), separate from the older inline
+`Submission.journalMarkdown` field used during mission submission review. Decision: keep the two
+journal concepts separate rather than migrating `Submission.journalMarkdown` into the new model —
+`Submission.journalMarkdown` remains as legacy submission evidence (removal is deferred future work),
+while the new module is the applicant-owned, mission-linked daily-reflection surface with placeholder
+(non-functional) AI review/scoring fields. New pages `/dashboard/journal`, `/dashboard/journal/new`,
+`/dashboard/journal/[id]`; a new `User.preferredJournalLanguage` profile setting; writes are
+tenant-scoped, applicant-owned, validated against the applicant's published mission in their accepted
+program, and audited (`journal.created`/`journal.updated`). No auth, Keycloak, workflow or
+permission-matrix change.
+
+**Process exception:** this baseline, `D-074` (`v0.17.1`) and `D-075` (`v0.18.0`) all shipped from a
+single implementation commit (`c7413eb`, "Implement Engineering Journal and mission assignment MVP")
+on branch `engineering-journal-mvp`, instead of one commit per version with a Conventional-Commits
+message and `(vX.Y.Z, D-0NN)` trailer per `docs/Source_Control_Policy.md`. The branch name also does
+not follow the required `<type>/vX.Y.Z-<slug>` pattern. Both commits were already pushed to
+`origin/engineering-journal-mvp` before this compliance pass; rewriting that history would require a
+force-push to a branch that may already have review activity, so — by explicit decision during this
+pass — the existing commits and branch name are kept as-is and recorded here as a one-time accepted
+exception, closed out going forward by adding new, correctly-formatted commits (docs remediation +
+baseline-record) on top rather than rewriting what is already public.
+
+Plan: `docs/plans/v0.17.0_Engineering_Journal_MVP.md`; results:
+`docs/testing/v0.17.0_Engineering_Journal_MVP_Test_Results.md`.
+
+Status: Approved
+
+## D-074
+
+`v0.17.1` is a patch that adds a database-layer unique constraint
+(`[tenantId, applicantId, entryDate]`, migration `20260708100000_v0_17_1_journal_entry_date_unique`)
+enforcing the Engineering Journal's "one entry per applicant per calendar date" rule, which `v0.17.0`
+(`D-073`) had only enforced in application code (`JournalEntryDateConflictError` in
+`packages/db/src/journal.ts`). Decision: normalize existing `entryDate` values to a calendar day
+(`date_trunc('day', ...)`) before adding the constraint, and treat this as defense-in-depth rather than
+a behavior change, since the application-level check already prevented the conflict for every caller
+going through the documented helpers. No product code change. This migration and its plan/test-results
+docs were originally shipped undocumented as part of the same commit as `D-073`; the docs were added
+retroactively during this pre-push SSDLC compliance pass — see the process-exception note under
+`D-073`.
+
+Plan: `docs/plans/v0.17.1_Journal_Entry_Date_Unique.md`; results:
+`docs/testing/v0.17.1_Journal_Entry_Date_Unique_Test_Results.md`.
+
+Status: Approved
+
+## D-075
+
+`v0.18.0` gives each accepted applicant one assigned Week 1 mission instead of visibility into every
+published mission in their accepted program. Decision: introduce a `MissionAssignment` model (migration
+`20260708120000_v0_18_0_mission_assignment_mvp`; unique on
+`[tenantId, programId, applicantId, weekNumber]`) and assign one Week 1 published mission
+idempotently when an application becomes `ACCEPTED`, choosing from the least-assigned published
+Week 1 missions with a random tie-break so applicants don't all land on the same brief. Applicant
+mission listing, mission detail access, submission drafting and Engineering Journal (`D-073`) mission
+selection are all scoped to assigned missions; a journal entry locks once its mission's assignment has
+been submitted. Four Week 1 TaskPilot mission variants are authored as Markdown source under
+`packages/db/prisma/seed-data/missions/ai-native-engineering/week-1/` and imported into normal
+`Mission` fields by the seed script — the app never depends on the Markdown file paths at runtime, only
+on the imported database content. No auth, Keycloak or permission-matrix change. Verified after
+applying this baseline's migrations to a clean local database: unit suite 243/243, typecheck, lint,
+build, and `regression:all` 21/22 passed (1 pre-existing documented skip, 0 failed) — including the
+`missions` and `dashboard` regression areas, which an earlier local run had reported failing due to a
+stale local database state unrelated to this migration (see
+`docs/testing/v0.18.0_Mission_Assignment_MVP_Test_Results.md`).
+
+Plan: `docs/plans/v0.18.0_Mission_Assignment_MVP.md`; results:
+`docs/testing/v0.18.0_Mission_Assignment_MVP_Test_Results.md`.
+
+Status: Approved
+
+## D-076
+
+`v0.18.1` is a governance-only patch (no code/schema change) closing a process gap found while
+auditing `v0.17.0`–`v0.18.0`: `D-073`'s Engineering Journal plan
+(`docs/plans/v0.17.0_Engineering_Journal_MVP.md`) specified scope and security rules but never named
+scenario-level test cases, so the feature shipped with strong unit coverage
+(`journal.test.ts`, 23 tests) and **zero scenario-level regression coverage** — a gap only surfaced
+later by manual audit, not by any process check. Decision: require every implementation plan to use a
+new required template, [`docs/plans/TEMPLATE.md`](../plans/TEMPLATE.md), whose **Test Scenarios**
+section forces end-to-end/behavioral scenarios to be named before or during implementation — actor,
+preconditions, steps, expected result, and an explicit automation call (added this iteration, or
+deferred with a stated reason). Every scenario named there must be reflected in
+`docs/Regression_Scenarios.md` in the same iteration — automated or as an explicit Known Gap — and
+every test-results doc must use the new [`docs/testing/TEMPLATE.md`](../testing/TEMPLATE.md), which
+requires one Scenario Results row per plan scenario so a plan can no longer ship without its scenarios
+being either verified or explicitly and visibly deferred. `docs/sdlc.md` (Version and Documentation
+Control, rule 7), `CONTRIBUTING.md` and `.github/pull_request_template.md` are updated to point at the
+template and make it a PR-review checklist item, not just prose in `sdlc.md` that's easy to miss (as
+this very gap demonstrated). No product code, schema, Docker configuration or package file is
+changed.
+
+Plan: `docs/plans/v0.18.1_Plan_Test_Scenarios_Requirement.md`; results:
+`docs/testing/v0.18.1_Plan_Test_Scenarios_Requirement_Test_Results.md`.
+
+Status: Approved
+
+## D-077
+
+`v0.18.2` closes the specific regression and documentation gaps found in the manual PR review of the
+`engineering-journal-mvp` branch (D-073–D-075): production-quality scenario coverage was missing for
+Engineering Journal and Mission Assignment, and several docs had drifted from shipped behavior.
+
+**Regression scenarios (Task 1):** a new `journal` regression area (`scripts/regression/run.ts`,
+`packages/auth/src/operations.ts` `RegressionArea`, `apps/ops` command list/UI,
+`npm run regression:journal`) adds four scenarios — create/edit against the assigned mission with
+list/audit assertions, rejection of a published-but-unassigned mission, the one-entry-per-calendar-day
+conflict, and lock-after-submission. Two new `missions`-area scenarios add: assigned-mission-only
+visibility/detail/submission-drafting scoping, and a scenario that deliberately documents a real gap
+raised in PR review — an applicant `ACCEPTED` before any `MissionAssignment` existed gets **no
+automatic backfill** and sees zero missions; this is now a locked-in regression assertion rather than
+a silent gap, pending a product decision (backfill script, lazy on-read assignment, or accepted
+limitation). `EngineeringJournalEntry` joins the `RegressionDataMarker` cleanup entity types
+(`packages/db/src/regression.ts`, ordered before `Mission`/`User`). The suite grows from 22 to **28
+scenarios across 12 areas**; `regression:all` verified 27/28 passed, 1 pre-existing documented skip
+(storage), 0 failed.
+
+**Documentation review (Task 2):** `docs/Deployment.md` had never been updated for `v0.17.0`/`v0.17.1`/
+`v0.18.0` — added their migration procedures, including an operational note that the `v0.17.1` unique
+index will fail migration (not silently corrupt data) against any environment with pre-existing
+same-day duplicate journal entries; corrected a stale smoke-test claim that accepted applicants see
+"the four seeded published TaskPilot missions" (true before `v0.18.0`, false after — they now see only
+their one assigned mission); added the `/dashboard/journal` validation URL and a journal smoke test.
+`docs/vision.md`'s Gap Analysis and Phase 4 roadmap still described the Engineering Journal as
+undelivered/partial ("today the journal is a single Markdown field per submission", "Status: Partial")
+when `v0.17.0`/`v0.17.1` had already shipped the dedicated module — corrected, and Phase 2 now records
+the `v0.18.0` mission-assignment change. `docs/Product_Backlog.md` listed "Engineering Journal module"
+as a **future** next-slice item after it had already shipped — corrected. `docs/user-guides/
+Back_Office_User_Guide.md` is clarified to disambiguate the legacy inline "Engineering journal" text
+field shown during submission review (`Submission.journalMarkdown`, `v0.15.0`) from the unrelated
+dedicated Engineering Journal dashboard module (`v0.17.0`) — the two share a name in the product UI but
+are different features. `docs/CI_CD_Pipeline.md`'s unit-test count was stale (202 → 243).
+`docs/Architecture.md`, `docs/Testing_Strategy.md`, `docs/Regression_Scenarios.md` and the root
+`README.md` version history are brought current.
+
+No schema change. Unit suite unchanged at 243/243 (only test fixtures/assertions added, matching
+existing behavior); full local gate (typecheck, lint, test, build) re-verified clean.
+
+Plan: `docs/plans/v0.18.2_Regression_And_Documentation_Completeness.md`; results:
+`docs/testing/v0.18.2_Regression_And_Documentation_Completeness_Test_Results.md`.
 
 Status: Approved

@@ -2,26 +2,37 @@
 
 Code version: `v0.18.0`
 
-Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.0` commit set on merge
+Baseline commit: `bf59ca4`
 
 > Assignment-linked journal attempts add assignment attempt/status fields, assignment foreign keys on
 > submissions and journal entries, persisted journal lock timestamps, and the terminal `REPEAT`
 > submission outcome. Migration: `20260710170000_assignment_linked_journal_attempts`.
-
-> `v0.18.0` (Mission Assignment MVP) adds `mission_assignments`, a tenant-scoped table connecting
-> accepted applicants to assigned published missions by program and week. Accepted applicants now see
-> assigned missions only. Week 1 assignment variants are authored as Markdown seed files and imported
-> into normal `missions` fields during seed. Migration:
+>
+> `v0.18.0` (Mission Assignment MVP, D-075) adds `mission_assignments`: `id`, `tenantId` (FK→tenants),
+> `programId` (FK→programs), `applicantId` (FK→users), `missionId` (FK→missions), `weekNumber`,
+> `assignedAt`, `createdAt`, `updatedAt`; unique `[tenantId, programId, applicantId, weekNumber]`,
+> indexes on `[tenantId, programId, weekNumber]`, `applicantId`, `missionId`. The later assignment-attempt
+> migration extends this model with attempt number/status and supersedes the original uniqueness rule.
+> Migration:
 > `20260708120000_v0_18_0_mission_assignment_mvp`.
-
-> `v0.17.0` (Engineering Journal MVP) adds `engineering_journal_entries`, a tenant-scoped daily
-> reflection table linked to user, program and mission, plus `User.preferredJournalLanguage`.
-> Journal entries store structured reflection fields, confidence, time spent and evidence links.
-> AI review/scoring columns are nullable placeholders; real AI scoring remains future work.
-> Audit actions in use: `journal.created`, `journal.updated`.
-> Migrations: `20260707190000_v0_17_0_engineering_journal_mvp`,
+>
+> `v0.17.1` (journal entry date uniqueness, D-074) replaces the non-unique
+> `engineering_journal_entries_tenantId_applicantId_entryDate_idx` index with a unique index of the
+> same columns, after normalizing existing `entryDate` values to a calendar day. Migration:
 > `20260708100000_v0_17_1_journal_entry_date_unique`.
-
+>
+> `v0.17.0` (Engineering Journal MVP, D-073) adds `engineering_journal_entries` (see the
+> `EngineeringJournalEntry` table below) and `users.preferredJournalLanguage`. Audit actions in use:
+> `journal.created`, `journal.updated`. Migration:
+> `20260707190000_v0_17_0_engineering_journal_mvp`.
+>
+> `v0.16.3` (SSDLC docs refresh, D-071) is a documentation-only baseline — no schema change. It
+> adds the previously missing field tables for the five `v0.12.0` dashboard models (`ProgramTask`,
+> `VideoResource`, `Notification`, `CalendarEvent`, `UserTaskCompletion`), the `Tenant.logoFileId`
+> and `User.lastLoginAt` rows, and a section for the four migrated-but-unused schema stubs. The
+> schema has been frozen since the `v0.15.0` migration — `v0.16.0` was code-only and
+> `v0.16.1`/`v0.16.2` were docs/tooling patches.
+>
 > `v0.15.0` (Mission Submission Workflow, D-067) activates `submissions`: adds `tenantId`
 > (FK→tenants), `reviewerFeedback`, `reviewedAt`, `reviewerUserId` (FK→users, SetNull), unique
 > `[missionId, applicantId]` and index `[tenantId, status]`; drops the superseded
@@ -89,7 +100,8 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 > `v0.7.0` (Object storage) adds the `StoredFile` entity and the audit actions `file.created`,
 > `file.deleted` (migration `20260629101218_object_storage`).
 >
-> `v0.8.0` adds `RegressionDataMarker` for explicit regression cleanup boundaries.
+> `v0.8.0` adds `RegressionDataMarker` for explicit regression cleanup boundaries (migration
+> `20260630080000_regression_data_markers`).
 >
 > `v0.6.0` (Programs management) adds admin CRUD over `Program` and the audit actions `program.created`,
 > `program.updated`, `program.status_changed`.
@@ -98,6 +110,9 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 > rows. Audit actions in use: `seed.initialized`, `application.submitted`, `application.status_changed`.
 >
 > `v0.3.0` (Keycloak IAM) adds identity fields to `User` and changes the role enums (see below).
+>
+> All base tables (including the four schema stubs at the end of this document) were created by the
+> initial migration `20260627084605_init`.
 
 ## Tenant
 
@@ -106,7 +121,8 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 | `id` | Unique tenant identifier. |
 | `name` | Organization or academy name. |
 | `slug` | Subdomain-friendly tenant key. |
-| `logoUrl` | Optional white-label logo. |
+| `logoUrl` | Optional white-label logo URL (legacy; superseded by `logoFileId`). |
+| `logoFileId` | Optional unique FK to the tenant's uploaded logo in `StoredFile` (MinIO, `v0.9.0`); `SetNull` on file delete. |
 | `primaryColor` | Tenant brand color. |
 | `secondaryColor` | Tenant brand accent color. |
 
@@ -124,7 +140,8 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 | `status` | `ACTIVE`, `INVITED` or `DISABLED`. |
 | `totpSecretEncrypted` | Legacy TOTP secret; MFA is owned by Keycloak as of `v0.3.0`. |
 | `totpEnabledAt` | Legacy 2FA enablement timestamp. |
-| `preferredJournalLanguage` | Applicant's preferred default language for Engineering Journal entries, such as English, Roman Urdu, Roman Hindi or a custom value. |
+| `lastLoginAt` | Timestamp of the user's most recent login, when recorded. |
+| `preferredJournalLanguage` | Applicant's preferred Engineering Journal entry language; defaults to `"English"` (`v0.17.0`). |
 
 ## TenantMembership
 
@@ -203,6 +220,43 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 | `createdAt` | Row creation timestamp. |
 | `updatedAt` | Row update timestamp. |
 
+## EngineeringJournalEntry
+
+Applicant-owned daily structured-reflection entry, distinct from the older `Submission.journalMarkdown`
+field. Unique on `[tenantId, applicantId, entryDate]` — one entry per applicant per calendar date
+(`v0.17.1`, D-074, database-enforced; `v0.17.0` already enforced it in application code).
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant; keeps journal entries isolated by organization. |
+| `applicantId` | Applicant who owns the entry; entries are visible/editable only by their owner. |
+| `programId` | Program context for the entry. |
+| `missionId` | Mission the reflection is written against; must be assigned to the applicant (`v0.18.0`). |
+| `missionAssignmentId` | Nullable legacy-safe link to the exact assignment attempt. New entries always set it. |
+| `weekNumber` | Program week, derived from the selected mission — not trusted from the client. |
+| `entryDate` | Calendar date of the reflection; unique per applicant per tenant. |
+| `language` | Entry language, seeded from `User.preferredJournalLanguage`. |
+| `workedOn` | What the applicant worked on that day. |
+| `challenge` | The main challenge encountered. |
+| `solution` | How the challenge was addressed. |
+| `learned` | Key takeaway/learning. |
+| `aiUsage` | How AI tools were used during the work. |
+| `confidenceRating` | Applicant's self-rated confidence for the day's work. |
+| `timeSpentHours` | Hours spent, self-reported. |
+| `evidenceLinks` | Optional list of supporting evidence URLs. |
+| `reflectionDepthScore` | Nullable AI-review score placeholder; no scoring logic is active yet. |
+| `problemSolvingScore` | Nullable AI-review score placeholder; no scoring logic is active yet. |
+| `learningQualityScore` | Nullable AI-review score placeholder; no scoring logic is active yet. |
+| `communicationClarityScore` | Nullable AI-review score placeholder; no scoring logic is active yet. |
+| `consistencyScore` | Nullable AI-review score placeholder; no scoring logic is active yet. |
+| `totalScore` | Nullable AI-review score placeholder; no scoring logic is active yet. |
+| `aiReviewFeedback` | Nullable AI-review feedback placeholder; no AI review is active yet. |
+| `aiReviewedAt` | Nullable AI-review timestamp placeholder; no AI review is active yet. |
+| `aiReviewMetadata` | Nullable AI-review metadata (JSON) placeholder; no AI review is active yet. |
+| `lockedAt` | Timestamp set when the linked assignment attempt is submitted; locked entries are read-only. |
+| `createdAt` | Row creation timestamp. |
+| `updatedAt` | Row update timestamp. |
+
 ## Submission
 
 | Field | Purpose |
@@ -221,36 +275,59 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 | `reviewedAt` | Last review timestamp. |
 | `reviewerUserId` | Staff reviewer (ORG_ADMIN / TECH_LEAD / SUPER_ADMIN); `SetNull` on user delete. |
 
-## EngineeringJournalEntry
+## ProgramTask
 
 | Field | Purpose |
 | --- | --- |
 | `tenantId` | Owning tenant. |
-| `applicantId` | Applicant/user who wrote the entry. |
-| `programId` | Accepted program context for the entry. |
-| `missionId` | Published mission the entry is linked to. |
-| `missionAssignmentId` | Nullable legacy-safe link to the exact assignment attempt. New entries always set it. |
-| `weekNumber` | Mission week number, derived from the selected mission instead of user input. |
-| `entryDate` | Day the applicant is reflecting on. Stored as a normalized calendar date; one entry is allowed per applicant/date within a tenant. |
-| `language` | Language used for this entry, defaulting from the user's preferred journal language. |
-| `workedOn` | Answer to "What did you work on today?" |
-| `challenge` | Answer to "What challenge did you face?" |
-| `solution` | Answer to "How did you solve it?" |
-| `learned` | Answer to "What did you learn?" |
-| `aiUsage` | Applicant's statement of whether and how AI was used. |
-| `confidenceRating` | Self-rating from 1 to 5. |
-| `timeSpentHours` | Time spent, in hours. |
-| `evidenceLinks` | URL list for GitHub, PRs, deployed apps, videos or other evidence. |
-| `reflectionDepthScore` | Nullable AI/manual scoring placeholder, 0-10 target. |
-| `problemSolvingScore` | Nullable AI/manual scoring placeholder, 0-10 target. |
-| `learningQualityScore` | Nullable AI/manual scoring placeholder, 0-10 target. |
-| `communicationClarityScore` | Nullable AI/manual scoring placeholder, 0-10 target. |
-| `consistencyScore` | Nullable AI/manual scoring placeholder, 0-10 target. |
-| `totalScore` | Nullable total scoring placeholder, 0-50 target. |
-| `aiReviewFeedback` | Nullable future AI mentor/reviewer feedback. |
-| `aiReviewedAt` | Nullable timestamp for future AI review. |
-| `aiReviewMetadata` | Nullable metadata for future AI review implementation details. |
-| `lockedAt` | Timestamp set when the linked assignment attempt is submitted; locked entries are read-only. |
+| `programId` | Program the task belongs to. |
+| `weekNumber` | Program week (1-4) the task is assigned to. |
+| `title` | Task title shown on the applicant dashboard. |
+| `description` | Optional task details. |
+| `dueAt` | Optional due date. |
+| `order` | Sort order within the week (default 0). |
+
+## VideoResource
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant. |
+| `programId` | Program the resource belongs to. |
+| `weekNumber` | Optional program week the resource is curated for. |
+| `title` | Resource title. |
+| `url` | External video URL (YouTube/Loom), embedded on the dashboard Resources page. |
+| `description` | Optional description. |
+
+## Notification
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant. |
+| `userId` | Recipient user. |
+| `type` | `NotificationType`: `INFO`, `WARNING`, `SUCCESS` or `TASK_DUE` (default `INFO`). |
+| `title` | Notification headline. |
+| `body` | Optional notification detail text. |
+| `readAt` | Read timestamp; `null` while unread (mark-as-read sets it). |
+
+## CalendarEvent
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant. |
+| `programId` | Program the event belongs to. |
+| `title` | Event title. |
+| `description` | Optional event details. |
+| `startsAt` | Event start. |
+| `endsAt` | Optional event end. |
+| `location` | Optional location or meeting link. |
+
+## UserTaskCompletion
+
+| Field | Purpose |
+| --- | --- |
+| `taskId` | Completed `ProgramTask`; unique together with `userId`. |
+| `userId` | User who completed the task. |
+| `completedAt` | Completion timestamp (default now). |
 
 ## AuditLog
 
@@ -279,13 +356,56 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 | `category` | Logical grouping (e.g. `cv`, `program-material`). |
 | `status` | `PENDING` until the upload is confirmed, then `READY`. |
 
+## Schema Stubs (migrated, not yet used by application code)
+
+The following four tables were created by the initial migration and exist in every database, but no
+application code reads or writes them yet — they are groundwork for the portfolio, certificates,
+knowledge-base and AI roadmap pillars (see `docs/vision.md` Phases 5-8).
+
+### PortfolioArtifact
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant. |
+| `title` | Portfolio item title. |
+| `url` | Link to the artifact. |
+| `description` | Optional description. |
+
+### Certificate
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant. |
+| `title` | Certificate title. |
+| `issuedTo` | Recipient name. |
+| `issuedAt` | Issue timestamp (default now). |
+
+### KnowledgeBaseDocument
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant. |
+| `title` | Document title. |
+| `body` | Document content. |
+
+### AIInteraction
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant. |
+| `userId` | Optional initiating user; `SetNull` on user delete. |
+| `purpose` | Interaction purpose label. |
+| `promptHash` | Optional hash of the prompt (no raw prompt storage). |
+| `responseRef` | Optional reference to the stored response. |
+| `metadata` | Optional JSON metadata. |
+
 ## RegressionDataMarker
 
 | Field | Purpose |
 | --- | --- |
 | `id` | Unique marker ID. |
 | `runId` | Regression run identifier. |
-| `entityType` | Marked entity type, such as `Application`, `EngineeringJournalEntry`, `MissionAssignment`, `Submission`, `Mission`, `Program`, `Tenant`, `User`, `TenantMembership` or `StoredFile`. |
+| `entityType` | Marked entity type, such as `Application`, `ApplicationAnswer`, `EngineeringJournalEntry`, `MissionAssignment`, `Submission`, `Mission`, `Program`, `Tenant`, `User`, `TenantMembership` or `StoredFile`. |
 | `entityId` | ID of the marked entity. |
 | `createdAt` | Marker creation timestamp. |
 

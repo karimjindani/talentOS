@@ -2,7 +2,7 @@
 
 Code version: `v0.18.0`
 
-Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.0` commit set on merge
+Baseline commit: `bf59ca4`
 
 > Assignment-linked journal attempts add `MissionAssignment.attemptNumber/status`, nullable
 > `missionAssignmentId` links on `Submission` and `EngineeringJournalEntry`, and
@@ -10,23 +10,35 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 > locks only that attempt's journal entries; a `REPEAT` review closes the old attempt and creates the
 > next active attempt without overwriting history. Migration:
 > `20260710170000_assignment_linked_journal_attempts`.
-
-> `v0.18.0` (Mission Assignment MVP) adds `MissionAssignment`, a tenant-scoped assignment row that
-> links an accepted applicant to one published mission for a program/week. Applicants now see assigned
-> missions instead of every published mission in their accepted program. Week 1 demo mission variants
-> are stored as Markdown seed specs and imported into existing `Mission` fields during seed; those
-> Markdown paths are not runtime dependencies. Migration:
+>
+> `v0.18.0` (Mission Assignment MVP, D-075) adds `MissionAssignment` — tenant/program/applicant/week
+> assignment row (`id`, `tenantId`, `programId`, `applicantId`, `missionId`, `weekNumber`, `assignedAt`,
+> `createdAt`, `updatedAt`), unique on `[tenantId, programId, applicantId, weekNumber]`, with indexes on
+> `[tenantId, programId, weekNumber]`, `applicantId` and `missionId`. The later assignment-attempt
+> migration extends this model and supersedes its original uniqueness rule. Migration:
 > `20260708120000_v0_18_0_mission_assignment_mvp`.
-
-> `v0.17.0` (Engineering Journal MVP) adds a dedicated `EngineeringJournalEntry` model for daily
-> applicant reflections linked to tenant, applicant, program, mission and derived week number. It
-> stores the structured journal prompts (worked on, challenge, solution, learning, AI usage),
-> confidence rating, time spent and evidence links. Nullable AI review/scoring fields are included
-> as placeholders for a future reviewer/mentor workflow; no real AI scoring is implemented in this
-> slice. `User.preferredJournalLanguage` stores the applicant's default journal language.
-> Migrations: `20260707190000_v0_17_0_engineering_journal_mvp`,
+>
+> `v0.17.1` (journal entry date uniqueness, D-074) replaces `EngineeringJournalEntry`'s non-unique
+> `[tenantId, applicantId, entryDate]` index with a real unique index of the same columns, after
+> normalizing existing `entryDate` values to a calendar day. Migration:
 > `20260708100000_v0_17_1_journal_entry_date_unique`.
-
+>
+> `v0.17.0` (Engineering Journal MVP, D-073) adds `EngineeringJournalEntry` — tenant/applicant/program/mission-scoped
+> daily reflection row (`id`, `tenantId`, `applicantId`, `programId`, `missionId`, `weekNumber`,
+> `entryDate`, `language`, `workedOn`, `challenge`, `solution`, `learned`, `aiUsage`,
+> `confidenceRating`, `timeSpentHours`, `evidenceLinks[]`, nullable AI-review/scoring fields
+> `reflectionDepthScore`/`problemSolvingScore`/`learningQualityScore`/`communicationClarityScore`/`consistencyScore`/`totalScore`/`aiReviewFeedback`/`aiReviewedAt`/`aiReviewMetadata`,
+> timestamps) and `User.preferredJournalLanguage` (String, default `"English"`). The AI-review/scoring
+> fields are schema placeholders only — no application code populates them yet. Migration:
+> `20260707190000_v0_17_0_engineering_journal_mvp`.
+>
+> `v0.16.3` (SSDLC docs refresh, D-071) is a documentation-only baseline — no schema change. It
+> realigns this document with the actual schema: the ER diagram is regenerated to cover all models
+> and relations (it previously showed 12 of 20), the five `v0.12.0` dashboard models join the Core
+> Entities list, and the four future-pillar models are reframed as migrated schema stubs. The
+> schema itself has been frozen since the `v0.15.0` migration — `v0.16.0` (dashboard progress +
+> program content) was code-only, and `v0.16.1`/`v0.16.2` were docs/tooling patches.
+>
 > `v0.15.0` (Mission Submission Workflow, D-067) activates the previously scaffolded `Submission`
 > model: adds `tenantId` (FK→tenants, Cascade — direct tenant scoping, backfilled from the parent
 > mission), `reviewerFeedback` (String?), `reviewedAt` (DateTime?), `reviewerUserId` (FK→users,
@@ -89,7 +101,7 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 > MinIO) and the `FileStatus` enum. Schema change — migration `20260629101218_object_storage`.
 >
 > `v0.8.0` adds `RegressionDataMarker`, an explicit local/dev cleanup boundary for regression-generated
-> records.
+> records. Migration: `20260630080000_regression_data_markers`.
 >
 > `v0.6.0` (Programs management) begins managing `Program` records through admin CRUD (incl. the
 > `startsAt`/`endsAt` cohort dates) and adds `program.*` `AuditLog` events. No schema change was required.
@@ -102,8 +114,16 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 > the Keycloak subject), `emailVerified`, `platformRole` and an optional `passwordHash` (Keycloak owns
 > credentials). New enum `PlatformRole { SUPER_ADMIN }`. `TenantRole` becomes the org-scoped roles
 > `ORG_ADMIN`, `HR`, `TECH_LEAD`, `APPLICANT`. Migration `20260628000000_keycloak_iam_rbac`.
+>
+> The base entities (`Tenant`, `User`, `TenantMembership`, `Program`, `Application`,
+> `ApplicationAnswer`, `AuditLog`, `Mission`, `Submission`, and the four future-pillar stubs) were
+> created by the initial migration `20260627084605_init`.
 
 ## Entity Relationship Overview
+
+The diagram covers all schema models and relations. `RegressionDataMarker` is intentionally
+omitted — it has no foreign-key relations (it references entities polymorphically by
+`entityType`/`entityId`).
 
 ```mermaid
 erDiagram
@@ -116,6 +136,7 @@ erDiagram
     Application ||--o{ ApplicationAnswer : contains
     Tenant ||--o{ AuditLog : records
     User ||--o{ AuditLog : performs
+    Tenant ||--o{ Mission : owns
     Program ||--o{ Mission : contains
     Mission ||--o{ Submission : receives
     User ||--o{ Submission : submits
@@ -123,26 +144,40 @@ erDiagram
     User |o--o{ Submission : reviews
     Tenant ||--o{ MissionAssignment : owns
     Program ||--o{ MissionAssignment : schedules
-    User ||--o{ MissionAssignment : receives
-    Mission ||--o{ MissionAssignment : assigned_as
+    Mission ||--o{ MissionAssignment : "assigned via"
+    User ||--o{ MissionAssignment : "is assigned"
     MissionAssignment ||--o| Submission : receives
     MissionAssignment ||--o{ EngineeringJournalEntry : groups
     Tenant ||--o{ EngineeringJournalEntry : owns
-    User ||--o{ EngineeringJournalEntry : writes
     Program ||--o{ EngineeringJournalEntry : contains
-    Mission ||--o{ EngineeringJournalEntry : anchors
-    Tenant ||--o{ KnowledgeBaseDocument : owns
-    Tenant ||--o{ AIInteraction : records
+    Mission ||--o{ EngineeringJournalEntry : "journaled against"
+    User ||--o{ EngineeringJournalEntry : writes
+    Tenant ||--o{ ProgramTask : owns
+    Program ||--o{ ProgramTask : schedules
+    ProgramTask ||--o{ UserTaskCompletion : "completed via"
+    User ||--o{ UserTaskCompletion : completes
+    Tenant ||--o{ VideoResource : owns
+    Program ||--o{ VideoResource : curates
+    Tenant ||--o{ CalendarEvent : owns
+    Program ||--o{ CalendarEvent : schedules
+    Tenant ||--o{ Notification : owns
+    User ||--o{ Notification : receives
     Tenant ||--o{ StoredFile : owns
     User ||--o{ StoredFile : uploads
     Application |o--o| StoredFile : "CV"
+    Tenant |o--o| StoredFile : "logo"
+    Tenant ||--o{ PortfolioArtifact : owns
+    Tenant ||--o{ Certificate : owns
+    Tenant ||--o{ KnowledgeBaseDocument : owns
+    Tenant ||--o{ AIInteraction : records
+    User |o--o{ AIInteraction : initiates
 ```
 
 ## Core Entities
 
-- `Tenant`: white-label organization using TalentOS.
-- `User`: shared identity for applicants, tenant owners and admins; stores the applicant's preferred
-  journal language.
+- `Tenant`: white-label organization using TalentOS; optionally links its uploaded logo
+  (`logoFile` → `StoredFile`).
+- `User`: shared identity for applicants, tenant owners and admins.
 - `TenantMembership`: user role within a tenant.
 - `Program`: tenant-owned learning/recruitment program.
 - `Application`: applicant submission to a program; optionally links a CV (`cvFile` → `StoredFile`) and carries optional `githubUrl` / `linkedinUrl`.
@@ -158,13 +193,28 @@ erDiagram
   reviewed by staff (`reviewerUserId`, `reviewerFeedback`, `reviewedAt`); an `ACCEPTED` submission is
   terminal portfolio/graduation evidence for the mission's `competencyTags`.
 - `EngineeringJournalEntry`: dedicated daily reflection entry for an accepted applicant, linked to a
-  published mission and assignment attempt. Each applicant can have only one entry per tenant/date.
-  `lockedAt` is set when that attempt is submitted. AI scoring columns remain nullable placeholders.
+  published mission and assignment attempt, distinct from the older `Submission.journalMarkdown`
+  field. Unique on
+  `[tenantId, applicantId, entryDate]` (one entry per applicant per calendar date); carries nullable
+  AI-review/scoring fields as schema placeholders only. `lockedAt` is set when its attempt is submitted.
+- `ProgramTask`: weekly task/assignment (week 1-4) within a program, shown on the applicant
+  dashboard; completion tracked per user via `UserTaskCompletion`.
+- `VideoResource`: external video resource (YouTube/Loom URL) curated per program and optionally
+  per week.
+- `CalendarEvent`: scheduled event for a program (dashboard calendar).
+- `Notification`: in-app notification for a specific user (`NotificationType`: INFO, WARNING,
+  SUCCESS, TASK_DUE) with read tracking (`readAt`).
+- `UserTaskCompletion`: join table recording which user completed which `ProgramTask`
+  (unique `[taskId, userId]`).
 - `StoredFile`: tenant-scoped metadata for an object stored in MinIO (bytes live in the object store).
 - `RegressionDataMarker`: local/dev marker rows identifying records created by regression workflows and
   safe to remove during regression cleanup.
 
-## Future-Ready Entities
+## Schema Stubs (migrated, not yet used by application code)
+
+These four models were created by the initial migration and exist as real tables, but **no
+application code reads or writes them yet** — they are groundwork for the portfolio, certificates,
+knowledge-base and AI roadmap pillars (see `docs/vision.md` Phases 5-8):
 
 - `PortfolioArtifact`: public engineering portfolio item.
 - `Certificate`: tenant-issued certificate.

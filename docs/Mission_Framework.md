@@ -130,13 +130,15 @@ portfolio, graduation and competency reporting work.
 Mission authors should use each mission to guide applicants through the Spiral Engineering Method:
 
 1. Discover
-2. Specify
-3. Design
-4. Build
-5. Test
-6. Deploy
-7. Present
-8. Reflect
+2. Analyze
+3. Specify
+4. Design
+5. Build
+6. Test
+7. Deploy
+8. Present
+9. Reflect
+10. Production Readiness Review
 
 The form fields are intentionally freeform today, so the author is responsible for making the SEM loop
 clear in the objective, brief, deliverables, acceptance criteria and evaluation criteria.

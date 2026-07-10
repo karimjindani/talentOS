@@ -2,19 +2,156 @@
 
 ## Current Baseline
 
-Version: `v0.16.1`
+Version: `v0.18.2`
 
-Baseline name: `Illustrated User Guide with Automated Screenshot Capture`
+Baseline name: `Regression And Documentation Completeness`
 
-Baseline code commit: _set on merge_
+Baseline code commit: `6ef1ef7`
 
-Baseline date: `2026-07-07`
+Baseline date: `2026-07-09`
 
-Previous baseline: `v0.16.0`
+Previous baseline: `v0.18.1`
 
-Previous baseline commit: `a95a42b`
+Previous baseline commit: `3b1e636`
 
 ## Baseline Summary
+
+`v0.18.2` closes the specific regression and documentation gaps found in manual PR review of the
+`engineering-journal-mvp` branch (D-077). A new `journal` regression area
+(`scripts/regression/run.ts`, `packages/auth/src/operations.ts`, `apps/ops`,
+`npm run regression:journal`) adds four scenarios: create/edit against the assigned mission with
+list/audit assertions, rejection against a published-but-unassigned mission, the
+one-entry-per-calendar-day conflict, and lock-after-submission. Two new `missions`-area scenarios add
+assigned-mission-only visibility/detail/submission-drafting scoping, and a scenario that deliberately
+documents a real PR-review finding — an applicant `ACCEPTED` before any `MissionAssignment` existed
+gets no automatic backfill and sees zero missions, now a locked-in regression assertion pending a
+product decision (backfill script, lazy on-read assignment, or accepted limitation).
+`EngineeringJournalEntry` joins the `RegressionDataMarker` cleanup entity types. The suite grows from
+22 to **28 scenarios across 12 areas**; `regression:all` verified 27/28 passed, 1 pre-existing
+documented skip, 0 failed. Documentation review corrected: `docs/Deployment.md` (never updated for
+`v0.17.0`/`v0.17.1`/`v0.18.0` — added migration procedures plus a `v0.17.1` migration-safety
+operational note, and fixed a stale smoke-test claim that accepted applicants see all four seeded
+missions rather than their one assigned mission); `docs/vision.md` (Gap Analysis/Phase 4 still
+described Engineering Journal as undelivered after `v0.17.0`/`v0.17.1` shipped it); `docs/
+Product_Backlog.md` (listed Engineering Journal as a future "next slice" after it shipped);
+`docs/user-guides/Back_Office_User_Guide.md` (disambiguated the legacy inline "Engineering journal"
+submission field from the unrelated dedicated Engineering Journal module — same name, different
+features); `docs/CI_CD_Pipeline.md` (stale unit-test count); `docs/Architecture.md`,
+`docs/Testing_Strategy.md`, `docs/Regression_Scenarios.md` and the root `README.md` version history.
+No schema change; unit suite unchanged at 243/243; full local gate re-verified clean. Plan:
+`docs/plans/v0.18.2_Regression_And_Documentation_Completeness.md`; results:
+`docs/testing/v0.18.2_Regression_And_Documentation_Completeness_Test_Results.md`. See `D-077`.
+
+`v0.18.1` is a governance-only patch (no product code, schema, Docker configuration or package file
+changed) closing a process gap found auditing `v0.17.0`–`v0.18.0`: the Engineering Journal plan never
+named scenario-level test cases, so the feature shipped with strong unit coverage
+(`journal.test.ts`, 23 tests) and zero scenario-level regression coverage — a gap only caught later by
+manual audit. New required templates `docs/plans/TEMPLATE.md` and `docs/testing/TEMPLATE.md` make a
+**Test Scenarios** section (actor/preconditions/steps/expected result/explicit automation call)
+mandatory for every future plan, with a matching Scenario Results table required in its test-results
+doc; `docs/sdlc.md` (Version and Documentation Control, rule 7), `CONTRIBUTING.md` and
+`.github/pull_request_template.md` all point at the templates so the requirement is visible at
+write-time and enforced at PR-review time, not left as prose easy to skip. Plan:
+`docs/plans/v0.18.1_Plan_Test_Scenarios_Requirement.md`; results:
+`docs/testing/v0.18.1_Plan_Test_Scenarios_Requirement_Test_Results.md`. See `D-076`.
+
+`v0.18.0` gives each accepted applicant an assigned Week 1 mission instead of visibility into every
+published mission in their accepted program (D-075). A new `MissionAssignment` model (migration
+`20260708120000_v0_18_0_mission_assignment_mvp`) links tenant, program, applicant, mission and week,
+unique on `[tenantId, programId, applicantId, weekNumber]`; when an application transitions to
+`ACCEPTED`, an idempotent helper assigns one Week 1 published mission, picking from the least-assigned
+variants with a random tie-break so applicants don't all land on the same brief. Applicant mission
+listing, mission detail access, submission drafting and Engineering Journal mission selection
+(`v0.17.0`) are all now scoped to the applicant's assigned missions rather than every published mission
+in the program, and a journal entry locks once its mission's assignment has been submitted
+(`packages/db/src/journal.ts`, `assertJournalMissionNotLocked`). Week 1 now ships four TaskPilot mission
+variants (`bugbrief-status-page`, `careercraft-profile-page`, `launchlist-waitlist-page`,
+`taskpilot-landing-page`) authored as Markdown under
+`packages/db/prisma/seed-data/missions/ai-native-engineering/week-1/` and imported into standard
+`Mission` fields by `seed.ts`; the app never reads the Markdown paths at runtime. No auth, Keycloak or
+permission-matrix change. Unit suite: 243 tests (34 files); `regression:all` 21/22 passed, 1
+pre-existing documented skip, 0 failed, verified after applying this baseline's migrations to a clean
+local database. Plan: `docs/plans/v0.18.0_Mission_Assignment_MVP.md`; results:
+`docs/testing/v0.18.0_Mission_Assignment_MVP_Test_Results.md`. See `D-075`.
+
+`v0.17.1` is a patch that enforces the Engineering Journal's "one entry per applicant per calendar
+date" rule at the database layer (D-074). Migration
+`20260708100000_v0_17_1_journal_entry_date_unique` normalizes existing `EngineeringJournalEntry.entryDate`
+values to a calendar day and replaces the `v0.17.0` non-unique index with a real unique index on
+`[tenantId, applicantId, entryDate]`; `packages/db/src/journal.ts` already enforced this rule in
+application code (`JournalEntryDateConflictError`), so this is a defense-in-depth backstop, not a
+behavior change. No application code change. Plan:
+`docs/plans/v0.17.1_Journal_Entry_Date_Unique.md`; results:
+`docs/testing/v0.17.1_Journal_Entry_Date_Unique_Test_Results.md`. See `D-074`.
+
+`v0.17.0` delivers the first dedicated Engineering Journal module for the Applicant Portal (D-073), a
+daily structured-reflection system separate from the older inline `Submission.journalMarkdown` field
+used during mission submission review. A new `EngineeringJournalEntry` model (migration
+`20260707190000_v0_17_0_engineering_journal_mvp`) links tenant, applicant, program, mission and a
+derived week number, and carries structured reflection fields (`workedOn`, `challenge`, `solution`,
+`learned`, `aiUsage`, `confidenceRating`, `timeSpentHours`, `evidenceLinks`) plus nullable AI-review/scoring
+fields as schema placeholders only — no real AI scoring is active. `User` gains
+`preferredJournalLanguage`. New applicant dashboard pages (`/dashboard/journal`,
+`/dashboard/journal/new`, `/dashboard/journal/[id]`) let an accepted applicant list, create and edit
+entries; a profile setting controls the preferred journal language. Writes are tenant-scoped and
+applicant-owned, validated against the applicant's published mission in their accepted program (tightened
+to assigned-mission-only by `v0.18.0`), and audited (`journal.created`/`journal.updated`). Saved entries
+open read-only by default and can only be changed through an explicit Edit action. No auth, Keycloak,
+workflow or permission-matrix change. Plan: `docs/plans/v0.17.0_Engineering_Journal_MVP.md`; results:
+`docs/testing/v0.17.0_Engineering_Journal_MVP_Test_Results.md`. See `D-073`.
+
+**Process note:** `v0.17.0`, `v0.17.1` and `v0.18.0` shipped from a single implementation commit
+(`c7413eb`, branch `engineering-journal-mvp`) instead of one commit per version, and that branch does
+not follow the `<type>/vX.Y.Z-<slug>` naming convention. This is recorded as an accepted one-time
+process exception rather than corrected by rewriting already-pushed history — see `D-073` in
+`docs/Decision_Log.md`.
+
+`v0.16.4` is an audit-only baseline that checks the current repository against `docs/sdlc.md`
+without changing product code, schema, Docker configuration or package files. The audit concludes
+that TalentOS is substantially SSDLC-aligned but not 100% compliant: Principles 2, 4, 5 and 6 are
+compliant; Principles 0, 1, 3 and 7 are partially compliant due to governance and automation gaps.
+Key findings: the latest `CODEOWNERS` update appears unversioned; the current two-line `CODEOWNERS`
+pattern likely does not express Karim + Waseem as joint owners; GitHub branch-protection enforcement
+requires UI verification; scenario regression is not enforced in CI; security scanning is still a
+documented target rather than an implemented gate; and three scenario checks remain skipped. Local
+validation passed after regenerating Prisma Client: 202/202 unit tests, typecheck, lint, build,
+Docker Compose config, local doctor, and `regression:all` with 19 passed, 0 failed and 3 skipped.
+Plan: `docs/plans/v0.16.4_SSDLC_Compliance_Audit_Plan.md`; audit:
+`docs/audits/v0.16.4_SSDLC_Compliance_Audit.md`; results:
+`docs/testing/v0.16.4_SSDLC_Compliance_Audit_Test_Results.md`. See `D-072`.
+
+`v0.16.3` (documentation-only patch) completes the documentation audit started in `v0.16.2` by
+realigning the eight SSDLC docs with the shipped `v0.13.0`–`v0.16.1` scope (D-071). The biggest
+factual fixes: `docs/Deployment.md` (was stamped `v0.12.2`) gains the required `v0.14.0`/`v0.15.0`
+migration notes, current validation URLs and mission/submission/progress smoke tests;
+`docs/Data_Model.md`/`docs/Data_Dictionary.md` gain the five `v0.12.0` dashboard models in the
+entity list, a regenerated ER diagram covering all 20 models, field tables for the dashboard models
+and the four migrated-but-unused schema stubs, plus the missing `Tenant.logoFileId` and
+`User.lastLoginAt` rows; `docs/Testing_Strategy.md` (was `v0.14.1`) now states the real totals
+(202 unit tests, 22 scenarios) and covers submissions/program-content/mission-progress/Playwright
+capture; `docs/Regression_Scenarios.md` gains the three `v0.15.0` submission scenario rows and
+`Submission` in the marker entity list; `docs/Architecture.md` now describes `apps/ops` as the
+third application, includes `packages/storage`, and its portal diagram shows the
+missions/submission-review/program-content/`/logged-out` routes; the two policy docs' headers and
+merge-gate description now include the `realm-import` CI job. This file's Portal Scope and Package
+Scope sections are refreshed from their `v0.3.0` snapshot to current reality. No product code,
+schema or configuration change; unit suite unchanged at 202/202. Plan:
+`docs/plans/v0.16.3_SSDLC_Docs_Refresh_Plan.md`; results:
+`docs/testing/v0.16.3_SSDLC_Docs_Refresh_Test_Results.md`. See `D-071`.
+
+`v0.16.2` (documentation-only patch) realigns the vision and framework docs with the shipped
+product after an audit of `docs/vision.md` against committed code (D-070). `docs/vision.md` gets a
+rewritten Current State (now covering the Mission Engine `v0.14.0`, Submission & Review `v0.15.0`,
+four-week mission arc `v0.15.1`, and mission-driven dashboard + program content `v0.16.0`), an
+honest Gap Analysis (journal module, portfolio/certificates, public talent portal/recruiter side,
+AI layer, grading/rubrics, templates, onboarding and portal MFA remain open), and a roadmap with
+per-phase status and version references (Phases 2–3 delivered, Phase 1 largely delivered, Phase 4
+partial, Phases 5–8 not started). `docs/Mission_Framework.md`'s SEM Authoring Guidance is corrected
+from 8 to the canonical 10 lifecycle steps (Analyze and Production Readiness Review were missing),
+and `docs/Product_Backlog.md` moves off its stale `v0.15.0` header, recording the D-068/D-069
+slices as delivered. No product code, schema or configuration change; unit suite unchanged at
+202/202. Plan: `docs/plans/v0.16.2_Vision_Audit_Refresh_Plan.md`; results:
+`docs/testing/v0.16.2_Vision_Audit_Refresh_Test_Results.md`. See `D-070`.
 
 `v0.16.1` (documentation/tooling patch) adds the illustrated end-user guide
 `docs/user-guide/User_Guide.md`: 26 full-page screenshots (`docs/user-guide/screenshots/`), one per
@@ -366,46 +503,69 @@ documentation for architecture, data model, data dictionary, deployment and test
 
 ## Portal Scope
 
+As of `v0.18.0` (previously a `v0.3.0` snapshot, refreshed at `v0.16.3`).
+
 Public Applicant Portal routes (`apps/applicant`, container `talentos-applicant`):
 
 - `/`
 - `/apply`
 - `/login` (Keycloak sign-in)
 - `/application` (authenticated)
+- `/access-denied` (`v0.14.2` tenant guard)
+- `/logged-out` (`v0.14.3` post-logout return, canonical host)
+- `/dashboard` + `program`, `tasks`, `resources`, `calendar`, `notifications`, `profile` (`v0.12.0`, accepted applicants)
+- `/dashboard/missions`, `/dashboard/missions/[id]` (`v0.14.0`; My Submission section `v0.15.0`; assigned-missions-only `v0.18.0`)
+- `/dashboard/journal`, `/dashboard/journal/new`, `/dashboard/journal/[id]` (`v0.17.0`, Engineering Journal)
 - `/api/auth/[...nextauth]`
+- `/api/branding/logo` (public tenant logo, `v0.9.0`)
+- `/api/ai/mentor` (stub boundary)
 
 (Signup and 2FA setup are owned by Keycloak as of `v0.3.0`.)
 
 Program Admin Portal routes (`apps/admin`, container `talentos-admin`, served at root, RBAC-gated):
 
 - `/`
-- `/applications`
-- `/applications/[id]`
-- `/programs`
-- `/settings`
-- `/organizations` (SUPER_ADMIN only)
+- `/applications`, `/applications/[id]`
+- `/programs`, `/programs/new`, `/programs/[id]`
+- `/programs/[id]/content` (`v0.16.0`, `manageProgramContent`)
+- `/missions`, `/missions/new`, `/missions/[id]` (`v0.14.0`)
+- `/missions/[id]/submissions/[submissionId]` (`v0.15.0` submission review)
+- `/operations` (`v0.8.0`)
+- `/settings` (`v0.9.0` branding)
+- `/organizations` (SUPER_ADMIN only, `v0.10.0`)
 - `/forbidden`
+- `/logged-out` (`v0.14.3`)
 - `/api/auth/[...nextauth]`
+- `/api/files/presign-upload`, `/api/files/[id]/confirm`, `/api/files/[id]/download` (`v0.7.0`)
+- `/api/operations/health`
+
+Local Ops Console (`apps/ops`, host-run on `127.0.0.1:3300`, not containerized): Keycloak-gated
+operations UI running regression/cleanup/reset jobs (`v0.8.0`/`v0.12.2`/`v0.13.0`).
 
 ## Package Scope
 
-Packages, apps and infrastructure included as of `v0.3.0`:
+Packages, apps and infrastructure included as of `v0.18.0` (no new top-level package since `v0.16.3`):
 
 - `apps/applicant`
 - `apps/admin`
+- `apps/ops` (host-run local Ops Console)
 - `packages/auth`
 - `packages/auth-web`
 - `packages/db`
+- `packages/storage` (`v0.7.0`, MinIO/S3)
 - `packages/ui`
 - `keycloak/import` (realm definition)
+- `scripts/` (seed, regression runner, local bootstrap, user-guide capture)
 
 ## Documentation Rule
 
 All future documentation updates must reference the relevant code version.
 
-All future implementation plans must be stored in `docs/plans/`.
+All future implementation plans must be stored in `docs/plans/`, using `docs/plans/TEMPLATE.md`,
+with its **Test Scenarios** section filled in before or during implementation (`v0.18.1`, D-076).
 
-All future testing details and results must be stored in `docs/testing/`.
+All future testing details and results must be stored in `docs/testing/`, using
+`docs/testing/TEMPLATE.md`, with one Scenario Results row per plan scenario (`v0.18.1`, D-076).
 
 ## Versioning Convention
 
