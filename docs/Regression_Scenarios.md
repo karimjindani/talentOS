@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.18.2`
+Code version: `v0.18.3`
 
 ## Purpose
 
@@ -8,7 +8,9 @@ This document defines the scenario-based regression suite for TalentOS. Unit tes
 they are not enough to protect product behavior. Scenario regression validates the logical product areas
 a real applicant, admin, operator or tenant would experience.
 
-The suite can be run from the local Ops Console or from npm scripts.
+The suite can be run from the local Ops Console or from npm scripts. As of `v0.18.3`, the Ops Console
+shows individual scenario rows grouped by area after a run, so operators can see exactly which
+scenario passed, failed or skipped without searching the raw output.
 
 ## Execution Areas
 
@@ -78,6 +80,7 @@ are one scenario).
 | Storage | Cross-tenant file denial. | Missing | Should cover both metadata lookup and download URL path. |
 | Ops | Run full regression from Ops UI and show counts. | Automated/API + manual UI check | Unit/server coverage plus local manual validation. |
 | Ops | Run one selected area from Ops UI. | Automated/API + manual UI check | Ops API accepts `area`; UI includes selector. |
+| Ops | Regression results show individual scenario pass/fail/skipped rows. | Automated parser + manual UI check | v0.18.3: Ops stores `REGRESSION_RESULT_JSON.results` and renders scenario rows grouped by area. |
 | Ops | Cleanup is a safe no-op when no markers exist. | Automated via existing cleanup command behavior | Should gain a direct scenario assertion in a later hardening pass. |
 | Ops | Cleanup removes marked data only. | Automated by runner + cleanup validation | Scenario data uses `RegressionDataMarker`. |
 
@@ -112,7 +115,7 @@ Cleanup rules:
 5. Prefer deterministic regression names such as `regression-<runId>` and
    `applicant+<runId>@regression.talentos.local`.
 
-## Known Gaps (as of `v0.18.2`)
+## Known Gaps (as of `v0.18.3`)
 
 - Full browser-level Playwright coverage is not yet complete for every scenario. The runner currently
   combines OIDC HTTP login flows with DB/service-level scenario checks.
