@@ -1,5 +1,7 @@
 # TalentOS Vision
 
+Code version: `v0.18.2`
+
 ## Vision Statement
 
 TalentOS exists to bridge the gap between AI-assisted coding and production-grade software engineering.
@@ -564,7 +566,23 @@ The platform has already established a strong SaaS foundation.
 
 The platform foundation exists.
 
-The core TalentOS learning experience still needs to be built.
+What still needs to be built to realize the full vision:
+
+* Engineering Journal maturity — daily structured entries now exist (`v0.17.0`/`v0.17.1`); weekly
+  summaries, a reflection framework beyond free-text fields, and real AI review/scoring (current
+  score fields are schema placeholders) remain open
+* Portfolio Engine and Certificates — `PortfolioArtifact`/`Certificate` exist as schema stubs only;
+  accepted submissions are already recorded as future portfolio evidence
+* Public Talent Portal and the entire recruiter side (registration, search, dashboards, rankings,
+  employability scoring)
+* AI-Native Layer — the AI Mentor shipped in `v0.15.0` (RBSE classification, knowledge-base
+  retrieval, LLM integration with response caching); AI Reviewer, AI Interviewer and the other
+  AI-Native Layer personas remain unbuilt
+* Structured grading framework: rubrics, scoring, a controlled competency catalog
+  (reviews today are accept/request-changes; evaluation criteria and competency tags are free text)
+* Assignment templates for mission authoring
+* Guided onboarding experience
+* Enforced MFA on the applicant/admin portals
 
 ---
 
@@ -583,14 +601,17 @@ The core TalentOS learning experience still needs to be built.
 
 ## Phase 2 – Mission Engine
 
-### TODO
+Status: Delivered (`v0.14.0`–`v0.18.0`)
 
-* [ ] Create Mission Management module
-* [ ] Create Assignment templates
-* [ ] Define difficulty levels
-* [ ] Define evaluation criteria
-* [ ] Define competency mappings
-* [ ] Define grading framework
+* [x] Create Mission Management module — `v0.14.0`
+* [x] Define difficulty levels — `v0.14.0` (BEGINNER → EXPERT)
+* [x] Define evaluation criteria — `v0.14.0` (free-text field; structured rubrics still open)
+* [x] Define competency mappings — `v0.14.0` (free-text tags; controlled catalog still open)
+* [x] Per-applicant mission assignment — `v0.18.0` (accepted applicants receive one assigned Week 1
+  mission from the published pool instead of seeing every published mission; a known gap remains for
+  applicants accepted before `v0.18.0` shipped — see `docs/Regression_Scenarios.md` Known Gaps)
+* [ ] Create Assignment templates (authoring templates, not applicant mission assignment above)
+* [ ] Define grading framework (reviews are accept/request-changes only; no scoring)
 
 ---
 
@@ -609,12 +630,18 @@ The core TalentOS learning experience still needs to be built.
 
 ## Phase 4 – Engineering Journal
 
-### TODO
+Status: Largely delivered (`v0.17.0`–`v0.18.0`)
 
-* [ ] Daily journal entries
+* [x] Inline Engineering Journal (Markdown) per mission submission — `v0.15.0` (retained as legacy
+  submission evidence; distinct from the module below)
+* [x] Daily journal entries — dedicated `EngineeringJournalEntry` module, `/dashboard/journal` —
+  `v0.17.0`; one entry per calendar date enforced at the database layer — `v0.17.1`; entries scoped
+  to the applicant's assigned mission and locked once that mission's evidence is submitted — `v0.18.0`
 * [ ] Weekly summaries
-* [ ] Progress tracking
-* [ ] Reflection framework
+* [ ] Progress tracking (mission progress exists on the dashboard — `v0.16.0` — but journal
+  progress does not)
+* [ ] Reflection framework beyond the fixed structured fields (worked-on/challenge/solution/learned)
+* [ ] Real AI review/scoring (current per-entry score fields are schema placeholders only)
 
 ---
 
@@ -646,9 +673,10 @@ The core TalentOS learning experience still needs to be built.
 
 ## Phase 7 – AI-Native Layer
 
-### TODO
+Status: Partial (`v0.15.0`)
 
-* [ ] AI Mentor
+* [x] AI Mentor — `v0.15.0` (RBSE-classified conversational assistant at `/dashboard/mentor`,
+  knowledge-base retrieval, LLM integration with response caching; see `docs/Architecture.md`)
 * [ ] AI Reviewer
 * [ ] AI Interviewer
 * [ ] AI Customer

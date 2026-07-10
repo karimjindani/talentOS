@@ -37,6 +37,13 @@ describe("ApplicantShell isApplicantNavActive route matching", () => {
       expect(isApplicantNavActive("/dashboard/tasks", item)).toBe(false);
     });
 
+    it("Journal is active on `/dashboard/journal` and journal detail pages", () => {
+      const item = APPLICANT_NAV_ITEMS.find((i) => i.href === "/dashboard/journal")!;
+      expect(isApplicantNavActive("/dashboard/journal", item)).toBe(true);
+      expect(isApplicantNavActive("/dashboard/journal/journal-1", item)).toBe(true);
+      expect(isApplicantNavActive("/dashboard/missions", item)).toBe(false);
+    });
+
     it("Resources is active on `/dashboard/resources` only", () => {
       const item = APPLICANT_NAV_ITEMS.find((i) => i.href === "/dashboard/resources")!;
       expect(isApplicantNavActive("/dashboard/resources", item)).toBe(true);
@@ -66,8 +73,8 @@ describe("ApplicantShell isApplicantNavActive route matching", () => {
   });
 
   describe("nav items completeness", () => {
-    it("has exactly 9 nav items", () => {
-      expect(APPLICANT_NAV_ITEMS).toHaveLength(9);
+    it("has exactly 10 nav items", () => {
+      expect(APPLICANT_NAV_ITEMS).toHaveLength(10);
     });
 
     it("includes all expected routes", () => {
@@ -75,6 +82,7 @@ describe("ApplicantShell isApplicantNavActive route matching", () => {
       expect(hrefs).toContain("/dashboard");
       expect(hrefs).toContain("/dashboard/program");
       expect(hrefs).toContain("/dashboard/missions");
+      expect(hrefs).toContain("/dashboard/journal");
       expect(hrefs).toContain("/dashboard/tasks");
       expect(hrefs).toContain("/dashboard/resources");
       expect(hrefs).toContain("/dashboard/calendar");

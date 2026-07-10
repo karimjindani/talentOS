@@ -11,4 +11,8 @@ export * from "./files";
 export * from "./regression";
 export * from "./dashboard";
 export * from "./missions";
+export * from "./mission-assignments";
+export * from "./submissions";
+export * from "./journal";
+export * from "./program-content";
 export * from "./mentor";

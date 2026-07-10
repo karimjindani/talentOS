@@ -22,6 +22,7 @@
     "regression:admin": "tsx scripts/regression/run.ts admin",
     "regression:programs": "tsx scripts/regression/run.ts programs",
     "regression:missions": "tsx scripts/regression/run.ts missions",
+    "regression:journal": "tsx scripts/regression/run.ts journal",
     "regression:tenant": "tsx scripts/regression/run.ts tenant",
     "regression:dashboard": "tsx scripts/regression/run.ts dashboard",
     "regression:storage": "tsx scripts/regression/run.ts storage",

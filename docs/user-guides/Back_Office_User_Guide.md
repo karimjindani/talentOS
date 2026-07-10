@@ -117,7 +117,31 @@ Organization Admins and Super Admins manage missions.
 
 HR and Tech Lead users can view missions but cannot create, edit, publish, or archive them.
 
-The seeded Week 1 mission is **Build a Public Product Landing Page**.
+The demo program seeds the full four-week mission arc (`v0.15.1`) — Week 1 **Build a Public Product
+Landing Page** (Beginner) through Week 4 **Take TaskPilot to Production** (Expert) — all published
+and visible to accepted applicants.
+
+### Reviewing mission submissions (`v0.15.0`)
+
+Each mission detail page lists its applicant submissions (applicant, status, submitted and reviewed
+dates). Org Admins, Tech Leads, and Super Admins review them; HR can view but not decide. Applicants
+never review each other's work (Graduate Profile: graduates are not code reviewers).
+
+1. Open **Missions** and select the mission.
+2. In **Submissions**, select **Review** on a submitted entry.
+3. Inspect the evidence: Git repository, deployed application, Loom walkthrough (links open in a new
+   tab), and the submission's inline "Engineering journal" text field. This is the legacy
+   `Submission.journalMarkdown` evidence field carried over from `v0.15.0` — it is **not** the same as
+   the dedicated Engineering Journal dashboard module (`v0.17.0`, `/dashboard/journal`), which staff
+   cannot currently view from the admin portal.
+4. Either **Accept submission** — final; the submission becomes portfolio evidence for the mission's
+   competency tags — or **Request changes**, which requires written feedback and returns the
+   submission to the applicant for revision.
+5. The applicant is notified automatically (acceptance or revision request with your feedback), and
+   the review is recorded in the audit log.
+
+A submission can be reviewed only while it is in **Submitted** status; after a revision request the
+applicant edits and resubmits, and the loop repeats until acceptance.
 
 ## Settings
 

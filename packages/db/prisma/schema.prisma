@@ -74,76 +74,83 @@ enum NotificationType {
 }
 
 model Tenant {
-  id              String            @id @default(cuid())
-  name            String
-  slug            String            @unique
-  logoUrl         String?
-  primaryColor    String            @default("#2563eb")
-  secondaryColor  String            @default("#0f172a")
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id             String   @id @default(cuid())
+  name           String
+  slug           String   @unique
+  logoUrl        String?
+  primaryColor   String   @default("#2563eb")
+  secondaryColor String   @default("#0f172a")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  logoFileId      String?            @unique
-  logoFile        StoredFile?        @relation("TenantLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
+  logoFileId String?     @unique
+  logoFile   StoredFile? @relation("TenantLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
 
-  memberships     TenantMembership[]
-  programs        Program[]
-  applications    Application[]
-  auditLogs       AuditLog[]
-  missions        Mission[]
-  portfolioItems  PortfolioArtifact[]
-  certificates    Certificate[]
-  knowledgeDocs   KnowledgeBaseDocument[]
-  aiInteractions  AIInteraction[]
-  storedFiles     StoredFile[]
+  memberships         TenantMembership[]
+  programs            Program[]
+  applications        Application[]
+  auditLogs           AuditLog[]
+  missions            Mission[]
+  portfolioItems      PortfolioArtifact[]
+  certificates        Certificate[]
+  knowledgeDocs       KnowledgeBaseDocument[]
+  aiInteractions      AIInteraction[]
+  storedFiles         StoredFile[]
   programTasks        ProgramTask[]
   videoResources      VideoResource[]
   notifications       Notification[]
   calendarEvents      CalendarEvent[]
+  submissions         Submission[]
+  journalEntries      EngineeringJournalEntry[]
+  missionAssignments  MissionAssignment[]
   mentorConversations MentorConversation[]
 
   @@map("tenants")
 }
 
 model User {
-  id                    String             @id @default(cuid())
-  email                 String             @unique
-  name                  String?
+  id                       String        @id @default(cuid())
+  email                    String        @unique
+  name                     String?
   // Optional since Keycloak owns credentials as of v0.3.0; local password is legacy.
-  passwordHash          String?
-  keycloakSubjectId     String?            @unique
-  emailVerified         DateTime?
-  platformRole          PlatformRole?
-  status                UserStatus         @default(ACTIVE)
-  totpSecretEncrypted   String?
-  totpEnabledAt         DateTime?
-  lastLoginAt           DateTime?
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
+  passwordHash             String?
+  keycloakSubjectId        String?       @unique
+  emailVerified            DateTime?
+  platformRole             PlatformRole?
+  status                   UserStatus    @default(ACTIVE)
+  totpSecretEncrypted      String?
+  totpEnabledAt            DateTime?
+  lastLoginAt              DateTime?
+  preferredJournalLanguage String        @default("English")
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
 
-  memberships           TenantMembership[]
-  applications          Application[]      @relation("ApplicantApplications")
-  auditLogs             AuditLog[]
-  submissions           Submission[]
-  aiInteractions        AIInteraction[]
-  storedFiles           StoredFile[]
-  notifications         Notification[]
-  taskCompletions       UserTaskCompletion[]
-  mentorConversations   MentorConversation[]
+  memberships         TenantMembership[]
+  applications        Application[]             @relation("ApplicantApplications")
+  auditLogs           AuditLog[]
+  submissions         Submission[]              @relation("SubmissionApplicant")
+  reviewedSubmissions Submission[]              @relation("SubmissionReviewer")
+  journalEntries      EngineeringJournalEntry[] @relation("JournalEntryApplicant")
+  missionAssignments  MissionAssignment[]       @relation("MissionAssignmentApplicant")
+  aiInteractions      AIInteraction[]
+  storedFiles         StoredFile[]
+  notifications       Notification[]
+  taskCompletions     UserTaskCompletion[]
+  mentorConversations MentorConversation[]
 
   @@map("users")
 }
 
 model TenantMembership {
-  id          String      @id @default(cuid())
-  tenantId    String
-  userId      String
-  role        TenantRole
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id        String     @id @default(cuid())
+  tenantId  String
+  userId    String
+  role      TenantRole
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 
-  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, userId, role])
   @@index([tenantId, role])
@@ -152,23 +159,25 @@ model TenantMembership {
 }
 
 model Program {
-  id            String         @id @default(cuid())
-  tenantId      String
-  name          String
-  slug          String
-  description   String
-  status        ProgramStatus  @default(DRAFT)
-  startsAt      DateTime?
-  endsAt        DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id          String        @id @default(cuid())
+  tenantId    String
+  name        String
+  slug        String
+  description String
+  status      ProgramStatus @default(DRAFT)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  applications  Application[]
-  missions      Mission[]
-  tasks         ProgramTask[]
-  videoResources VideoResource[]
-  calendarEvents CalendarEvent[]
+  tenant             Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  applications       Application[]
+  missions           Mission[]
+  tasks              ProgramTask[]
+  videoResources     VideoResource[]
+  calendarEvents     CalendarEvent[]
+  journalEntries     EngineeringJournalEntry[]
+  missionAssignments MissionAssignment[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
@@ -176,25 +185,25 @@ model Program {
 }
 
 model Application {
-  id            String              @id @default(cuid())
+  id            String            @id @default(cuid())
   tenantId      String
   programId     String
   applicantId   String
-  status        ApplicationStatus   @default(DRAFT)
+  status        ApplicationStatus @default(DRAFT)
   submittedAt   DateTime?
   reviewedAt    DateTime?
   reviewerNotes String?
   githubUrl     String?
   linkedinUrl   String?
-  cvFileId      String?             @unique
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  cvFileId      String?           @unique
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
-  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  program       Program             @relation(fields: [programId], references: [id], onDelete: Cascade)
-  applicant     User                @relation("ApplicantApplications", fields: [applicantId], references: [id], onDelete: Cascade)
-  cvFile        StoredFile?         @relation("ApplicationCv", fields: [cvFileId], references: [id], onDelete: SetNull)
-  answers       ApplicationAnswer[]
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  program   Program             @relation(fields: [programId], references: [id], onDelete: Cascade)
+  applicant User                @relation("ApplicantApplications", fields: [applicantId], references: [id], onDelete: Cascade)
+  cvFile    StoredFile?         @relation("ApplicationCv", fields: [cvFileId], references: [id], onDelete: SetNull)
+  answers   ApplicationAnswer[]
 
   @@index([tenantId, status])
   @@index([programId, status])
@@ -203,22 +212,22 @@ model Application {
 }
 
 model ApplicationAnswer {
-  id             String       @id @default(cuid())
-  applicationId  String
-  questionKey    String
-  questionLabel  String
-  answer         String
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id            String   @id @default(cuid())
+  applicationId String
+  questionKey   String
+  questionLabel String
+  answer        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  application    Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   @@unique([applicationId, questionKey])
   @@map("application_answers")
 }
 
 model AuditLog {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   tenantId    String?
   actorUserId String?
   action      String
@@ -227,10 +236,10 @@ model AuditLog {
   metadata    Json?
   ipAddress   String?
   userAgent   String?
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime @default(now())
 
-  tenant      Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
-  actor       User?     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  actor  User?   @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, createdAt])
   @@index([actorUserId, createdAt])
@@ -238,51 +247,126 @@ model AuditLog {
 }
 
 model Mission {
-  id                 String             @id @default(cuid())
+  id                 String            @id @default(cuid())
   tenantId           String
   programId          String
   title              String
   difficulty         MissionDifficulty
-  status             MissionStatus      @default(DRAFT)
-  weekNumber         Int                @default(1)
-  order              Int                @default(0)
+  status             MissionStatus     @default(DRAFT)
+  weekNumber         Int               @default(1)
+  order              Int               @default(0)
   brief              String
-  objective          String             @default("")
-  acceptanceCriteria String             @default("")
-  deliverables       String             @default("")
-  evaluationCriteria String             @default("")
-  competencyTags     String[]           @default([])
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  objective          String            @default("")
+  acceptanceCriteria String            @default("")
+  deliverables       String            @default("")
+  evaluationCriteria String            @default("")
+  competencyTags     String[]          @default([])
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
-  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  program     Program            @relation(fields: [programId], references: [id], onDelete: Cascade)
-  submissions Submission[]
+  tenant         Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  program        Program                   @relation(fields: [programId], references: [id], onDelete: Cascade)
+  submissions    Submission[]
+  journalEntries EngineeringJournalEntry[]
+  assignments    MissionAssignment[]
 
   @@index([tenantId, programId, status])
   @@index([tenantId, status])
   @@map("missions")
 }
 
+model MissionAssignment {
+  id          String   @id @default(cuid())
+  tenantId    String
+  programId   String
+  applicantId String
+  missionId   String
+  weekNumber  Int
+  assignedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  program   Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  applicant User    @relation("MissionAssignmentApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
+  mission   Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, programId, applicantId, weekNumber])
+  @@index([tenantId, programId, weekNumber])
+  @@index([applicantId])
+  @@index([missionId])
+  @@map("mission_assignments")
+}
+
 model Submission {
-  id             String            @id @default(cuid())
-  missionId       String
-  applicantId     String
-  status          SubmissionStatus @default(DRAFT)
-  repositoryUrl   String?
-  deploymentUrl   String?
-  loomUrl         String?
-  journalMarkdown String?
-  submittedAt     DateTime?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id               String           @id @default(cuid())
+  // Direct tenant scoping (v0.15.0, D-067), consistent with every other tenant-owned table.
+  tenantId         String
+  missionId        String
+  applicantId      String
+  status           SubmissionStatus @default(DRAFT)
+  repositoryUrl    String?
+  deploymentUrl    String?
+  loomUrl          String?
+  journalMarkdown  String?
+  submittedAt      DateTime?
+  reviewerFeedback String?
+  reviewedAt       DateTime?
+  reviewerUserId   String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
-  mission         Mission           @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  applicant       User              @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  mission   Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  applicant User    @relation("SubmissionApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
+  reviewer  User?   @relation("SubmissionReviewer", fields: [reviewerUserId], references: [id], onDelete: SetNull)
 
+  // One submission row per applicant per mission; the SEM revision loop reuses the row.
+  @@unique([missionId, applicantId])
   @@index([missionId, status])
   @@index([applicantId])
+  @@index([tenantId, status])
   @@map("submissions")
+}
+
+model EngineeringJournalEntry {
+  id                        String    @id @default(cuid())
+  tenantId                  String
+  applicantId               String
+  programId                 String
+  missionId                 String
+  weekNumber                Int
+  entryDate                 DateTime
+  language                  String
+  workedOn                  String
+  challenge                 String
+  solution                  String
+  learned                   String
+  aiUsage                   String
+  confidenceRating          Int
+  timeSpentHours            Float
+  evidenceLinks             String[]  @default([])
+  reflectionDepthScore      Int?
+  problemSolvingScore       Int?
+  learningQualityScore      Int?
+  communicationClarityScore Int?
+  consistencyScore          Int?
+  totalScore                Int?
+  aiReviewFeedback          String?
+  aiReviewedAt              DateTime?
+  aiReviewMetadata          Json?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  applicant User    @relation("JournalEntryApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
+  program   Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  mission   Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, applicantId, entryDate])
+  @@index([tenantId, programId, weekNumber])
+  @@index([missionId])
+  @@map("engineering_journal_entries")
 }
 
 model PortfolioArtifact {
@@ -294,36 +378,36 @@ model PortfolioArtifact {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@map("portfolio_artifacts")
 }
 
 model Certificate {
-  id          String   @id @default(cuid())
-  tenantId    String
-  title       String
-  issuedTo    String
-  issuedAt    DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  tenantId  String
+  title     String
+  issuedTo  String
+  issuedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@map("certificates")
 }
 
 model KnowledgeBaseDocument {
-  id          String   @id @default(cuid())
-  tenantId    String
-  title       String
-  body        String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  tenantId  String
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@map("knowledge_base_documents")
@@ -339,8 +423,8 @@ model AIInteraction {
   metadata    Json?
   createdAt   DateTime @default(now())
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, createdAt])
   @@index([userId, createdAt])
@@ -361,8 +445,8 @@ model StoredFile {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  owner        User?        @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner            User?        @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
   cvForApplication Application? @relation("ApplicationCv")
   logoForTenant    Tenant?      @relation("TenantLogo")
 
@@ -372,11 +456,11 @@ model StoredFile {
 }
 
 model RegressionDataMarker {
-  id          String   @id @default(cuid())
-  runId       String
-  entityType  String
-  entityId    String
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  runId      String
+  entityType String
+  entityId   String
+  createdAt  DateTime @default(now())
 
   @@unique([entityType, entityId])
   @@index([runId])
@@ -386,19 +470,19 @@ model RegressionDataMarker {
 
 /// A task/assignment scoped to a program and a specific week (1-4).
 model ProgramTask {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   tenantId    String
   programId   String
   weekNumber  Int
   title       String
   description String?
   dueAt       DateTime?
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  program     Program              @relation(fields: [programId], references: [id], onDelete: Cascade)
   completions UserTaskCompletion[]
 
   @@index([tenantId, programId, weekNumber])
@@ -417,8 +501,8 @@ model VideoResource {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, programId, weekNumber])
   @@map("video_resources")
@@ -435,8 +519,8 @@ model Notification {
   readAt    DateTime?
   createdAt DateTime         @default(now())
 
-  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, readAt])
   @@index([tenantId, createdAt])
@@ -445,7 +529,7 @@ model Notification {
 
 /// A scheduled calendar event for a program.
 model CalendarEvent {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   tenantId    String
   programId   String
   title       String
@@ -453,11 +537,11 @@ model CalendarEvent {
   startsAt    DateTime
   endsAt      DateTime?
   location    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, programId, startsAt])
   @@map("calendar_events")
@@ -465,13 +549,13 @@ model CalendarEvent {
 
 /// Join table tracking which applicant has completed a ProgramTask.
 model UserTaskCompletion {
-  id        String   @id @default(cuid())
-  taskId    String
-  userId    String
+  id          String   @id @default(cuid())
+  taskId      String
+  userId      String
   completedAt DateTime @default(now())
 
-  task      ProgramTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task ProgramTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, userId])
   @@index([userId])

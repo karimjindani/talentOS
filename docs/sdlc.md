@@ -1,8 +1,8 @@
 # Principles of Software Development
 
-Current code version: `v0.15.0`
+Current code version: `v0.18.1`
 
-Baseline commit: `10dce46`
+Baseline commit: _set on merge_ (previous: `v0.18.0` @ `bf59ca4`)
 
 0. Do what is documented. Always document what you do. Documents should be updated in docs folder in markdown format.
 1. Every iteration of development must ensure that previously committed and tested work remains functional.
@@ -23,6 +23,16 @@ Baseline commit: `10dce46`
 6. User-facing portal changes must update the relevant user guide in `docs/user-guides/` in the same
    iteration. This applies to route changes, navigation changes, forms, workflows, role/capability
    changes, status labels, dashboard behavior and troubleshooting guidance.
+7. Every implementation plan must use [`docs/plans/TEMPLATE.md`](plans/TEMPLATE.md) and fill in its
+   **Test Scenarios** section — end-to-end/behavioral scenarios distinct from unit tests — written
+   before or during implementation, not discovered afterward. Each scenario listed there must be added
+   to [`Regression_Scenarios.md`](Regression_Scenarios.md) in the same iteration, either as an
+   automated `scripts/regression/run.ts` case or as an explicit Known Gap with a stated reason. Every
+   `docs/testing/` result must use [`docs/testing/TEMPLATE.md`](testing/TEMPLATE.md) and report one
+   Scenario Results row per plan scenario, so a plan can't silently ship without its scenarios being
+   verified or explicitly deferred. (`v0.18.1`, D-076 — added after an audit found `v0.17.0`
+   Engineering Journal shipped with strong unit coverage but zero scenario-level regression coverage,
+   because nothing required the plan to name the scenarios in the first place.)
 
 ## Source Control, Branching & Code Review
 

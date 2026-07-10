@@ -23,8 +23,13 @@ This is the developer quickstart. The full governance is in
 
 Per [`docs/sdlc.md`](docs/sdlc.md), a versioned change must also update:
 
-- an implementation plan in `docs/plans/`,
-- testing details/results in `docs/testing/`,
+- an implementation plan in `docs/plans/`, using [`docs/plans/TEMPLATE.md`](docs/plans/TEMPLATE.md)
+  — **fill in its Test Scenarios section with real end-to-end behavioral cases, not just unit tests**,
+  before or while you implement, not after,
+- testing details/results in `docs/testing/`, using
+  [`docs/testing/TEMPLATE.md`](docs/testing/TEMPLATE.md) — one Scenario Results row per plan scenario,
+- every scenario from the plan added to `docs/Regression_Scenarios.md`, either automated
+  (`scripts/regression/run.ts`) or logged as an explicit Known Gap with a reason,
 - `docs/Version_Baseline.md` (baseline summary) and `docs/Decision_Log.md` (a `D-0NN` entry),
 - the Data Model / Data Dictionary if the schema changed.
 

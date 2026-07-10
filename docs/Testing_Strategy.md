@@ -1,8 +1,8 @@
 # Testing Strategy
 
-Code version: `v0.14.1`
+Code version: `v0.18.2`
 
-Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+Baseline commit: `6ef1ef7`
 
 ## Goals
 
@@ -16,6 +16,12 @@ The regression suite has two layers:
 
 The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts after
 each run.
+
+Current totals (as of `v0.18.2`): **243 unit tests across 34 files** (`npm test`) and **28 scenarios
+across 12 areas** (`scripts/regression/run.ts`), verified 27 passed / 0 failed / 1 pre-existing
+documented skip (storage upload/download) against a freshly migrated local database. CI
+(`.github/workflows/ci.yml`) runs the **unit suite only**; scenario regression is a local capability
+driven from npm scripts or the Ops Console against the running Docker stack.
 
 ## Test Levels
 
@@ -82,6 +88,70 @@ each run.
   audit entries are written.
 - The bucket is private: unsigned direct object access is denied (403).
 - File access is tenant-scoped: a file id from another tenant is not resolvable.
+- Note: the presign/round-trip and cross-tenant checks are validated at unit and manual level; the
+  `storage` **scenario** area is a documented skip in `scripts/regression/run.ts` (see
+  `docs/Regression_Scenarios.md`) pending automation.
+
+### Mission Submission Tests (v0.15.0)
+
+- Submission state machine (`DRAFT→SUBMITTED→ACCEPTED|NEEDS_REVISION`, `NEEDS_REVISION→SUBMITTED`)
+  offers only valid transitions (unit, `packages/auth` workflow tests).
+- `packages/db/src/submissions.test.ts` (20 tests): draft save/update, submit, ownership checks,
+  URL host-allowlists (github.com / loom.com), tenant scoping, review accept / request-changes with
+  mandatory feedback, notification + audit writes (`submission.*`), and
+  `getApplicantMissionProgress`.
+- `reviewSubmissions` capability: ORG_ADMIN + TECH_LEAD may review, HR is read-only, applicants are
+  denied (unit + `missions` scenario area).
+- Scenario coverage: full submission loop with notifications/audit/terminal acceptance, reviewer
+  role matrix, and cross-tenant submission-read denial (see `docs/Regression_Scenarios.md`).
+
+### Program Content & Mission-Driven Progress Tests (v0.16.0)
+
+- `packages/db/src/program-content.test.ts` (6 tests): tenant-scoped, audited CRUD for video
+  resources, weekly tasks and calendar events; `manageProgramContent` granted to ORG_ADMIN only
+  (SUPER_ADMIN bypass; HR/TECH_LEAD read-only).
+- Scenario coverage: accepted mission submission moves the mission-driven dashboard progress
+  (draft→submit→accept; only ACCEPTED moves the bar), and program-content CRUD with role denial.
+
+### Engineering Journal Tests (v0.17.0 / v0.17.1)
+
+- `packages/db/src/journal.test.ts` (23 tests): create/update ownership and tenant scoping, mission
+  validation (must be published and belong to the applicant's accepted program/assigned mission),
+  `weekNumber` derived server-side from the selected mission (not client-trusted), evidence-link
+  parsing, confidence-rating and time-spent validation, `JournalEntryDateConflictError` on a same-day
+  duplicate (`v0.17.1` backs this with a database-level unique constraint), and lock behavior once a
+  mission's assignment is submitted (`isJournalMissionLockedForApplicant`).
+- `apps/applicant/app/dashboard/journal/view-model.test.ts`: view-model shaping for the journal list
+  and detail pages.
+- `apps/applicant/components/ApplicantShell.test.ts`: journal nav item present in
+  `APPLICANT_NAV_ITEMS`.
+- Scenario coverage (`journal` area, added `v0.18.2`/D-077): create + edit against the assigned
+  mission with list/audit assertions; create rejected against a published-but-unassigned mission;
+  one entry per calendar date enforced (`JournalEntryDateConflictError`); entries lock once the
+  mission's assignment is submitted. See `docs/Regression_Scenarios.md`.
+
+### Mission Assignment Tests (v0.18.0)
+
+- `packages/db/src/mission-assignments.test.ts` (7 tests): idempotent Week 1 assignment on
+  `ACCEPTED` transition (repeated acceptance does not duplicate rows), uniqueness on
+  `[tenantId, programId, applicantId, weekNumber]`, least-assigned-with-random-tie-break selection
+  among published Week 1 mission variants, and that applicant mission listing/detail, submission
+  drafting and journal mission selection are all scoped to assigned missions.
+- `packages/db/src/mission-seed.test.ts` (1 test): the Week 1 Markdown mission specs seed correctly
+  into `Mission` fields.
+- Scenario coverage (`missions` area): the submission fixture in `scripts/regression/run.ts` asserts
+  that accepting an application creates exactly one `MissionAssignment` row. Added `v0.18.2`/D-077:
+  a published-but-unassigned mission is excluded from `listAssignedProgramMissions`/
+  `getAssignedProgramMission` and rejected by `saveSubmissionDraft`; and a scenario documenting the
+  known backfill gap for applicants accepted before assignment existed (see
+  `docs/Regression_Scenarios.md` Known Gaps).
+
+### User-Guide Screenshot Capture (v0.16.1, manual)
+
+- `scripts/user-guide/capture-screenshots.ts` (Playwright/Chromium) drives the running local Docker
+  stack through real Keycloak OIDC flows to capture the 26 illustrated user-guide screenshots
+  (`docs/user-guide/`), with a section filter for partial re-captures. It is run manually per
+  release when user-facing screens change; it is not part of CI or scenario regression.
 
 ### Integration Tests
 
@@ -131,6 +201,7 @@ Commands:
 - `npm.cmd run regression:admin`
 - `npm.cmd run regression:programs`
 - `npm.cmd run regression:missions`
+- `npm.cmd run regression:journal`
 - `npm.cmd run regression:tenant`
 - `npm.cmd run regression:dashboard`
 - `npm.cmd run regression:storage`
@@ -142,8 +213,8 @@ parses this payload and displays the summary per run and per step.
 
 Scenario data ownership rules:
 
-- Scenario-created users, memberships, programs, missions, applications and answers must be tagged with
-  `RegressionDataMarker`.
+- Scenario-created users, memberships, programs, missions, mission assignments, journal entries,
+  submissions, applications and answers must be tagged with `RegressionDataMarker`.
 - Cleanup must delete only marker-tagged records.
 - Seeded demo data and user-created data are never cleanup targets unless explicitly marker-tagged.
 
@@ -225,3 +296,67 @@ unit suite is **146 tests** before final v0.14.0 validation, and the missions sc
 From `v0.14.1`, the regression baseline also covers user-guide currency: Applicant Portal and Back
 Office guide updates are mandatory for user-facing workflow, route, role, permission, status, form or
 navigation changes.
+
+From `v0.14.2`, the regression baseline also covers the applicant-portal tenant guard
+(`apps/applicant/lib/tenant-guard.test.ts`, 6 tests): `/dashboard` and `/application` require
+`accessApplicantPortal` membership in the Host-resolved tenant (SUPER_ADMIN bypass); non-members are
+redirected to `/access-denied`. The suite is **152 tests**.
+
+From `v0.14.3`, the regression baseline also covers centralized logout (`buildTenantLogoutUrl` in
+`packages/auth-web`): logout returns through the canonical host's `/logged-out` route with the tenant
+carried in OIDC `state`, and redirect targets are allow-listed (no open redirect). The suite is
+**161 tests**.
+
+From `v0.15.0`, the regression baseline also covers the mission submission workflow: the submission
+state machine, tenant-scoped/ownership-checked/audited DB helpers (`submissions.test.ts`, 20 tests),
+`reviewSubmissions` authorization, and three new scenarios (full submission loop with
+notifications/audit/terminal acceptance; reviewer role matrix; cross-tenant submission-read denial).
+The suite is **187 tests**; `Submission` joins the regression cleanup entity types.
+
+From `v0.15.1`, the regression baseline also covers the seeded four-week mission arc: the
+data-driven `missionSeeds` upsert must remain idempotent and the four published TaskPilot missions
+must be visible to the seeded accepted applicant.
+
+From `v0.16.0`, the regression baseline also covers program content management and mission-driven
+dashboard progress: `manageProgramContent` authorization with tenant-scoped audited CRUD
+(`program-content.test.ts`, 6 tests), `getApplicantMissionProgress`, and two new scenarios
+(draft→submit→accept moves the dashboard progress; content CRUD + role denial). The suite is
+**202 tests** — the current baseline.
+
+From `v0.16.1`, the regression baseline also covers illustrated-guide currency: the Playwright
+capture script must be re-run for releases that change user-facing screens, keeping
+`docs/user-guide/` screenshots in sync with the running product.
+
+From `v0.17.0`, the regression baseline also covers the Engineering Journal module: applicant-owned,
+tenant-scoped daily reflection entries validated against the applicant's mission/program
+(`journal.test.ts`, 23 tests), the journal navigation entry (`ApplicantShell.test.ts`, 12 tests) and
+view-model shaping (`view-model.test.ts`, 5 tests). No scenario-level coverage yet (see
+`docs/Regression_Scenarios.md`).
+
+From `v0.17.1`, the regression baseline also covers the journal entry-date uniqueness constraint:
+`entryDate` values are normalized to a calendar day and a database-level unique index on
+`[tenantId, applicantId, entryDate]` backs the `JournalEntryDateConflictError` application-level check.
+
+From `v0.18.0`, the regression baseline also covers mission assignment: idempotent Week 1 assignment
+on `ACCEPTED` (`mission-assignments.test.ts`, 7 tests), Week 1 Markdown mission seeding
+(`mission-seed.test.ts`, 1 test), and a `missions`-area scenario assertion that acceptance creates
+exactly one `MissionAssignment` row. The suite is **243 tests across 34 files**;
+`regression:all` is verified 21/22 passed, 1 pre-existing documented skip, 0 failed against a freshly
+migrated local database.
+
+From `v0.18.1`, every implementation plan must use `docs/plans/TEMPLATE.md` and fill in a **Test
+Scenarios** section — end-to-end behavioral cases distinct from unit tests, written before or during
+implementation — and every scenario listed there must be added to this document (automated) or to its
+Known Gaps (deferred, with a reason) in the same iteration; test-results docs must use
+`docs/testing/TEMPLATE.md` and report one Scenario Results row per plan scenario. This closes the gap
+found auditing `v0.17.0`: the Engineering Journal plan never named scenario-level test cases, so the
+feature shipped with 23 solid unit tests (`journal.test.ts`) and no scenario-level regression coverage
+at all — see `docs/Regression_Scenarios.md` Known Gaps and `D-076`.
+
+From `v0.18.2`, the regression baseline adds a new `journal` scenario area (four scenarios: create/edit
+with audit assertions, assigned-mission-only creation, one-entry-per-day conflict, lock-after-submission)
+and two new `missions`-area scenarios (assigned-mission-only visibility/detail/submission-drafting;
+and a scenario documenting the known gap that applicants accepted before Mission Assignment existed get
+no automatic backfill). `EngineeringJournalEntry` joins the `RegressionDataMarker` cleanup entity types
+(`packages/db/src/regression.ts`). The suite is **28 scenarios across 12 areas**; `regression:all` is
+verified 27/28 passed, 1 pre-existing documented skip, 0 failed. See `D-077`.

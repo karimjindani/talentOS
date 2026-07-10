@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.15.0`
+Code version: `v0.18.2`
 
 ## Purpose
 
@@ -20,6 +20,7 @@ The suite can be run from the local Ops Console or from npm scripts.
 | Admin | `npm.cmd run regression:admin` | Automated |
 | Programs | `npm.cmd run regression:programs` | Automated |
 | Missions | `npm.cmd run regression:missions` | Automated |
+| Journal | `npm.cmd run regression:journal` | Automated |
 | Tenant isolation | `npm.cmd run regression:tenant` | Partially automated |
 | Dashboard | `npm.cmd run regression:dashboard` | Automated |
 | Storage | `npm.cmd run regression:storage` | Missing |
@@ -27,6 +28,11 @@ The suite can be run from the local Ops Console or from npm scripts.
 | All | `npm.cmd run regression:all` | Automated orchestration |
 
 ## Scenario Matrix
+
+The matrix below is finer-grained than the runner: `scripts/regression/run.ts` currently contains
+**28 scenario objects**, and several matrix rows map onto a single combined runner scenario (for
+example, applicant submit + duplicate block are one scenario, and the three Programs lifecycle rows
+are one scenario).
 
 | Logical area | Scenario | Status | Notes |
 | --- | --- | --- | --- |
@@ -49,7 +55,17 @@ The suite can be run from the local Ops Console or from npm scripts.
 | Missions | Org Admin creates a draft mission, publishes it, and accepted applicants can see it. | Automated | Validates mission lifecycle visibility. |
 | Missions | Archived mission is removed from applicant-visible mission list. | Automated | Validates published-only visibility. |
 | Missions | HR, Tech Lead and Applicant cannot manage missions. | Automated | Validates `manageMissions` capability. |
+| Missions | Submission loop: draft, submit, request changes, resubmit, accept — with notifications and audit. | Automated | v0.15.0 (D-067): full SEM review loop; acceptance is terminal and notifies the applicant. |
+| Missions | Only Org Admin and Tech Lead can review submissions. | Automated | v0.15.0 (D-067): validates the `reviewSubmissions` capability (HR read-only, applicants denied). |
+| Missions | Accepting an application creates exactly one `MissionAssignment` for the applicant, idempotently. | Automated | v0.18.0 (D-075): asserted as part of the submission fixture; the runner fails loudly if no assignment row is created. |
+| Missions | Applicant mission list/detail and submission drafting are limited to assigned missions (a published-but-unassigned mission is not visible/usable). | Automated | v0.18.0 (D-075), added `v0.18.2` (D-077): asserts `listAssignedProgramMissions`/`getAssignedProgramMission` exclude the unassigned mission and `saveSubmissionDraft` rejects it. |
+| Missions | An applicant already accepted before any mission assignment existed has no assigned missions and no automatic backfill. | Automated (documents a known gap) | v0.18.2 (D-077): asserts current behavior — no scenario/migration backfills a `MissionAssignment` for applications that were `ACCEPTED` directly (bypassing `applyStatusTransition`). See Known Gaps: a product decision is still needed on whether existing accepted applicants should be backfilled. |
+| Journal | Applicant creates and edits a daily Engineering Journal entry against their assigned mission; entries are listed and audited (`journal.created`/`journal.updated`). | Automated | v0.18.2 (D-077) closes the `v0.17.0` coverage gap. |
+| Journal | Applicant cannot create a journal entry against a published mission that is not assigned to them. | Automated | v0.18.2 (D-077). |
+| Journal | One journal entry per applicant per calendar date is enforced. | Automated | v0.18.2 (D-077) exercises the `v0.17.1` database-level unique constraint via `JournalEntryDateConflictError`. |
+| Journal | Journal entries lock once the mission's assignment is submitted. | Automated | v0.18.2 (D-077) exercises `isJournalMissionLockedForApplicant`/`assertJournalMissionNotLocked`. |
 | Tenant isolation | Tenant-scoped program read rejects another tenant. | Partially automated | Skips when only one local tenant exists. Needs a second marked tenant fixture. |
+| Tenant isolation | Tenant-scoped submission read rejects another tenant. | Automated | v0.15.0 (D-067): cross-tenant submission access is denied. |
 | Tenant isolation | Realm role alone does not grant authority without `TenantMembership`. | Automated | Validates the D-051 authorization principle. |
 | Tenant isolation | Applicant portal denies a non-member of the Host-resolved tenant (`/dashboard`, `/application` → `/access-denied`; SUPER_ADMIN bypass). | Automated | Unit-covered by `apps/applicant/lib/tenant-guard.test.ts`; also validated end-to-end via browser. Ports the D-051 guard to the applicant portal. |
 | Tenant isolation | Cross-tenant file and settings denial through admin browser routes. | Missing | Add Playwright/browser route coverage. |
@@ -88,6 +104,9 @@ Current marker-tagged entity types:
 - `TenantMembership`
 - `Program`
 - `Mission`
+- `MissionAssignment`
+- `EngineeringJournalEntry`
+- `Submission`
 - `Application`
 - `ApplicationAnswer`
 
@@ -106,7 +125,7 @@ Cleanup rules:
 5. Prefer deterministic regression names such as `regression-<runId>` and
    `applicant+<runId>@regression.talentos.local`.
 
-## Known Gaps After `v0.14.0`
+## Known Gaps (as of `v0.18.2`)
 
 - Full browser-level Playwright coverage is not yet complete for every scenario. The runner currently
   combines OIDC HTTP login flows with DB/service-level scenario checks.
@@ -114,3 +133,16 @@ Cleanup rules:
 - Cross-tenant route-level denial needs a second regression tenant fixture and browser route checks.
 - Admin review should expand from one accepted-path status transition to all reviewer transitions and
   role-specific denial paths.
+- **Product decision needed:** applicants already `ACCEPTED` before Mission Assignment (`v0.18.0`)
+  shipped have no `MissionAssignment` row and no automated backfill — they see zero missions until an
+  admin/ops action (if any) assigns one. This was raised in PR review of the `engineering-journal-mvp`
+  branch and is now a regression scenario (`missions`: "An applicant already accepted before any
+  mission assignment exists sees no missions") that documents and locks in the current behavior rather
+  than silently allowing it to change. Someone needs to decide: add a backfill migration/script for
+  already-accepted applicants, add a lazy on-read assignment fallback, or explicitly accept the gap.
+- The `v0.17.1` journal date-uniqueness migration (`20260708100000_v0_17_1_journal_entry_date_unique`)
+  has no pre-flight duplicate check: if a target environment already has two journal entries for the
+  same applicant on the same calendar day (possible pre-`v0.17.1`), `CREATE UNIQUE INDEX` will fail the
+  migration outright rather than silently corrupting data — but there's no tooling to detect or resolve
+  that conflict ahead of time. See `docs/Deployment.md` for the operational note; not applicable to any
+  environment today since this hasn't been deployed beyond local dev.

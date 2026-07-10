@@ -82,10 +82,17 @@ async function runJob(job: OpsJob) {
     step.completedAt = new Date().toISOString();
     step.status = summarizeStepStatus(result.exitCode, result.timedOut);
     step.regressionSummary = parseRegressionSummary(result.output);
+    step.regressionSummaries = parseRegressionSummaries(result.output);
     if (step.regressionSummary) {
       job.regressionSummary = mergeRegressionSummaries(job.area ?? step.regressionSummary.area, [
         ...(job.regressionSummary ? [job.regressionSummary] : []),
         step.regressionSummary
+      ]);
+    }
+    if (step.regressionSummaries?.length) {
+      job.regressionSummaries = mergeRegressionSummariesByArea([
+        ...(job.regressionSummaries ?? []),
+        ...step.regressionSummaries
       ]);
     }
     job.output += `\n$ ${step.command}\n${result.output}`;
@@ -109,13 +116,42 @@ async function runJob(job: OpsJob) {
 }
 
 export function parseRegressionSummary(output: string): RegressionSummary | undefined {
+  return parseRegressionPayload(output)?.summary;
+}
+
+export function parseRegressionSummaries(output: string): RegressionSummary[] | undefined {
+  const payload = parseRegressionPayload(output);
+  if (!payload) return undefined;
+  if (!payload.results?.length) return payload.summary ? [payload.summary] : undefined;
+
+  return mergeRegressionSummariesByArea(
+    payload.results.map((result) => ({
+      area: result.area,
+      total: 1,
+      passed: result.status === "passed" ? 1 : 0,
+      failed: result.status === "failed" ? 1 : 0,
+      skipped: result.status === "skipped" ? 1 : 0,
+      durationMs: result.durationMs
+    }))
+  );
+}
+
+type RegressionResultPayload = {
+  summary?: RegressionSummary;
+  results?: Array<{
+    area: RegressionArea;
+    status: "passed" | "failed" | "skipped";
+    durationMs: number;
+  }>;
+};
+
+function parseRegressionPayload(output: string): RegressionResultPayload | undefined {
   const line = output
     .split(/\r?\n/)
     .find((candidate) => candidate.startsWith("REGRESSION_RESULT_JSON:"));
   if (!line) return undefined;
   try {
-    const payload = JSON.parse(line.slice("REGRESSION_RESULT_JSON:".length)) as { summary?: RegressionSummary };
-    return payload.summary;
+    return JSON.parse(line.slice("REGRESSION_RESULT_JSON:".length)) as RegressionResultPayload;
   } catch {
     return undefined;
   }
@@ -133,6 +169,29 @@ function mergeRegressionSummaries(area: RegressionArea, summaries: RegressionSum
     }),
     { area, total: 0, passed: 0, failed: 0, skipped: 0, durationMs: 0 }
   );
+}
+
+function mergeRegressionSummariesByArea(summaries: RegressionSummary[]): RegressionSummary[] {
+  const merged = new Map<RegressionArea, RegressionSummary>();
+  for (const summary of summaries) {
+    const current = merged.get(summary.area) ?? {
+      area: summary.area,
+      total: 0,
+      passed: 0,
+      failed: 0,
+      skipped: 0,
+      durationMs: 0
+    };
+    merged.set(summary.area, {
+      area: summary.area,
+      total: current.total + summary.total,
+      passed: current.passed + summary.passed,
+      failed: current.failed + summary.failed,
+      skipped: current.skipped + summary.skipped,
+      durationMs: current.durationMs + summary.durationMs
+    });
+  }
+  return [...merged.values()];
 }
 
 function touch(job: OpsJob) {

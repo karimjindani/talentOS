@@ -29,6 +29,7 @@ export type RegressionArea =
   | "admin"
   | "programs"
   | "missions"
+  | "journal"
   | "tenant"
   | "dashboard"
   | "storage"
@@ -54,6 +55,7 @@ export type OpsJobStep = {
   exitCode?: number | null;
   output: string;
   regressionSummary?: RegressionSummary;
+  regressionSummaries?: RegressionSummary[];
 };
 
 export type OpsJob = {
@@ -68,6 +70,7 @@ export type OpsJob = {
   output: string;
   error?: string;
   regressionSummary?: RegressionSummary;
+  regressionSummaries?: RegressionSummary[];
 };
 
 export const LOCAL_REGRESSION_COMMANDS = {

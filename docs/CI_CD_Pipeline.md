@@ -1,18 +1,19 @@
 # CI/CD & Delivery Policy
 
-Code version: `v0.11.2`
+Code version: `v0.16.3`
 
-Baseline commit: `7bc6d5e`
+Baseline commit: `3856f61`
 
 This policy documents the Continuous Integration pipeline that **exists today** and defines the
 Continuous Delivery / deployment governance that **does not yet exist** — image versioning, a registry,
 environment promotion, and rollback. It is referenced from [`sdlc.md`](sdlc.md) and complements the
 [Source Control & Branching Policy](Source_Control_Policy.md) and [Deployment](Deployment.md) guide.
 
-> **Status (v0.11.2):** This is a **policy/design document**. The CI gate below is implemented
-> ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)); the **security-scan stage, image
-> build/push, environment promotion, and CD deploy are documented targets, not yet built.** A later
-> implementation baseline will realize them. `ci.yml` is unchanged in v0.11.2.
+> **Status (v0.16.3):** This is a **policy/design document**, first established in `v0.11.2`. The CI
+> gate below — the `ci` job plus the `realm-import` job — is implemented
+> ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) and has been stable since `v0.11.3`;
+> the **security-scan stage, image build/push, environment promotion, and CD deploy remain
+> documented targets, not yet built.** A later implementation baseline will realize them.
 
 ## Continuous Integration (implemented)
 
@@ -33,8 +34,12 @@ A parallel **`realm-import`** job boots Keycloak the same way production does
 import cleanly — a boot-level guard against a malformed realm JSON reaching `main` (added in `v0.11.3`,
 D-057).
 
-**All stages must pass** for a PR to merge (see the PR policy in the Source Control Policy). This is the
-mandatory pre-merge gate.
+**Both jobs — all stages of `ci` plus `realm-import` — must pass** for a PR to merge (see the PR
+policy in the Source Control Policy). This is the mandatory pre-merge gate.
+
+Note: the Vitest stage runs the **unit suite** (243 tests as of `v0.18.2`). Scenario regression
+(`npm run regression:*`, see [`Testing_Strategy.md`](Testing_Strategy.md)) needs the running Docker
+stack and is a local/Ops-Console capability, not a CI stage.
 
 ## Security Scanning (target — principle 7)
 

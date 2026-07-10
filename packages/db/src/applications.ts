@@ -1,5 +1,6 @@
 import type { ApplicationStatus, Prisma } from "@prisma/client";
 import { prisma } from "./client";
+import { assignWeekMissionToAcceptedApplicantTx } from "./mission-assignments";
 
 export type ApplicationAnswerInput = {
   questionKey: string;
@@ -218,6 +219,15 @@ export function applyStatusTransition({
       }
     });
 
-    return tx.application.findFirstOrThrow({ where: { id, tenantId } });
+    const application = await tx.application.findFirstOrThrow({ where: { id, tenantId } });
+    if (toStatus === "ACCEPTED") {
+      await assignWeekMissionToAcceptedApplicantTx(tx, {
+        tenantId,
+        programId: application.programId,
+        applicantId: application.applicantId
+      });
+    }
+
+    return application;
   });
 }

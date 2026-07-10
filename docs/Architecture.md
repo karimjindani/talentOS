@@ -1,23 +1,28 @@
 # TalentOS Architecture
 
-Code version: `v0.14.0`
+Code version: `v0.18.2`
 
-Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+Architecture baseline commit: `6ef1ef7`
 
-Current documentation update: `v0.14.0`
+Current documentation update: `v0.18.2`
 
 ## Overview
 
 TalentOS is a Dockerized, multi-tenant, white-label SaaS platform for talent discovery, mission-based learning and recruitment.
 
-The platform exposes two portals, and as of `v0.2.0` each portal is an isolated application running in its own container:
+The platform consists of three applications. The two portals are isolated containers as of
+`v0.2.0`; the Ops Console is a host-run local tool:
 
 - Public Applicant Portal (`apps/applicant`, container `talentos-applicant`) for landing pages, applications and applicant workflows.
 - Program Admin Portal (`apps/admin`, container `talentos-admin`) for organization admins, HR, tech leads and platform super admins.
+- Local Ops Console (`apps/ops`, **host-run, not containerized**): a standalone Node HTTP server on
+  `127.0.0.1:3300`, authenticated via Keycloak OIDC (clients `talentos-ops`/`talentos-ops-mfa`,
+  roles `SUPER_ADMIN`/`ORG_ADMIN`, optional TOTP), that runs regression, cleanup and stack-reset
+  jobs against the local stack. It is a development/operations tool, not a deployed product surface.
 
-The two modules share only the `packages/*` libraries (`auth`, `auth-web`, `db`, `ui`). They no longer share a process or attack surface, so they can be deployed, scaled and secured independently.
+The portal modules share only the `packages/*` libraries (`auth`, `auth-web`, `db`, `storage`, `ui`). They no longer share a process or attack surface, so they can be deployed, scaled and secured independently.
 
-`v0.2.0` realized this separation at the container level. As of `v0.3.0`, **Keycloak is the live IAM**: both portals authenticate via OIDC (Auth.js / NextAuth v5), and the Admin Portal enforces role-based access. Signup, password policy and authenticator-app 2FA are owned by Keycloak. The full Admin user/org/role management UI (Keycloak Admin REST API) follows in `v0.3.1`.
+`v0.2.0` realized this separation at the container level. As of `v0.3.0`, **Keycloak is the live IAM**: both portals authenticate via OIDC (Auth.js / NextAuth v5), and the Admin Portal enforces role-based access. Signup, password policy and authenticator-app 2FA are owned by Keycloak. Org creation auto-provisions the org admin in Keycloak as of `v0.11.0`; a full Admin user/org/role management UI remains future work (see Engineering To-Do).
 
 The architecture follows the SSDLC principle that every iteration updates architecture, data model, deployment and testing documentation.
 
@@ -31,14 +36,55 @@ for accepted applicants. The `PortalHeader` conditionally shows "Dashboard" inst
 pages: overview, program (4-week breakdown), tasks, resources (embedded videos), calendar, notifications,
 profile. Data is served by `packages/db/src/dashboard.ts` (11 query/helper functions).
 
+As of `v0.16.0` (D-069) the overview page's Overall Progress, Missions Accepted tile and per-week
+Program Progress bars are **mission-driven**: they derive from the applicant's assigned missions and
+ACCEPTED mission submissions (`getApplicantMissionProgress` in `packages/db/src/submissions.ts`), not task
+checkboxes — a **Current Mission** card links to the next mission with its submission-status chip,
+and weekly tasks remain a supplementary checklist. The dashboard's video resources, weekly tasks
+and calendar events are managed by admins from the Program Content page (`/programs/[id]/content`,
+`manageProgramContent` capability).
+
 ### Mission Engine MVP (`v0.14.0`)
 
 `v0.14.0` turns the placeholder `Mission` model into the first learning-engine capability. Admins manage
 missions through `/missions`, `/missions/new` and `/missions/[id]`; `SUPER_ADMIN` and `ORG_ADMIN` can
-create/edit/publish/archive while HR and Tech Lead are read-only. Accepted applicants see published
-missions for their accepted program at `/dashboard/missions` and `/dashboard/missions/[id]`. Mission
-content is structured as SEM-oriented text fields: brief, objective, deliverables, acceptance criteria,
-evaluation criteria and competency tags.
+create/edit/publish/archive while HR and Tech Lead are read-only. As of `v0.18.0`, accepted applicants
+see assigned published missions for their accepted program at `/dashboard/missions` and
+`/dashboard/missions/[id]`; published missions are the assignment pool rather than automatic applicant
+visibility. Mission content is structured as SEM-oriented text fields: brief, objective, deliverables,
+acceptance criteria, evaluation criteria and competency tags. Week 1 demo variants are sourced from
+Markdown seed specs and imported into those mission fields during seed.
+
+### Engineering Journal MVP (`v0.17.0`)
+
+`v0.17.0` adds the first dedicated daily-reflection module to the Applicant Portal, separate from the
+older inline `Submission.journalMarkdown` field used during mission submission review. Accepted
+applicants list, create and edit structured entries at `/dashboard/journal`, `/dashboard/journal/new`
+and `/dashboard/journal/[id]` (`JournalEntryForm.tsx`, `actions.ts`, `view-model.ts`); a Profile page
+setting (`LanguagePreferenceForm.tsx`) controls the applicant's preferred journal language
+(`User.preferredJournalLanguage`, default `"English"`). All journal data access goes through
+`packages/db/src/journal.ts` — tenant-scoped and applicant-owned, validated against the applicant's
+mission and program, and audited (`journal.created`/`journal.updated`). Saved entries render read-only
+by default and only change through an explicit Edit action; once a mission's assignment has been
+submitted, `isJournalMissionLockedForApplicant`/`assertJournalMissionNotLocked` lock that mission's
+journal entries against further edits. `v0.17.1` adds a database-level unique index on
+`[tenantId, applicantId, entryDate]` backing the one-entry-per-calendar-date rule that
+`createJournalEntry`/`updateJournalEntry` already enforced in application code
+(`JournalEntryDateConflictError`). AI-review/scoring fields on the entry are schema placeholders only
+— no AI review or scoring is active yet (see `docs/developer-notes/Engineering_Journal_Notes.md`).
+
+### Mission Assignment MVP (`v0.18.0`)
+
+`v0.18.0` changes applicant mission visibility from "every published mission in the accepted program"
+to "the missions explicitly assigned to this applicant." A new `MissionAssignment` row (tenant,
+program, applicant, mission, week; unique per tenant+program+applicant+week) is created idempotently
+when an application transitions to `ACCEPTED`, choosing one Week 1 published mission from the
+least-assigned variants with a random tie-break. Mission listing/detail, submission drafting and
+Engineering Journal mission selection are all scoped to the applicant's assignments
+(`packages/db/src/mission-assignments.ts`). Four Week 1 TaskPilot mission variants are authored as
+Markdown source under `packages/db/prisma/seed-data/missions/ai-native-engineering/week-1/` and
+imported into standard `Mission` fields by the seed script; the app never reads the Markdown file
+paths at runtime, only the imported database content.
 
 ## Container Topology
 
@@ -50,6 +96,7 @@ evaluation criteria and competency tags.
 | App database | `packages/db` | `talentos-postgres` | `55432`/`5432` (`POSTGRES_PORT`) | `5432` |
 | Keycloak database | — | `talentos-keycloak-postgres` | — (internal) | `5432` |
 | Object storage | `minio/minio` | `talentos-minio` | `9000`/`9001` (`S3_PORT`/`S3_CONSOLE_PORT`) | `9000`/`9001` |
+| Ops Console | `apps/ops` | — (host-run, not containerized) | `3300` (`OPS_PORT`, loopback only) | — |
 
 ## Technology Stack
 
@@ -74,6 +121,9 @@ flowchart LR
     AdminWeb -->|presigned URLs| MinIO["MinIO (object storage)"]
     AppWeb -->|"CV upload (server-action proxy)"| MinIO
     AppWeb --> AI["AI Service Boundary (Stub)"]
+    Operator["Operator Browser (local)"] --> Ops["apps/ops (host-run :3300)"]
+    Ops -->|OIDC| KC
+    Ops -->|"regression / cleanup / reset jobs"| DB
     DB --> Audit["Audit Logs"]
 ```
 
@@ -114,24 +164,37 @@ flowchart TD
       Login --> Apply["/apply (open funnel)"]
       Login --> Application["/application (tenant member)"]
       Application --> Dashboard["/dashboard (accepted)"]
+      Dashboard --> DashMissions["/dashboard/missions"]
+      DashMissions --> DashMission["/dashboard/missions/[id] (+ My Submission)"]
       Apply --> Application
       Application -. non-member .-> AccessDenied["/access-denied"]
       Dashboard -. non-member .-> AccessDenied
+      LoggedOutA["/logged-out (post-logout return)"]
     end
     Login -. OIDC .-> KC["Keycloak :8080"]
     subgraph AdminC["talentos-admin :3200 (RBAC-gated)"]
       AdminHome["/"] --> Applications["/applications"]
       Applications --> Detail["/applications/[id]"]
       AdminHome --> Programs["/programs"]
+      Programs --> ProgramDetail["/programs/[id]"]
+      ProgramDetail --> ProgramContent["/programs/[id]/content (ORG_ADMIN)"]
       AdminHome --> Missions["/missions"]
+      Missions --> MissionDetail["/missions/new, /missions/[id]"]
+      MissionDetail --> SubmissionReview["/missions/[id]/submissions/[submissionId] (review)"]
       AdminHome --> Operations["/operations"]
       AdminHome --> Settings["/settings"]
       AdminHome --> Organizations["/organizations (SUPER_ADMIN)"]
       AdminHome --> Forbidden["/forbidden"]
+      LoggedOutB["/logged-out (post-logout return)"]
     end
     AdminHome -. OIDC .-> KC
     AdminHome -. NEXT_PUBLIC_APPLICANT_URL .-> Landing
 ```
+
+As of `v0.14.3`, logout on both portals is centralized (`buildTenantLogoutUrl` in
+`packages/auth-web`): Keycloak RP-initiated logout returns through the canonical host's
+`/logged-out` route with the tenant origin carried in the OIDC `state` parameter, then bounces the
+user back to their tenant subdomain via the allow-listed `resolveTenantRedirect`.
 
 ## Portal Separation Direction
 
@@ -250,7 +313,8 @@ errors. The same pattern is used for browser-visible object storage URLs with `h
   route handlers (candidate-CV download, operations health). The Keycloak realm role now serves only as
   the coarse *portal-entry* gate (middleware). Defense-in-depth: `updateProgram`/`setProgramStatus`/
   `applyStatusTransition` write via `updateMany({ where: { id, tenantId } })` so a raw id cannot cross
-  tenants. Remaining `v0.3.1` work is Keycloak user/role *auto-provisioning*, not isolation.
+  tenants. (Keycloak org-admin auto-provisioning has since shipped in `v0.11.0`; the remaining
+  related work is the full Admin Users/Roles management UI — see the Engineering To-Do.)
 - **Per-tenant RBAC for the applicant portal (`v0.14.2`, D-065 — parity with D-051):** the applicant
   portal now applies the same binding. A mirror guard (`apps/applicant/lib/tenant-guard.ts` →
   `resolveTenantAccess`/`requireTenantAccess`, same `getActorTenantRoles` + `tenantRolesGrant`
@@ -323,9 +387,9 @@ TalentOS now has two regression layers:
 
 The Ops Console exposes the scenario suite as an area selector. Operators can run the full suite or one
 area at a time: `auth`, `applicant`, `admin`, `programs`, `tenant`, `dashboard`, `storage`, `ops`, or
-`unit`. As of `v0.14.0`, `missions` is also an area. Each run emits a machine-readable `REGRESSION_RESULT_JSON` payload containing total, passed,
-failed, skipped and duration counts; the Ops job runner parses that payload and renders the summary and
-raw logs.
+`unit`. As of `v0.14.0`, `missions` is also an area; as of `v0.18.2`, `journal` is too. Each run emits
+a machine-readable `REGRESSION_RESULT_JSON` payload containing total, passed, failed, skipped and
+duration counts; the Ops job runner parses that payload and renders the summary and raw logs.
 
 Scenario-generated records must be tagged through `RegressionDataMarker` before cleanup is allowed.
 The cleanup path deletes only marker-tagged records in dependency order and must not touch seeded demo
@@ -377,12 +441,30 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
      applicant apply form.
    - Next: cohorts and public per-program application entry points.
 
-5. Missions â€” delivered in `v0.14.0`
-   - Done: admin create/edit/publish/archive missions, accepted applicants view published missions in
-     their dashboard, and demo seed includes the Week 1 "Build a Public Product Landing Page" SEM mission.
-   - Next: mission submissions and reviewer workflow.
+5. Missions — mission engine delivered in `v0.14.0`, submissions in `v0.15.0`, full seed in `v0.15.1`
+   - Done: admin create/edit/publish/archive missions; accepted applicants view published missions in
+     their dashboard; mission submission + staff review loop (`v0.15.0`, D-067:
+     `DRAFT→SUBMITTED→ACCEPTED|NEEDS_REVISION`, evidence = GitHub/deployment/Loom URLs + inline
+     engineering journal, `reviewSubmissions` capability); demo seed provides the complete four-week
+     TaskPilot SEM mission arc (`v0.15.1`, D-068).
+   - Mission-driven dashboard progress (v0.16.0, D-069): the applicant dashboard's Overall
+     Progress, Missions Accepted tile and per-week bars derive from ACCEPTED submissions
+     (getApplicantMissionProgress), with a Current Mission card linking to the next mission.
+   - Mission assignment MVP (v0.18.0): accepted applicants receive assigned published missions instead
+     of seeing the whole published mission pool. Week 1 seed variants are authored in Markdown and
+     imported into mission fields for future AI-review context.
+   - Next: competency rollup / portfolio view over accepted submissions.
 
-6. AI Mentor — delivered in `v0.15.0`
+6. Engineering Journal — delivered in `v0.17.0`, date-uniqueness hardened in `v0.17.1`
+   - Done: dedicated daily structured-reflection module (`EngineeringJournalEntry`) at
+     `/dashboard/journal`, separate from the older inline `Submission.journalMarkdown` field;
+     tenant-scoped, applicant-owned, audited (`journal.created`/`journal.updated`); one entry per
+     applicant per calendar date enforced at the database layer (`v0.17.1`, D-074); entries lock once
+     their mission's assignment is submitted (`v0.18.0`).
+   - Next: real AI review/scoring (current fields are schema placeholders only), recruiter/admin
+     visibility, export/weekly-summary features.
+
+7. AI Mentor — delivered in `v0.15.0`
    - Done: full conversational AI mentor at `/dashboard/mentor` for accepted applicants. The chat UI
      (`apps/applicant/app/dashboard/mentor/page.tsx`) supports multi-conversation management with
      per-conversation loading state, auto-scroll, suggested questions, and a "Still working..." timer.
@@ -409,22 +491,22 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
    - Next: LiteLLM proxy integration, streaming responses, multi-turn context windowing,
     edge/Redis-backed cache for multi-instance deployments.
 
-7. Knowledge Base
+8. Knowledge Base
    - The initial knowledge base is implemented as keyword-based retrieval from platform documentation
      (`apps/applicant/lib/knowledge-base.ts`). Future: tenant-owned knowledge documents for AI
      assistance and program support via a `KnowledgeBaseDocument` model.
 
-8. GitHub Integration
+9. GitHub Integration
    - Connect participant repositories and collect project evidence.
 
-9. Portfolio
-   - Generate participant-facing public portfolio artifacts.
+10. Portfolio
+    - Generate participant-facing public portfolio artifacts.
 
-10. Certificates
+11. Certificates
     - Support tenant-branded certificate creation and issuance.
 
-11. Leaderboard
+12. Leaderboard
     - Add transparent progress and achievement visibility.
 
-12. Hiring Recommendations
+13. Hiring Recommendations
     - Produce admin-facing candidate readiness and hiring signals.
