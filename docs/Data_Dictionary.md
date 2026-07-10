@@ -4,6 +4,10 @@ Code version: `v0.18.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.0` commit set on merge
 
+> Assignment-linked journal attempts add assignment attempt/status fields, assignment foreign keys on
+> submissions and journal entries, persisted journal lock timestamps, and the terminal `REPEAT`
+> submission outcome. Migration: `20260710170000_assignment_linked_journal_attempts`.
+
 > `v0.18.0` (Mission Assignment MVP) adds `mission_assignments`, a tenant-scoped table connecting
 > accepted applicants to assigned published missions by program and week. Accepted applicants now see
 > assigned missions only. Week 1 assignment variants are authored as Markdown seed files and imported
@@ -192,7 +196,9 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 | `programId` | Program context for the assignment. |
 | `applicantId` | Applicant/user receiving the mission. |
 | `missionId` | Published mission assigned to the applicant. |
-| `weekNumber` | Program week for the assignment. One assignment is allowed per tenant + program + applicant + week. |
+| `weekNumber` | Program week for the assignment. |
+| `attemptNumber` | Attempt sequence within the applicant's program week, starting at 1. |
+| `status` | `ACTIVE`, `SUBMITTED`, `PASSED` or `REPEAT`. |
 | `assignedAt` | Timestamp for when the assignment was made. |
 | `createdAt` | Row creation timestamp. |
 | `updatedAt` | Row update timestamp. |
@@ -202,9 +208,10 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 | Field | Purpose |
 | --- | --- |
 | `tenantId` | Owning tenant (direct scoping, consistent with other tenant-owned tables). |
-| `missionId` | Mission the evidence is for; unique together with `applicantId` (one row per applicant per mission; the revision loop reuses it). |
+| `missionId` | Mission the evidence is for. |
+| `missionAssignmentId` | Nullable legacy-safe link to the exact assignment attempt; unique when present. |
 | `applicantId` | Participant who owns the submission. |
-| `status` | `DRAFT`, `SUBMITTED`, `NEEDS_REVISION` or `ACCEPTED` (terminal; `REVIEWED` reserved/unused). |
+| `status` | `DRAFT`, `SUBMITTED`, `NEEDS_REVISION`, `ACCEPTED` or `REPEAT` (`REVIEWED` reserved/unused). |
 | `repositoryUrl` | Git repository evidence link (host-allowlisted to github.com); PRD/README/user stories live in the repo. |
 | `deploymentUrl` | Deployed-application evidence link (any http/https). |
 | `loomUrl` | Loom walkthrough evidence link (host-allowlisted to loom.com). |
@@ -222,6 +229,7 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 | `applicantId` | Applicant/user who wrote the entry. |
 | `programId` | Accepted program context for the entry. |
 | `missionId` | Published mission the entry is linked to. |
+| `missionAssignmentId` | Nullable legacy-safe link to the exact assignment attempt. New entries always set it. |
 | `weekNumber` | Mission week number, derived from the selected mission instead of user input. |
 | `entryDate` | Day the applicant is reflecting on. Stored as a normalized calendar date; one entry is allowed per applicant/date within a tenant. |
 | `language` | Language used for this entry, defaulting from the user's preferred journal language. |
@@ -242,6 +250,7 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 | `aiReviewFeedback` | Nullable future AI mentor/reviewer feedback. |
 | `aiReviewedAt` | Nullable timestamp for future AI review. |
 | `aiReviewMetadata` | Nullable metadata for future AI review implementation details. |
+| `lockedAt` | Timestamp set when the linked assignment attempt is submitted; locked entries are read-only. |
 
 ## AuditLog
 
@@ -276,7 +285,7 @@ Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.
 | --- | --- |
 | `id` | Unique marker ID. |
 | `runId` | Regression run identifier. |
-| `entityType` | Marked entity type, such as `Application`, `ApplicationAnswer`, `Mission`, `Program`, `User`, `TenantMembership` or `StoredFile`. |
+| `entityType` | Marked entity type, such as `Application`, `EngineeringJournalEntry`, `MissionAssignment`, `Submission`, `Mission`, `Program`, `Tenant`, `User`, `TenantMembership` or `StoredFile`. |
 | `entityId` | ID of the marked entity. |
 | `createdAt` | Marker creation timestamp. |
 

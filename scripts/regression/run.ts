@@ -6,6 +6,7 @@ import {
   applyStatusTransition,
   cleanupRegressionData,
   createCalendarEvent,
+  createJournalEntry,
   createMission,
   createProgram,
   createProgramTask,
@@ -18,9 +19,11 @@ import {
   getApplicantProgramProgress,
   getApplicantSubmission,
   getTenantBySlug,
+  getTenantSubmission,
   getTenantProgram,
   listApplicantApplications,
   listCompletedTaskIds,
+  listEngineeringJournalEntriesForSubmissionReview,
   listPublishedProgramMissions,
   listPublishedPrograms,
   markNotificationRead,
@@ -32,6 +35,7 @@ import {
   setMissionStatus,
   setProgramStatus,
   submitSubmission,
+  updateJournalEntry,
   updateVideoResource
 } from "@talentos/db";
 import { tenantRolesGrant, type RegressionArea, type RegressionSummary } from "@talentos/auth";
@@ -152,6 +156,42 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    area: "applicant",
+    name: "Submitted assignment journals are read-only and remain preserved",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const journal = await createTrackedJournalEntry(
+        ctx.runId,
+        regressionJournalInput(fixture, new Date("2026-07-07T00:00:00.000Z"), "Applicant locked journal")
+      );
+      const draft = await saveSubmissionDraft({
+        tenantId: fixture.tenant.id,
+        missionId: fixture.mission.id,
+        applicantId: fixture.user.id,
+        repositoryUrl: "https://github.com/regression/applicant-journal-lock",
+        deploymentUrl: null,
+        loomUrl: null
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
+      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+
+      try {
+        await updateJournalEntry({
+          id: journal.id,
+          ...regressionJournalInput(fixture, journal.entryDate, "Applicant attempted edit")
+        });
+        throw new Error("Applicant could edit a journal linked to a submitted assignment.");
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("submitted for review")) throw error;
+      }
+
+      const preservedJournal = await prisma.engineeringJournalEntry.findUnique({ where: { id: journal.id } });
+      if (!preservedJournal?.lockedAt) {
+        throw new Error("Submitted assignment journal was not locked and preserved.");
+      }
+    }
+  },
+  {
     area: "admin",
     name: "Admin review lifecycle changes application status and writes audit",
     run: async (ctx) => {
@@ -175,6 +215,57 @@ const scenarios: Scenario[] = [
         where: { tenantId: fixture.tenant.id, entityType: "Application", entityId: application.id, action: "application.status_changed" }
       });
       if (!audit) throw new Error("Application status change audit log was not written.");
+    }
+  },
+  {
+    area: "admin",
+    name: "Reviewer loads assignment-linked journals and completes submission review",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const journal = await createTrackedJournalEntry(
+        ctx.runId,
+        regressionJournalInput(fixture, new Date("2026-07-08T00:00:00.000Z"), "Admin review journal")
+      );
+      const draft = await saveSubmissionDraft({
+        tenantId: fixture.tenant.id,
+        missionId: fixture.mission.id,
+        applicantId: fixture.user.id,
+        repositoryUrl: "https://github.com/regression/admin-journal-review",
+        deploymentUrl: null,
+        loomUrl: null,
+        journalMarkdown: "Legacy submission journal remains visible."
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
+      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+
+      const submission = await getTenantSubmission(draft.id, fixture.tenant.id);
+      if (!submission || submission.journalMarkdown !== "Legacy submission journal remains visible.") {
+        throw new Error("Admin review did not load the submission journal context.");
+      }
+      if (!submission.missionAssignmentId) {
+        throw new Error("Admin review submission was not linked to an assignment attempt.");
+      }
+
+      const journals = await listEngineeringJournalEntriesForSubmissionReview({
+        tenantId: submission.tenantId,
+        applicantId: submission.applicantId,
+        missionId: submission.missionId,
+        missionAssignmentId: submission.missionAssignmentId
+      });
+      if (journals.length !== 1 || journals[0]?.id !== journal.id) {
+        throw new Error("Admin review did not load the linked Engineering Journal entry.");
+      }
+
+      const reviewed = await reviewSubmission({
+        id: submission.id,
+        tenantId: submission.tenantId,
+        status: "ACCEPTED",
+        reviewerFeedback: "Reviewed with linked Engineering Journal context.",
+        reviewerUserId: fixture.actor.id
+      });
+      if (reviewed.status !== "ACCEPTED") {
+        throw new Error("Reviewer could not complete the existing submission review action.");
+      }
     }
   },
   {
@@ -314,6 +405,385 @@ const scenarios: Scenario[] = [
   },
   {
     area: "missions",
+    name: "Assignment-linked journals lock selectively and load safely for admin review",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const assignmentJournal = await createTrackedJournalEntry(
+        ctx.runId,
+        regressionJournalInput(fixture, new Date("2026-07-01T00:00:00.000Z"), "Attempt 1 journal")
+      );
+      if (assignmentJournal.missionAssignmentId !== fixture.assignment.id) {
+        throw new Error("Journal entry was not linked to the active assignment.");
+      }
+
+      const weekTwoMission = await createMission({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Regression Week 2 Mission ${ctx.runId}`,
+        difficulty: "INTERMEDIATE",
+        status: "PUBLISHED",
+        weekNumber: 2,
+        order: 0,
+        brief: "Regression Week 2 mission",
+        objective: "Prove assignment-specific journal locking",
+        acceptanceCriteria: "- Assignment-scoped lock",
+        deliverables: "- Journal",
+        evaluationCriteria: "Journal remains editable until its own assignment is submitted",
+        competencyTags: ["Engineering Reflection"],
+        actorUserId: fixture.actor.id
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Mission", entityId: weekTwoMission.id });
+      const weekTwoAssignment = await prisma.missionAssignment.create({
+        data: {
+          tenantId: fixture.tenant.id,
+          programId: fixture.program.id,
+          applicantId: fixture.user.id,
+          missionId: weekTwoMission.id,
+          weekNumber: 2,
+          attemptNumber: 1,
+          status: "ACTIVE"
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: weekTwoAssignment.id });
+      const otherAssignmentJournal = await createTrackedJournalEntry(ctx.runId, {
+        ...regressionJournalInput(fixture, new Date("2026-07-02T00:00:00.000Z"), "Week 2 journal"),
+        missionId: weekTwoMission.id
+      });
+
+      const draft = await saveSubmissionDraft({
+        tenantId: fixture.tenant.id,
+        missionId: fixture.mission.id,
+        applicantId: fixture.user.id,
+        repositoryUrl: "https://github.com/regression/assignment-journal",
+        deploymentUrl: null,
+        loomUrl: null
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
+      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+
+      const [lockedJournal, unlockedJournal] = await Promise.all([
+        prisma.engineeringJournalEntry.findUnique({ where: { id: assignmentJournal.id } }),
+        prisma.engineeringJournalEntry.findUnique({ where: { id: otherAssignmentJournal.id } })
+      ]);
+      if (!lockedJournal?.lockedAt) throw new Error("Submitted assignment journal was not locked.");
+      if (unlockedJournal?.lockedAt) throw new Error("Submitting one assignment locked another assignment's journal.");
+
+      try {
+        await updateJournalEntry({
+          id: assignmentJournal.id,
+          ...regressionJournalInput(fixture, assignmentJournal.entryDate, "Tampered locked journal")
+        });
+        throw new Error("Locked journal entry was editable.");
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("submitted for review")) throw error;
+      }
+      if (!(await prisma.engineeringJournalEntry.findUnique({ where: { id: assignmentJournal.id } }))) {
+        throw new Error("Locked journal entry was deleted; no journal delete flow should exist.");
+      }
+
+      const attemptTwo = await prisma.missionAssignment.create({
+        data: {
+          tenantId: fixture.tenant.id,
+          programId: fixture.program.id,
+          applicantId: fixture.user.id,
+          missionId: fixture.mission.id,
+          weekNumber: fixture.mission.weekNumber,
+          attemptNumber: 2,
+          status: "ACTIVE"
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: attemptTwo.id });
+      const otherAttemptJournal = await createTrackedJournalEntry(
+        ctx.runId,
+        regressionJournalInput(fixture, new Date("2026-07-03T00:00:00.000Z"), "Attempt 2 journal")
+      );
+      if (otherAttemptJournal.missionAssignmentId !== attemptTwo.id) {
+        throw new Error("New journal entry did not use the latest active assignment attempt.");
+      }
+
+      const otherApplicant = await prisma.user.create({
+        data: { email: `journal-isolation+${ctx.runId}@regression.talentos.local`, name: "Journal Isolation" }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "User", entityId: otherApplicant.id });
+      const otherApplicantAssignment = await prisma.missionAssignment.create({
+        data: {
+          tenantId: fixture.tenant.id,
+          programId: fixture.program.id,
+          applicantId: otherApplicant.id,
+          missionId: fixture.mission.id,
+          weekNumber: 1,
+          attemptNumber: 1,
+          status: "ACTIVE"
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: otherApplicantAssignment.id });
+      const otherApplicantJournal = await prisma.engineeringJournalEntry.create({
+        data: {
+          tenantId: fixture.tenant.id,
+          applicantId: otherApplicant.id,
+          programId: fixture.program.id,
+          missionId: fixture.mission.id,
+          missionAssignmentId: otherApplicantAssignment.id,
+          weekNumber: 1,
+          entryDate: new Date("2026-07-01T00:00:00.000Z"),
+          language: "English",
+          workedOn: "Another applicant's work",
+          challenge: "Isolation",
+          solution: "Scope by applicant",
+          learned: "Ownership matters",
+          aiUsage: "None",
+          confidenceRating: 4,
+          timeSpentHours: 1
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "EngineeringJournalEntry", entityId: otherApplicantJournal.id });
+
+      const otherTenant = await prisma.tenant.create({
+        data: { name: "Regression Journal Isolation", slug: `journal-isolation-${randomUUID().slice(0, 8)}` }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Tenant", entityId: otherTenant.id });
+      const otherTenantProgram = await prisma.program.create({
+        data: {
+          tenantId: otherTenant.id,
+          name: "Regression Isolation Program",
+          slug: "regression-isolation",
+          description: "Cross-tenant journal isolation",
+          status: "PUBLISHED"
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Program", entityId: otherTenantProgram.id });
+      const otherTenantMission = await prisma.mission.create({
+        data: {
+          tenantId: otherTenant.id,
+          programId: otherTenantProgram.id,
+          title: "Cross-tenant mission",
+          difficulty: "BEGINNER",
+          status: "PUBLISHED",
+          weekNumber: 1,
+          brief: "Isolation",
+          objective: "Isolation",
+          acceptanceCriteria: "Isolation",
+          deliverables: "Isolation",
+          evaluationCriteria: "Isolation"
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Mission", entityId: otherTenantMission.id });
+      const otherTenantAssignment = await prisma.missionAssignment.create({
+        data: {
+          tenantId: otherTenant.id,
+          programId: otherTenantProgram.id,
+          applicantId: fixture.user.id,
+          missionId: otherTenantMission.id,
+          weekNumber: 1,
+          attemptNumber: 1,
+          status: "ACTIVE"
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: otherTenantAssignment.id });
+      const otherTenantJournal = await prisma.engineeringJournalEntry.create({
+        data: {
+          tenantId: otherTenant.id,
+          applicantId: fixture.user.id,
+          programId: otherTenantProgram.id,
+          missionId: otherTenantMission.id,
+          missionAssignmentId: otherTenantAssignment.id,
+          weekNumber: 1,
+          entryDate: new Date("2026-07-01T00:00:00.000Z"),
+          language: "English",
+          workedOn: "Other tenant work",
+          challenge: "Isolation",
+          solution: "Scope by tenant",
+          learned: "Tenant boundaries matter",
+          aiUsage: "None",
+          confidenceRating: 4,
+          timeSpentHours: 1
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "EngineeringJournalEntry", entityId: otherTenantJournal.id });
+
+      const adminSubmission = await getTenantSubmission(draft.id, fixture.tenant.id);
+      if (!adminSubmission || adminSubmission.missionAssignmentId !== fixture.assignment.id) {
+        throw new Error("Admin review could not load the assignment-linked submission.");
+      }
+      const reviewJournals = await listEngineeringJournalEntriesForSubmissionReview({
+        tenantId: adminSubmission.tenantId,
+        applicantId: adminSubmission.applicantId,
+        missionId: adminSubmission.missionId,
+        missionAssignmentId: adminSubmission.missionAssignmentId
+      });
+      if (reviewJournals.length !== 1 || reviewJournals[0]?.id !== assignmentJournal.id) {
+        throw new Error("Admin review mixed journals from another tenant, applicant, mission, or assignment attempt.");
+      }
+    }
+  },
+  {
+    area: "missions",
+    name: "Repeat-week attempts preserve journal history without duplicate or infinite loops",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const attemptOneJournal = await createTrackedJournalEntry(
+        ctx.runId,
+        regressionJournalInput(fixture, new Date("2026-07-04T00:00:00.000Z"), "Attempt 1 reflection")
+      );
+      const attemptOneSubmission = await saveSubmissionDraft({
+        tenantId: fixture.tenant.id,
+        missionId: fixture.mission.id,
+        applicantId: fixture.user.id,
+        repositoryUrl: "https://github.com/regression/repeat-attempt-1",
+        deploymentUrl: null,
+        loomUrl: null
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: attemptOneSubmission.id });
+      await submitSubmission({ id: attemptOneSubmission.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      await reviewSubmission({
+        id: attemptOneSubmission.id,
+        tenantId: fixture.tenant.id,
+        status: "REPEAT",
+        reviewerFeedback: "Repeat Week 1 with a fresh attempt.",
+        reviewerUserId: fixture.actor.id
+      });
+
+      const attempts = await prisma.missionAssignment.findMany({
+        where: {
+          tenantId: fixture.tenant.id,
+          programId: fixture.program.id,
+          applicantId: fixture.user.id,
+          weekNumber: 1
+        },
+        orderBy: { attemptNumber: "asc" }
+      });
+      if (attempts.length !== 2 || attempts[0]?.status !== "REPEAT" || attempts[1]?.status !== "ACTIVE") {
+        throw new Error("Repeat review did not close Attempt 1 and create exactly one active Attempt 2.");
+      }
+      const attemptTwo = attempts[1];
+      if (!attemptTwo) throw new Error("Repeat review did not create Attempt 2.");
+      await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: attemptTwo.id });
+
+      const attemptTwoJournal = await createTrackedJournalEntry(
+        ctx.runId,
+        regressionJournalInput(fixture, new Date("2026-07-05T00:00:00.000Z"), "Attempt 2 reflection")
+      );
+      if (attemptTwoJournal.missionAssignmentId !== attemptTwo.id) {
+        throw new Error("Attempt 2 journal was mixed into Attempt 1.");
+      }
+      const attemptTwoSubmission = await saveSubmissionDraft({
+        tenantId: fixture.tenant.id,
+        missionId: fixture.mission.id,
+        applicantId: fixture.user.id,
+        repositoryUrl: "https://github.com/regression/repeat-attempt-2",
+        deploymentUrl: null,
+        loomUrl: null
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: attemptTwoSubmission.id });
+      if (attemptTwoSubmission.id === attemptOneSubmission.id || attemptTwoSubmission.missionAssignmentId !== attemptTwo.id) {
+        throw new Error("Repeat attempt overwrote the previous submission.");
+      }
+
+      const [attemptOneReviewJournals, attemptTwoReviewJournals] = await Promise.all([
+        listEngineeringJournalEntriesForSubmissionReview({
+          tenantId: fixture.tenant.id,
+          applicantId: fixture.user.id,
+          missionId: fixture.mission.id,
+          missionAssignmentId: fixture.assignment.id
+        }),
+        listEngineeringJournalEntriesForSubmissionReview({
+          tenantId: fixture.tenant.id,
+          applicantId: fixture.user.id,
+          missionId: fixture.mission.id,
+          missionAssignmentId: attemptTwo.id
+        })
+      ]);
+      if (
+        attemptOneReviewJournals.map((entry) => entry.id).join(",") !== attemptOneJournal.id ||
+        attemptTwoReviewJournals.map((entry) => entry.id).join(",") !== attemptTwoJournal.id
+      ) {
+        throw new Error("Repeat attempts mixed old and new Engineering Journal entries.");
+      }
+
+      await submitSubmission({ id: attemptTwoSubmission.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      try {
+        await reviewSubmission({
+          id: attemptOneSubmission.id,
+          tenantId: fixture.tenant.id,
+          status: "REPEAT",
+          reviewerFeedback: "Duplicate repeat should fail.",
+          reviewerUserId: fixture.actor.id
+        });
+        throw new Error("A repeated review created another assignment attempt.");
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("Invalid submission status transition")) throw error;
+      }
+      const attemptCountAfterDuplicateReview = await prisma.missionAssignment.count({
+        where: {
+          tenantId: fixture.tenant.id,
+          programId: fixture.program.id,
+          applicantId: fixture.user.id,
+          weekNumber: 1
+        }
+      });
+      if (attemptCountAfterDuplicateReview !== 2) {
+        throw new Error("Repeat review entered an assignment creation loop.");
+      }
+
+      await reviewSubmission({
+        id: attemptTwoSubmission.id,
+        tenantId: fixture.tenant.id,
+        status: "NEEDS_REVISION",
+        reviewerFeedback: "Add one more reflection before resubmitting.",
+        reviewerUserId: fixture.actor.id
+      });
+      const followUpJournal = await createTrackedJournalEntry(
+        ctx.runId,
+        regressionJournalInput(fixture, new Date("2026-07-06T00:00:00.000Z"), "Attempt 2 follow-up")
+      );
+      await saveSubmissionDraft({
+        tenantId: fixture.tenant.id,
+        missionId: fixture.mission.id,
+        applicantId: fixture.user.id,
+        repositoryUrl: "https://github.com/regression/repeat-attempt-2-revised",
+        deploymentUrl: null,
+        loomUrl: null
+      });
+      await submitSubmission({ id: attemptTwoSubmission.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      await reviewSubmission({
+        id: attemptTwoSubmission.id,
+        tenantId: fixture.tenant.id,
+        status: "ACCEPTED",
+        reviewerFeedback: "Attempt 2 passed.",
+        reviewerUserId: fixture.actor.id
+      });
+
+      const journalsAfterResubmission = await prisma.engineeringJournalEntry.findMany({
+        where: { tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionId: fixture.mission.id },
+        orderBy: { entryDate: "asc" }
+      });
+      if (journalsAfterResubmission.length !== 3 || journalsAfterResubmission.some((entry) => !entry.lockedAt)) {
+        throw new Error("Resubmission duplicated journal rows or left submitted rows unlocked.");
+      }
+      if (!journalsAfterResubmission.some((entry) => entry.id === followUpJournal.id)) {
+        throw new Error("Follow-up journal was not preserved on the same repeat attempt.");
+      }
+
+      try {
+        await reviewSubmission({
+          id: attemptTwoSubmission.id,
+          tenantId: fixture.tenant.id,
+          status: "ACCEPTED",
+          reviewerFeedback: "Duplicate acceptance should fail.",
+          reviewerUserId: fixture.actor.id
+        });
+        throw new Error("Accepted attempt was reviewable twice.");
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("Invalid submission status transition")) throw error;
+      }
+      const finalJournalCount = await prisma.engineeringJournalEntry.count({
+        where: { tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionId: fixture.mission.id }
+      });
+      if (finalJournalCount !== 3) throw new Error("Re-review duplicated locked Engineering Journal entries.");
+    }
+  },
+  {
+    area: "missions",
     name: "Only Org Admin and Tech Lead can review submissions",
     run: async () => {
       if (!tenantRolesGrant("reviewSubmissions", ["ORG_ADMIN"])) throw new Error("ORG_ADMIN did not grant reviewSubmissions.");
@@ -341,6 +811,59 @@ const scenarios: Scenario[] = [
       if (!otherTenant) return skip("Only one tenant exists locally; cross-tenant read scenario needs two tenants.");
       const crossTenantRead = await getApplicantSubmission(fixture.mission.id, fixture.user.id, otherTenant.id);
       if (crossTenantRead) throw new Error("Submission was readable through a different tenant id.");
+    }
+  },
+  {
+    area: "tenant",
+    name: "Engineering Journal review lookup remains tenant-scoped",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const journal = await createTrackedJournalEntry(
+        ctx.runId,
+        regressionJournalInput(fixture, new Date("2026-07-09T00:00:00.000Z"), "Tenant-scoped journal")
+      );
+      const otherTenant = await prisma.tenant.create({
+        data: {
+          name: "Regression Journal Boundary",
+          slug: `journal-boundary-${randomUUID().slice(0, 8)}`
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Tenant", entityId: otherTenant.id });
+
+      const crossTenantJournal = await prisma.engineeringJournalEntry.create({
+        data: {
+          tenantId: otherTenant.id,
+          applicantId: fixture.user.id,
+          programId: fixture.program.id,
+          missionId: fixture.mission.id,
+          missionAssignmentId: fixture.assignment.id,
+          weekNumber: fixture.mission.weekNumber,
+          entryDate: new Date("2026-07-09T00:00:00.000Z"),
+          language: "English",
+          workedOn: "Cross-tenant contaminant",
+          challenge: "Tenant isolation",
+          solution: "Always filter journal review queries by tenant ID",
+          learned: "Tenant scope is required even when other IDs match",
+          aiUsage: "None",
+          confidenceRating: 4,
+          timeSpentHours: 1
+        }
+      });
+      await markRegressionData({
+        runId: ctx.runId,
+        entityType: "EngineeringJournalEntry",
+        entityId: crossTenantJournal.id
+      });
+
+      const journals = await listEngineeringJournalEntriesForSubmissionReview({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        missionId: fixture.mission.id,
+        missionAssignmentId: fixture.assignment.id
+      });
+      if (journals.length !== 1 || journals[0]?.id !== journal.id) {
+        throw new Error("Journal review query returned an entry from another tenant.");
+      }
     }
   },
   {
@@ -657,7 +1180,38 @@ async function createSubmissionFixture(runId: string) {
     throw new Error("Submission fixture did not create a mission assignment.");
   }
   await markRegressionData({ runId, entityType: "MissionAssignment", entityId: assignment.id });
-  return { ...fixture, mission };
+  return { ...fixture, mission, assignment };
+}
+
+async function createTrackedJournalEntry(
+  runId: string,
+  input: Parameters<typeof createJournalEntry>[0]
+) {
+  const entry = await createJournalEntry(input);
+  await markRegressionData({ runId, entityType: "EngineeringJournalEntry", entityId: entry.id });
+  return entry;
+}
+
+function regressionJournalInput(
+  fixture: Awaited<ReturnType<typeof createSubmissionFixture>>,
+  entryDate: Date,
+  label: string
+) {
+  return {
+    tenantId: fixture.tenant.id,
+    applicantId: fixture.user.id,
+    missionId: fixture.mission.id,
+    entryDate,
+    language: "English",
+    workedOn: label,
+    challenge: "Keep assignment attempts isolated.",
+    solution: "Link each journal entry to its active assignment ID.",
+    learned: "Assignment IDs preserve review history across repeat weeks.",
+    aiUsage: "Used AI to review regression assertions.",
+    confidenceRating: 4,
+    timeSpentHours: 1,
+    evidenceLinks: []
+  };
 }
 
 async function createProgramFixture(runId: string, status: "DRAFT" | "PUBLISHED" | "ARCHIVED") {

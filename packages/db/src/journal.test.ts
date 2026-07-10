@@ -3,10 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const prismaMock = vi.hoisted(() => ({
   entryFindMany: vi.fn(),
   entryFindFirst: vi.fn(),
+  missionAssignmentFindFirst: vi.fn(),
   submissionFindFirst: vi.fn(),
   userUpdate: vi.fn(),
   transaction: vi.fn(),
   txMissionFindFirst: vi.fn(),
+  txMissionAssignmentFindFirst: vi.fn(),
   txApplicationFindFirst: vi.fn(),
   txSubmissionFindFirst: vi.fn(),
   txEntryFindFirst: vi.fn(),
@@ -26,6 +28,9 @@ vi.mock("./client", () => ({
     submission: {
       findFirst: prismaMock.submissionFindFirst
     },
+    missionAssignment: {
+      findFirst: prismaMock.missionAssignmentFindFirst
+    },
     user: {
       update: prismaMock.userUpdate
     },
@@ -40,6 +45,7 @@ import {
   getJournalCreateAvailabilityFromLatest,
   JournalEntryDateConflictError,
   listApplicantJournalEntries,
+  listEngineeringJournalEntriesForSubmissionReview,
   parseJournalEvidenceLinks,
   updateJournalEntry,
   updatePreferredJournalLanguage,
@@ -58,6 +64,7 @@ describe("engineering journal data access", () => {
     prismaMock.transaction.mockImplementation(async (callback) =>
       callback({
         mission: { findFirst: prismaMock.txMissionFindFirst },
+        missionAssignment: { findFirst: prismaMock.txMissionAssignmentFindFirst },
         application: { findFirst: prismaMock.txApplicationFindFirst },
         submission: { findFirst: prismaMock.txSubmissionFindFirst },
         engineeringJournalEntry: {
@@ -70,12 +77,29 @@ describe("engineering journal data access", () => {
         $queryRaw: prismaMock.txQueryRaw
       })
     );
-    prismaMock.txMissionFindFirst.mockResolvedValue({ id: "mission-1", programId: "program-1", weekNumber: 2 });
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({
+      id: "assignment-1",
+      tenantId: "tenant-1",
+      programId: "program-1",
+      applicantId: "user-1",
+      missionId: "mission-1",
+      weekNumber: 2,
+      attemptNumber: 1,
+      status: "ACTIVE",
+      mission: { id: "mission-1", programId: "program-1", weekNumber: 2 }
+    });
     prismaMock.txApplicationFindFirst.mockResolvedValue({ id: "app-1" });
     prismaMock.txSubmissionFindFirst.mockResolvedValue(null);
     prismaMock.txEntryCreate.mockResolvedValue({ id: "journal-1" });
     prismaMock.txEntryFindFirst.mockImplementation(async ({ where }) =>
-      where?.id === "journal-1" ? { id: "journal-1", missionId: "mission-1" } : null
+      where?.id === "journal-1"
+        ? {
+            id: "journal-1",
+            missionId: "mission-1",
+            missionAssignmentId: "assignment-1",
+            lockedAt: null
+          }
+        : null
     );
     prismaMock.txEntryUpdateMany.mockResolvedValue({ count: 1 });
     prismaMock.txEntryFindFirstOrThrow.mockResolvedValue({ id: "journal-1" });
@@ -90,6 +114,99 @@ describe("engineering journal data access", () => {
       where: { tenantId: "tenant-1", applicantId: "user-1", programId: "program-1" },
       include: { mission: { select: { id: true, title: true, weekNumber: true } } },
       orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }]
+    });
+  });
+
+  it("tenant-scopes journal entries used for submission review", async () => {
+    await listEngineeringJournalEntriesForSubmissionReview({
+      tenantId: "tenant-1",
+      applicantId: "user-1",
+      missionId: "mission-1",
+      missionAssignmentId: "assignment-1"
+    });
+
+    expect(prismaMock.entryFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tenantId: "tenant-1",
+          applicantId: "user-1",
+          missionId: "mission-1",
+          missionAssignmentId: "assignment-1"
+        }
+      })
+    );
+  });
+
+  it("does not query another applicant's entries for submission review", async () => {
+    await listEngineeringJournalEntriesForSubmissionReview({
+      tenantId: "tenant-1",
+      applicantId: "applicant-under-review",
+      missionId: "mission-1",
+      missionAssignmentId: "assignment-1"
+    });
+
+    expect(prismaMock.entryFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tenantId: "tenant-1",
+          applicantId: "applicant-under-review",
+          missionId: "mission-1",
+          missionAssignmentId: "assignment-1"
+        }
+      })
+    );
+  });
+
+  it("does not query another mission's entries for submission review", async () => {
+    await listEngineeringJournalEntriesForSubmissionReview({
+      tenantId: "tenant-1",
+      applicantId: "user-1",
+      missionId: "mission-under-review",
+      missionAssignmentId: "assignment-1"
+    });
+
+    expect(prismaMock.entryFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tenantId: "tenant-1",
+          applicantId: "user-1",
+          missionId: "mission-under-review",
+          missionAssignmentId: "assignment-1"
+        }
+      })
+    );
+  });
+
+  it("returns only read-only journal fields in chronological order for submission review", async () => {
+    await listEngineeringJournalEntriesForSubmissionReview({
+      tenantId: "tenant-1",
+      applicantId: "user-1",
+      missionId: "mission-1",
+      missionAssignmentId: "assignment-1"
+    });
+
+    expect(prismaMock.entryFindMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: "tenant-1",
+        applicantId: "user-1",
+        missionId: "mission-1",
+        missionAssignmentId: "assignment-1"
+      },
+      select: {
+        id: true,
+        entryDate: true,
+        weekNumber: true,
+        language: true,
+        workedOn: true,
+        challenge: true,
+        solution: true,
+        learned: true,
+        aiUsage: true,
+        confidenceRating: true,
+        timeSpentHours: true,
+        evidenceLinks: true
+      },
+      orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }]
     });
   });
 
@@ -133,14 +250,16 @@ describe("engineering journal data access", () => {
   it("creates an entry only for a published mission in the applicant's accepted program", async () => {
     await createJournalEntry(journalInput({ entryDate: new Date("2026-07-07T15:45:00.000Z") }));
 
-    expect(prismaMock.txMissionFindFirst).toHaveBeenCalledWith({
+    expect(prismaMock.txMissionAssignmentFindFirst).toHaveBeenCalledWith({
       where: {
-        id: "mission-1",
         tenantId: "tenant-1",
-        status: "PUBLISHED",
-        assignments: { some: { tenantId: "tenant-1", applicantId: "user-1" } }
+        applicantId: "user-1",
+        missionId: "mission-1",
+        status: "ACTIVE",
+        mission: { status: "PUBLISHED" }
       },
-      select: { id: true, programId: true, weekNumber: true }
+      include: { mission: { select: { id: true, programId: true, weekNumber: true } } },
+      orderBy: { attemptNumber: "desc" }
     });
     expect(prismaMock.txApplicationFindFirst).toHaveBeenCalledWith({
       where: { tenantId: "tenant-1", applicantId: "user-1", programId: "program-1", status: "ACCEPTED" },
@@ -152,6 +271,7 @@ describe("engineering journal data access", () => {
         applicantId: "user-1",
         programId: "program-1",
         missionId: "mission-1",
+        missionAssignmentId: "assignment-1",
         weekNumber: 2,
         entryDate: new Date("2026-07-07T00:00:00.000Z")
       })
@@ -204,10 +324,12 @@ describe("engineering journal data access", () => {
   });
 
   it("rejects creating a journal entry after the assignment is submitted", async () => {
-    prismaMock.txSubmissionFindFirst.mockResolvedValue({ id: "sub-1" });
+    prismaMock.txMissionAssignmentFindFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ status: "SUBMITTED" });
 
     await expect(createJournalEntry(journalInput())).rejects.toThrow(
-      "This journal entry is locked because the assignment has already been submitted."
+      "This journal entry is locked because it was submitted for review."
     );
     expect(prismaMock.txEntryCreate).not.toHaveBeenCalled();
   });
@@ -244,7 +366,7 @@ describe("engineering journal data access", () => {
   });
 
   it("rejects entries for missing, archived or cross-tenant missions", async () => {
-    prismaMock.txMissionFindFirst.mockResolvedValue(null);
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue(null);
 
     await expect(createJournalEntry(journalInput())).rejects.toThrow("Mission is not assigned");
     expect(prismaMock.txEntryCreate).not.toHaveBeenCalled();
@@ -262,7 +384,7 @@ describe("engineering journal data access", () => {
 
     expect(prismaMock.txEntryFindFirst).toHaveBeenNthCalledWith(1, {
       where: { id: "journal-1", tenantId: "tenant-1", applicantId: "user-1" },
-      select: { id: true, missionId: true }
+      select: { id: true, missionId: true, missionAssignmentId: true, lockedAt: true }
     });
     expect(prismaMock.txEntryFindFirst).toHaveBeenNthCalledWith(2, {
       where: {
@@ -306,7 +428,12 @@ describe("engineering journal data access", () => {
 
   it("rejects updating an entry date to another owned entry's date", async () => {
     prismaMock.txEntryFindFirst
-      .mockResolvedValueOnce({ id: "journal-1", missionId: "mission-1" })
+      .mockResolvedValueOnce({
+        id: "journal-1",
+        missionId: "mission-1",
+        missionAssignmentId: "assignment-1",
+        lockedAt: null
+      })
       .mockResolvedValueOnce({ id: "journal-2" });
 
     await expectJournalDateConflict(
@@ -318,10 +445,15 @@ describe("engineering journal data access", () => {
   });
 
   it("rejects editing a journal entry after the assignment is submitted", async () => {
-    prismaMock.txSubmissionFindFirst.mockResolvedValue({ id: "sub-1" });
+    prismaMock.txEntryFindFirst.mockResolvedValue({
+      id: "journal-1",
+      missionId: "mission-1",
+      missionAssignmentId: "assignment-1",
+      lockedAt: new Date("2026-07-07T10:00:00.000Z")
+    });
 
     await expect(updateJournalEntry({ id: "journal-1", ...journalInput() })).rejects.toThrow(
-      "This journal entry is locked because the assignment has already been submitted."
+      "This journal entry is locked because it was submitted for review."
     );
     expect(prismaMock.txEntryUpdateMany).not.toHaveBeenCalled();
   });

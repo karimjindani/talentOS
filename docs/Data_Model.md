@@ -4,6 +4,13 @@ Code version: `v0.18.0`
 
 Baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959` (`v0.14.0`); `v0.15.0` commit set on merge
 
+> Assignment-linked journal attempts add `MissionAssignment.attemptNumber/status`, nullable
+> `missionAssignmentId` links on `Submission` and `EngineeringJournalEntry`, and
+> `EngineeringJournalEntry.lockedAt`. A submission now belongs to one assignment attempt. Submitting
+> locks only that attempt's journal entries; a `REPEAT` review closes the old attempt and creates the
+> next active attempt without overwriting history. Migration:
+> `20260710170000_assignment_linked_journal_attempts`.
+
 > `v0.18.0` (Mission Assignment MVP) adds `MissionAssignment`, a tenant-scoped assignment row that
 > links an accepted applicant to one published mission for a program/week. Applicants now see assigned
 > missions instead of every published mission in their accepted program. Week 1 demo mission variants
@@ -118,6 +125,8 @@ erDiagram
     Program ||--o{ MissionAssignment : schedules
     User ||--o{ MissionAssignment : receives
     Mission ||--o{ MissionAssignment : assigned_as
+    MissionAssignment ||--o| Submission : receives
+    MissionAssignment ||--o{ EngineeringJournalEntry : groups
     Tenant ||--o{ EngineeringJournalEntry : owns
     User ||--o{ EngineeringJournalEntry : writes
     Program ||--o{ EngineeringJournalEntry : contains
@@ -141,16 +150,16 @@ erDiagram
 - `AuditLog`: security and business action history.
 - `Mission`: tenant/program-scoped SEM assignment managed by admins. Published missions are eligible
   to be assigned to accepted applicants.
-- `MissionAssignment`: tenant/program/applicant/week assignment row. It gives an accepted applicant
-  access to one published mission for a program week, with uniqueness on tenant + program + applicant
-  + week.
-- `Submission`: participant mission evidence (repository/deployment/Loom URLs + Engineering Journal
-  markdown) moving through the SEM review loop; tenant-scoped, one row per applicant per mission,
+- `MissionAssignment`: tenant/program/applicant/week attempt row. `attemptNumber` preserves repeat-week
+  history and `status` tracks `ACTIVE`, `SUBMITTED`, `PASSED` or `REPEAT`; uniqueness includes the
+  attempt number.
+- `Submission`: participant mission evidence (repository/deployment/Loom URLs + legacy inline journal
+  markdown) moving through the SEM review loop; tenant-scoped, one row per assignment attempt,
   reviewed by staff (`reviewerUserId`, `reviewerFeedback`, `reviewedAt`); an `ACCEPTED` submission is
   terminal portfolio/graduation evidence for the mission's `competencyTags`.
 - `EngineeringJournalEntry`: dedicated daily reflection entry for an accepted applicant, linked to a
-  published mission in the applicant's accepted program. Each applicant can have only one entry per
-  tenant/date. AI scoring columns are nullable placeholders only.
+  published mission and assignment attempt. Each applicant can have only one entry per tenant/date.
+  `lockedAt` is set when that attempt is submitted. AI scoring columns remain nullable placeholders.
 - `StoredFile`: tenant-scoped metadata for an object stored in MinIO (bytes live in the object store).
 - `RegressionDataMarker`: local/dev marker rows identifying records created by regression workflows and
   safe to remove during regression cleanup.

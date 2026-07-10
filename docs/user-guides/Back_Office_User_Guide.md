@@ -157,16 +157,20 @@ never review each other's work (Graduate Profile: graduates are not code reviewe
 
 1. Open **Missions** and select the mission.
 2. In **Submissions**, select **Review** on a submitted entry.
-3. Inspect the evidence: Git repository, deployed application, Loom walkthrough (links open in a new
-   tab), and the applicant's Engineering Journal.
+3. Inspect the evidence: Git repository, deployed application, and Loom walkthrough (links open in a
+   new tab). The review page also shows the legacy **Submission Journal** when the submission contains
+   inline `journalMarkdown`, plus all dedicated **Engineering Journal** entries for that applicant and
+   mission. Both journal sections are read-only for reviewers.
 4. Either **Accept submission** — final; the submission becomes portfolio evidence for the mission's
-   competency tags — or **Request changes**, which requires written feedback and returns the
-   submission to the applicant for revision.
+   competency tags — **Request changes**, which returns the same attempt for revision, or **Repeat
+   week**, which closes the current attempt and creates a fresh assignment attempt. Requesting changes
+   or a repeat requires written feedback.
 5. The applicant is notified automatically (acceptance or revision request with your feedback), and
    the review is recorded in the audit log.
 
-A submission can be reviewed only while it is in **Submitted** status; after a revision request the
-applicant edits and resubmits, and the loop repeats until acceptance.
+A submission can be reviewed only while it is in **Submitted** status. A revision reuses the current
+attempt. A repeat keeps the old submission and its locked Engineering Journal entries as read-only
+history while new entries attach to the new attempt.
 
 ## Settings
 

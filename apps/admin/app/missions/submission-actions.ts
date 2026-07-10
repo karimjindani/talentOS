@@ -33,13 +33,13 @@ export async function reviewSubmissionAction(formData: FormData) {
 
   const id = String(formData.get("submissionId") ?? "");
   const decision = String(formData.get("decision") ?? "") as SubmissionStatus;
-  if (decision !== "ACCEPTED" && decision !== "NEEDS_REVISION") {
+  if (decision !== "ACCEPTED" && decision !== "NEEDS_REVISION" && decision !== "REPEAT") {
     throw new Error("Invalid review decision.");
   }
 
   const reviewerFeedback = String(formData.get("reviewerFeedback") ?? "").trim();
-  if (decision === "NEEDS_REVISION" && !reviewerFeedback) {
-    throw new Error("Written feedback is required when requesting changes (the SEM coaching loop).");
+  if ((decision === "NEEDS_REVISION" || decision === "REPEAT") && !reviewerFeedback) {
+    throw new Error("Written feedback is required when requesting changes or a repeat week.");
   }
 
   const existing = await getTenantSubmission(id, tenant.id);

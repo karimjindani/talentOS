@@ -32,6 +32,24 @@ describe("ops job progress", () => {
     ]);
   });
 
+  it("surfaces Engineering Journal coverage in the existing dashboard areas", () => {
+    const summaries = parseRegressionSummaries(
+      [
+        "logs",
+        'REGRESSION_RESULT_JSON:{"summary":{"area":"all","total":5,"passed":5,"failed":0,"skipped":0,"durationMs":750},"results":[{"area":"missions","name":"assignment journals remain separate","status":"passed","durationMs":210},{"area":"admin","name":"reviewer loads linked journals","status":"passed","durationMs":160},{"area":"applicant","name":"locked journals are read-only","status":"passed","durationMs":140},{"area":"tenant","name":"journal review is tenant-scoped","status":"passed","durationMs":120},{"area":"unit","name":"journal helper tests","status":"passed","durationMs":120}]}',
+        ""
+      ].join("\n")
+    );
+
+    expect(summaries).toEqual([
+      { area: "missions", total: 1, passed: 1, failed: 0, skipped: 0, durationMs: 210 },
+      { area: "admin", total: 1, passed: 1, failed: 0, skipped: 0, durationMs: 160 },
+      { area: "applicant", total: 1, passed: 1, failed: 0, skipped: 0, durationMs: 140 },
+      { area: "tenant", total: 1, passed: 1, failed: 0, skipped: 0, durationMs: 120 },
+      { area: "unit", total: 1, passed: 1, failed: 0, skipped: 0, durationMs: 120 }
+    ]);
+  });
+
   it("falls back to the aggregate summary when detailed results are unavailable", () => {
     const summaries = parseRegressionSummaries(
       'REGRESSION_RESULT_JSON:{"summary":{"area":"unit","total":1,"passed":1,"failed":0,"skipped":0,"durationMs":40}}\n'

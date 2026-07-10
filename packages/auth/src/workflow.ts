@@ -76,19 +76,20 @@ export function assertMissionStatusTransition(from: MissionStatus, to: MissionSt
   }
 }
 
-export type SubmissionStatus = "DRAFT" | "SUBMITTED" | "REVIEWED" | "NEEDS_REVISION" | "ACCEPTED";
+export type SubmissionStatus = "DRAFT" | "SUBMITTED" | "REVIEWED" | "NEEDS_REVISION" | "ACCEPTED" | "REPEAT";
 
 // Mission-submission review loop (v0.15.0, D-067). The SEM revision loop is
-// DRAFT → SUBMITTED → (ACCEPTED | NEEDS_REVISION) with NEEDS_REVISION → SUBMITTED for resubmission.
-// ACCEPTED is terminal — an accepted submission is graduation/portfolio evidence. The REVIEWED enum
+// DRAFT → SUBMITTED → (ACCEPTED | NEEDS_REVISION | REPEAT) with NEEDS_REVISION → SUBMITTED for resubmission.
+// ACCEPTED and REPEAT are terminal for one attempt. The REVIEWED enum
 // value is retained in the schema but unused by MVP-1 (removing PostgreSQL enum values is not worth
 // the migration risk).
 const ALLOWED_SUBMISSION_TRANSITIONS: Record<SubmissionStatus, SubmissionStatus[]> = {
   DRAFT: ["SUBMITTED"],
-  SUBMITTED: ["ACCEPTED", "NEEDS_REVISION"],
+  SUBMITTED: ["ACCEPTED", "NEEDS_REVISION", "REPEAT"],
   REVIEWED: [],
   NEEDS_REVISION: ["SUBMITTED"],
-  ACCEPTED: []
+  ACCEPTED: [],
+  REPEAT: []
 };
 
 export function canTransitionSubmissionStatus(from: SubmissionStatus, to: SubmissionStatus): boolean {

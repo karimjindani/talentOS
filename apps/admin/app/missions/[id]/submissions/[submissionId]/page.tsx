@@ -3,7 +3,11 @@ import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { can, nextSubmissionStatuses } from "@talentos/auth";
 import { getTenantContext, StatusBadge } from "@talentos/ui";
-import { getTenantBySlug, getTenantSubmission } from "@talentos/db";
+import {
+  getTenantBySlug,
+  getTenantSubmission,
+  listEngineeringJournalEntriesForSubmissionReview
+} from "@talentos/db";
 import { reviewSubmissionAction } from "../../../submission-actions";
 
 type SubmissionReviewPageProps = {
@@ -24,6 +28,13 @@ export default async function SubmissionReviewPage({ params }: SubmissionReviewP
   if (!submission || submission.missionId !== missionId) {
     notFound();
   }
+
+  const journalEntries = await listEngineeringJournalEntriesForSubmissionReview({
+    tenantId: submission.tenantId,
+    applicantId: submission.applicantId,
+    missionId: submission.missionId,
+    missionAssignmentId: submission.missionAssignmentId
+  });
 
   const evidence = [
     { label: "Git repository", href: submission.repositoryUrl },
@@ -78,13 +89,75 @@ export default async function SubmissionReviewPage({ params }: SubmissionReviewP
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Engineering journal</h2>
-          {submission.journalMarkdown ? (
-            <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 font-mono text-xs leading-6 text-slate-700">
+          <h2 className="text-lg font-semibold">Submission Journal</h2>
+          {submission.journalMarkdown?.trim() ? (
+            <div className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
               {submission.journalMarkdown}
-            </pre>
+            </div>
           ) : (
-            <p className="mt-3 text-sm text-slate-600">No journal entry provided.</p>
+            <p className="mt-3 text-sm text-slate-600">No submission journal was provided.</p>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold">Engineering Journal</h2>
+          {journalEntries.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-600">
+              No Engineering Journal entries have been recorded for this assignment yet.
+            </p>
+          ) : (
+            <div className="mt-4 divide-y divide-slate-200">
+              {journalEntries.map((entry) => (
+                <article key={entry.id} className="py-5 first:pt-0 last:pb-0">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="font-semibold text-slate-900">
+                      {entry.entryDate.toLocaleDateString()}
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                      Week {entry.weekNumber} &bull; {submission.mission.title} &bull; {entry.language}
+                      {submission.missionAssignment
+                        ? ` \u2022 Attempt ${submission.missionAssignment.attemptNumber}`
+                        : ""}
+                    </p>
+                  </div>
+
+                  <dl className="mt-4 grid gap-4">
+                    <JournalField label="What Did You Work On Today?" value={entry.workedOn} />
+                    <JournalField label="What Challenge Did You Face?" value={entry.challenge} />
+                    <JournalField label="How Did You Solve It?" value={entry.solution} />
+                    <JournalField label="What Did You Learn?" value={entry.learned} />
+                    <JournalField label="AI Usage" value={entry.aiUsage} />
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <JournalField label="Confidence Rating" value={`${entry.confidenceRating}/5`} />
+                      <JournalField label="Time Spent" value={`${entry.timeSpentHours} hours`} />
+                    </div>
+                    <div>
+                      <dt className="text-sm font-semibold text-slate-800">Evidence</dt>
+                      {entry.evidenceLinks.length === 0 ? (
+                        <dd className="mt-1 text-sm text-slate-600">No evidence links provided.</dd>
+                      ) : (
+                        <dd className="mt-1">
+                          <ul className="grid gap-1 text-sm">
+                            {entry.evidenceLinks.map((href) => (
+                              <li key={href}>
+                                <a
+                                  href={href}
+                                  target="_blank"
+                                  rel="noreferrer noopener"
+                                  className="break-all text-brand-blue underline"
+                                >
+                                  {href}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </dd>
+                      )}
+                    </div>
+                  </dl>
+                </article>
+              ))}
+            </div>
           )}
         </section>
 
@@ -120,7 +193,7 @@ export default async function SubmissionReviewPage({ params }: SubmissionReviewP
             <p className="mt-1 text-sm text-slate-600">
               Accepting is terminal: the submission becomes portfolio/graduation evidence for the
               mission&apos;s competencies. Requesting changes returns it to the applicant with your
-              feedback.
+              feedback. Repeating closes this attempt and creates a fresh attempt for the same week.
             </p>
             <form action={reviewSubmissionAction} className="mt-4 grid gap-4">
               <input type="hidden" name="submissionId" value={submission.id} />
@@ -150,6 +223,14 @@ export default async function SubmissionReviewPage({ params }: SubmissionReviewP
                 >
                   Request changes
                 </button>
+                <button
+                  type="submit"
+                  name="decision"
+                  value="REPEAT"
+                  className="cursor-pointer rounded-xl bg-slate-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+                >
+                  Repeat week
+                </button>
               </div>
             </form>
           </section>
@@ -160,5 +241,14 @@ export default async function SubmissionReviewPage({ params }: SubmissionReviewP
         ) : null}
       </div>
     </>
+  );
+}
+
+function JournalField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-sm font-semibold text-slate-800">{label}</dt>
+      <dd className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{value}</dd>
+    </div>
   );
 }
