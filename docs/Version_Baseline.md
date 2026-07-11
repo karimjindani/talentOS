@@ -2,19 +2,28 @@
 
 ## Current Baseline
 
-Version: `v0.18.2`
+Version: `v0.18.3`
 
-Baseline name: `Regression And Documentation Completeness`
+Baseline name: `Ops Regression Scenario Visibility`
 
-Baseline code commit: `6ef1ef7`
+Baseline code commit: `_set on merge_`
 
-Baseline date: `2026-07-09`
+Baseline date: `2026-07-11`
 
-Previous baseline: `v0.18.1`
+Previous baseline: `v0.18.2`
 
-Previous baseline commit: `3b1e636`
+Previous baseline commit: `6ef1ef7`
 
 ## Baseline Summary
+
+`v0.18.3` improves the local Ops Console regression-result experience (D-078). The regression runner
+already emitted detailed `REGRESSION_RESULT_JSON.results`; this baseline preserves those scenario rows
+in the Ops job model and renders them grouped by area in `http://127.0.0.1:3300/`. Operators now see
+each scenario name, pass/fail/skipped status, duration and detail/error text directly in the Ops UI,
+while the raw output panel remains unchanged. Existing summary-only payloads still fall back to the
+previous area-summary card view. No database migration and no regression-runner rewrite. Plan:
+`docs/plans/v0.18.3_Ops_Regression_Scenario_Visibility.md`; results:
+`docs/testing/v0.18.3_Ops_Regression_Scenario_Visibility_Test_Results.md`. See `D-078`.
 
 `v0.18.2` closes the specific regression and documentation gaps found in manual PR review of the
 `engineering-journal-mvp` branch (D-077). A new `journal` regression area
