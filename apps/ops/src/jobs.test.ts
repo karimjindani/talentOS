@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseRegressionSummaries, parseRegressionSummary, summarizeStepStatus } from "./jobs";
+import {
+  parseRegressionScenarioResults,
+  parseRegressionSummaries,
+  parseRegressionSummary,
+  summarizeStepStatus
+} from "./jobs";
 
 describe("ops job progress", () => {
   it("summarizes step exit states", () => {
@@ -47,6 +52,22 @@ describe("ops job progress", () => {
       { area: "applicant", total: 1, passed: 1, failed: 0, skipped: 0, durationMs: 140 },
       { area: "tenant", total: 1, passed: 1, failed: 0, skipped: 0, durationMs: 120 },
       { area: "unit", total: 1, passed: 1, failed: 0, skipped: 0, durationMs: 120 }
+    ]);
+  });
+
+  it("parses scenario-level regression results with detail and error text", () => {
+    const scenarios = parseRegressionScenarioResults(
+      [
+        "logs",
+        'REGRESSION_RESULT_JSON:{"summary":{"area":"all","total":3,"passed":1,"failed":1,"skipped":1,"durationMs":1000},"results":[{"area":"auth","name":"login","status":"passed","durationMs":120,"detail":"Login completed"},{"area":"auth","name":"roles","status":"failed","durationMs":80,"error":"Expected access denied"},{"area":"storage","name":"upload","status":"skipped","durationMs":5,"error":"Missing browser automation"}]}',
+        ""
+      ].join("\n")
+    );
+
+    expect(scenarios).toEqual([
+      { area: "auth", name: "login", status: "passed", durationMs: 120, detail: "Login completed" },
+      { area: "auth", name: "roles", status: "failed", durationMs: 80, error: "Expected access denied" },
+      { area: "storage", name: "upload", status: "skipped", durationMs: 5, error: "Missing browser automation" }
     ]);
   });
 

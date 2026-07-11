@@ -49,6 +49,22 @@ describe("ops server auth gate", () => {
     expect(body).toContain("Full Regression");
     expect(body).not.toContain('id="loginLink"');
   });
+
+  it("serves scenario-level regression UI assets", async () => {
+    const baseUrl = await startServer();
+
+    const [stylesResponse, appResponse] = await Promise.all([
+      fetch(`${baseUrl}/assets/styles.css`),
+      fetch(`${baseUrl}/assets/app.js`)
+    ]);
+    const styles = await stylesResponse.text();
+    const app = await appResponse.text();
+
+    expect(stylesResponse.status).toBe(200);
+    expect(appResponse.status).toBe(200);
+    expect(styles).toContain("regression-scenario-row");
+    expect(app).toContain("renderRegressionScenarioGroups");
+  });
 });
 
 async function startServer() {
