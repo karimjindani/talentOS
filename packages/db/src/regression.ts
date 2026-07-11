@@ -5,13 +5,14 @@ export type RegressionEntityType =
   | "ApplicationAnswer"
   | "Application"
   | "StoredFile"
-  | "Submission"
   | "EngineeringJournalEntry"
+  | "Submission"
   | "MissionAssignment"
   | "Mission"
   | "Program"
   | "TenantMembership"
-  | "User";
+  | "User"
+  | "Tenant";
 
 export type RegressionMarkerInput = {
   runId: string;
@@ -25,14 +26,14 @@ export const REGRESSION_CLEANUP_ORDER: readonly RegressionEntityType[] = [
   "StoredFile",
   // Submissions reference missions/users, so they are removed before both (v0.15.0, D-067).
   "Submission",
-  // Journal entries reference tenant/applicant/program/mission, so they are removed before Mission
-  // and User (v0.18.2 — added when journal scenarios joined the regression suite).
+  // Journal entries reference tenant/applicant/program/mission/assignment, so they are removed first.
   "EngineeringJournalEntry",
   "MissionAssignment",
   "Mission",
   "Program",
   "TenantMembership",
-  "User"
+  "User",
+  "Tenant"
 ];
 
 export function markRegressionData(input: RegressionMarkerInput) {
@@ -104,5 +105,7 @@ async function deleteMarkedEntities(
       return (await tx.tenantMembership.deleteMany({ where: { id: { in: ids } } })).count;
     case "User":
       return (await tx.user.deleteMany({ where: { id: { in: ids } } })).count;
+    case "Tenant":
+      return (await tx.tenant.deleteMany({ where: { id: { in: ids } } })).count;
   }
 }

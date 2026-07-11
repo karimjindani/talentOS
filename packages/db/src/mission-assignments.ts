@@ -21,13 +21,20 @@ export function listAssignedProgramMissions(tenantId: string, applicantId: strin
   return prisma.missionAssignment
     .findMany({
       where: { tenantId, applicantId, programId, mission: { status: "PUBLISHED" } },
-      include: { mission: true }
+      include: { mission: true },
+      orderBy: [{ weekNumber: "asc" }, { attemptNumber: "desc" }]
     })
-    .then((assignments) =>
-      assignments
+    .then((assignments) => {
+      const latestByWeek = new Map<number, (typeof assignments)[number]>();
+      for (const assignment of assignments) {
+        if (!latestByWeek.has(assignment.weekNumber)) {
+          latestByWeek.set(assignment.weekNumber, assignment);
+        }
+      }
+      return [...latestByWeek.values()]
         .map((assignment) => assignment.mission)
-        .sort((a, b) => a.weekNumber - b.weekNumber || a.order - b.order || a.title.localeCompare(b.title))
-    );
+        .sort((a, b) => a.weekNumber - b.weekNumber || a.order - b.order || a.title.localeCompare(b.title));
+    });
 }
 
 export function getAssignedProgramMission(
@@ -70,7 +77,7 @@ export async function assignWeekMissionToAcceptedApplicantTx(
   }
 
   const existing = await tx.missionAssignment.findFirst({
-    where: { tenantId, programId, applicantId, weekNumber }
+    where: { tenantId, programId, applicantId, weekNumber, attemptNumber: 1 }
   });
   if (existing) {
     return existing;
@@ -103,7 +110,73 @@ export async function assignWeekMissionToAcceptedApplicantTx(
       programId,
       applicantId,
       missionId: mission.id,
-      weekNumber
+      weekNumber,
+      attemptNumber: 1,
+      status: "ACTIVE"
+    }
+  });
+}
+
+export function getActiveMissionAssignmentForMissionTx(
+  tx: Prisma.TransactionClient,
+  {
+    tenantId,
+    applicantId,
+    missionId
+  }: {
+    tenantId: string;
+    applicantId: string;
+    missionId: string;
+  }
+) {
+  return tx.missionAssignment.findFirst({
+    where: {
+      tenantId,
+      applicantId,
+      missionId,
+      status: "ACTIVE",
+      mission: { status: "PUBLISHED" }
+    },
+    include: { mission: { select: { id: true, programId: true, weekNumber: true } } },
+    orderBy: { attemptNumber: "desc" }
+  });
+}
+
+export async function createRepeatMissionAssignmentTx(
+  tx: Prisma.TransactionClient,
+  assignment: {
+    id: string;
+    tenantId: string;
+    programId: string;
+    applicantId: string;
+    missionId: string;
+    weekNumber: number;
+    attemptNumber: number;
+  }
+) {
+  const latest = await tx.missionAssignment.findFirst({
+    where: {
+      tenantId: assignment.tenantId,
+      programId: assignment.programId,
+      applicantId: assignment.applicantId,
+      weekNumber: assignment.weekNumber
+    },
+    select: { id: true, attemptNumber: true },
+    orderBy: { attemptNumber: "desc" }
+  });
+  if (!latest || latest.id !== assignment.id) {
+    throw new Error("Only the latest assignment attempt can be repeated.");
+  }
+
+  return tx.missionAssignment.create({
+    data: {
+      tenantId: assignment.tenantId,
+      programId: assignment.programId,
+      applicantId: assignment.applicantId,
+      missionId: assignment.missionId,
+      weekNumber: assignment.weekNumber,
+      attemptNumber: assignment.attemptNumber + 1,
+      status: "ACTIVE"
     }
   });
 }

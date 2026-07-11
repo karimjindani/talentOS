@@ -4,10 +4,18 @@ Code version: `v0.18.0`
 
 Baseline commit: `bf59ca4`
 
+> Assignment-linked journal attempts add `MissionAssignment.attemptNumber/status`, nullable
+> `missionAssignmentId` links on `Submission` and `EngineeringJournalEntry`, and
+> `EngineeringJournalEntry.lockedAt`. A submission now belongs to one assignment attempt. Submitting
+> locks only that attempt's journal entries; a `REPEAT` review closes the old attempt and creates the
+> next active attempt without overwriting history. Migration:
+> `20260710170000_assignment_linked_journal_attempts`.
+>
 > `v0.18.0` (Mission Assignment MVP, D-075) adds `MissionAssignment` — tenant/program/applicant/week
 > assignment row (`id`, `tenantId`, `programId`, `applicantId`, `missionId`, `weekNumber`, `assignedAt`,
 > `createdAt`, `updatedAt`), unique on `[tenantId, programId, applicantId, weekNumber]`, with indexes on
-> `[tenantId, programId, weekNumber]`, `applicantId` and `missionId`. Migration:
+> `[tenantId, programId, weekNumber]`, `applicantId` and `missionId`. The later assignment-attempt
+> migration extends this model and supersedes its original uniqueness rule. Migration:
 > `20260708120000_v0_18_0_mission_assignment_mvp`.
 >
 > `v0.17.1` (journal entry date uniqueness, D-074) replaces `EngineeringJournalEntry`'s non-unique
@@ -138,6 +146,8 @@ erDiagram
     Program ||--o{ MissionAssignment : schedules
     Mission ||--o{ MissionAssignment : "assigned via"
     User ||--o{ MissionAssignment : "is assigned"
+    MissionAssignment ||--o| Submission : receives
+    MissionAssignment ||--o{ EngineeringJournalEntry : groups
     Tenant ||--o{ EngineeringJournalEntry : owns
     Program ||--o{ EngineeringJournalEntry : contains
     Mission ||--o{ EngineeringJournalEntry : "journaled against"
@@ -175,17 +185,18 @@ erDiagram
 - `AuditLog`: security and business action history.
 - `Mission`: tenant/program-scoped SEM assignment managed by admins. Published missions are eligible
   to be assigned to accepted applicants.
-- `MissionAssignment`: tenant/program/applicant/week assignment row. It gives an accepted applicant
-  access to one published mission for a program week, with uniqueness on tenant + program + applicant
-  + week.
-- `Submission`: participant mission evidence (repository/deployment/Loom URLs + Engineering Journal
-  markdown) moving through the SEM review loop; tenant-scoped, one row per applicant per mission,
+- `MissionAssignment`: tenant/program/applicant/week attempt row. `attemptNumber` preserves repeat-week
+  history and `status` tracks `ACTIVE`, `SUBMITTED`, `PASSED` or `REPEAT`; uniqueness includes the
+  attempt number.
+- `Submission`: participant mission evidence (repository/deployment/Loom URLs + legacy inline journal
+  markdown) moving through the SEM review loop; tenant-scoped, one row per assignment attempt,
   reviewed by staff (`reviewerUserId`, `reviewerFeedback`, `reviewedAt`); an `ACCEPTED` submission is
   terminal portfolio/graduation evidence for the mission's `competencyTags`.
-- `EngineeringJournalEntry`: applicant-owned daily structured-reflection entry against an assigned
-  mission, distinct from the older `Submission.journalMarkdown` field. Unique on
+- `EngineeringJournalEntry`: dedicated daily reflection entry for an accepted applicant, linked to a
+  published mission and assignment attempt, distinct from the older `Submission.journalMarkdown`
+  field. Unique on
   `[tenantId, applicantId, entryDate]` (one entry per applicant per calendar date); carries nullable
-  AI-review/scoring fields as schema placeholders only.
+  AI-review/scoring fields as schema placeholders only. `lockedAt` is set when its attempt is submitted.
 - `ProgramTask`: weekly task/assignment (week 1-4) within a program, shown on the applicant
   dashboard; completion tracked per user via `UserTaskCompletion`.
 - `VideoResource`: external video resource (YouTube/Loom URL) curated per program and optionally

@@ -84,8 +84,8 @@ describe("mission status transitions", () => {
   });
 });
 
-// Mission-submission review loop (v0.15.0, D-067): DRAFT → SUBMITTED → ACCEPTED | NEEDS_REVISION,
-// with NEEDS_REVISION → SUBMITTED for resubmission. ACCEPTED is terminal graduation evidence.
+// Mission-submission review loop: DRAFT → SUBMITTED → ACCEPTED | NEEDS_REVISION | REPEAT,
+// with NEEDS_REVISION → SUBMITTED for resubmission. ACCEPTED and REPEAT close an attempt.
 describe("submission status transitions", () => {
   it("a draft can only be submitted", () => {
     expect(nextSubmissionStatuses("DRAFT")).toEqual(["SUBMITTED"]);
@@ -93,7 +93,7 @@ describe("submission status transitions", () => {
   });
 
   it("a submitted submission can be accepted or sent back for revision", () => {
-    expect(nextSubmissionStatuses("SUBMITTED")).toEqual(["ACCEPTED", "NEEDS_REVISION"]);
+    expect(nextSubmissionStatuses("SUBMITTED")).toEqual(["ACCEPTED", "NEEDS_REVISION", "REPEAT"]);
   });
 
   it("a needs-revision submission can only be resubmitted (the SEM loop)", () => {
@@ -104,6 +104,12 @@ describe("submission status transitions", () => {
   it("ACCEPTED is terminal (portfolio/graduation evidence is immutable)", () => {
     expect(nextSubmissionStatuses("ACCEPTED")).toEqual([]);
     expect(canTransitionSubmissionStatus("ACCEPTED", "NEEDS_REVISION")).toBe(false);
+  });
+
+  it("REPEAT is terminal for one attempt so review cannot create repeat loops", () => {
+    expect(nextSubmissionStatuses("REPEAT")).toEqual([]);
+    expect(canTransitionSubmissionStatus("REPEAT", "SUBMITTED")).toBe(false);
+    expect(canTransitionSubmissionStatus("REPEAT", "REPEAT")).toBe(false);
   });
 
   it("the unused REVIEWED enum value has no transitions in MVP-1", () => {
@@ -121,5 +127,6 @@ describe("submission status transitions", () => {
     expect(isSubmissionEditable("NEEDS_REVISION")).toBe(true);
     expect(isSubmissionEditable("SUBMITTED")).toBe(false);
     expect(isSubmissionEditable("ACCEPTED")).toBe(false);
+    expect(isSubmissionEditable("REPEAT")).toBe(false);
   });
 });

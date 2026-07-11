@@ -1,15 +1,17 @@
 import { Prisma, SubmissionStatus } from "@prisma/client";
 import { prisma } from "./client";
+import { getActiveMissionAssignmentForMissionTx } from "./mission-assignments";
 
 const MAX_LANGUAGE_LENGTH = 64;
 const MAX_EVIDENCE_LINKS = 10;
 const JOURNAL_LOCKED_AFTER_SUBMISSION_MESSAGE =
-  "This journal entry is locked because the assignment has already been submitted.";
+  "This journal entry is locked because it was submitted for review.";
 const SUBMITTED_SUBMISSION_STATUSES: SubmissionStatus[] = [
   SubmissionStatus.SUBMITTED,
   SubmissionStatus.REVIEWED,
   SubmissionStatus.NEEDS_REVISION,
-  SubmissionStatus.ACCEPTED
+  SubmissionStatus.ACCEPTED,
+  SubmissionStatus.REPEAT
 ];
 const CREATE_DUPLICATE_ENTRY_DATE_MESSAGE =
   "You already have a journal entry for this date. Please edit the existing entry instead.";
@@ -97,6 +99,155 @@ export function listApplicantJournalEntries(tenantId: string, applicantId: strin
   });
 }
 
+export type SubmissionReviewJournalEntriesInput = {
+  tenantId: string;
+  applicantId: string;
+  missionId: string;
+  missionAssignmentId: string | null;
+};
+
+const submissionReviewJournalSelect = {
+  id: true,
+  entryDate: true,
+  weekNumber: true,
+  language: true,
+  workedOn: true,
+  challenge: true,
+  solution: true,
+  learned: true,
+  aiUsage: true,
+  confidenceRating: true,
+  timeSpentHours: true,
+  evidenceLinks: true
+} satisfies Prisma.EngineeringJournalEntrySelect;
+
+export type SubmissionReviewJournalEntry = Prisma.EngineeringJournalEntryGetPayload<{
+  select: typeof submissionReviewJournalSelect;
+}>;
+
+/** Read-only journal context for staff reviewing one applicant's submission for one mission. */
+export function listEngineeringJournalEntriesForSubmissionReview({
+  tenantId,
+  applicantId,
+  missionId,
+  missionAssignmentId
+}: SubmissionReviewJournalEntriesInput) {
+  return prisma.engineeringJournalEntry.findMany({
+    where: { tenantId, applicantId, missionId, missionAssignmentId },
+    select: submissionReviewJournalSelect,
+    orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }]
+  });
+}
+
+export type PreviousMissionAttemptHistoryInput = {
+  tenantId: string;
+  missionAssignmentId: string;
+};
+
+/** Optional read-only context from attempts before the submission's exact assignment attempt. */
+export async function listPreviousMissionAttemptHistoryForSubmissionReview({
+  tenantId,
+  missionAssignmentId
+}: PreviousMissionAttemptHistoryInput) {
+  const currentAssignment = await prisma.missionAssignment.findFirst({
+    where: { id: missionAssignmentId, tenantId },
+    select: {
+      tenantId: true,
+      programId: true,
+      applicantId: true,
+      weekNumber: true,
+      attemptNumber: true
+    }
+  });
+
+  if (!currentAssignment || currentAssignment.attemptNumber <= 1) {
+    return [];
+  }
+
+  const previousAttempts = await prisma.missionAssignment.findMany({
+    where: {
+      tenantId: currentAssignment.tenantId,
+      programId: currentAssignment.programId,
+      applicantId: currentAssignment.applicantId,
+      weekNumber: currentAssignment.weekNumber,
+      attemptNumber: { lt: currentAssignment.attemptNumber }
+    },
+    select: {
+      id: true,
+      attemptNumber: true,
+      status: true,
+      weekNumber: true,
+      mission: { select: { id: true, title: true } },
+      submissions: {
+        where: {
+          tenantId: currentAssignment.tenantId,
+          applicantId: currentAssignment.applicantId
+        },
+        select: {
+          id: true,
+          missionAssignmentId: true,
+          status: true,
+          submittedAt: true,
+          reviewedAt: true,
+          reviewerFeedback: true
+        }
+      },
+      journalEntries: {
+        where: {
+          tenantId: currentAssignment.tenantId,
+          applicantId: currentAssignment.applicantId,
+          missionAssignmentId: { not: null }
+        },
+        select: {
+          ...submissionReviewJournalSelect,
+          missionAssignmentId: true
+        },
+        orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }]
+      }
+    },
+    orderBy: { attemptNumber: "desc" }
+  });
+
+  return previousAttempts.map((attempt) => {
+    const submission = attempt.submissions.find(
+      (candidate) => candidate.missionAssignmentId === attempt.id
+    );
+
+    return {
+      missionAssignmentId: attempt.id,
+      attemptNumber: attempt.attemptNumber,
+      assignmentStatus: attempt.status,
+      weekNumber: attempt.weekNumber,
+      mission: attempt.mission,
+      submission: submission
+        ? {
+            id: submission.id,
+            status: submission.status,
+            submittedAt: submission.submittedAt,
+            reviewedAt: submission.reviewedAt,
+            reviewerFeedback: submission.reviewerFeedback
+          }
+        : null,
+      journalEntries: attempt.journalEntries
+        .filter((entry) => entry.missionAssignmentId === attempt.id)
+        .map((entry): SubmissionReviewJournalEntry => ({
+          id: entry.id,
+          entryDate: entry.entryDate,
+          weekNumber: entry.weekNumber,
+          language: entry.language,
+          workedOn: entry.workedOn,
+          challenge: entry.challenge,
+          solution: entry.solution,
+          learned: entry.learned,
+          aiUsage: entry.aiUsage,
+          confidenceRating: entry.confidenceRating,
+          timeSpentHours: entry.timeSpentHours,
+          evidenceLinks: entry.evidenceLinks
+        }))
+    };
+  });
+}
+
 export function getApplicantJournalEntry(id: string, tenantId: string, applicantId: string) {
   return prisma.engineeringJournalEntry.findFirst({
     where: { id, tenantId, applicantId },
@@ -105,11 +256,20 @@ export function getApplicantJournalEntry(id: string, tenantId: string, applicant
 }
 
 export async function isJournalMissionLockedForApplicant(tenantId: string, applicantId: string, missionId: string) {
-  const submittedSubmission = await prisma.submission.findFirst({
-    where: submittedSubmissionWhere(tenantId, applicantId, missionId),
+  const assignment = await prisma.missionAssignment.findFirst({
+    where: { tenantId, applicantId, missionId },
+    select: { status: true },
+    orderBy: { attemptNumber: "desc" }
+  });
+  if (assignment) {
+    return assignment.status !== "ACTIVE";
+  }
+
+  const legacySubmission = await prisma.submission.findFirst({
+    where: { ...submittedSubmissionWhere(tenantId, applicantId, missionId), missionAssignmentId: null },
     select: { id: true }
   });
-  return Boolean(submittedSubmission);
+  return Boolean(legacySubmission);
 }
 
 export async function getJournalCreateAvailability(
@@ -131,15 +291,10 @@ export async function createJournalEntry(input: CreateJournalEntryInput) {
 
   try {
     return await prisma.$transaction(async (tx) => {
-      const mission = await assertPublishedMissionForAcceptedProgram(tx, {
+      const assignment = await assertActiveAssignmentForAcceptedProgram(tx, {
         tenantId: input.tenantId,
         applicantId: input.applicantId,
         missionId: input.missionId
-      });
-      await assertJournalMissionNotLocked(tx, {
-        tenantId: input.tenantId,
-        applicantId: input.applicantId,
-        missionId: mission.id
       });
 
       await assertEntryDateAvailable(tx, {
@@ -153,9 +308,10 @@ export async function createJournalEntry(input: CreateJournalEntryInput) {
         data: {
           tenantId: input.tenantId,
           applicantId: input.applicantId,
-          programId: mission.programId,
-          missionId: mission.id,
-          weekNumber: mission.weekNumber,
+          programId: assignment.programId,
+          missionId: assignment.missionId,
+          missionAssignmentId: assignment.id,
+          weekNumber: assignment.weekNumber,
           ...content
         }
       });
@@ -167,7 +323,13 @@ export async function createJournalEntry(input: CreateJournalEntryInput) {
           action: "journal.created",
           entityType: "EngineeringJournalEntry",
           entityId: entry.id,
-          metadata: { missionId: mission.id, programId: mission.programId, weekNumber: mission.weekNumber }
+          metadata: {
+            missionId: assignment.missionId,
+            missionAssignmentId: assignment.id,
+            programId: assignment.programId,
+            weekNumber: assignment.weekNumber,
+            attemptNumber: assignment.attemptNumber
+          }
         }
       });
 
@@ -185,27 +347,30 @@ export async function updateJournalEntry(input: UpdateJournalEntryInput) {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.engineeringJournalEntry.findFirst({
       where: { id: input.id, tenantId: input.tenantId, applicantId: input.applicantId },
-      select: { id: true, missionId: true }
+      select: { id: true, missionId: true, missionAssignmentId: true, lockedAt: true }
     });
     if (!existing) {
       throw new Error("Journal entry not found for this applicant.");
     }
-    await assertJournalMissionNotLocked(tx, {
-      tenantId: input.tenantId,
-      applicantId: input.applicantId,
-      missionId: existing.missionId
-    });
+    if (existing.lockedAt) {
+      throw new Error(JOURNAL_LOCKED_AFTER_SUBMISSION_MESSAGE);
+    }
+    if (!existing.missionAssignmentId) {
+      await assertLegacyJournalMissionNotLocked(tx, {
+        tenantId: input.tenantId,
+        applicantId: input.applicantId,
+        missionId: existing.missionId
+      });
+    }
 
-    const mission = await assertPublishedMissionForAcceptedProgram(tx, {
+    const assignment = await assertActiveAssignmentForAcceptedProgram(tx, {
       tenantId: input.tenantId,
       applicantId: input.applicantId,
       missionId: input.missionId
     });
-    await assertJournalMissionNotLocked(tx, {
-      tenantId: input.tenantId,
-      applicantId: input.applicantId,
-      missionId: mission.id
-    });
+    if (existing.missionAssignmentId && existing.missionAssignmentId !== assignment.id) {
+      throw new Error("A saved journal entry cannot be moved to another assignment attempt.");
+    }
 
     try {
       await assertEntryDateAvailable(tx, {
@@ -219,9 +384,10 @@ export async function updateJournalEntry(input: UpdateJournalEntryInput) {
       const result = await tx.engineeringJournalEntry.updateMany({
         where: { id: input.id, tenantId: input.tenantId, applicantId: input.applicantId },
         data: {
-          programId: mission.programId,
-          missionId: mission.id,
-          weekNumber: mission.weekNumber,
+          programId: assignment.programId,
+          missionId: assignment.missionId,
+          missionAssignmentId: assignment.id,
+          weekNumber: assignment.weekNumber,
           ...content
         }
       });
@@ -236,7 +402,13 @@ export async function updateJournalEntry(input: UpdateJournalEntryInput) {
           action: "journal.updated",
           entityType: "EngineeringJournalEntry",
           entityId: input.id,
-          metadata: { missionId: mission.id, programId: mission.programId, weekNumber: mission.weekNumber }
+          metadata: {
+            missionId: assignment.missionId,
+            missionAssignmentId: assignment.id,
+            programId: assignment.programId,
+            weekNumber: assignment.weekNumber,
+            attemptNumber: assignment.attemptNumber
+          }
         }
       });
 
@@ -320,7 +492,7 @@ function validateEvidenceLinks(links: string[]): string[] {
   return [...new Set(normalized)];
 }
 
-async function assertPublishedMissionForAcceptedProgram(
+async function assertActiveAssignmentForAcceptedProgram(
   tx: Prisma.TransactionClient,
   {
     tenantId,
@@ -332,28 +504,32 @@ async function assertPublishedMissionForAcceptedProgram(
     missionId: string;
   }
 ) {
-  const mission = await tx.mission.findFirst({
-    where: {
-      id: missionId,
-      tenantId,
-      status: "PUBLISHED",
-      assignments: { some: { tenantId, applicantId } }
-    },
-    select: { id: true, programId: true, weekNumber: true }
+  const assignment = await getActiveMissionAssignmentForMissionTx(tx, {
+    tenantId,
+    applicantId,
+    missionId
   });
-  if (!mission) {
+  if (!assignment) {
+    const latestAssignment = await tx.missionAssignment.findFirst({
+      where: { tenantId, applicantId, missionId },
+      select: { status: true },
+      orderBy: { attemptNumber: "desc" }
+    });
+    if (latestAssignment && latestAssignment.status !== "ACTIVE") {
+      throw new Error(JOURNAL_LOCKED_AFTER_SUBMISSION_MESSAGE);
+    }
     throw new Error("Mission is not assigned to this applicant.");
   }
 
   const acceptedApplication = await tx.application.findFirst({
-    where: { tenantId, applicantId, programId: mission.programId, status: "ACCEPTED" },
+    where: { tenantId, applicantId, programId: assignment.programId, status: "ACCEPTED" },
     select: { id: true }
   });
   if (!acceptedApplication) {
     throw new Error("Journal entries can only be linked to missions in your accepted program.");
   }
 
-  return mission;
+  return assignment;
 }
 
 async function assertEntryDateAvailable(
@@ -387,7 +563,7 @@ async function assertEntryDateAvailable(
   }
 }
 
-async function assertJournalMissionNotLocked(
+async function assertLegacyJournalMissionNotLocked(
   tx: Prisma.TransactionClient,
   {
     tenantId,
@@ -400,7 +576,7 @@ async function assertJournalMissionNotLocked(
   }
 ) {
   const submittedSubmission = await tx.submission.findFirst({
-    where: submittedSubmissionWhere(tenantId, applicantId, missionId),
+    where: { ...submittedSubmissionWhere(tenantId, applicantId, missionId), missionAssignmentId: null },
     select: { id: true }
   });
   if (submittedSubmission) {

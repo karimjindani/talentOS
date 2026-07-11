@@ -58,7 +58,7 @@ Markdown seed specs and imported into those mission fields during seed.
 ### Engineering Journal MVP (`v0.17.0`)
 
 `v0.17.0` adds the first dedicated daily-reflection module to the Applicant Portal, separate from the
-older inline `Submission.journalMarkdown` field used during mission submission review. Accepted
+older inline `Submission.journalMarkdown` field retained only for data compatibility. Accepted
 applicants list, create and edit structured entries at `/dashboard/journal`, `/dashboard/journal/new`
 and `/dashboard/journal/[id]` (`JournalEntryForm.tsx`, `actions.ts`, `view-model.ts`); a Profile page
 setting (`LanguagePreferenceForm.tsx`) controls the applicant's preferred journal language
@@ -465,8 +465,9 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
      tenant-scoped, applicant-owned, audited (`journal.created`/`journal.updated`); one entry per
      applicant per calendar date enforced at the database layer (`v0.17.1`, D-074); entries lock once
      their mission's assignment is submitted (`v0.18.0`).
-   - Next: real AI review/scoring (current fields are schema placeholders only), recruiter/admin
-     visibility, export/weekly-summary features.
+   - Done: read-only assignment-scoped visibility on the admin submission review page.
+   - Next: real AI review/scoring (current fields are schema placeholders only), recruiter visibility,
+     export/weekly-summary features.
 
 7. AI Mentor Boundary
    - Expand the current AI service boundary into tenant-aware, auditable mentor workflows.
