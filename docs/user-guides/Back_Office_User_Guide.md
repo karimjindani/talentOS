@@ -172,6 +172,13 @@ A submission can be reviewed only while it is in **Submitted** status. A revisio
 attempt. A repeat keeps the old submission and its locked Engineering Journal entries as read-only
 history while new entries attach to the new attempt.
 
+The current attempt's journal remains the primary review evidence. When reviewing Attempt 2 or later,
+reviewers can optionally expand **Previous Attempt History** to view read-only context from earlier
+attempts for the same tenant, program, applicant, and week. Attempts are kept in separate groups, and
+each group's journal entries are loaded only through that exact assignment attempt. A previous mission
+may differ from the current mission. Unlinked legacy journal records are not guessed into this history,
+and the history does not provide edit, delete, or review-decision controls for old attempts.
+
 ## Settings
 
 Tenant settings control white-label presentation.

@@ -31,6 +31,16 @@ Submitting an assignment sets `lockedAt` only on journal entries with the same t
 
 A **Repeat week** review marks the old submission and assignment attempt as `REPEAT`, then creates one new active attempt for the same week. The old submission and locked journals remain unchanged. Double review is rejected, preventing duplicate attempts or repeat loops.
 
+## Admin Review Behavior
+
+The current submission attempt's Engineering Journal is the primary review evidence. On Attempt 2 or
+later, reviewers may expand **Previous Attempt History** for optional read-only context. The progression
+lookup matches tenant, program, applicant, and week while intentionally allowing a prior attempt to use
+a different mission. Each prior attempt remains a separate group, and its journal entries are selected
+only through that exact `missionAssignmentId`. Current attempts, future attempts, unrelated records,
+and unlinked legacy journal entries are excluded. Admin review does not expose journal edit or delete
+controls.
+
 ## Implementation Notes
 
 - `EngineeringJournalEntry` is the dedicated Prisma model for journal entries.

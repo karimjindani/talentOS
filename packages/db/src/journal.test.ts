@@ -4,6 +4,7 @@ const prismaMock = vi.hoisted(() => ({
   entryFindMany: vi.fn(),
   entryFindFirst: vi.fn(),
   missionAssignmentFindFirst: vi.fn(),
+  missionAssignmentFindMany: vi.fn(),
   submissionFindFirst: vi.fn(),
   userUpdate: vi.fn(),
   transaction: vi.fn(),
@@ -29,7 +30,8 @@ vi.mock("./client", () => ({
       findFirst: prismaMock.submissionFindFirst
     },
     missionAssignment: {
-      findFirst: prismaMock.missionAssignmentFindFirst
+      findFirst: prismaMock.missionAssignmentFindFirst,
+      findMany: prismaMock.missionAssignmentFindMany
     },
     user: {
       update: prismaMock.userUpdate
@@ -46,11 +48,92 @@ import {
   JournalEntryDateConflictError,
   listApplicantJournalEntries,
   listEngineeringJournalEntriesForSubmissionReview,
+  listPreviousMissionAttemptHistoryForSubmissionReview,
   parseJournalEvidenceLinks,
   updateJournalEntry,
   updatePreferredJournalLanguage,
   validateConfidenceRating
 } from "./journal";
+
+type CurrentAssignmentScope = {
+  tenantId: string;
+  programId: string;
+  applicantId: string;
+  weekNumber: number;
+  attemptNumber: number;
+};
+
+function currentAssignment(overrides: Partial<CurrentAssignmentScope> = {}): CurrentAssignmentScope {
+  return {
+    tenantId: "tenant-1",
+    programId: "program-1",
+    applicantId: "user-1",
+    weekNumber: 1,
+    attemptNumber: 2,
+    ...overrides
+  };
+}
+
+function reviewJournal(id: string, missionAssignmentId: string | null) {
+  return {
+    id,
+    missionAssignmentId,
+    entryDate: new Date("2026-07-01T00:00:00.000Z"),
+    weekNumber: 1,
+    language: "English",
+    workedOn: `Work for ${id}`,
+    challenge: "Challenge",
+    solution: "Solution",
+    learned: "Learning",
+    aiUsage: "None",
+    confidenceRating: 4,
+    timeSpentHours: 2,
+    evidenceLinks: [`https://example.com/${id}`]
+  };
+}
+
+function previousAttempt(
+  attemptNumber: number,
+  options: {
+    id?: string;
+    missionId?: string;
+    missionTitle?: string;
+    journalEntries?: ReturnType<typeof reviewJournal>[];
+    submissions?: Array<{
+      id: string;
+      missionAssignmentId: string | null;
+      status: "REPEAT" | "ACCEPTED" | "NEEDS_REVISION";
+      submittedAt: Date | null;
+      reviewedAt: Date | null;
+      reviewerFeedback: string | null;
+    }>;
+  } = {}
+) {
+  const id = options.id ?? `assignment-${attemptNumber}`;
+  return {
+    id,
+    attemptNumber,
+    status: "REPEAT" as const,
+    weekNumber: 1,
+    mission: {
+      id: options.missionId ?? `mission-${attemptNumber}`,
+      title: options.missionTitle ?? `Mission ${attemptNumber}`
+    },
+    submissions:
+      options.submissions ??
+      [
+        {
+          id: `submission-${attemptNumber}`,
+          missionAssignmentId: id,
+          status: "REPEAT" as const,
+          submittedAt: new Date(`2026-07-0${attemptNumber}T10:00:00.000Z`),
+          reviewedAt: new Date(`2026-07-0${attemptNumber}T12:00:00.000Z`),
+          reviewerFeedback: `Feedback ${attemptNumber}`
+        }
+      ],
+    journalEntries: options.journalEntries ?? [reviewJournal(`journal-${attemptNumber}`, id)]
+  };
+}
 
 describe("engineering journal data access", () => {
   afterEach(() => {
@@ -207,6 +290,282 @@ describe("engineering journal data access", () => {
         evidenceLinks: true
       },
       orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }]
+    });
+  });
+
+  describe("previous mission-attempt history for submission review", () => {
+    beforeEach(() => {
+      prismaMock.missionAssignmentFindFirst.mockResolvedValue(currentAssignment());
+      prismaMock.missionAssignmentFindMany.mockResolvedValue([]);
+    });
+
+    it("returns no previous-attempt history for Attempt 1", async () => {
+      prismaMock.missionAssignmentFindFirst.mockResolvedValue(currentAssignment({ attemptNumber: 1 }));
+
+      await expect(
+        listPreviousMissionAttemptHistoryForSubmissionReview({
+          tenantId: "tenant-1",
+          missionAssignmentId: "assignment-current"
+        })
+      ).resolves.toEqual([]);
+      expect(prismaMock.missionAssignmentFindMany).not.toHaveBeenCalled();
+    });
+
+    it("returns only Attempt 1 while reviewing Attempt 2", async () => {
+      prismaMock.missionAssignmentFindMany.mockResolvedValue([previousAttempt(1)]);
+
+      const history = await listPreviousMissionAttemptHistoryForSubmissionReview({
+        tenantId: "tenant-1",
+        missionAssignmentId: "assignment-current"
+      });
+
+      expect(history.map((attempt) => attempt.attemptNumber)).toEqual([1]);
+    });
+
+    it("returns Attempts 2 and 1 newest-first while reviewing Attempt 3", async () => {
+      prismaMock.missionAssignmentFindFirst.mockResolvedValue(currentAssignment({ attemptNumber: 3 }));
+      prismaMock.missionAssignmentFindMany.mockResolvedValue([previousAttempt(2), previousAttempt(1)]);
+
+      const history = await listPreviousMissionAttemptHistoryForSubmissionReview({
+        tenantId: "tenant-1",
+        missionAssignmentId: "assignment-current"
+      });
+
+      expect(history.map((attempt) => attempt.attemptNumber)).toEqual([2, 1]);
+      expect(prismaMock.missionAssignmentFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({ orderBy: { attemptNumber: "desc" } })
+      );
+    });
+
+    it("excludes the current attempt with a strict lower-attempt query", async () => {
+      prismaMock.missionAssignmentFindFirst.mockResolvedValue(currentAssignment({ attemptNumber: 3 }));
+
+      await listPreviousMissionAttemptHistoryForSubmissionReview({
+        tenantId: "tenant-1",
+        missionAssignmentId: "assignment-current"
+      });
+
+      expect(prismaMock.missionAssignmentFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ attemptNumber: { lt: 3 } })
+        })
+      );
+    });
+
+    it("excludes future attempts with the same strict lower-attempt query", async () => {
+      prismaMock.missionAssignmentFindFirst.mockResolvedValue(currentAssignment({ attemptNumber: 2 }));
+
+      await listPreviousMissionAttemptHistoryForSubmissionReview({
+        tenantId: "tenant-1",
+        missionAssignmentId: "assignment-current"
+      });
+
+      expect(prismaMock.missionAssignmentFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ attemptNumber: { lt: 2 } })
+        })
+      );
+    });
+
+    it("excludes previous attempts from another tenant", async () => {
+      prismaMock.missionAssignmentFindFirst.mockResolvedValue(currentAssignment({ tenantId: "tenant-reviewed" }));
+
+      await listPreviousMissionAttemptHistoryForSubmissionReview({
+        tenantId: "tenant-reviewed",
+        missionAssignmentId: "assignment-current"
+      });
+
+      expect(prismaMock.missionAssignmentFindFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: "assignment-current", tenantId: "tenant-reviewed" } })
+      );
+      expect(prismaMock.missionAssignmentFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ tenantId: "tenant-reviewed" }) })
+      );
+    });
+
+    it("excludes previous attempts from another applicant", async () => {
+      prismaMock.missionAssignmentFindFirst.mockResolvedValue(
+        currentAssignment({ applicantId: "applicant-reviewed" })
+      );
+
+      await listPreviousMissionAttemptHistoryForSubmissionReview({
+        tenantId: "tenant-1",
+        missionAssignmentId: "assignment-current"
+      });
+
+      expect(prismaMock.missionAssignmentFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ applicantId: "applicant-reviewed" })
+        })
+      );
+    });
+
+    it("excludes previous attempts from another program", async () => {
+      prismaMock.missionAssignmentFindFirst.mockResolvedValue(
+        currentAssignment({ programId: "program-reviewed" })
+      );
+
+      await listPreviousMissionAttemptHistoryForSubmissionReview({
+        tenantId: "tenant-1",
+        missionAssignmentId: "assignment-current"
+      });
+
+      expect(prismaMock.missionAssignmentFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ programId: "program-reviewed" }) })
+      );
+    });
+
+    it("excludes previous attempts from another week", async () => {
+      prismaMock.missionAssignmentFindFirst.mockResolvedValue(currentAssignment({ weekNumber: 4 }));
+
+      await listPreviousMissionAttemptHistoryForSubmissionReview({
+        tenantId: "tenant-1",
+        missionAssignmentId: "assignment-current"
+      });
+
+      expect(prismaMock.missionAssignmentFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ weekNumber: 4 }) })
+      );
+    });
+
+    it("includes a previous attempt with a different mission in the same program and week", async () => {
+      prismaMock.missionAssignmentFindMany.mockResolvedValue([
+        previousAttempt(1, {
+          missionId: "different-mission",
+          missionTitle: "A different repeated-week mission"
+        })
+      ]);
+
+      const history = await listPreviousMissionAttemptHistoryForSubmissionReview({
+        tenantId: "tenant-1",
+        missionAssignmentId: "assignment-current"
+      });
+
+      expect(history[0]?.mission).toEqual({
+        id: "different-mission",
+        title: "A different repeated-week mission"
+      });
+      const query = prismaMock.missionAssignmentFindMany.mock.calls[0]?.[0];
+      expect(query.where).not.toHaveProperty("missionId");
+    });
+
+    it("loads each previous attempt's journals through its exact assignment relation", async () => {
+      prismaMock.missionAssignmentFindMany.mockResolvedValue([previousAttempt(1)]);
+
+      const history = await listPreviousMissionAttemptHistoryForSubmissionReview({
+        tenantId: "tenant-1",
+        missionAssignmentId: "assignment-current"
+      });
+
+      const query = prismaMock.missionAssignmentFindMany.mock.calls[0]?.[0];
+      expect(query.select.journalEntries).toEqual(
+        expect.objectContaining({
+          where: {
+            tenantId: "tenant-1",
+            applicantId: "user-1",
+            missionAssignmentId: { not: null }
+          },
+          orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }]
+        })
+      );
+      expect(history[0]?.journalEntries.map((entry) => entry.id)).toEqual(["journal-1"]);
+    });
+
+    it("does not mix a journal linked to another assignment into a previous attempt", async () => {
+      prismaMock.missionAssignmentFindMany.mockResolvedValue([
+        previousAttempt(1, {
+          journalEntries: [
+            reviewJournal("journal-exact", "assignment-1"),
+            reviewJournal("journal-other-attempt", "assignment-2")
+          ]
+        })
+      ]);
+
+      const history = await listPreviousMissionAttemptHistoryForSubmissionReview({
+        tenantId: "tenant-1",
+        missionAssignmentId: "assignment-current"
+      });
+
+      expect(history[0]?.journalEntries.map((entry) => entry.id)).toEqual(["journal-exact"]);
+    });
+
+    it("does not include unlinked legacy journals in previous-attempt history", async () => {
+      prismaMock.missionAssignmentFindMany.mockResolvedValue([
+        previousAttempt(1, {
+          journalEntries: [
+            reviewJournal("journal-exact", "assignment-1"),
+            reviewJournal("journal-legacy", null)
+          ]
+        })
+      ]);
+
+      const history = await listPreviousMissionAttemptHistoryForSubmissionReview({
+        tenantId: "tenant-1",
+        missionAssignmentId: "assignment-current"
+      });
+
+      expect(history[0]?.journalEntries.map((entry) => entry.id)).toEqual(["journal-exact"]);
+    });
+
+    it("returns only the read-only assignment, submission, mission, and journal review fields", async () => {
+      prismaMock.missionAssignmentFindMany.mockResolvedValue([previousAttempt(1)]);
+
+      const history = await listPreviousMissionAttemptHistoryForSubmissionReview({
+        tenantId: "tenant-1",
+        missionAssignmentId: "assignment-current"
+      });
+      const attempt = history[0];
+
+      expect(Object.keys(attempt ?? {}).sort()).toEqual([
+        "assignmentStatus",
+        "attemptNumber",
+        "journalEntries",
+        "mission",
+        "missionAssignmentId",
+        "submission",
+        "weekNumber"
+      ]);
+      expect(Object.keys(attempt?.submission ?? {}).sort()).toEqual([
+        "id",
+        "reviewedAt",
+        "reviewerFeedback",
+        "status",
+        "submittedAt"
+      ]);
+      expect(Object.keys(attempt?.journalEntries[0] ?? {}).sort()).toEqual([
+        "aiUsage",
+        "challenge",
+        "confidenceRating",
+        "entryDate",
+        "evidenceLinks",
+        "id",
+        "language",
+        "learned",
+        "solution",
+        "timeSpentHours",
+        "weekNumber",
+        "workedOn"
+      ]);
+    });
+
+    it("keeps the existing exact current-attempt journal lookup unchanged", async () => {
+      await listEngineeringJournalEntriesForSubmissionReview({
+        tenantId: "tenant-1",
+        applicantId: "user-1",
+        missionId: "mission-current",
+        missionAssignmentId: "assignment-current"
+      });
+
+      expect(prismaMock.entryFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            tenantId: "tenant-1",
+            applicantId: "user-1",
+            missionId: "mission-current",
+            missionAssignmentId: "assignment-current"
+          }
+        })
+      );
     });
   });
 

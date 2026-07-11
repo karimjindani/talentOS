@@ -106,6 +106,25 @@ export type SubmissionReviewJournalEntriesInput = {
   missionAssignmentId: string | null;
 };
 
+const submissionReviewJournalSelect = {
+  id: true,
+  entryDate: true,
+  weekNumber: true,
+  language: true,
+  workedOn: true,
+  challenge: true,
+  solution: true,
+  learned: true,
+  aiUsage: true,
+  confidenceRating: true,
+  timeSpentHours: true,
+  evidenceLinks: true
+} satisfies Prisma.EngineeringJournalEntrySelect;
+
+export type SubmissionReviewJournalEntry = Prisma.EngineeringJournalEntryGetPayload<{
+  select: typeof submissionReviewJournalSelect;
+}>;
+
 /** Read-only journal context for staff reviewing one applicant's submission for one mission. */
 export function listEngineeringJournalEntriesForSubmissionReview({
   tenantId,
@@ -115,21 +134,117 @@ export function listEngineeringJournalEntriesForSubmissionReview({
 }: SubmissionReviewJournalEntriesInput) {
   return prisma.engineeringJournalEntry.findMany({
     where: { tenantId, applicantId, missionId, missionAssignmentId },
+    select: submissionReviewJournalSelect,
+    orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }]
+  });
+}
+
+export type PreviousMissionAttemptHistoryInput = {
+  tenantId: string;
+  missionAssignmentId: string;
+};
+
+/** Optional read-only context from attempts before the submission's exact assignment attempt. */
+export async function listPreviousMissionAttemptHistoryForSubmissionReview({
+  tenantId,
+  missionAssignmentId
+}: PreviousMissionAttemptHistoryInput) {
+  const currentAssignment = await prisma.missionAssignment.findFirst({
+    where: { id: missionAssignmentId, tenantId },
+    select: {
+      tenantId: true,
+      programId: true,
+      applicantId: true,
+      weekNumber: true,
+      attemptNumber: true
+    }
+  });
+
+  if (!currentAssignment || currentAssignment.attemptNumber <= 1) {
+    return [];
+  }
+
+  const previousAttempts = await prisma.missionAssignment.findMany({
+    where: {
+      tenantId: currentAssignment.tenantId,
+      programId: currentAssignment.programId,
+      applicantId: currentAssignment.applicantId,
+      weekNumber: currentAssignment.weekNumber,
+      attemptNumber: { lt: currentAssignment.attemptNumber }
+    },
     select: {
       id: true,
-      entryDate: true,
+      attemptNumber: true,
+      status: true,
       weekNumber: true,
-      language: true,
-      workedOn: true,
-      challenge: true,
-      solution: true,
-      learned: true,
-      aiUsage: true,
-      confidenceRating: true,
-      timeSpentHours: true,
-      evidenceLinks: true
+      mission: { select: { id: true, title: true } },
+      submissions: {
+        where: {
+          tenantId: currentAssignment.tenantId,
+          applicantId: currentAssignment.applicantId
+        },
+        select: {
+          id: true,
+          missionAssignmentId: true,
+          status: true,
+          submittedAt: true,
+          reviewedAt: true,
+          reviewerFeedback: true
+        }
+      },
+      journalEntries: {
+        where: {
+          tenantId: currentAssignment.tenantId,
+          applicantId: currentAssignment.applicantId,
+          missionAssignmentId: { not: null }
+        },
+        select: {
+          ...submissionReviewJournalSelect,
+          missionAssignmentId: true
+        },
+        orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }]
+      }
     },
-    orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }]
+    orderBy: { attemptNumber: "desc" }
+  });
+
+  return previousAttempts.map((attempt) => {
+    const submission = attempt.submissions.find(
+      (candidate) => candidate.missionAssignmentId === attempt.id
+    );
+
+    return {
+      missionAssignmentId: attempt.id,
+      attemptNumber: attempt.attemptNumber,
+      assignmentStatus: attempt.status,
+      weekNumber: attempt.weekNumber,
+      mission: attempt.mission,
+      submission: submission
+        ? {
+            id: submission.id,
+            status: submission.status,
+            submittedAt: submission.submittedAt,
+            reviewedAt: submission.reviewedAt,
+            reviewerFeedback: submission.reviewerFeedback
+          }
+        : null,
+      journalEntries: attempt.journalEntries
+        .filter((entry) => entry.missionAssignmentId === attempt.id)
+        .map((entry): SubmissionReviewJournalEntry => ({
+          id: entry.id,
+          entryDate: entry.entryDate,
+          weekNumber: entry.weekNumber,
+          language: entry.language,
+          workedOn: entry.workedOn,
+          challenge: entry.challenge,
+          solution: entry.solution,
+          learned: entry.learned,
+          aiUsage: entry.aiUsage,
+          confidenceRating: entry.confidenceRating,
+          timeSpentHours: entry.timeSpentHours,
+          evidenceLinks: entry.evidenceLinks
+        }))
+    };
   });
 }
 

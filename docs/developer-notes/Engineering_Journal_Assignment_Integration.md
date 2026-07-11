@@ -61,6 +61,19 @@ The admin submission review page shows an **Engineering Journal** section contai
 
 `listEngineeringJournalEntriesForSubmissionReview` returns only the fields needed for review and sorts entries by entry date and creation time. Reviewers cannot edit or delete journal entries from the admin page.
 
+For Attempt 2 and later, the page also offers a collapsed **Previous Attempt History** disclosure.
+This is optional reviewer context; it is never merged into the current attempt's primary Engineering
+Journal section. `listPreviousMissionAttemptHistoryForSubmissionReview` resolves scope from the
+current tenant-validated `MissionAssignment`, then finds lower attempt numbers matching the same
+tenant, program, applicant, and week. Mission ID is intentionally not part of that progression lookup
+because a repeated week may use another mission variant.
+
+Each previous attempt is rendered as a separate read-only group with its mission, assignment and
+submission result, dates, reviewer feedback, and structured journal fields. Journal rows are loaded
+through each prior assignment's exact `missionAssignmentId`; current and future attempts cannot be
+mixed into the result. Legacy submissions without an assignment link show no previous history, and
+unlinked legacy journal rows are not guessed into an attempt.
+
 ### Review scoring
 
 No numeric reviewer scoring feature was implemented. The existing nullable Engineering Journal AI scoring columns remain placeholders. Admins can complete the existing submission review action and provide reviewer feedback, but there is no reviewer score schema, score form, or score submission action in the verified code.
@@ -100,6 +113,11 @@ Unit coverage was added or updated for:
 - submission linkage and per-attempt draft behavior;
 - repeat-attempt creation and idempotency protections;
 - submission status transitions including terminal `REPEAT`;
+- previous-attempt ordering and strict current/future exclusion;
+- tenant, applicant, program, and week isolation for prior attempts;
+- support for a different mission in the same repeated week;
+- exact `missionAssignmentId` journal grouping and exclusion of unlinked legacy rows;
+- read-only field selection for previous-attempt review context;
 - regression cleanup for journal, assignment, submission, and tenant fixtures;
 - Ops parsing of categorized regression results.
 
@@ -109,10 +127,10 @@ The existing runner and `REGRESSION_RESULT_JSON` format were reused. No separate
 
 | Dashboard category | Integrated coverage |
 | --- | --- |
-| Missions | Submission lifecycle remains operational; journals link to the active assignment; submitting locks only that assignment's journals; repeat attempts preserve separate journal/submission history; repeat/re-review does not duplicate rows or loop. |
+| Missions | Submission lifecycle remains operational; journals link to the active assignment; submitting locks only that assignment's journals; repeat attempts preserve separate journal/submission history; a repeated week may use a different mission without mixing current/future attempts; repeat/re-review does not duplicate rows or loop. |
 | Applicant | A journal linked to a submitted assignment rejects edits and remains preserved; no applicant delete flow exists. |
-| Admin | Review loads exact-attempt Engineering Journal context, then completes the existing review action. Numeric score submission is not represented because it is not implemented. |
-| Tenant | Journal review queries exclude rows from another tenant even when applicant, mission, and assignment IDs match. |
+| Admin | Review loads exact current-attempt Engineering Journal context and can optionally open read-only previous-attempt context while preserving the existing review action. Numeric score submission is not represented because it is not implemented. |
+| Tenant | Current and previous-attempt journal review queries exclude rows from another tenant, applicant, program, week, mission assignment, or unlinked legacy record. |
 | Unit | Journal, assignment, submission, workflow, cleanup, and Ops result-parser tests run through the existing Vitest unit regression scenario. |
 
 ### Commands and results

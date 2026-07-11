@@ -256,3 +256,72 @@ The Admin review correctly did not show the unrelated legacy journal. This confi
 - Improve Admin review validation so missing feedback displays an inline message instead of a generic Next.js server-error page.
 - Consider adding OpenSSL explicitly to the Docker runtime image to remove Prisma's detection warning.
 - Decide later whether historical `Submission.journalMarkdown` data should be migrated or formally deleted before removing the schema field.
+
+## 2026-07-11 Follow-Up: Previous Attempt Review Context
+
+### Work completed
+
+- Added `listPreviousMissionAttemptHistoryForSubmissionReview` in `packages/db/src/journal.ts`.
+- The helper resolves the current assignment by tenant + assignment ID, then finds lower attempt
+  numbers for the same tenant, program, applicant, and week.
+- Mission ID is intentionally not part of the attempt-progression filter, allowing a repeated week to
+  use a different mission variant.
+- Each prior attempt's journals are loaded through its `journalEntries` relation and defensively kept
+  only when `journal.missionAssignmentId` equals that prior assignment ID.
+- Current, future, unrelated, and unlinked legacy journal records remain excluded.
+- Preserved the existing current-attempt Engineering Journal query and Admin section unchanged in
+  meaning.
+- Added a collapsed native **Previous Attempt History** disclosure to Admin submission review. It
+  contains assignment/submission results, dates, prior feedback, and structured read-only journal
+  fields, with no mutation or old-attempt review controls.
+- Added the repository-wide version-allocation procedure to root `AGENTS.md`. No project version was
+  allocated or changed in this slice.
+- No Prisma model, schema, migration, auth, Keycloak, permission, scoring, or mission-selection change
+  was required.
+
+### Tests and Regression Run dashboard
+
+Unit coverage now verifies Attempt 1/2/3 behavior, descending attempt order, strict current/future
+exclusion, tenant/applicant/program/week scoping, different-mission history, exact assignment journal
+isolation, legacy-unlinked exclusion, read-only result fields, and preservation of the current-attempt
+lookup.
+
+The existing `REGRESSION_RESULT_JSON` runner gained these dashboard scenarios:
+
+| Category | Scenario |
+| --- | --- |
+| Admin | `Reviewer opens read-only previous-attempt context while reviewing a later attempt` |
+| Missions | `Repeated-week history stays separate across mission variants and attempt boundaries` |
+| Tenant | `Previous-attempt history stays tenant, applicant, program, and week scoped` |
+| Unit | Existing `Vitest unit regression suite passes` scenario includes the expanded journal helper tests. |
+
+### Validation results
+
+Results observed on 2026-07-11:
+
+| Command | Result |
+| --- | --- |
+| `npx vitest run packages/db/src/journal.test.ts` | Passed: 1 file, 42 tests. |
+| `npm test` | Passed: 34 files, 265 tests. The initial sandboxed attempt could not start esbuild (`spawn EPERM`); the approved unrestricted run passed. |
+| `npm run typecheck` | Passed for root, Applicant, Admin, and Ops TypeScript projects. |
+| `npm run lint` | Passed with zero warnings for the Applicant and Admin ESLint commands. |
+| `npm run regression:admin` | Passed: 3/3. |
+| `npm run regression:missions` | Passed: 9/9. |
+| `npm run regression:tenant` | Passed: 5/5. |
+| `npm run regression:unit` | Passed: 1/1 dashboard scenario. |
+| `npm run regression:all` | Passed: 35; failed: 0; skipped: 1. The existing storage upload/download scenario remained its documented skip. Ops was running and both Ops connectivity scenarios passed. |
+| `npm run build` | Passed for Applicant and Admin production builds. Both emitted the existing Next.js ESLint-plugin warning. |
+
+### Files changed in this follow-up
+
+- `AGENTS.md`
+- `apps/admin/app/missions/[id]/submissions/[submissionId]/page.tsx`
+- `packages/db/src/journal.ts`
+- `packages/db/src/journal.test.ts`
+- `scripts/regression/run.ts`
+- `docs/developer-notes/Engineering_Journal_Assignment_Integration.md`
+- `docs/developer-notes/Engineering_Journal_Notes.md`
+- `docs/user-guides/Back_Office_User_Guide.md`
+- `docs/developer-notes/2026-07-10_Engineering_Journal.md`
+
+The changes were intentionally left uncommitted and unpushed for review.

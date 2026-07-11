@@ -29,6 +29,7 @@ import {
   listAssignedProgramMissions,
   listCompletedTaskIds,
   listEngineeringJournalEntriesForSubmissionReview,
+  listPreviousMissionAttemptHistoryForSubmissionReview,
   listPublishedProgramMissions,
   listPublishedPrograms,
   markNotificationRead,
@@ -271,6 +272,68 @@ const scenarios: Scenario[] = [
       });
       if (reviewed.status !== "ACCEPTED") {
         throw new Error("Reviewer could not complete the existing submission review action.");
+      }
+    }
+  },
+  {
+    area: "admin",
+    name: "Reviewer opens read-only previous-attempt context while reviewing a later attempt",
+    run: async (ctx) => {
+      const fixture = await createRepeatedSubmissionFixture(ctx.runId);
+      const currentJournal = await createTrackedJournalEntry(
+        ctx.runId,
+        regressionJournalInput(
+          fixture,
+          new Date("2026-06-02T00:00:00.000Z"),
+          "Current Attempt 2 reflection"
+        )
+      );
+      const currentDraft = await saveSubmissionDraft({
+        tenantId: fixture.tenant.id,
+        missionId: fixture.mission.id,
+        applicantId: fixture.user.id,
+        repositoryUrl: "https://github.com/regression/admin-previous-attempt-review",
+        deploymentUrl: null,
+        loomUrl: null
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: currentDraft.id });
+      await submitSubmission({
+        id: currentDraft.id,
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id
+      });
+
+      const submission = await getTenantSubmission(currentDraft.id, fixture.tenant.id);
+      if (!submission?.missionAssignmentId) {
+        throw new Error("Admin review could not resolve the current assignment attempt.");
+      }
+
+      const [currentEntries, previousHistory] = await Promise.all([
+        listEngineeringJournalEntriesForSubmissionReview({
+          tenantId: submission.tenantId,
+          applicantId: submission.applicantId,
+          missionId: submission.missionId,
+          missionAssignmentId: submission.missionAssignmentId
+        }),
+        listPreviousMissionAttemptHistoryForSubmissionReview({
+          tenantId: submission.tenantId,
+          missionAssignmentId: submission.missionAssignmentId
+        })
+      ]);
+
+      if (currentEntries.length !== 1 || currentEntries[0]?.id !== currentJournal.id) {
+        throw new Error("Current-attempt journal evidence was not kept separate on Admin review.");
+      }
+      if (
+        previousHistory.length !== 1 ||
+        previousHistory[0]?.attemptNumber !== 1 ||
+        previousHistory[0]?.journalEntries[0]?.id !== fixture.attemptOneJournal.id
+      ) {
+        throw new Error("Admin review did not load the previous attempt as separate optional context.");
+      }
+      const previousEntry = previousHistory[0]?.journalEntries[0];
+      if (!previousEntry || "lockedAt" in previousEntry || "updatedAt" in previousEntry) {
+        throw new Error("Previous-attempt history exposed journal mutation fields.");
       }
     }
   },
@@ -790,6 +853,88 @@ const scenarios: Scenario[] = [
   },
   {
     area: "missions",
+    name: "Repeated-week history stays separate across mission variants and attempt boundaries",
+    run: async (ctx) => {
+      const fixture = await createRepeatedSubmissionFixture(ctx.runId);
+      const replacementMission = await createMission({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Regression Repeat Variant ${ctx.runId}`,
+        difficulty: "BEGINNER",
+        status: "PUBLISHED",
+        weekNumber: fixture.mission.weekNumber,
+        order: 1,
+        brief: "A different mission variant for the repeated week.",
+        objective: "Keep assignment-attempt history independent from mission identity.",
+        acceptanceCriteria: "- Previous attempt remains available",
+        deliverables: "- Current and previous journals stay separate",
+        evaluationCriteria: "No attempt contamination",
+        competencyTags: ["Engineering Reflection"],
+        actorUserId: fixture.actor.id
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Mission", entityId: replacementMission.id });
+      await prisma.missionAssignment.update({
+        where: { id: fixture.attemptTwo.id },
+        data: { missionId: replacementMission.id }
+      });
+
+      const currentJournal = await createTrackedJournalEntry(ctx.runId, {
+        ...regressionJournalInput(
+          fixture,
+          new Date("2026-06-03T00:00:00.000Z"),
+          "Attempt 2 on a different mission"
+        ),
+        missionId: replacementMission.id
+      });
+      const futureAttempt = await prisma.missionAssignment.create({
+        data: {
+          tenantId: fixture.tenant.id,
+          programId: fixture.program.id,
+          applicantId: fixture.user.id,
+          missionId: replacementMission.id,
+          weekNumber: fixture.mission.weekNumber,
+          attemptNumber: 3,
+          status: "ACTIVE"
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: futureAttempt.id });
+
+      const [previousHistory, currentEntries] = await Promise.all([
+        listPreviousMissionAttemptHistoryForSubmissionReview({
+          tenantId: fixture.tenant.id,
+          missionAssignmentId: fixture.attemptTwo.id
+        }),
+        listEngineeringJournalEntriesForSubmissionReview({
+          tenantId: fixture.tenant.id,
+          applicantId: fixture.user.id,
+          missionId: replacementMission.id,
+          missionAssignmentId: fixture.attemptTwo.id
+        })
+      ]);
+
+      if (
+        previousHistory.length !== 1 ||
+        previousHistory[0]?.mission.id !== fixture.mission.id ||
+        previousHistory[0]?.journalEntries[0]?.id !== fixture.attemptOneJournal.id
+      ) {
+        throw new Error("A different mission variant did not preserve the previous week's attempt context.");
+      }
+      if (previousHistory.some((attempt) => attempt.attemptNumber >= fixture.attemptTwo.attemptNumber)) {
+        throw new Error("Previous-attempt history included the current or a future assignment attempt.");
+      }
+      if (
+        previousHistory.some((attempt) =>
+          attempt.journalEntries.some((entry) => entry.id === currentJournal.id)
+        ) ||
+        currentEntries.length !== 1 ||
+        currentEntries[0]?.id !== currentJournal.id
+      ) {
+        throw new Error("Repeated-week journal entries were mixed across assignment attempts.");
+      }
+    }
+  },
+  {
+    area: "missions",
     name: "Only Org Admin and Tech Lead can review submissions",
     run: async () => {
       if (!tenantRolesGrant("reviewSubmissions", ["ORG_ADMIN"])) throw new Error("ORG_ADMIN did not grant reviewSubmissions.");
@@ -1179,6 +1324,239 @@ const scenarios: Scenario[] = [
   },
   {
     area: "tenant",
+    name: "Previous-attempt history stays tenant, applicant, program, and week scoped",
+    run: async (ctx) => {
+      const fixture = await createRepeatedSubmissionFixture(ctx.runId);
+
+      const otherApplicant = await prisma.user.create({
+        data: {
+          email: `previous-history-other-applicant+${ctx.runId}@regression.talentos.local`,
+          name: "Previous History Other Applicant"
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "User", entityId: otherApplicant.id });
+      const otherApplicantAssignment = await prisma.missionAssignment.create({
+        data: {
+          tenantId: fixture.tenant.id,
+          programId: fixture.program.id,
+          applicantId: otherApplicant.id,
+          missionId: fixture.mission.id,
+          weekNumber: fixture.mission.weekNumber,
+          attemptNumber: 1,
+          status: "REPEAT"
+        }
+      });
+      await markRegressionData({
+        runId: ctx.runId,
+        entityType: "MissionAssignment",
+        entityId: otherApplicantAssignment.id
+      });
+      const otherApplicantJournal = await createTrackedAssignmentJournal(ctx.runId, {
+        tenantId: fixture.tenant.id,
+        applicantId: otherApplicant.id,
+        programId: fixture.program.id,
+        missionId: fixture.mission.id,
+        missionAssignmentId: otherApplicantAssignment.id,
+        weekNumber: fixture.mission.weekNumber,
+        entryDate: new Date("2026-06-01T00:00:00.000Z"),
+        label: "Another applicant's previous attempt"
+      });
+
+      const otherProgram = await createProgram({
+        tenantId: fixture.tenant.id,
+        name: `Previous History Other Program ${ctx.runId}`,
+        slug: `previous-history-program-${randomUUID().slice(0, 8)}`,
+        description: "Cross-program previous-attempt isolation",
+        status: "PUBLISHED",
+        startsAt: new Date(),
+        endsAt: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000),
+        actorUserId: fixture.actor.id
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Program", entityId: otherProgram.id });
+      const otherProgramMission = await createMission({
+        tenantId: fixture.tenant.id,
+        programId: otherProgram.id,
+        title: `Previous History Other Program Mission ${ctx.runId}`,
+        difficulty: "BEGINNER",
+        status: "PUBLISHED",
+        weekNumber: fixture.mission.weekNumber,
+        order: 0,
+        brief: "Cross-program isolation",
+        objective: "Exclude another program",
+        acceptanceCriteria: "- No history leak",
+        deliverables: "- Isolated history",
+        evaluationCriteria: "No cross-program records",
+        competencyTags: ["Engineering Reflection"],
+        actorUserId: fixture.actor.id
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Mission", entityId: otherProgramMission.id });
+      const otherProgramAssignment = await prisma.missionAssignment.create({
+        data: {
+          tenantId: fixture.tenant.id,
+          programId: otherProgram.id,
+          applicantId: fixture.user.id,
+          missionId: otherProgramMission.id,
+          weekNumber: fixture.mission.weekNumber,
+          attemptNumber: 1,
+          status: "REPEAT"
+        }
+      });
+      await markRegressionData({
+        runId: ctx.runId,
+        entityType: "MissionAssignment",
+        entityId: otherProgramAssignment.id
+      });
+      const otherProgramJournal = await createTrackedAssignmentJournal(ctx.runId, {
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        programId: otherProgram.id,
+        missionId: otherProgramMission.id,
+        missionAssignmentId: otherProgramAssignment.id,
+        weekNumber: fixture.mission.weekNumber,
+        entryDate: new Date("2026-06-04T00:00:00.000Z"),
+        label: "Another program's previous attempt"
+      });
+
+      const otherWeekMission = await createMission({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Previous History Other Week Mission ${ctx.runId}`,
+        difficulty: "BEGINNER",
+        status: "PUBLISHED",
+        weekNumber: 2,
+        order: 0,
+        brief: "Cross-week isolation",
+        objective: "Exclude another week",
+        acceptanceCriteria: "- No history leak",
+        deliverables: "- Isolated history",
+        evaluationCriteria: "No cross-week records",
+        competencyTags: ["Engineering Reflection"],
+        actorUserId: fixture.actor.id
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Mission", entityId: otherWeekMission.id });
+      const otherWeekAssignment = await prisma.missionAssignment.create({
+        data: {
+          tenantId: fixture.tenant.id,
+          programId: fixture.program.id,
+          applicantId: fixture.user.id,
+          missionId: otherWeekMission.id,
+          weekNumber: 2,
+          attemptNumber: 1,
+          status: "REPEAT"
+        }
+      });
+      await markRegressionData({
+        runId: ctx.runId,
+        entityType: "MissionAssignment",
+        entityId: otherWeekAssignment.id
+      });
+      const otherWeekJournal = await createTrackedAssignmentJournal(ctx.runId, {
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        programId: fixture.program.id,
+        missionId: otherWeekMission.id,
+        missionAssignmentId: otherWeekAssignment.id,
+        weekNumber: 2,
+        entryDate: new Date("2026-06-05T00:00:00.000Z"),
+        label: "Another week's previous attempt"
+      });
+
+      const otherTenant = await prisma.tenant.create({
+        data: {
+          name: "Previous History Other Tenant",
+          slug: `previous-history-tenant-${randomUUID().slice(0, 8)}`
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Tenant", entityId: otherTenant.id });
+      const otherTenantProgram = await prisma.program.create({
+        data: {
+          tenantId: otherTenant.id,
+          name: "Previous History Tenant Program",
+          slug: `previous-history-${randomUUID().slice(0, 8)}`,
+          description: "Cross-tenant previous-attempt isolation",
+          status: "PUBLISHED"
+        }
+      });
+      await markRegressionData({
+        runId: ctx.runId,
+        entityType: "Program",
+        entityId: otherTenantProgram.id
+      });
+      const otherTenantMission = await prisma.mission.create({
+        data: {
+          tenantId: otherTenant.id,
+          programId: otherTenantProgram.id,
+          title: "Previous History Tenant Mission",
+          difficulty: "BEGINNER",
+          status: "PUBLISHED",
+          weekNumber: fixture.mission.weekNumber,
+          brief: "Cross-tenant isolation",
+          objective: "Exclude another tenant",
+          acceptanceCriteria: "- No history leak",
+          deliverables: "- Isolated history",
+          evaluationCriteria: "No cross-tenant records"
+        }
+      });
+      await markRegressionData({
+        runId: ctx.runId,
+        entityType: "Mission",
+        entityId: otherTenantMission.id
+      });
+      const otherTenantAssignment = await prisma.missionAssignment.create({
+        data: {
+          tenantId: otherTenant.id,
+          programId: otherTenantProgram.id,
+          applicantId: fixture.user.id,
+          missionId: otherTenantMission.id,
+          weekNumber: fixture.mission.weekNumber,
+          attemptNumber: 1,
+          status: "REPEAT"
+        }
+      });
+      await markRegressionData({
+        runId: ctx.runId,
+        entityType: "MissionAssignment",
+        entityId: otherTenantAssignment.id
+      });
+      const otherTenantJournal = await createTrackedAssignmentJournal(ctx.runId, {
+        tenantId: otherTenant.id,
+        applicantId: fixture.user.id,
+        programId: otherTenantProgram.id,
+        missionId: otherTenantMission.id,
+        missionAssignmentId: otherTenantAssignment.id,
+        weekNumber: fixture.mission.weekNumber,
+        entryDate: new Date("2026-06-01T00:00:00.000Z"),
+        label: "Another tenant's previous attempt"
+      });
+
+      const history = await listPreviousMissionAttemptHistoryForSubmissionReview({
+        tenantId: fixture.tenant.id,
+        missionAssignmentId: fixture.attemptTwo.id
+      });
+      const returnedJournalIds = history.flatMap((attempt) =>
+        attempt.journalEntries.map((entry) => entry.id)
+      );
+      const contaminantJournalIds = [
+        otherApplicantJournal.id,
+        otherProgramJournal.id,
+        otherWeekJournal.id,
+        otherTenantJournal.id
+      ];
+
+      if (
+        history.length !== 1 ||
+        history[0]?.missionAssignmentId !== fixture.assignment.id ||
+        history[0]?.journalEntries[0]?.id !== fixture.attemptOneJournal.id
+      ) {
+        throw new Error("Previous-attempt history did not return only the exact in-scope attempt.");
+      }
+      if (contaminantJournalIds.some((id) => returnedJournalIds.includes(id))) {
+        throw new Error("Previous-attempt history leaked across a tenant, applicant, program, or week boundary.");
+      }
+    }
+  },
+  {
+    area: "tenant",
     name: "Tenant-scoped program read rejects another tenant",
     run: async (ctx) => {
       const fixture = await createProgramFixture(ctx.runId, "PUBLISHED");
@@ -1494,11 +1872,97 @@ async function createSubmissionFixture(runId: string) {
   return { ...fixture, mission, assignment };
 }
 
+async function createRepeatedSubmissionFixture(runId: string) {
+  const fixture = await createSubmissionFixture(runId);
+  const attemptOneJournal = await createTrackedJournalEntry(
+    runId,
+    regressionJournalInput(
+      fixture,
+      new Date("2026-06-01T00:00:00.000Z"),
+      "Previous Attempt 1 reflection"
+    )
+  );
+  const attemptOneSubmission = await saveSubmissionDraft({
+    tenantId: fixture.tenant.id,
+    missionId: fixture.mission.id,
+    applicantId: fixture.user.id,
+    repositoryUrl: "https://github.com/regression/previous-attempt-one",
+    deploymentUrl: null,
+    loomUrl: null
+  });
+  await markRegressionData({ runId, entityType: "Submission", entityId: attemptOneSubmission.id });
+  await submitSubmission({
+    id: attemptOneSubmission.id,
+    tenantId: fixture.tenant.id,
+    applicantId: fixture.user.id
+  });
+  await reviewSubmission({
+    id: attemptOneSubmission.id,
+    tenantId: fixture.tenant.id,
+    status: "REPEAT",
+    reviewerFeedback: "Repeat this week with a new assignment attempt.",
+    reviewerUserId: fixture.actor.id
+  });
+
+  const attemptTwo = await prisma.missionAssignment.findFirst({
+    where: {
+      tenantId: fixture.tenant.id,
+      programId: fixture.program.id,
+      applicantId: fixture.user.id,
+      weekNumber: fixture.mission.weekNumber,
+      attemptNumber: 2
+    }
+  });
+  if (!attemptTwo) {
+    throw new Error("Repeat fixture did not create Attempt 2.");
+  }
+  await markRegressionData({ runId, entityType: "MissionAssignment", entityId: attemptTwo.id });
+
+  return { ...fixture, attemptOneJournal, attemptOneSubmission, attemptTwo };
+}
+
 async function createTrackedJournalEntry(
   runId: string,
   input: Parameters<typeof createJournalEntry>[0]
 ) {
   const entry = await createJournalEntry(input);
+  await markRegressionData({ runId, entityType: "EngineeringJournalEntry", entityId: entry.id });
+  return entry;
+}
+
+async function createTrackedAssignmentJournal(
+  runId: string,
+  input: {
+    tenantId: string;
+    applicantId: string;
+    programId: string;
+    missionId: string;
+    missionAssignmentId: string;
+    weekNumber: number;
+    entryDate: Date;
+    label: string;
+  }
+) {
+  const entry = await prisma.engineeringJournalEntry.create({
+    data: {
+      tenantId: input.tenantId,
+      applicantId: input.applicantId,
+      programId: input.programId,
+      missionId: input.missionId,
+      missionAssignmentId: input.missionAssignmentId,
+      weekNumber: input.weekNumber,
+      entryDate: input.entryDate,
+      language: "English",
+      workedOn: input.label,
+      challenge: "Keep previous-attempt review history isolated.",
+      solution: "Scope the history through the exact assignment progression.",
+      learned: "Tenant, applicant, program, week, and attempt boundaries all matter.",
+      aiUsage: "None",
+      confidenceRating: 4,
+      timeSpentHours: 1,
+      evidenceLinks: []
+    }
+  });
   await markRegressionData({ runId, entityType: "EngineeringJournalEntry", entityId: entry.id });
   return entry;
 }
