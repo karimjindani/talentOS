@@ -27,9 +27,45 @@ async function importAI() {
 }
 
 function mockGLMResponse(content: string) {
+  // Build SSE stream response
+  const fragments: string[] = [];
+  const chunkSize = 10;
+  for (let i = 0; i < content.length; i += chunkSize) {
+    fragments.push(content.slice(i, i + chunkSize));
+  }
+  if (fragments.length === 0) fragments.push("");
+
+  const sseLines: string[] = [];
+  for (const frag of fragments) {
+    sseLines.push(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: frag } }] })}`);
+  }
+  sseLines.push(`data: ${JSON.stringify({
+    choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+    usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+  })}`);
+  sseLines.push("data: [DONE]");
+
+  const fullSSE = sseLines.join("\n\n") + "\n\n";
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(fullSSE);
+
   return {
     ok: true,
     status: 200,
+    body: {
+      getReader: () => {
+        let offset = 0;
+        return {
+          read: async () => {
+            if (offset >= bytes.length) return { done: true, value: undefined };
+            const value = bytes.slice(offset);
+            offset = bytes.length;
+            return { done: false, value };
+          },
+          releaseLock: () => {},
+        };
+      },
+    },
     json: async () => ({
       choices: [
         {
@@ -166,8 +202,8 @@ describe("Smart LLM Cache — Verification", () => {
   it("NEVER CACHE ERRORS: failed LLM → error response not cached, retry on next call", async () => {
     process.env.GLM_Z_API_KEY = "test-key";
     // First call fails with 500, retry also fails
-    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) });
-    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) });
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, body: null, json: async () => ({}) });
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, body: null, json: async () => ({}) });
     // Second attempt (after error) succeeds
     fetchMock.mockResolvedValueOnce(mockGLMResponse("Fresh response after recovery."));
     const ai = await importAI();
