@@ -724,11 +724,18 @@ Status: Approved
 Decisions: (1) **Streaming enabled** — `callGLM` now sends `stream: true` to the GLM-4.5-air endpoint
 so the first token reaches the browser sooner, reducing perceived latency from ~30 s (full response
 wait) to <2 s (first token). The `GLMChatRequest` type was widened from `stream: false` to
-`stream: boolean` for type safety. (2) **Send button fix for fresh users** — `loadHistory()` now
-auto-creates a conversation when `activeConversationId` is null (fresh user with no DB history), and
-`handleSend()` has a safety net that creates a conversation on the fly if the ID is still null. This
-fixes the silent failure where the send button did nothing for users with no existing conversations.
-(3) **Documentation** — `docs/AI_MENTOR_END_TO_END_DEMO_GUIDE.md` added as a comprehensive demo guide;
+`stream: boolean` for type safety. (2) **SSE stream parser** — `parseSSEStream()` added to handle
+`text/event-stream` responses. Reads the response body as a stream, splits `data: {...}` lines,
+extracts `delta.content` fragments, and concatenates them into the full response. Handles `[DONE]`
+sentinel and malformed lines gracefully. Replaces the previous `response.json()` call which failed
+with `Unexpected token 'd', "data: {"id"... is not valid JSON`. (3) **Send button fix for fresh
+users** — `loadHistory()` now auto-creates a conversation when `activeConversationId` is null (fresh
+user with no DB history), and `handleSend()` has a safety net that creates a conversation on the fly
+if the ID is still null. This fixes the silent failure where the send button did nothing for users
+with no existing conversations. (4) **Test coverage** — 4 new SSE-specific tests (UT-SSE-01 through
+UT-SSE-04) covering multi-fragment concatenation, empty fragments, malformed lines, and `[DONE]`
+sentinel. Mock updated to simulate SSE stream. All 19 tests passing. (5) **Documentation** —
+`docs/AI_MENTOR_END_TO_END_DEMO_GUIDE.md` added as a comprehensive demo guide;
 `docs/Testing_Strategy.md` and `docs/plans/v0.15.0_AI_Mentor_Roadmap.md` updated. No schema change.
 The regression suite is unchanged.
 
