@@ -181,7 +181,8 @@ The mentor caches LLM responses to avoid redundant API calls and reduce latency:
 - Cached responses expire after 5 minutes. If you complete a task or your context changes, the cache
   is automatically invalidated for dynamic questions.
 
-The inline mission-submission journal remains part of the review evidence for that mission.
+Daily reflection is recorded only through the dedicated Engineering Journal. The legacy inline
+mission-submission journal is no longer shown in applicant or admin interfaces.
 
 ## Engineering Journal (`v0.17.0`)
 

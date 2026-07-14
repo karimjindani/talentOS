@@ -1,12 +1,32 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import type { OpsJob, OpsJobKind, OpsJobStatus, RegressionArea, RegressionSummary } from "@talentos/auth";
+import type {
+  OpsJob,
+  OpsJobKind,
+  OpsJobStatus,
+  RegressionArea,
+  RegressionScenarioResult,
+  RegressionSummary
+} from "@talentos/auth";
 import { OPS_RUNS_DIR } from "./config";
 import { formatCommand, getCommandsForJob, isAllowedCommand } from "./commands";
 import { runCommand } from "./process";
 
 const jobs = new Map<string, OpsJob>();
+const SCENARIO_AREAS: readonly Exclude<RegressionArea, "all">[] = [
+  "unit",
+  "auth",
+  "applicant",
+  "admin",
+  "programs",
+  "missions",
+  "journal",
+  "tenant",
+  "dashboard",
+  "storage",
+  "ops"
+];
 
 export async function createJob(kind: OpsJobKind, area: RegressionArea = "all"): Promise<OpsJob> {
   const commands = getCommandsForJob(kind, area);
@@ -83,6 +103,7 @@ async function runJob(job: OpsJob) {
     step.status = summarizeStepStatus(result.exitCode, result.timedOut);
     step.regressionSummary = parseRegressionSummary(result.output);
     step.regressionSummaries = parseRegressionSummaries(result.output);
+    step.regressionScenarios = parseRegressionScenarioResults(result.output);
     if (step.regressionSummary) {
       job.regressionSummary = mergeRegressionSummaries(job.area ?? step.regressionSummary.area, [
         ...(job.regressionSummary ? [job.regressionSummary] : []),
@@ -94,6 +115,9 @@ async function runJob(job: OpsJob) {
         ...(job.regressionSummaries ?? []),
         ...step.regressionSummaries
       ]);
+    }
+    if (step.regressionScenarios?.length) {
+      job.regressionScenarios = [...(job.regressionScenarios ?? []), ...step.regressionScenarios];
     }
     job.output += `\n$ ${step.command}\n${result.output}`;
 
@@ -124,8 +148,12 @@ export function parseRegressionSummaries(output: string): RegressionSummary[] | 
   if (!payload) return undefined;
   if (!payload.results?.length) return payload.summary ? [payload.summary] : undefined;
 
+  const scenarioResults = payload.results.filter(
+    (result): result is RegressionScenarioResult => isRegressionScenarioResult(result)
+  );
+
   return mergeRegressionSummariesByArea(
-    payload.results.map((result) => ({
+    scenarioResults.map((result) => ({
       area: result.area,
       total: 1,
       passed: result.status === "passed" ? 1 : 0,
@@ -136,13 +164,25 @@ export function parseRegressionSummaries(output: string): RegressionSummary[] | 
   );
 }
 
+export function parseRegressionScenarioResults(output: string): RegressionScenarioResult[] | undefined {
+  const payload = parseRegressionPayload(output);
+  if (!payload?.results?.length) return undefined;
+
+  return payload.results
+    .filter((result): result is RegressionScenarioResult => isRegressionScenarioResult(result))
+    .map((result) => ({
+      area: result.area,
+      name: result.name,
+      status: result.status,
+      durationMs: result.durationMs,
+      ...(typeof result.detail === "string" ? { detail: result.detail } : {}),
+      ...(typeof result.error === "string" ? { error: result.error } : {})
+    }));
+}
+
 type RegressionResultPayload = {
   summary?: RegressionSummary;
-  results?: Array<{
-    area: RegressionArea;
-    status: "passed" | "failed" | "skipped";
-    durationMs: number;
-  }>;
+  results?: unknown[];
 };
 
 function parseRegressionPayload(output: string): RegressionResultPayload | undefined {
@@ -155,6 +195,17 @@ function parseRegressionPayload(output: string): RegressionResultPayload | undef
   } catch {
     return undefined;
   }
+}
+
+function isRegressionScenarioResult(value: unknown): value is RegressionScenarioResult {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<RegressionScenarioResult>;
+  return (
+    SCENARIO_AREAS.includes(candidate.area as Exclude<RegressionArea, "all">) &&
+    typeof candidate.name === "string" &&
+    ["passed", "failed", "skipped"].includes(String(candidate.status)) &&
+    typeof candidate.durationMs === "number"
+  );
 }
 
 function mergeRegressionSummaries(area: RegressionArea, summaries: RegressionSummary[]): RegressionSummary {

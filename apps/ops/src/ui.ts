@@ -597,7 +597,7 @@ time { font-variant-numeric: tabular-nums; }
 }
 .pill.neutral { background: var(--chip-bg); color: var(--chip-text); }
 .pill.healthy, .pill.passed { border-color: var(--green-border); background: var(--green-soft); color: var(--green); }
-.pill.degraded, .pill.queued, .pill.running { border-color: var(--amber-border); background: var(--amber-soft); color: var(--amber); }
+.pill.degraded, .pill.queued, .pill.running, .pill.skipped { border-color: var(--amber-border); background: var(--amber-soft); color: var(--amber); }
 .pill.unhealthy, .pill.failed { border-color: var(--red-border); background: var(--red-soft); color: var(--red); }
 .status-rollup { display: flex; flex-wrap: wrap; justify-content: end; gap: 6px; min-height: 24px; }
 .grid {
@@ -700,6 +700,44 @@ time { font-variant-numeric: tabular-nums; }
   background: var(--amber-soft);
   color: var(--amber);
 }
+.regression-scenario-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.regression-scenario-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 9px 10px;
+}
+.regression-scenario-row.failed {
+  border-color: var(--red-border);
+  background: var(--red-soft);
+}
+.regression-scenario-row.skipped {
+  border-color: var(--amber-border);
+  background: var(--amber-soft);
+}
+.regression-scenario-name {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 850;
+}
+.regression-scenario-detail {
+  margin-top: 4px;
+  color: var(--meta-text);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.regression-scenario-error {
+  color: var(--red);
+  font-weight: 750;
+}
 .lower-grid {
   display: grid;
   grid-template-columns: minmax(360px, 0.9fr) minmax(420px, 1.1fr);
@@ -755,7 +793,7 @@ time { font-variant-numeric: tabular-nums; }
   border-radius: 0 3px 3px 0;
   background: var(--input-hover-border);
 }
-.step.queued::before, .step.running::before, .step.degraded::before { background: var(--amber); }
+.step.queued::before, .step.running::before, .step.degraded::before, .step.skipped::before { background: var(--amber); }
 .step.passed::before, .step.healthy::before { background: var(--green); }
 .step.failed::before, .step.unhealthy::before { background: var(--red); }
 .step strong { display: block; margin-bottom: 4px; font-size: 14px; }
@@ -1139,7 +1177,9 @@ function renderJob(job) {
     '<span class="meta-chip">Started <strong>' + new Date(job.startedAt).toLocaleString() + '</strong></span>',
     job.completedAt ? '<span class="meta-chip">Completed <strong>' + new Date(job.completedAt).toLocaleString() + '</strong></span>' : '<span class="meta-chip">Status <strong>' + escapeHtml(job.status) + '</strong></span>'
   ].filter(Boolean).join(" ");
-  steps.innerHTML = job.kind === "regression" && Array.isArray(job.regressionSummaries) && job.regressionSummaries.length
+  steps.innerHTML = job.kind === "regression" && Array.isArray(job.regressionScenarios) && job.regressionScenarios.length
+    ? renderRegressionScenarioGroups(job.regressionScenarios, job.regressionSummaries || [])
+    : job.kind === "regression" && Array.isArray(job.regressionSummaries) && job.regressionSummaries.length
     ? renderRegressionAreaCards(job.regressionSummaries)
     : job.steps.map((step) => (
       '<div class="step ' + step.status + '"><div><strong>' + escapeHtml(step.name) + '</strong><code>' + escapeHtml(step.command) + '</code>' + (step.regressionSummary ? '<p class="step-detail">' + escapeHtml(formatRegressionSummary(step.regressionSummary)) + '</p>' : '') + '</div><div class="step-meta"><span class="pill ' + step.status + '">' + step.status + '</span><span class="duration">' + (step.durationMs ? formatDuration(step.durationMs) : "") + '</span></div></div>'
@@ -1161,6 +1201,60 @@ function renderRegressionAreaCards(summaries) {
       + '</div>'
       + '</article>';
   }).join("") + '</div>';
+}
+
+function renderRegressionScenarioGroups(scenarios, summaries) {
+  const order = ["unit", "auth", "applicant", "admin", "programs", "missions", "journal", "tenant", "dashboard", "storage", "ops"];
+  const summaryByArea = new Map((summaries || []).map((summary) => [summary.area, summary]));
+  const grouped = new Map();
+  scenarios.forEach((scenario) => {
+    if (!grouped.has(scenario.area)) grouped.set(scenario.area, []);
+    grouped.get(scenario.area).push(scenario);
+  });
+  const areas = [...grouped.keys()].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+
+  return '<div class="regression-area-grid">' + areas.map((areaName) => {
+    const areaScenarios = grouped.get(areaName);
+    const summary = summaryByArea.get(areaName) || summarizeScenarios(areaName, areaScenarios);
+    const status = summary.failed > 0 ? "failed" : "passed";
+    return '<article class="card regression-area-card ' + status + '">'
+      + '<div class="card-head"><h3>' + escapeHtml(titleCase(areaName)) + '</h3><span class="pill ' + status + '">' + status + '</span></div>'
+      + '<div class="card-detail">'
+      + '<div class="regression-counts">'
+      + '<span class="regression-count">Passed ' + summary.passed + '</span>'
+      + '<span class="regression-count failed">Failed ' + summary.failed + '</span>'
+      + '<span class="regression-count skipped">Skipped ' + summary.skipped + '</span>'
+      + '</div>'
+      + '<span class="metric">' + escapeHtml(formatDuration(summary.durationMs)) + '</span>'
+      + '<div class="regression-scenario-list">'
+      + areaScenarios.map(renderRegressionScenarioRow).join("")
+      + '</div>'
+      + '</div>'
+      + '</article>';
+  }).join("") + '</div>';
+}
+
+function renderRegressionScenarioRow(scenario) {
+  const message = scenario.error || scenario.detail || "";
+  const messageClass = scenario.error ? " regression-scenario-error" : "";
+  return '<div class="regression-scenario-row ' + escapeHtml(scenario.status) + '">'
+    + '<div>'
+    + '<div class="regression-scenario-name">' + escapeHtml(scenario.name) + '</div>'
+    + (message ? '<div class="regression-scenario-detail' + messageClass + '">' + escapeHtml(message) + '</div>' : '')
+    + '</div>'
+    + '<div class="step-meta"><span class="pill ' + escapeHtml(scenario.status) + '">' + escapeHtml(scenario.status) + '</span><span class="duration">' + escapeHtml(formatDuration(scenario.durationMs)) + '</span></div>'
+    + '</div>';
+}
+
+function summarizeScenarios(area, scenarios) {
+  return scenarios.reduce((summary, scenario) => ({
+    area,
+    total: summary.total + 1,
+    passed: summary.passed + (scenario.status === "passed" ? 1 : 0),
+    failed: summary.failed + (scenario.status === "failed" ? 1 : 0),
+    skipped: summary.skipped + (scenario.status === "skipped" ? 1 : 0),
+    durationMs: summary.durationMs + (typeof scenario.durationMs === "number" ? scenario.durationMs : 0)
+  }), { area, total: 0, passed: 0, failed: 0, skipped: 0, durationMs: 0 });
 }
 
 function healthResultStep({ title, status, detail, command }) {

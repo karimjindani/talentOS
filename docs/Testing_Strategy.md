@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.18.2`
+Code version: `v0.18.3`
 
 Baseline commit: `6ef1ef7`
 
@@ -14,8 +14,8 @@ The regression suite has two layers:
 - Scenario regression: local-development journeys that exercise logical product areas end to end through
   OIDC login flows, portal routes and database state transitions.
 
-The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts after
-each run.
+The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts plus
+individual scenario rows after each run.
 
 Current totals (as of `v0.18.2`): **261 unit tests across 33 files** (`npm test`) and **28 scenarios
 across 12 areas** (`scripts/regression/run.ts`), verified 27 passed / 0 failed / 1 pre-existing
@@ -208,8 +208,10 @@ Commands:
 - `npm.cmd run regression:ops`
 - `npm.cmd run regression:all`
 
-The runner emits `REGRESSION_RESULT_JSON` with total, passed, failed, skipped and duration counts. Ops
-parses this payload and displays the summary per run and per step.
+The runner emits `REGRESSION_RESULT_JSON` with total, passed, failed, skipped, duration counts and
+individual scenario results. Ops parses this payload and displays the summary per run plus scenario
+rows grouped by area. If a payload has only aggregate summary data, Ops falls back to the existing
+summary-card display.
 
 Scenario data ownership rules:
 
@@ -362,3 +364,8 @@ and a scenario documenting the known gap that applicants accepted before Mission
 no automatic backfill). `EngineeringJournalEntry` joins the `RegressionDataMarker` cleanup entity types
 (`packages/db/src/regression.ts`). The suite is **28 scenarios across 12 areas**; `regression:all` is
 verified 27/28 passed, 1 pre-existing documented skip, 0 failed. See `D-077`.
+
+From `v0.18.3`, the Ops Console regression result view shows individual scenario rows grouped by area,
+including each scenario name, status, duration and detail/error text. This closes the usability gap
+where operators could see area-level counts but had to search raw logs to identify exactly which
+scenario passed, failed or skipped.

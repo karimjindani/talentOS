@@ -78,7 +78,9 @@ describe("mission assignment data access", () => {
         programId: "program-1",
         applicantId: "applicant-1",
         missionId: "mission-1",
-        weekNumber: 1
+        weekNumber: 1,
+        attemptNumber: 1,
+        status: "ACTIVE"
       }
     });
   });
@@ -148,19 +150,21 @@ describe("mission assignment data access", () => {
     });
   });
 
-  it("lists only assigned published missions for an applicant program", async () => {
+  it("lists only the latest assigned attempt for each applicant program week", async () => {
     prismaMock.missionAssignmentFindMany.mockResolvedValue([
-      { mission: { id: "mission-2", title: "B", weekNumber: 1, order: 2 } },
-      { mission: { id: "mission-1", title: "A", weekNumber: 1, order: 1 } }
+      { weekNumber: 1, attemptNumber: 2, mission: { id: "mission-2", title: "B", weekNumber: 1, order: 2 } },
+      { weekNumber: 1, attemptNumber: 1, mission: { id: "mission-1", title: "A", weekNumber: 1, order: 1 } },
+      { weekNumber: 2, attemptNumber: 1, mission: { id: "mission-3", title: "C", weekNumber: 2, order: 1 } }
     ]);
 
     const missions = await listAssignedProgramMissions("tenant-1", "applicant-1", "program-1");
 
     expect(prismaMock.missionAssignmentFindMany).toHaveBeenCalledWith({
       where: { tenantId: "tenant-1", applicantId: "applicant-1", programId: "program-1", mission: { status: "PUBLISHED" } },
-      include: { mission: true }
+      include: { mission: true },
+      orderBy: [{ weekNumber: "asc" }, { attemptNumber: "desc" }]
     });
-    expect(missions.map((mission) => mission.id)).toEqual(["mission-1", "mission-2"]);
+    expect(missions.map((mission) => mission.id)).toEqual(["mission-2", "mission-3"]);
   });
 
   it("reads one assigned published mission and rejects unassigned missions by lookup scope", async () => {

@@ -115,14 +115,16 @@ function SubmissionStatusBadge({ status }: { status: Submission["status"] | null
     SUBMITTED: "bg-blue-100 text-blue-700",
     NEEDS_REVISION: "bg-amber-100 text-amber-800",
     ACCEPTED: "bg-emerald-100 text-emerald-700",
-    REVIEWED: "bg-slate-100 text-slate-700"
+    REVIEWED: "bg-slate-100 text-slate-700",
+    REPEAT: "bg-rose-100 text-rose-700"
   };
   const labels: Record<string, string> = {
     DRAFT: "Draft",
     SUBMITTED: "Submitted — awaiting review",
     NEEDS_REVISION: "Revision requested",
     ACCEPTED: "Accepted",
-    REVIEWED: "Reviewed"
+    REVIEWED: "Reviewed",
+    REPEAT: "Repeat assigned"
   };
   if (!status) {
     return <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">Not started</span>;

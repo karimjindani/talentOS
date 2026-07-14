@@ -7,12 +7,16 @@ const prismaMock = vi.hoisted(() => ({
   missionAssignmentFindMany: vi.fn(),
   transaction: vi.fn(),
   txMissionFindFirst: vi.fn(),
+  txMissionAssignmentFindFirst: vi.fn(),
+  txMissionAssignmentUpdateMany: vi.fn(),
+  txMissionAssignmentCreate: vi.fn(),
   txSubmissionFindFirst: vi.fn(),
   txSubmissionCreate: vi.fn(),
   txSubmissionUpdate: vi.fn(),
   txSubmissionFindFirstOrThrow: vi.fn(),
   txAuditLogCreate: vi.fn(),
-  txNotificationCreate: vi.fn()
+  txNotificationCreate: vi.fn(),
+  txJournalUpdateMany: vi.fn()
 }));
 
 vi.mock("./client", () => ({
@@ -74,28 +78,48 @@ describe("submission data access", () => {
     prismaMock.transaction.mockImplementation(async (callback) =>
       callback({
         mission: { findFirst: prismaMock.txMissionFindFirst },
+        missionAssignment: {
+          findFirst: prismaMock.txMissionAssignmentFindFirst,
+          updateMany: prismaMock.txMissionAssignmentUpdateMany,
+          create: prismaMock.txMissionAssignmentCreate
+        },
         submission: {
           findFirst: prismaMock.txSubmissionFindFirst,
           create: prismaMock.txSubmissionCreate,
           update: prismaMock.txSubmissionUpdate,
           findFirstOrThrow: prismaMock.txSubmissionFindFirstOrThrow
         },
+        engineeringJournalEntry: { updateMany: prismaMock.txJournalUpdateMany },
         auditLog: { create: prismaMock.txAuditLogCreate },
         notification: { create: prismaMock.txNotificationCreate }
       })
     );
-    prismaMock.txMissionFindFirst.mockResolvedValue({ id: "mission-1" });
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({
+      id: "assignment-1",
+      tenantId: "tenant-1",
+      programId: "program-1",
+      applicantId: "user-1",
+      missionId: "mission-1",
+      weekNumber: 1,
+      attemptNumber: 1,
+      status: "ACTIVE",
+      mission: { id: "mission-1", programId: "program-1", weekNumber: 1 }
+    });
     prismaMock.txSubmissionCreate.mockResolvedValue({ id: "sub-1" });
     prismaMock.txSubmissionUpdate.mockResolvedValue({ id: "sub-1", status: "SUBMITTED" });
     prismaMock.txSubmissionFindFirstOrThrow.mockResolvedValue({ id: "sub-1" });
     prismaMock.txAuditLogCreate.mockResolvedValue({ id: "audit-1" });
     prismaMock.txNotificationCreate.mockResolvedValue({ id: "notif-1" });
+    prismaMock.txMissionAssignmentUpdateMany.mockResolvedValue({ count: 1 });
+    prismaMock.txMissionAssignmentCreate.mockResolvedValue({ id: "assignment-2", attemptNumber: 2 });
+    prismaMock.txJournalUpdateMany.mockResolvedValue({ count: 1 });
   });
 
   it("reads the applicant's own submission tenant-scoped", async () => {
     await getApplicantSubmission("mission-1", "user-1", "tenant-1");
     expect(prismaMock.submissionFindFirst).toHaveBeenCalledWith({
-      where: { missionId: "mission-1", applicantId: "user-1", tenantId: "tenant-1" }
+      where: { missionId: "mission-1", applicantId: "user-1", tenantId: "tenant-1" },
+      orderBy: { createdAt: "desc" }
     });
   });
 
@@ -110,17 +134,24 @@ describe("submission data access", () => {
     prismaMock.txSubmissionFindFirst.mockResolvedValue(null);
     await saveSubmissionDraft(draftInput());
 
-    expect(prismaMock.txMissionFindFirst).toHaveBeenCalledWith({
+    expect(prismaMock.txMissionAssignmentFindFirst).toHaveBeenCalledWith({
       where: {
-        id: "mission-1",
         tenantId: "tenant-1",
-        status: "PUBLISHED",
-        assignments: { some: { tenantId: "tenant-1", applicantId: "user-1" } }
+        applicantId: "user-1",
+        missionId: "mission-1",
+        status: "ACTIVE",
+        mission: { status: "PUBLISHED" }
       },
-      select: { id: true }
+      include: { mission: { select: { id: true, programId: true, weekNumber: true } } },
+      orderBy: { attemptNumber: "desc" }
     });
     expect(prismaMock.txSubmissionCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ tenantId: "tenant-1", applicantId: "user-1", status: "DRAFT" })
+      data: expect.objectContaining({
+        tenantId: "tenant-1",
+        applicantId: "user-1",
+        missionAssignmentId: "assignment-1",
+        status: "DRAFT"
+      })
     });
     expect(prismaMock.txAuditLogCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: "submission.created", entityType: "Submission" })
@@ -145,13 +176,13 @@ describe("submission data access", () => {
   });
 
   it("rejects drafts for missions outside the tenant or not published", async () => {
-    prismaMock.txMissionFindFirst.mockResolvedValue(null);
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue(null);
     await expect(saveSubmissionDraft(draftInput())).rejects.toThrow("Mission is not assigned");
     expect(prismaMock.txSubmissionCreate).not.toHaveBeenCalled();
   });
 
   it("rejects drafts for missions not assigned to the applicant", async () => {
-    prismaMock.txMissionFindFirst.mockResolvedValue(null);
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue(null);
 
     await expect(saveSubmissionDraft(draftInput())).rejects.toThrow("Mission is not assigned to this applicant.");
     expect(prismaMock.txSubmissionCreate).not.toHaveBeenCalled();
@@ -189,6 +220,7 @@ describe("submission data access", () => {
       id: "sub-1",
       status: "DRAFT",
       missionId: "mission-1",
+      missionAssignmentId: "assignment-1",
       repositoryUrl: null,
       deploymentUrl: null,
       loomUrl: null
@@ -201,6 +233,7 @@ describe("submission data access", () => {
       id: "sub-1",
       status: "DRAFT",
       missionId: "mission-1",
+      missionAssignmentId: "assignment-1",
       repositoryUrl: "https://github.com/u/r",
       deploymentUrl: null,
       loomUrl: null
@@ -212,6 +245,15 @@ describe("submission data access", () => {
     });
     expect(prismaMock.txAuditLogCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: "submission.submitted" })
+    });
+    expect(prismaMock.txJournalUpdateMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: "tenant-1",
+        applicantId: "user-1",
+        missionAssignmentId: "assignment-1",
+        lockedAt: null
+      },
+      data: { lockedAt: expect.any(Date) }
     });
     // Ownership is part of the lookup, not a post-check.
     expect(prismaMock.txSubmissionFindFirst).toHaveBeenCalledWith({
@@ -287,6 +329,45 @@ describe("submission data access", () => {
 
     expect(prismaMock.txNotificationCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ type: "SUCCESS", title: "Mission accepted: Build a Landing Page" })
+    });
+  });
+
+  it("closes a repeated attempt and creates exactly one next assignment attempt", async () => {
+    const assignment = {
+      id: "assignment-1",
+      tenantId: "tenant-1",
+      programId: "program-1",
+      applicantId: "user-1",
+      missionId: "mission-1",
+      weekNumber: 1,
+      attemptNumber: 1
+    };
+    prismaMock.txSubmissionFindFirst.mockResolvedValue({
+      id: "sub-1",
+      status: "SUBMITTED",
+      missionId: "mission-1",
+      missionAssignmentId: "assignment-1",
+      applicantId: "user-1",
+      mission: { id: "mission-1", title: "Build a Landing Page" },
+      missionAssignment: assignment
+    });
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({ id: "assignment-1", attemptNumber: 1 });
+
+    await reviewSubmission({
+      id: "sub-1",
+      tenantId: "tenant-1",
+      status: "REPEAT",
+      reviewerFeedback: "Repeat Week 1 with a fresh attempt.",
+      reviewerUserId: "lead-1"
+    });
+
+    expect(prismaMock.txMissionAssignmentUpdateMany).toHaveBeenCalledWith({
+      where: { id: "assignment-1", tenantId: "tenant-1", applicantId: "user-1" },
+      data: { status: "REPEAT" }
+    });
+    expect(prismaMock.txMissionAssignmentCreate).toHaveBeenCalledTimes(1);
+    expect(prismaMock.txMissionAssignmentCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ attemptNumber: 2, status: "ACTIVE" })
     });
   });
 
@@ -373,15 +454,16 @@ describe("getApplicantMissionProgress", () => {
     // Reads are tenant + program scoped and published-only.
     expect(prismaMock.missionAssignmentFindMany).toHaveBeenCalledWith({
       where: { tenantId: "tenant-1", programId: "program-1", applicantId: "user-1", mission: { status: "PUBLISHED" } },
-      include: { mission: { select: { id: true, title: true, weekNumber: true, order: true } } }
+      include: { mission: { select: { id: true, title: true, weekNumber: true, order: true } } },
+      orderBy: [{ weekNumber: "asc" }, { attemptNumber: "desc" }]
     });
   });
 
   it("counts only ACCEPTED submissions and advances the current mission past them", async () => {
     prismaMock.missionAssignmentFindMany.mockResolvedValue(asAssignments(missions));
     prismaMock.submissionFindMany.mockResolvedValue([
-      { id: "s1", missionId: "m1", status: "ACCEPTED", submittedAt: new Date() },
-      { id: "s2", missionId: "m2", status: "SUBMITTED", submittedAt: new Date() }
+      { id: "s1", missionId: "m1", missionAssignmentId: "a-m1", status: "ACCEPTED", submittedAt: new Date() },
+      { id: "s2", missionId: "m2", missionAssignmentId: "a-m2", status: "SUBMITTED", submittedAt: new Date() }
     ]);
 
     const progress = await getApplicantMissionProgress("tenant-1", "user-1", "program-1");
@@ -401,7 +483,13 @@ describe("getApplicantMissionProgress", () => {
   it("reports full completion with no current mission when every mission is accepted", async () => {
     prismaMock.missionAssignmentFindMany.mockResolvedValue(asAssignments(missions));
     prismaMock.submissionFindMany.mockResolvedValue(
-      missions.map((m, i) => ({ id: `s${i}`, missionId: m.id, status: "ACCEPTED", submittedAt: new Date() }))
+      missions.map((m, i) => ({
+        id: `s${i}`,
+        missionId: m.id,
+        missionAssignmentId: `a-${m.id}`,
+        status: "ACCEPTED",
+        submittedAt: new Date()
+      }))
     );
 
     const progress = await getApplicantMissionProgress("tenant-1", "user-1", "program-1");
@@ -424,5 +512,10 @@ describe("getApplicantMissionProgress", () => {
 });
 
 function asAssignments(missions: { id: string; title: string; weekNumber: number; order: number }[]) {
-  return missions.map((mission) => ({ mission }));
+  return missions.map((mission) => ({
+    id: `a-${mission.id}`,
+    weekNumber: mission.weekNumber,
+    attemptNumber: 1,
+    mission
+  }));
 }

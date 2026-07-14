@@ -129,19 +129,27 @@ never review each other's work (Graduate Profile: graduates are not code reviewe
 
 1. Open **Missions** and select the mission.
 2. In **Submissions**, select **Review** on a submitted entry.
-3. Inspect the evidence: Git repository, deployed application, Loom walkthrough (links open in a new
-   tab), and the submission's inline "Engineering journal" text field. This is the legacy
-   `Submission.journalMarkdown` evidence field carried over from `v0.15.0` — it is **not** the same as
-   the dedicated Engineering Journal dashboard module (`v0.17.0`, `/dashboard/journal`), which staff
-   cannot currently view from the admin portal.
+3. Inspect the evidence: Git repository, deployed application, and Loom walkthrough (links open in a
+   new tab), plus all dedicated **Engineering Journal** entries for that applicant and mission
+   assignment attempt. Engineering Journal entries are read-only for reviewers. The legacy
+   `Submission.journalMarkdown` field is retained for data compatibility but is not displayed.
 4. Either **Accept submission** — final; the submission becomes portfolio evidence for the mission's
-   competency tags — or **Request changes**, which requires written feedback and returns the
-   submission to the applicant for revision.
+   competency tags — **Request changes**, which returns the same attempt for revision, or **Repeat
+   week**, which closes the current attempt and creates a fresh assignment attempt. Requesting changes
+   or a repeat requires written feedback.
 5. The applicant is notified automatically (acceptance or revision request with your feedback), and
    the review is recorded in the audit log.
 
-A submission can be reviewed only while it is in **Submitted** status; after a revision request the
-applicant edits and resubmits, and the loop repeats until acceptance.
+A submission can be reviewed only while it is in **Submitted** status. A revision reuses the current
+attempt. A repeat keeps the old submission and its locked Engineering Journal entries as read-only
+history while new entries attach to the new attempt.
+
+The current attempt's journal remains the primary review evidence. When reviewing Attempt 2 or later,
+reviewers can optionally expand **Previous Attempt History** to view read-only context from earlier
+attempts for the same tenant, program, applicant, and week. Attempts are kept in separate groups, and
+each group's journal entries are loaded only through that exact assignment attempt. A previous mission
+may differ from the current mission. Unlinked legacy journal records are not guessed into this history,
+and the history does not provide edit, delete, or review-decision controls for old attempts.
 
 ## Settings
 

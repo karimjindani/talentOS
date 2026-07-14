@@ -1,5 +1,9 @@
 import { type SubmissionStatus } from "@prisma/client";
 import { prisma } from "./client";
+import {
+  createRepeatMissionAssignmentTx,
+  getActiveMissionAssignmentForMissionTx
+} from "./mission-assignments";
 
 // Mission-submission workflow helpers (v0.15.0, D-067). All reads/writes are tenant-scoped via the
 // Submission.tenantId column; writes additionally verify the mission chain and the applicant owner.
@@ -46,7 +50,8 @@ export function parseEvidenceUrl(raw: string, kind: "repository" | "deployment" 
 /** The applicant's own submission for a mission (or null before their first draft). */
 export function getApplicantSubmission(missionId: string, applicantId: string, tenantId: string) {
   return prisma.submission.findFirst({
-    where: { missionId, applicantId, tenantId }
+    where: { missionId, applicantId, tenantId },
+    orderBy: { createdAt: "desc" }
   });
 }
 
@@ -54,7 +59,8 @@ export function getApplicantSubmission(missionId: string, applicantId: string, t
 export function listApplicantProgramSubmissions(tenantId: string, applicantId: string, programId: string) {
   return prisma.submission.findMany({
     where: { tenantId, applicantId, mission: { programId } },
-    select: { id: true, missionId: true, status: true, submittedAt: true }
+    select: { id: true, missionId: true, missionAssignmentId: true, status: true, submittedAt: true },
+    orderBy: { createdAt: "asc" }
   });
 }
 
@@ -73,6 +79,7 @@ export function getTenantSubmission(id: string, tenantId: string) {
     where: { id, tenantId },
     include: {
       mission: true,
+      missionAssignment: { select: { id: true, attemptNumber: true, weekNumber: true } },
       applicant: { select: { id: true, name: true, email: true } },
       reviewer: { select: { id: true, name: true, email: true } }
     }
@@ -95,23 +102,43 @@ export type SubmissionEvidenceInput = {
  */
 export async function saveSubmissionDraft(input: SubmissionEvidenceInput) {
   return prisma.$transaction(async (tx) => {
-    const mission = await tx.mission.findFirst({
-      where: {
-        id: input.missionId,
-        tenantId: input.tenantId,
-        status: "PUBLISHED",
-        assignments: { some: { tenantId: input.tenantId, applicantId: input.applicantId } }
-      },
-      select: { id: true }
+    const activeAssignment = await getActiveMissionAssignmentForMissionTx(tx, {
+      tenantId: input.tenantId,
+      applicantId: input.applicantId,
+      missionId: input.missionId
     });
-    if (!mission) {
+    const assignment =
+      activeAssignment ??
+      (await tx.missionAssignment.findFirst({
+        where: {
+          tenantId: input.tenantId,
+          applicantId: input.applicantId,
+          missionId: input.missionId,
+          mission: { status: "PUBLISHED" }
+        },
+        include: { mission: { select: { id: true, programId: true, weekNumber: true } } },
+        orderBy: { attemptNumber: "desc" }
+      }));
+    if (!assignment) {
       throw new Error("Mission is not assigned to this applicant.");
     }
 
     const existing = await tx.submission.findFirst({
-      where: { missionId: input.missionId, applicantId: input.applicantId, tenantId: input.tenantId },
+      where: {
+        missionAssignmentId: assignment.id,
+        missionId: input.missionId,
+        applicantId: input.applicantId,
+        tenantId: input.tenantId
+      },
       select: { id: true, status: true }
     });
+
+    if (!activeAssignment) {
+      if (existing) {
+        throw new Error("This submission is not editable in its current status.");
+      }
+      throw new Error("Mission is not assigned to an active attempt for this applicant.");
+    }
 
     const evidence: {
       repositoryUrl: string | null;
@@ -131,8 +158,9 @@ export async function saveSubmissionDraft(input: SubmissionEvidenceInput) {
       const created = await tx.submission.create({
         data: {
           tenantId: input.tenantId,
-          missionId: input.missionId,
+          missionId: assignment.mission.id,
           applicantId: input.applicantId,
+          missionAssignmentId: assignment.id,
           status: "DRAFT",
           ...evidence
         }
@@ -144,7 +172,11 @@ export async function saveSubmissionDraft(input: SubmissionEvidenceInput) {
           action: "submission.created",
           entityType: "Submission",
           entityId: created.id,
-          metadata: { missionId: input.missionId }
+          metadata: {
+            missionId: assignment.mission.id,
+            missionAssignmentId: assignment.id,
+            attemptNumber: assignment.attemptNumber
+          }
         }
       });
       return created;
@@ -162,7 +194,12 @@ export async function saveSubmissionDraft(input: SubmissionEvidenceInput) {
         action: "submission.updated",
         entityType: "Submission",
         entityId: existing.id,
-        metadata: { missionId: input.missionId, status: existing.status }
+        metadata: {
+          missionId: assignment.mission.id,
+          missionAssignmentId: assignment.id,
+          attemptNumber: assignment.attemptNumber,
+          status: existing.status
+        }
       }
     });
     return tx.submission.findFirstOrThrow({ where: { id: existing.id } });
@@ -193,10 +230,33 @@ export async function submitSubmission({ id, tenantId, applicantId }: SubmitSubm
     if (!submission.repositoryUrl && !submission.deploymentUrl && !submission.loomUrl) {
       throw new Error("Add at least one evidence link (repository, deployment or Loom) before submitting.");
     }
+    if (!submission.missionAssignmentId) {
+      throw new Error("This submission is not linked to an assignment attempt.");
+    }
 
+    const submittedAt = new Date();
     const updated = await tx.submission.update({
       where: { id: submission.id },
-      data: { status: "SUBMITTED", submittedAt: new Date() }
+      data: { status: "SUBMITTED", submittedAt }
+    });
+
+    await tx.engineeringJournalEntry.updateMany({
+      where: {
+        tenantId,
+        applicantId,
+        missionAssignmentId: submission.missionAssignmentId,
+        lockedAt: null
+      },
+      data: { lockedAt: submittedAt }
+    });
+    await tx.missionAssignment.updateMany({
+      where: {
+        id: submission.missionAssignmentId,
+        tenantId,
+        applicantId,
+        status: "ACTIVE"
+      },
+      data: { status: "SUBMITTED" }
     });
 
     await tx.auditLog.create({
@@ -206,7 +266,11 @@ export async function submitSubmission({ id, tenantId, applicantId }: SubmitSubm
         action: "submission.submitted",
         entityType: "Submission",
         entityId: submission.id,
-        metadata: { missionId: submission.missionId, resubmission: submission.status === "NEEDS_REVISION" }
+        metadata: {
+          missionId: submission.missionId,
+          missionAssignmentId: submission.missionAssignmentId,
+          resubmission: submission.status === "NEEDS_REVISION"
+        }
       }
     });
 
@@ -217,21 +281,23 @@ export async function submitSubmission({ id, tenantId, applicantId }: SubmitSubm
 export type ReviewSubmissionInput = {
   id: string;
   tenantId: string;
-  status: Extract<SubmissionStatus, "ACCEPTED" | "NEEDS_REVISION">;
+  status: Extract<SubmissionStatus, "ACCEPTED" | "NEEDS_REVISION" | "REPEAT">;
   reviewerFeedback: string;
   reviewerUserId: string;
 };
 
 /**
- * Review a SUBMITTED submission: accept it (terminal — graduation/portfolio evidence) or send it
- * back for revision with written feedback (the SEM coaching loop). Notifies the applicant in the
- * same transaction.
+ * Review a SUBMITTED attempt: accept it, return the same attempt for revision, or close it as REPEAT
+ * and create the next attempt. The review, assignment update and notification share one transaction.
  */
 export async function reviewSubmission({ id, tenantId, status, reviewerFeedback, reviewerUserId }: ReviewSubmissionInput) {
   return prisma.$transaction(async (tx) => {
     const submission = await tx.submission.findFirst({
       where: { id, tenantId },
-      include: { mission: { select: { id: true, title: true } } }
+      include: {
+        mission: { select: { id: true, title: true } },
+        missionAssignment: true
+      }
     });
     if (!submission) {
       throw new Error("Submission not found for this tenant.");
@@ -250,6 +316,25 @@ export async function reviewSubmission({ id, tenantId, status, reviewerFeedback,
       }
     });
 
+    if (submission.missionAssignment) {
+      const assignmentStatus =
+        status === "ACCEPTED" ? "PASSED" : status === "REPEAT" ? "REPEAT" : "ACTIVE";
+      await tx.missionAssignment.updateMany({
+        where: {
+          id: submission.missionAssignment.id,
+          tenantId,
+          applicantId: submission.applicantId
+        },
+        data: { status: assignmentStatus }
+      });
+
+      if (status === "REPEAT") {
+        await createRepeatMissionAssignmentTx(tx, submission.missionAssignment);
+      }
+    } else if (status === "REPEAT") {
+      throw new Error("A repeat decision requires a linked assignment attempt.");
+    }
+
     await tx.auditLog.create({
       data: {
         tenantId,
@@ -257,7 +342,11 @@ export async function reviewSubmission({ id, tenantId, status, reviewerFeedback,
         action: "submission.reviewed",
         entityType: "Submission",
         entityId: submission.id,
-        metadata: { missionId: submission.missionId, status }
+        metadata: {
+          missionId: submission.missionId,
+          missionAssignmentId: submission.missionAssignmentId,
+          status
+        }
       }
     });
 
@@ -269,7 +358,9 @@ export async function reviewSubmission({ id, tenantId, status, reviewerFeedback,
         title:
           status === "ACCEPTED"
             ? `Mission accepted: ${submission.mission.title}`
-            : `Revision requested: ${submission.mission.title}`,
+            : status === "REPEAT"
+              ? `Week repeat assigned: ${submission.mission.title}`
+              : `Revision requested: ${submission.mission.title}`,
         body: reviewerFeedback || undefined
       }
     });
@@ -317,22 +408,41 @@ export async function getApplicantMissionProgress(
 ): Promise<MissionProgress> {
   const assignments = await prisma.missionAssignment.findMany({
     where: { tenantId, programId, applicantId, mission: { status: "PUBLISHED" } },
-    include: { mission: { select: { id: true, title: true, weekNumber: true, order: true } } }
+    include: { mission: { select: { id: true, title: true, weekNumber: true, order: true } } },
+    orderBy: [{ weekNumber: "asc" }, { attemptNumber: "desc" }]
   });
-  const missions = assignments
+  const latestByWeek = new Map<number, (typeof assignments)[number]>();
+  for (const assignment of assignments) {
+    if (!latestByWeek.has(assignment.weekNumber)) {
+      latestByWeek.set(assignment.weekNumber, assignment);
+    }
+  }
+  const currentAssignments = [...latestByWeek.values()].sort(
+    (a, b) =>
+      a.mission.weekNumber - b.mission.weekNumber ||
+      a.mission.order - b.mission.order ||
+      a.mission.title.localeCompare(b.mission.title)
+  );
+  const missions = currentAssignments
     .map((assignment) => assignment.mission)
     .sort((a, b) => a.weekNumber - b.weekNumber || a.order - b.order || a.title.localeCompare(b.title));
   const submissions = await listApplicantProgramSubmissions(tenantId, applicantId, programId);
-  const statusByMission = new Map(submissions.map((s) => [s.missionId, s.status]));
+  const statusByAssignment = new Map(
+    submissions.filter((submission) => submission.missionAssignmentId).map((submission) => [submission.missionAssignmentId, submission.status])
+  );
+  const legacyStatusByMission = new Map(
+    submissions.filter((submission) => !submission.missionAssignmentId).map((submission) => [submission.missionId, submission.status])
+  );
 
   const weekMap = new Map<number, { total: number; accepted: number }>();
   let accepted = 0;
   let currentMission: CurrentMission | null = null;
 
-  for (const mission of missions) {
+  for (const assignment of currentAssignments) {
+    const mission = assignment.mission;
     const entry = weekMap.get(mission.weekNumber) ?? { total: 0, accepted: 0 };
     entry.total += 1;
-    const status = statusByMission.get(mission.id) ?? null;
+    const status = statusByAssignment.get(assignment.id) ?? legacyStatusByMission.get(mission.id) ?? null;
     if (status === "ACCEPTED") {
       entry.accepted += 1;
       accepted += 1;

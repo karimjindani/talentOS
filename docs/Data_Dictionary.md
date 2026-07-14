@@ -4,16 +4,22 @@ Code version: `v0.18.0`
 
 Baseline commit: `bf59ca4`
 
-> `v0.15.0` (AI Mentor MVP, D-066) adds `mentor_conversations`: `id`, `tenantId` (FK→tenants),
+> `v0.15.0` (AI Mentor MVP, D-066) adds `mentor_conversation`: `id`, `tenantId` (FK→tenants),
 > `userId` (FK→users), `title`, `createdAt`, `updatedAt`, index on `[tenantId, userId, updatedAt]`;
-> and `mentor_messages`: `id`, `conversationId` (FK→mentor_conversations), `role` (`"user"` |
+> and `mentor_message`: `id`, `conversationId` (FK→mentor_conversation), `role` (`"user"` |
 > `"mentor"`), `content`, `cardsJson` (optional JSON-serialised `MentorCard[]`), `createdAt`, index on
 > `[conversationId, createdAt]`.
+>
+> Assignment-linked journal attempts add assignment attempt/status fields, assignment foreign keys on
+> submissions and journal entries, persisted journal lock timestamps, and the terminal `REPEAT`
+> submission outcome. Migration: `20260710170000_assignment_linked_journal_attempts`.
 >
 > `v0.18.0` (Mission Assignment MVP, D-075) adds `mission_assignments`: `id`, `tenantId` (FK→tenants),
 > `programId` (FK→programs), `applicantId` (FK→users), `missionId` (FK→missions), `weekNumber`,
 > `assignedAt`, `createdAt`, `updatedAt`; unique `[tenantId, programId, applicantId, weekNumber]`,
-> indexes on `[tenantId, programId, weekNumber]`, `applicantId`, `missionId`. Migration:
+> indexes on `[tenantId, programId, weekNumber]`, `applicantId`, `missionId`. The later assignment-attempt
+> migration extends this model with attempt number/status and supersedes the original uniqueness rule.
+> Migration:
 > `20260708120000_v0_18_0_mission_assignment_mvp`.
 >
 > `v0.17.1` (journal entry date uniqueness, D-074) replaces the non-unique
@@ -213,7 +219,9 @@ Baseline commit: `bf59ca4`
 | `programId` | Program context for the assignment. |
 | `applicantId` | Applicant/user receiving the mission. |
 | `missionId` | Published mission assigned to the applicant. |
-| `weekNumber` | Program week for the assignment. One assignment is allowed per tenant + program + applicant + week. |
+| `weekNumber` | Program week for the assignment. |
+| `attemptNumber` | Attempt sequence within the applicant's program week, starting at 1. |
+| `status` | `ACTIVE`, `SUBMITTED`, `PASSED` or `REPEAT`. |
 | `assignedAt` | Timestamp for when the assignment was made. |
 | `createdAt` | Row creation timestamp. |
 | `updatedAt` | Row update timestamp. |
@@ -230,6 +238,7 @@ field. Unique on `[tenantId, applicantId, entryDate]` — one entry per applican
 | `applicantId` | Applicant who owns the entry; entries are visible/editable only by their owner. |
 | `programId` | Program context for the entry. |
 | `missionId` | Mission the reflection is written against; must be assigned to the applicant (`v0.18.0`). |
+| `missionAssignmentId` | Nullable legacy-safe link to the exact assignment attempt. New entries always set it. |
 | `weekNumber` | Program week, derived from the selected mission — not trusted from the client. |
 | `entryDate` | Calendar date of the reflection; unique per applicant per tenant. |
 | `language` | Entry language, seeded from `User.preferredJournalLanguage`. |
@@ -250,6 +259,7 @@ field. Unique on `[tenantId, applicantId, entryDate]` — one entry per applican
 | `aiReviewFeedback` | Nullable AI-review feedback placeholder; no AI review is active yet. |
 | `aiReviewedAt` | Nullable AI-review timestamp placeholder; no AI review is active yet. |
 | `aiReviewMetadata` | Nullable AI-review metadata (JSON) placeholder; no AI review is active yet. |
+| `lockedAt` | Timestamp set when the linked assignment attempt is submitted; locked entries are read-only. |
 | `createdAt` | Row creation timestamp. |
 | `updatedAt` | Row update timestamp. |
 
@@ -258,9 +268,10 @@ field. Unique on `[tenantId, applicantId, entryDate]` — one entry per applican
 | Field | Purpose |
 | --- | --- |
 | `tenantId` | Owning tenant (direct scoping, consistent with other tenant-owned tables). |
-| `missionId` | Mission the evidence is for; unique together with `applicantId` (one row per applicant per mission; the revision loop reuses it). |
+| `missionId` | Mission the evidence is for. |
+| `missionAssignmentId` | Nullable legacy-safe link to the exact assignment attempt; unique when present. |
 | `applicantId` | Participant who owns the submission. |
-| `status` | `DRAFT`, `SUBMITTED`, `NEEDS_REVISION` or `ACCEPTED` (terminal; `REVIEWED` reserved/unused). |
+| `status` | `DRAFT`, `SUBMITTED`, `NEEDS_REVISION`, `ACCEPTED` or `REPEAT` (`REVIEWED` reserved/unused). |
 | `repositoryUrl` | Git repository evidence link (host-allowlisted to github.com); PRD/README/user stories live in the repo. |
 | `deploymentUrl` | Deployed-application evidence link (any http/https). |
 | `loomUrl` | Loom walkthrough evidence link (host-allowlisted to loom.com). |
@@ -400,7 +411,7 @@ knowledge-base and AI roadmap pillars (see `docs/vision.md` Phases 5-8).
 | --- | --- |
 | `id` | Unique marker ID. |
 | `runId` | Regression run identifier. |
-| `entityType` | Marked entity type, such as `Application`, `ApplicationAnswer`, `Mission`, `Submission`, `Program`, `User`, `TenantMembership` or `StoredFile`. |
+| `entityType` | Marked entity type, such as `Application`, `ApplicationAnswer`, `EngineeringJournalEntry`, `MissionAssignment`, `Submission`, `Mission`, `Program`, `Tenant`, `User`, `TenantMembership` or `StoredFile`. |
 | `entityId` | ID of the marked entity. |
 | `createdAt` | Marker creation timestamp. |
 

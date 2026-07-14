@@ -699,3 +699,21 @@ Plan: `docs/plans/v0.18.2_Regression_And_Documentation_Completeness.md`; results
 `docs/testing/v0.18.2_Regression_And_Documentation_Completeness_Test_Results.md`.
 
 Status: Approved
+
+## D-078
+
+`v0.18.3` improves the local Ops Console regression result view. Decision: preserve the existing
+`REGRESSION_RESULT_JSON.results` scenario payload in the Ops job contract instead of adding another
+runner format. A new `RegressionScenarioResult` type records area, scenario name, status, duration and
+optional detail/error text; `apps/ops/src/jobs.ts` stores these results on the step and top-level job.
+The Ops UI now renders scenario rows grouped by area beneath the existing pass/fail/skipped counts, so
+operators can see exactly which scenario passed, failed or skipped without searching raw logs. Existing
+summary-only payloads still fall back to the previous area-card display.
+
+No database migration or regression-runner rewrite is required. This is an Ops/testing usability
+enhancement only.
+
+Plan: `docs/plans/v0.18.3_Ops_Regression_Scenario_Visibility.md`; results:
+`docs/testing/v0.18.3_Ops_Regression_Scenario_Visibility_Test_Results.md`.
+
+Status: Approved

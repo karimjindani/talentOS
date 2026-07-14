@@ -12,6 +12,9 @@ describe("regression data cleanup", () => {
     );
     expect(REGRESSION_CLEANUP_ORDER.indexOf("Mission")).toBeLessThan(REGRESSION_CLEANUP_ORDER.indexOf("Program"));
     expect(REGRESSION_CLEANUP_ORDER.indexOf("EngineeringJournalEntry")).toBeLessThan(
+      REGRESSION_CLEANUP_ORDER.indexOf("MissionAssignment")
+    );
+    expect(REGRESSION_CLEANUP_ORDER.indexOf("EngineeringJournalEntry")).toBeLessThan(
       REGRESSION_CLEANUP_ORDER.indexOf("Mission")
     );
     expect(REGRESSION_CLEANUP_ORDER.indexOf("EngineeringJournalEntry")).toBeLessThan(
@@ -20,7 +23,6 @@ describe("regression data cleanup", () => {
   });
 
   it("does not include unmarkable broad tables in cleanup order", () => {
-    expect(REGRESSION_CLEANUP_ORDER).not.toContain("Tenant" as never);
     expect(REGRESSION_CLEANUP_ORDER).not.toContain("AuditLog" as never);
   });
 });

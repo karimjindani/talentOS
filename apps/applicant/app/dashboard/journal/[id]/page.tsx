@@ -44,7 +44,10 @@ export default async function JournalEntryPage({ params, searchParams }: Journal
   if (!entry || entry.programId !== acceptedApp.program.id) {
     notFound();
   }
-  const journalLocked = await isJournalMissionLockedForApplicant(tenant.id, user.id, entry.missionId);
+  const journalLocked =
+    Boolean(entry.lockedAt) ||
+    (!entry.missionAssignmentId &&
+      (await isJournalMissionLockedForApplicant(tenant.id, user.id, entry.missionId)));
   const effectiveEditMode = editMode && !journalLocked;
 
   const missions = await listAssignedProgramMissions(tenant.id, user.id, acceptedApp.program.id);
@@ -98,7 +101,7 @@ export default async function JournalEntryPage({ params, searchParams }: Journal
 
       {journalLocked ? (
         <p className="mt-4 max-w-4xl rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          This journal entry is locked because the assignment has already been submitted.
+          This journal entry is locked because it was submitted for review.
         </p>
       ) : null}
 

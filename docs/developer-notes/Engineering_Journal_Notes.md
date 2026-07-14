@@ -4,7 +4,7 @@
 
 The Engineering Journal is a dedicated Applicant Portal module for structured intern reflection. It lives separately from the older `Submission.journalMarkdown` field that was part of mission submissions.
 
-Journal entries are linked to assigned missions. An applicant should write reflections against the mission they were assigned, not against any published mission in the program.
+Journal entries are linked to the applicant's active `MissionAssignment` attempt as well as its mission. This keeps one continuous journal while preventing repeat-week attempts from sharing review history.
 
 ## Current Journal Rules
 
@@ -16,6 +16,7 @@ Journal entries are linked to assigned missions. An applicant should write refle
 - Back-dated entries are allowed.
 - Once the related assignment is submitted, journal entries for that assignment are locked.
 - Locked journal entries stay readable but cannot be edited.
+- The persisted `lockedAt` timestamp is not cleared by revision, resubmission, acceptance or repeat.
 - Delete functionality is not implemented.
 
 ## Mission Assignment Relationship
@@ -24,14 +25,27 @@ Mission variants are seeded from Markdown spec files. The seed script reads thos
 
 When an applicant is accepted into a program, the system assigns them one Week 1 mission. That assignment controls which mission the applicant can see, submit work for, and journal against.
 
-Journal creation validates mission assignment before saving an entry. This prevents applicants from creating journal entries for missions they have not been assigned.
+Journal creation validates the active assignment attempt and stores its ID. This prevents applicants from creating entries for unassigned missions or closed attempts.
 
-If the applicant has already submitted the assignment for a mission, journal entries for that mission are treated as locked. The UI hides the edit flow for locked entries, and the database helper also rejects create/update attempts as a server-side guard.
+Submitting an assignment sets `lockedAt` only on journal entries with the same tenant, applicant and assignment ID. The UI hides the edit flow for locked entries, and the database helper rejects updates as a server-side guard.
+
+A **Repeat week** review marks the old submission and assignment attempt as `REPEAT`, then creates one new active attempt for the same week. The old submission and locked journals remain unchanged. Double review is rejected, preventing duplicate attempts or repeat loops.
+
+## Admin Review Behavior
+
+The current submission attempt's Engineering Journal is the primary review evidence. On Attempt 2 or
+later, reviewers may expand **Previous Attempt History** for optional read-only context. The progression
+lookup matches tenant, program, applicant, and week while intentionally allowing a prior attempt to use
+a different mission. Each prior attempt remains a separate group, and its journal entries are selected
+only through that exact `missionAssignmentId`. Current attempts, future attempts, unrelated records,
+and unlinked legacy journal entries are excluded. Admin review does not expose journal edit or delete
+controls.
 
 ## Implementation Notes
 
 - `EngineeringJournalEntry` is the dedicated Prisma model for journal entries.
 - `MissionAssignment` controls applicant mission visibility, mission submission access, and journal mission eligibility.
+- `Submission.missionAssignmentId` and `EngineeringJournalEntry.missionAssignmentId` preserve attempt-level review context.
 - `Submission.journalMarkdown` is legacy submission data. Keep it for backward compatibility unless a future migration intentionally removes it.
 - AI scoring fields on journal entries are placeholders only. Real AI review and scoring are future work.
 
@@ -39,7 +53,7 @@ If the applicant has already submitted the assignment for a mission, journal ent
 
 - Intentionally remove legacy `Submission.journalMarkdown` from the schema after old data is migrated or confirmed unnecessary.
 - Add AI review and scoring.
-- Add admin or reviewer visibility into applicant journal entries.
+- Add review scoring for repository, deployment, video and journal quality.
 - Add recruiter and portfolio views.
 - Add reminders or notifications for journal habits.
 - Add export or weekly summary features.

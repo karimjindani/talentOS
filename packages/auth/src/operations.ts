@@ -44,6 +44,15 @@ export type RegressionSummary = {
   durationMs: number;
 };
 
+export type RegressionScenarioResult = {
+  area: Exclude<RegressionArea, "all">;
+  name: string;
+  status: "passed" | "failed" | "skipped";
+  durationMs: number;
+  detail?: string;
+  error?: string;
+};
+
 export type OpsJobStep = {
   id: string;
   name: string;
@@ -56,6 +65,7 @@ export type OpsJobStep = {
   output: string;
   regressionSummary?: RegressionSummary;
   regressionSummaries?: RegressionSummary[];
+  regressionScenarios?: RegressionScenarioResult[];
 };
 
 export type OpsJob = {
@@ -71,6 +81,7 @@ export type OpsJob = {
   error?: string;
   regressionSummary?: RegressionSummary;
   regressionSummaries?: RegressionSummary[];
+  regressionScenarios?: RegressionScenarioResult[];
 };
 
 export const LOCAL_REGRESSION_COMMANDS = {
