@@ -45,7 +45,7 @@ TalentOS has moved beyond product discovery into an initial platform scaffold wi
 - `v0.14.1`: User guides for Applicant Portal and Back Office/Admin Portal.
 - `v0.14.2`: Applicant portal tenant-membership isolation (parity with the D-051 admin fix).
 - `v0.14.3`: Dashboard logout button and tenant-subdomain Keycloak logout fix (canonical `/logged-out` bounce).
-- `v0.15.0`: Mission Submission Workflow MVP-1 — applicant evidence submission (repo/deployment/Loom + Engineering Journal) with staff review loop (accept / request changes) and notifications.
+- `v0.15.0`: Mission Submission Workflow MVP-1 — applicant evidence submission (repo/deployment/Loom + Engineering Journal) with staff review loop (accept / request changes) and notifications; AI Mentor MVP (RBSE-driven contextual guidance, knowledge base, LLM fallback with in-memory caching).
 - `v0.15.1`: Seeded the complete four-week TaskPilot mission arc (Week 1 → Week 4, Beginner → Expert).
 - `v0.16.0`: Mission-driven dashboard progress and admin Program Content management (video resources, weekly tasks, calendar events).
 - `v0.16.1`: Illustrated end-user guide with automated Playwright screenshot capture.

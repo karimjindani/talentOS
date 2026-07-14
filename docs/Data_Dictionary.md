@@ -1,9 +1,15 @@
 # Data Dictionary
 
-Code version: `v0.18.0`
+Code version: `v0.18.4`
 
 Baseline commit: `bf59ca4`
 
+> `v0.15.0` (AI Mentor MVP, D-066) adds `mentor_conversation`: `id`, `tenantId` (FK→tenants),
+> `userId` (FK→users), `title`, `createdAt`, `updatedAt`, index on `[tenantId, userId, updatedAt]`;
+> and `mentor_message`: `id`, `conversationId` (FK→mentor_conversation), `role` (`"user"` |
+> `"mentor"`), `content`, `cardsJson` (optional JSON-serialised `MentorCard[]`), `createdAt`, index on
+> `[conversationId, createdAt]`.
+>
 > Assignment-linked journal attempts add assignment attempt/status fields, assignment foreign keys on
 > submissions and journal entries, persisted journal lock timestamps, and the terminal `REPEAT`
 > submission outcome. Migration: `20260710170000_assignment_linked_journal_attempts`.
@@ -410,6 +416,32 @@ knowledge-base and AI roadmap pillars (see `docs/vision.md` Phases 5-8).
 | `createdAt` | Marker creation timestamp. |
 
 Cleanup must delete only marked records. Seeded and user-created unmarked records must remain untouched.
+
+## MentorConversation
+
+| Field | Purpose |
+| --- | --- |
+| `id` | Unique conversation ID (cuid). |
+| `tenantId` | Owning tenant — cascades on tenant delete. |
+| `userId` | Owning user — cascades on user delete. |
+| `title` | Conversation title; defaults to `"New Conversation"`. |
+| `createdAt` | Creation timestamp. |
+| `updatedAt` | Last-update timestamp (auto-updated). |
+
+Index: `(tenantId, userId, updatedAt)` for efficient per-user conversation listing.
+
+## MentorMessage
+
+| Field | Purpose |
+| --- | --- |
+| `id` | Unique message ID (cuid). |
+| `conversationId` | Parent conversation — cascades on conversation delete. |
+| `role` | Message author role: `"user"` or `"mentor"`. |
+| `content` | Message text content. |
+| `cardsJson` | Optional JSON-serialised `MentorCard[]` for rich card rendering. |
+| `createdAt` | Creation timestamp. |
+
+Index: `(conversationId, createdAt)` for chronological message retrieval.
 
 ## Tenant Isolation
 

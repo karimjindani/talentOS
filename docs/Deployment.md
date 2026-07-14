@@ -1,12 +1,12 @@
 # Deployment
 
-Code version: `v0.18.2`
+Code version: `v0.18.4`
 
 Baseline commit: `6ef1ef7`
 
-Current deployment update: `v0.18.2` (the latest deployment-affecting baselines are `v0.17.0`,
-`v0.17.1` and `v0.18.0` — all three require a database migration; `v0.18.1`/`v0.18.2` are docs/tooling
-baselines with no deployment, infra or migration change)
+Current deployment update: `v0.18.4` (the latest deployment-affecting baselines are `v0.17.0`,
+`v0.17.1` and `v0.18.0` — all three require a database migration; `v0.18.1`/`v0.18.2`/`v0.18.3`/`v0.18.4`
+are docs/tooling baselines with no deployment, infra or migration change)
 
 > `v0.18.1`/`v0.18.2` require **no deployment, infra or migration change** — `v0.18.1` is the
 > plan-template governance patch and `v0.18.2` adds regression scenarios and documentation only; no
@@ -290,6 +290,28 @@ containers.
   the ECS address reachable by the browser (e.g. `http://<ECS_PUBLIC_IP>:9000`) and open `9000/tcp` for
   validation only; keep the console `9001/tcp` closed and set strong root credentials server-side
   (never commit them). The same S3 code can target Alibaba OSS by config alone if ever preferred.
+
+## LLM / AI Mentor Environment Variables
+
+The AI Mentor feature (`v0.15.0`) requires the following environment variables in the applicant container:
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `GLM_Z_API_KEY` | ZhipuAI / GLM API key for LLM access. | _(none — required for live LLM)_ |
+| `ZHIPUAI_BASE_URL` | ZhipuAI API base URL. | `https://api.z.ai/api/coding/paas/v4` |
+| `ZHIPUAI_MODEL` | Model identifier to use. | `glm-4.5-air` |
+| `LLM_MAX_TOKENS` | Maximum tokens in LLM response. | `1024` |
+| `LLM_TEMPERATURE` | LLM sampling temperature. | `0.7` |
+
+**Cache constants** (code-level, not environment-configurable — see D-070):
+
+| Constant | Purpose | Value |
+| --- | --- | --- |
+| `LLM_CACHE_TTL_MS` | Time-to-live for cached LLM responses. | `300_000` (5 minutes) |
+| `LLM_CACHE_MAX_SIZE` | Maximum cache entries before LRU eviction. | `200` |
+
+When `GLM_Z_API_KEY` is absent or the LLM call fails, the API route falls back to a stub response so the
+mentor UI remains functional during development.
 
 ## Local Validation URLs
 

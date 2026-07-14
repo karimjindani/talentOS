@@ -134,6 +134,12 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-talentos_dev_password}
       S3_BUCKET: ${S3_BUCKET:-talentos}
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      # AI Mentor — GLM_Z.ai / Z.AI (Phase 6)
+      GLM_Z_API_KEY: ${GLM_Z_API_KEY:-}
+      ZHIPUAI_BASE_URL: ${ZHIPUAI_BASE_URL:-https://api.z.ai/api/coding/paas/v4}
+      ZHIPUAI_MODEL: ${ZHIPUAI_MODEL:-glm-4.5-air}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-1024}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
     ports:
       - "${APPLICANT_PORT:-3100}:3000"
 

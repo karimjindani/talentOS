@@ -1,9 +1,15 @@
 # Data Model
 
-Code version: `v0.18.0`
+Code version: `v0.18.4`
 
 Baseline commit: `bf59ca4`
 
+> `v0.15.0` (AI Mentor MVP, D-066) adds `MentorConversation` (`id`, `tenantId`, `userId`, `title`,
+> `createdAt`, `updatedAt`, index on `[tenantId, userId, updatedAt]`) and `MentorMessage`
+> (`id`, `conversationId` FK→`MentorConversation` Cascade, `role` (`"user"` | `"mentor"`), `content`,
+> `cardsJson` (String?, JSON-serialised `MentorCard[]`), `createdAt`, index on
+> `[conversationId, createdAt]`).
+>
 > Assignment-linked journal attempts add `MissionAssignment.attemptNumber/status`, nullable
 > `missionAssignmentId` links on `Submission` and `EngineeringJournalEntry`, and
 > `EngineeringJournalEntry.lockedAt`. A submission now belongs to one assignment attempt. Submitting
@@ -162,6 +168,9 @@ erDiagram
     Program ||--o{ CalendarEvent : schedules
     Tenant ||--o{ Notification : owns
     User ||--o{ Notification : receives
+    Tenant ||--o{ MentorConversation : owns
+    User ||--o{ MentorConversation : holds
+    MentorConversation ||--o{ MentorMessage : contains
     Tenant ||--o{ StoredFile : owns
     User ||--o{ StoredFile : uploads
     Application |o--o| StoredFile : "CV"
@@ -209,6 +218,9 @@ erDiagram
 - `StoredFile`: tenant-scoped metadata for an object stored in MinIO (bytes live in the object store).
 - `RegressionDataMarker`: local/dev marker rows identifying records created by regression workflows and
   safe to remove during regression cleanup.
+- `MentorConversation`: persistent AI mentor conversation scoped to a tenant and user (`v0.15.0`).
+- `MentorMessage`: single message within a mentor conversation (role `user` or `mentor`, optional
+  `cardsJson` for rich card payloads).
 
 ## Schema Stubs (migrated, not yet used by application code)
 

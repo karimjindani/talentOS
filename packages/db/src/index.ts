@@ -15,3 +15,4 @@ export * from "./mission-assignments";
 export * from "./submissions";
 export * from "./journal";
 export * from "./program-content";
+export * from "./mentor";

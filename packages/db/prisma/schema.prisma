@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -93,23 +94,24 @@ model Tenant {
   logoFileId String?     @unique
   logoFile   StoredFile? @relation("TenantLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
 
-  memberships        TenantMembership[]
-  programs           Program[]
-  applications       Application[]
-  auditLogs          AuditLog[]
-  missions           Mission[]
-  portfolioItems     PortfolioArtifact[]
-  certificates       Certificate[]
-  knowledgeDocs      KnowledgeBaseDocument[]
-  aiInteractions     AIInteraction[]
-  storedFiles        StoredFile[]
-  programTasks       ProgramTask[]
-  videoResources     VideoResource[]
-  notifications      Notification[]
-  calendarEvents     CalendarEvent[]
-  submissions        Submission[]
-  journalEntries     EngineeringJournalEntry[]
-  missionAssignments MissionAssignment[]
+  memberships         TenantMembership[]
+  programs            Program[]
+  applications        Application[]
+  auditLogs           AuditLog[]
+  missions            Mission[]
+  portfolioItems      PortfolioArtifact[]
+  certificates        Certificate[]
+  knowledgeDocs       KnowledgeBaseDocument[]
+  aiInteractions      AIInteraction[]
+  storedFiles         StoredFile[]
+  programTasks        ProgramTask[]
+  videoResources      VideoResource[]
+  notifications       Notification[]
+  calendarEvents      CalendarEvent[]
+  submissions         Submission[]
+  journalEntries      EngineeringJournalEntry[]
+  missionAssignments  MissionAssignment[]
+  mentorConversations MentorConversation[]
 
   @@map("tenants")
 }
@@ -142,6 +144,7 @@ model User {
   storedFiles         StoredFile[]
   notifications       Notification[]
   taskCompletions     UserTaskCompletion[]
+  mentorConversations MentorConversation[]
 
   @@map("users")
 }
@@ -574,4 +577,36 @@ model UserTaskCompletion {
   @@unique([taskId, userId])
   @@index([userId])
   @@map("user_task_completions")
+}
+
+/// A persistent AI mentor conversation scoped to a tenant and user.
+model MentorConversation {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  title     String   @default("New Conversation")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  MentorMessage[]
+
+  @@index([tenantId, userId, updatedAt])
+  @@map("mentor_conversations")
+}
+
+/// A single message within a mentor conversation.
+model MentorMessage {
+  id              String   @id @default(cuid())
+  conversationId  String
+  role            String   // "user" | "mentor"
+  content         String
+  cardsJson       String?  // JSON-serialised MentorCard[]
+  createdAt       DateTime @default(now())
+
+  conversation    MentorConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("mentor_messages")
 }

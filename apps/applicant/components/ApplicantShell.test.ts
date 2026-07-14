@@ -1,9 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
-
-// The shell imports the shared logout server action (v0.14.3 / D-066); mock it — like @/auth in
-// tenant-guard.test.ts — because vitest does not resolve the app-level "@/" alias.
-vi.mock("@/lib/logout-action", () => ({ logoutAction: vi.fn() }));
-
+import { describe, expect, it } from "vitest";
 import { isApplicantNavActive, APPLICANT_NAV_ITEMS } from "./ApplicantShell";
 
 describe("ApplicantShell isApplicantNavActive route matching", () => {
@@ -68,11 +63,18 @@ describe("ApplicantShell isApplicantNavActive route matching", () => {
       const item = APPLICANT_NAV_ITEMS.find((i) => i.href === "/dashboard/profile")!;
       expect(isApplicantNavActive("/dashboard/profile", item)).toBe(true);
     });
+
+    it("AI Mentor is active on `/dashboard/mentor` and sub-paths", () => {
+      const item = APPLICANT_NAV_ITEMS.find((i) => i.href === "/dashboard/mentor")!;
+      expect(isApplicantNavActive("/dashboard/mentor", item)).toBe(true);
+      expect(isApplicantNavActive("/dashboard/mentor/session-1", item)).toBe(true);
+      expect(isApplicantNavActive("/dashboard/tasks", item)).toBe(false);
+    });
   });
 
   describe("nav items completeness", () => {
-    it("has exactly 8 nav items", () => {
-      expect(APPLICANT_NAV_ITEMS).toHaveLength(9);
+    it("has exactly 10 nav items", () => {
+      expect(APPLICANT_NAV_ITEMS).toHaveLength(10);
     });
 
     it("includes all expected routes", () => {
@@ -86,6 +88,7 @@ describe("ApplicantShell isApplicantNavActive route matching", () => {
       expect(hrefs).toContain("/dashboard/calendar");
       expect(hrefs).toContain("/dashboard/notifications");
       expect(hrefs).toContain("/dashboard/profile");
+      expect(hrefs).toContain("/dashboard/mentor");
     });
   });
 });

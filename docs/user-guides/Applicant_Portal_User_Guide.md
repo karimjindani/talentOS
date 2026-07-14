@@ -1,8 +1,8 @@
 # Applicant Portal User Guide
 
-Applies to version: `v0.18.0`
+Applies to version: `v0.18.4`
 
-Last verified: 2026-07-08
+Last verified: 2026-07-14
 
 Audience: applicants and accepted program participants.
 
@@ -101,20 +101,6 @@ The dashboard contains:
 
 Applicants without an accepted application are redirected back to their application/status flow.
 
-### Your progress is mission-driven (`v0.16.0`)
-
-The overview page's **Overall Progress**, **Missions Accepted** tile and per-week **Program
-Progress** bars track your missions: a mission counts toward progress only when a reviewer has
-**accepted** your submission. Draft or submitted work does not move the bar yet. The **Current
-Mission** card shows the next mission in your program (with your submission status) and links
-straight to it; when every mission is accepted, your portfolio evidence is complete. Weekly tasks
-remain a separate checklist with their own tile — completing tasks does not change Overall
-Progress.
-
-To sign out from the dashboard, use the **Logout** button at the bottom of the sidebar (below your
-name and email). Signing out ends both the portal session and the Keycloak single sign-on session and
-returns you to your tenant's portal home page (`v0.14.3`).
-
 ### Access to an organization you have not joined
 
 The Dashboard and Application pages are restricted to members of the tenant whose subdomain you are on. If
@@ -136,8 +122,7 @@ To view missions:
 4. Open a mission to review the objective, acceptance criteria, deliverables, evaluation criteria, and
    competency tags.
 
-The demo program seeds the full four-week mission arc (`v0.15.1`), evolving one product — TaskPilot —
-from idea to production:
+The seeded Week 1 mission is **Build a Public Product Landing Page**.
 
 In `v0.18.0`, Week 1 has multiple seeded variants so interns do not all start with the exact same
 assignment. The assigned mission is the one that appears in your dashboard.
@@ -149,29 +134,52 @@ assignment. The assigned mission is the one that appears in your dashboard.
 | 3 | Containerize, Automate and Load-Test TaskPilot | Advanced |
 | 4 | Take TaskPilot to Production | Expert |
 
-### Submitting mission work (`v0.15.0`)
+## AI Mentor
 
-Each mission detail page has a **My Submission** section where you provide your evidence:
+The AI Mentor is a conversational assistant available to accepted applicants at
+`http://demo.lvh.me:3100/dashboard/mentor`.
 
-- **Git repository URL** — must be on `github.com`; your PRD, README, user stories and acceptance
-  criteria live in the repository.
-- **Deployed application URL** — any reachable `http(s)` link to your running application.
-- **Loom walkthrough URL** — must be on `loom.com`.
-- **Engineering journal** — inline Markdown describing what you built, your decisions and what you
-  learned.
+### What the AI Mentor does
 
-Workflow:
+The mentor answers questions about your program, tasks, missions, software engineering practices (SDLC,
+SEM, mission framework), and general career guidance. It uses a rule-based classifier to stay on-topic
+and a knowledge base drawn from platform documentation.
 
-1. Fill in your evidence and select **Save draft** as often as you like.
-2. Select **Submit for review** when ready (at least one evidence link is required). Your evidence is
-   locked while under review.
-3. A reviewer either **accepts** your submission or **requests changes** with written feedback. You are
-   notified either way (see **Notifications**), and the feedback appears on the mission page.
-4. If changes are requested, edit your evidence and **Resubmit for review** — this loop can repeat.
-5. An accepted submission is final: it becomes portfolio evidence for the mission's competencies.
+### Using the AI Mentor
 
-The missions list shows a status chip per mission: **Not started**, **Draft saved**, **Submitted**,
-**Revision requested**, or **Accepted**.
+1. Sign in as an accepted applicant.
+2. Open the dashboard.
+3. Select **AI Mentor** in the sidebar.
+4. Type a question in the chat input and press **Enter** or click **Send**.
+5. The mentor's response appears as a formatted message with Markdown rendering and syntax-highlighted
+   code blocks.
+6. Use the **suggested questions** chips above the input for quick prompts.
+
+### Conversation management
+
+- **New Chat**: Click the **New Chat** button to start a fresh conversation.
+- **Conversation history**: Previous conversations are listed in the sidebar. Click any to resume.
+- **Persistence**: Conversations are saved to your browser's local storage and to the database, so they
+  persist across sessions.
+- **Loading indicator**: Each conversation shows its own loading spinner while the mentor is thinking.
+  A "Still working..." message appears if the response takes more than a few seconds.
+
+### Rich cards
+
+The mentor can render rich cards inside responses, including task cards, progress indicators, timelines,
+tips, badges, and warnings.
+
+### Response caching
+
+The mentor caches LLM responses to avoid redundant API calls and reduce latency:
+
+- **Dynamic questions** (about your tasks, progress, timeline) are cached per user and per context — if
+  your program state hasn't changed, asking the same question again returns the cached response
+  instantly.
+- **Static knowledge questions** (e.g., "Explain SDLC") are cached across all users, so common
+  questions are fast for everyone.
+- Cached responses expire after 5 minutes. If you complete a task or your context changes, the cache
+  is automatically invalidated for dynamic questions.
 
 Daily reflection is recorded only through the dedicated Engineering Journal. The legacy inline
 mission-submission journal is no longer shown in applicant or admin interfaces.

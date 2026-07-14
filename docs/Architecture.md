@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.18.2`
+Code version: `v0.18.4`
 
 Architecture baseline commit: `6ef1ef7`
 
-Current documentation update: `v0.18.2`
+Current documentation update: `v0.18.4`
 
 ## Overview
 
@@ -439,10 +439,6 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
      `DRAFT ⇄ PUBLISHED ⇄ ARCHIVED` state machine, tenant scoping and `AuditLog` events
      (`program.created`, `program.updated`, `program.status_changed`). Published programs feed the
      applicant apply form.
-   - Program content (v0.16.0, D-069): video resources, weekly tasks and calendar events are
-     managed from /programs/[id]/content behind the manageProgramContent capability
-     (ORG_ADMIN/SUPER_ADMIN) via audited tenant-scoped helpers (packages/db/src/program-content.ts,
-     actions resource.*/task.*/event.*).
    - Next: cohorts and public per-program application entry points.
 
 5. Missions — mission engine delivered in `v0.14.0`, submissions in `v0.15.0`, full seed in `v0.15.1`
@@ -469,11 +465,37 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
    - Next: real AI review/scoring (current fields are schema placeholders only), recruiter visibility,
      export/weekly-summary features.
 
-7. AI Mentor Boundary
-   - Expand the current AI service boundary into tenant-aware, auditable mentor workflows.
+7. AI Mentor — delivered in `v0.15.0`
+   - Done: full conversational AI mentor at `/dashboard/mentor` for accepted applicants. The chat UI
+     (`apps/applicant/app/dashboard/mentor/page.tsx`) supports multi-conversation management with
+     per-conversation loading state, auto-scroll, suggested questions, and a "Still working..." timer.
+     Messages render Markdown (`react-markdown` + `remark-gfm` + Prism syntax highlighting) and rich
+     cards (`CardRenderer.tsx`: task, progress, timeline, tips, badge, warning) via a `cardsJson` field.
+     Conversations persist to `localStorage` (`talentos:mentor-conversations`) and to the database
+     (`MentorConversation` / `MentorMessage` models in `packages/db/src/mentor.ts`).
+   - **API route** (`apps/applicant/app/api/ai/mentor/route.ts`): `GET` loads conversation history,
+     `POST` accepts a prompt with auth guard + Zod validation, builds applicant context, retrieves
+     knowledge-base snippets, calls the LLM, and persists the exchange.
+   - **LLM integration** (`apps/applicant/lib/ai.ts`): `callGLM` calls ZhipuAI GLM-4.5-air with
+     1024 max tokens, 60 s timeout, and 1 retry. `buildSystemPrompt` assembles the system persona.
+     `requestAIInteraction` orchestrates: RBSE classification → LLM call → stub fallback on failure.    A **smart in-memory response cache** (`LLM_RESPONSE_CACHE`, D-070) avoids redundant LLM calls:
+    dynamic prompts (user-specific) are keyed by `tenant + user + contextSignature + prompt`, while
+    static knowledge prompts are keyed by `prompt` only (shared across users). The cache has a 5-minute
+    TTL, 200-entry cap with LRU eviction, and never caches errors. The context signature
+    (`buildContextSignature` in `ai-context.ts`) hashes program, progress, task, mission, and submission
+    state so any context change invalidates the dynamic cache entry.   - **RBSE classifier** (`apps/applicant/lib/ai-rbse.ts`): rule-based engine that classifies user
+     input into `blocked`, `direct_answer`, or `allow_llm` actions against an `ALLOWED_TOPICS` list.
+   - **Knowledge base** (`apps/applicant/lib/knowledge-base.ts`): keyword-based retrieval from
+     platform docs (SDLC, SEM, Mission Framework, etc.) with score ranking and a limit of 2 snippets.
+   - **Applicant context** (`apps/applicant/lib/ai-context.ts`): `buildApplicantContext` assembles
+     program, progress, upcoming tasks, missions — all tenant-scoped.
+   - Next: LiteLLM proxy integration, streaming responses, multi-turn context windowing,
+    edge/Redis-backed cache for multi-instance deployments.
 
 8. Knowledge Base
-   - Add tenant-owned knowledge documents for AI assistance and program support.
+   - The initial knowledge base is implemented as keyword-based retrieval from platform documentation
+     (`apps/applicant/lib/knowledge-base.ts`). Future: tenant-owned knowledge documents for AI
+     assistance and program support via a `KnowledgeBaseDocument` model.
 
 9. GitHub Integration
    - Connect participant repositories and collect project evidence.

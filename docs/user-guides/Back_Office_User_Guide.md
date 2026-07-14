@@ -1,12 +1,8 @@
 # Back Office User Guide
 
-Applies to version: `v0.16.0`
+Applies to version: `v0.18.4`
 
-Last verified: 2026-07-07
-
-Note (`v0.14.3`): signing out with the sidebar **Logout** button now works from tenant subdomains
-(for example `demo.lvh.me:3200`) as well as the canonical host; it ends the Keycloak single sign-on
-session and returns you to the tenant you were on.
+Last verified: 2026-07-14
 
 Audience: platform super admins, organization admins, HR reviewers, and tech leads.
 
@@ -72,9 +68,6 @@ Back Office access requires both:
 | Manage missions | Yes | Yes | No | No |
 | Review applications | Yes | Yes | Yes | No |
 | View missions | Yes | Yes | Yes | Yes |
-| Review mission submissions (`v0.15.0`) | Yes | Yes | No | Yes |
-| View mission submissions (`v0.15.0`) | Yes | Yes | Yes | Yes |
-| Manage program content (`v0.16.0`) | Yes | Yes | No | No |
 | Use local Operations page | Yes | Yes | No | No |
 
 ## Organizations
@@ -111,21 +104,6 @@ Organization Admins and Super Admins manage programs.
 
 Only published programs are visible to applicants.
 
-### Program content (`v0.16.0`)
-
-Organization Admins and Super Admins manage the applicant dashboard's curriculum content per
-program from **Programs → [program] → Manage content** (`/programs/[id]/content`):
-
-- **Video resources** — title, video URL (YouTube/Loom/etc.), description, optional week (1–4).
-  Shown on the applicant Resources page and week views.
-- **Weekly tasks** — title, description, week (1–4), order, optional due date. Shown on the
-  applicant Tasks page; applicants tick them off as a checklist.
-- **Calendar events** — title, description, start/end time, location. Shown on the applicant
-  Calendar page.
-
-Each entry can be edited inline or deleted. All changes are audited. HR and Tech Lead see a
-read-only notice on this page.
-
 ## Missions
 
 Organization Admins and Super Admins manage missions.
@@ -136,12 +114,6 @@ Organization Admins and Super Admins manage missions.
    tags.
 4. Publish the mission when it is ready for accepted applicants.
 5. Archive missions that should no longer be visible to applicants.
-
-The mission form includes SEM-aligned authoring guidance. Use the helper text to write objectives as
-learning outcomes, frame the real-world brief, list the evidence applicants must submit, define the
-minimum acceptance bar, and explain how staff should judge quality during review. Competency tags are
-comma-separated; accepted submissions become evidence for those competencies, so keep tag names
-consistent across missions.
 
 HR and Tech Lead users can view missions but cannot create, edit, publish, or archive them.
 
@@ -207,8 +179,8 @@ The Operations page must not be used as evidence that production monitoring exis
 
 - Full Back Office user/role management UI is not complete yet.
 - Production deployment operations, backups, alerting, and monitoring are not covered by this guide.
-- A dedicated engineering-journal module, public portfolios, and hiring intelligence are future
-  workflows (mission submission review shipped in `v0.15.0`).
+- Mission submissions, engineering journal review, public portfolios, and hiring intelligence are future
+  workflows.
 - Screenshots are not part of this guide yet.
 
 ## Troubleshooting

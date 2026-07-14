@@ -2,17 +2,17 @@
 
 ## Current Baseline
 
-Version: `v0.18.3`
+Version: `v0.18.4`
 
-Baseline name: `Ops Regression Scenario Visibility`
+Baseline name: `AI Mentor SSE Streaming + Send Button Fix`
 
 Baseline code commit: `_set on merge_`
 
-Baseline date: `2026-07-11`
+Baseline date: `2026-07-14`
 
-Previous baseline: `v0.18.2`
+Previous baseline: `v0.18.3`
 
-Previous baseline commit: `6ef1ef7`
+Previous baseline commit: `f7a330c`
 
 ## Baseline Summary
 
@@ -234,6 +234,29 @@ origin's new `/logged-out` route with the tenant origin carried in the OIDC `sta
 forms; `ApplicantShell` gains a sidebar Logout button; `/logged-out` is exempted from the admin auth
 middleware. No schema or data-model change; the regression suite grew to 161 tests and the fix was
 verified end-to-end in a real browser. See `D-066`.
+
+**Process note:** the `feat/applicant-ai-mentor-skeleton` branch independently tagged its Applicant
+AI Mentor work as `v0.15.0` (D-066–D-070, baseline commit `10dce46`, dated `2026-07-06`) while `main`
+concurrently used the same version number for Mission Submission MVP-1 (below). Recorded here as an
+accepted one-time version-number collision rather than renumbered after the fact — see the `D-073`
+process note above for the equivalent `engineering-journal-mvp` exception.
+
+`v0.15.0` (AI Mentor branch) delivers the Applicant AI Mentor — a full conversational AI assistant for
+accepted applicants at `/dashboard/mentor`. The chat UI supports multi-conversation management with
+per-conversation loading state, auto-scroll, suggested questions, and a "Still working..." timer.
+Messages render Markdown (`react-markdown` + `remark-gfm` + Prism syntax highlighting) and rich cards
+(task, progress, timeline, tips, badge, warning). Conversations persist to `localStorage` and to the
+database via two new Prisma models: `MentorConversation` and `MentorMessage`. The API route
+(`/api/ai/mentor`) validates input, guards auth, builds tenant-scoped applicant context, retrieves
+knowledge-base snippets, and calls the LLM (ZhipuAI GLM-4.5-air, 1024 max tokens, 60 s timeout, 1
+retry). A rule-based system engine (RBSE) classifies user input into `blocked` / `direct_answer` /
+`allow_llm` actions against an allowed-topics list. On LLM failure, a stub response keeps the UI
+functional. A **smart in-memory LLM response cache** (D-070) avoids redundant LLM calls: dynamic
+prompts are keyed per user + context signature, static knowledge prompts are shared across users;
+5-minute TTL, 200-entry LRU cap, errors never cached. Key files: `apps/applicant/lib/ai.ts`,
+`apps/applicant/lib/ai-rbse.ts`, `apps/applicant/lib/knowledge-base.ts`,
+`apps/applicant/lib/ai-context.ts`, `apps/applicant/lib/ai-cache.test.ts`, `packages/db/src/mentor.ts`.
+See D-066 through D-070.
 
 `v0.14.2` is a security patch that closes the tenant-isolation gap in the **applicant** portal — the
 D-051 fix had only ever covered the admin portal. Sessions are shared across subdomains

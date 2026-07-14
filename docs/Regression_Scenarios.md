@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.18.3`
+Code version: `v0.18.4`
 
 ## Purpose
 
@@ -54,7 +54,6 @@ are one scenario).
 | Programs | Org Admin creates a draft program. | Automated | Data-level scenario through DB helpers. |
 | Programs | Published program appears in applicant-visible list. | Automated | Validates `listPublishedPrograms`. |
 | Programs | Archived program is removed from applicant-visible list. | Automated | Validates lifecycle visibility. |
-| Programs | Org Admin manages program content (resources/tasks/events); roles without `manageProgramContent` are denied. | Automated | v0.16.0 (D-069): CRUD round-trip, audit entries, capability matrix, cross-tenant delete rejection. |
 | Missions | Org Admin creates a draft mission, publishes it, and accepted applicants can see it. | Automated | Validates mission lifecycle visibility. |
 | Missions | Archived mission is removed from applicant-visible mission list. | Automated | Validates published-only visibility. |
 | Missions | HR, Tech Lead and Applicant cannot manage missions. | Automated | Validates `manageMissions` capability. |
@@ -74,8 +73,13 @@ are one scenario).
 | Tenant isolation | Cross-tenant file and settings denial through admin browser routes. | Missing | Add Playwright/browser route coverage. |
 | Dashboard | Accepted applicant dashboard pages load. | Automated | Covers overview, program, tasks, resources, calendar, notifications and profile. |
 | Dashboard | Task completion persists. | Automated | Uses dashboard DB helpers. |
-| Dashboard | Accepted mission submission moves mission-driven dashboard progress. | Automated | v0.16.0 (D-069): full draft→submit→accept loop; only ACCEPTED moves the bar; current mission clears at 100%. |
 | Dashboard | Notification read state persists. | Automated | Uses dashboard DB helpers. |
+| AI Mentor | Cache hit: same dynamic prompt + same context returns cached response (no LLM call). | Automated | `ai-cache.test.ts` — verifies fetch call count stays at 1. |
+| AI Mentor | Cache miss: context changed (task completed) forces fresh LLM call. | Automated | `ai-cache.test.ts` — different context signature triggers new fetch. |
+| AI Mentor | Static cache: knowledge prompt shared across users. | Automated | `ai-cache.test.ts` — 1 fetch for 2 different users on same static prompt. |
+| AI Mentor | Errors are never cached: failed LLM retries on next call. | Automated | `ai-cache.test.ts` — error then success on same prompt. |
+| AI Mentor | User isolation: same dynamic prompt for different users → separate cache entries. | Automated | `ai-cache.test.ts` — 2 fetch calls for 2 users. |
+| AI Mentor | RBSE direct answers bypass cache entirely. | Automated | `ai-cache.test.ts` — no fetch call for direct_answer patterns. |
 | Storage | CV upload/download round-trip. | Missing | `storage` area currently reports a documented skip. |
 | Storage | Cross-tenant file denial. | Missing | Should cover both metadata lookup and download URL path. |
 | Ops | Run full regression from Ops UI and show counts. | Automated/API + manual UI check | Unit/server coverage plus local manual validation. |
@@ -83,6 +87,15 @@ are one scenario).
 | Ops | Regression results show individual scenario pass/fail/skipped rows. | Automated parser + manual UI check | v0.18.3: Ops stores `REGRESSION_RESULT_JSON.results` and renders scenario rows grouped by area. |
 | Ops | Cleanup is a safe no-op when no markers exist. | Automated via existing cleanup command behavior | Should gain a direct scenario assertion in a later hardening pass. |
 | Ops | Cleanup removes marked data only. | Automated by runner + cleanup validation | Scenario data uses `RegressionDataMarker`. |
+| AI Mentor | Mentor page loads for accepted applicant. | Manual | `/dashboard/mentor` renders chat UI with conversation list and input. |
+| AI Mentor | Send a message and receive a mentor response. | Manual | Validates API route, LLM/stub fallback, and message persistence. |
+| AI Mentor | New Chat creates an isolated conversation. | Manual | Previous conversation history is preserved; new conversation starts empty. |
+| AI Mentor | Conversation persists across page reloads. | Manual | localStorage + DB persistence; conversations reload on refresh. |
+| AI Mentor | Per-conversation loading state is independent. | Manual | Sending a message in one conversation does not show loading in another. |
+| AI Mentor | Auto-scroll to latest message on response. | Manual | Chat container scrolls to bottom when new message arrives. |
+| AI Mentor | RBSE blocks off-topic questions. | Manual | Questions outside allowed topics receive a blocked response. |
+| AI Mentor | Markdown and code blocks render correctly. | Manual | `react-markdown` + Prism syntax highlighting in MessageBubble. |
+| AI Mentor | LLM failure falls back to stub response. | Manual | API route returns stub when `GLM_Z_API_KEY` is absent or call fails. |
 
 ## Data Ownership and Cleanup
 
