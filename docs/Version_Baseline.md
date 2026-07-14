@@ -2,19 +2,89 @@
 
 ## Current Baseline
 
-Version: `v0.18.4`
+Version: `v0.19.1`
 
-Baseline name: `AI Mentor SSE Streaming + Send Button Fix`
+Baseline name: `Mission Deadline Lifecycle, Mission-Driven Tasks & Dashboard Wiring`
 
 Baseline code commit: `_set on merge_`
 
 Baseline date: `2026-07-14`
 
-Previous baseline: `v0.18.3`
+Previous baseline: `v0.18.4`
 
-Previous baseline commit: `f7a330c`
+Previous baseline commit: `_pending_`
 
 ## Baseline Summary
+
+`v0.19.1` is a patch that wires the applicant Dashboard, My Program, Tasks and Missions pages to
+the real mission-lifecycle data `v0.18.5`/`v0.19.0` introduced (Days Remaining and every "current
+mission" countdown now derive from the actual assignment's `deadlineAt`, not `Program.endsAt`; My
+Program's Start/End dates derive from the Week 1 assignment's `acceptedAt` + 4 weeks) and corrects
+the `REPEAT` review decision to reassign the applicant an alternate mission for the **same week
+that failed** instead of always resetting to Week 1 (`createRepeatFromWeekOneTx` renamed
+`createRepeatMissionForSameWeekTx`, now driven by the failed assignment's own `weekNumber`). No
+schema change. Unit suite: 427 tests across 43 files; `regression:all` 35/36 passed, 1 pre-existing
+documented skip (storage), 0 failed. Plan:
+`docs/plans/v0.19.1_Dashboard_Wiring_And_Same_Week_Repeat.md`; results:
+`docs/testing/v0.19.1_Dashboard_Wiring_And_Same_Week_Repeat_Test_Results.md`. See `D-082`.
+
+`v0.19.0` replaces the applicant Tasks/Resources experience with a fixed 3-task template driven
+directly by each mission assignment (Review the Mission Brief, Study the Tutorial, Build & Submit
+Evidence) instead of the legacy program-level `ProgramTask`/`VideoResource` content. A new
+`MissionTaskCompletion` model (migration `20260714110000_mission_tasks`) tracks tasks 1 and 2 per
+assignment attempt (unique on `[missionAssignmentId, taskIndex]`); task 3 has no completion row —
+it is implied complete once the linked `Submission.status` moves beyond `DRAFT`/`NEEDS_REVISION`.
+Submission is now gated on tasks 1 and 2 being complete
+(`packages/db/src/mission-tasks.ts`, wired into `saveSubmissionDraft`/`submitSubmission`). A new
+optional `Mission.tutorialUrl` powers a YouTube IFrame Player watch-gate on Task 2 — "Mark as
+complete" stays disabled until the video reaches `YT.PlayerState.ENDED`; a mission with no
+`tutorialUrl` has no gate. The legacy dashboard tables are kept in the schema, unused, by explicit
+product decision — only the applicant UI and the admin Program Content authoring page (now Calendar
+Events only) stop reading/writing them. A new admin **Submissions** tab (`/submissions`, new
+sidebar entry between Missions and Operations) lists and filters submissions across every mission
+for reviewers, reusing the existing `reviewSubmissions` capability and the existing per-submission
+review page — no new authorization surface. A `javascript:`-URI XSS vector in `tutorialUrl`
+rendering, found by automated review during this iteration, is closed on both the write side
+(`parseOptionalHttpUrl`) and the read side (a defensive scheme re-check). Plan:
+`docs/plans/v0.19.0_Mission_Driven_Tasks.md`; results:
+`docs/testing/v0.19.0_Mission_Driven_Tasks_Test_Results.md`. See `D-081`.
+
+`v0.18.5` gives every `MissionAssignment` an explicit time-boxed lifecycle instead of an
+open-ended `ACTIVE` state (migration `20260714090000_mission_deadlines_and_lifecycle`). A new
+`acceptMissionAssignment` action is the applicant's explicit "Accept Mission" step — only accepting
+starts the deadline/grace clock, computed from the new per-mission `Mission.deadlineHours`
+(default 168h) and `Mission.gracePeriodHours` (default 24h) at the moment of acceptance; an
+assignment the applicant never accepts never expires. `MissionAssignmentStatus` becomes
+`NOT_STARTED → ACCEPTED → IN_PROGRESS → PENDING_EVALUATION | LATE_SUBMITTED`, with `OVERDUE`
+(deadline passed, inside grace) and terminal `FAILED` (grace expired) as deadline-driven side
+states, replacing the `v0.18.0` `ACTIVE`/`SUBMITTED` model. A standalone, idempotent deadline sweep
+(`packages/db/src/mission-deadlines.ts`, `scripts/mission-deadlines/sweep.ts`, `npm run
+mission-deadlines:sweep`) — run as an external scheduled job, deliberately kept out of the app
+request path per explicit product direction for future scaling — transitions `OVERDUE` and
+`FAILED` in two status-scoped, re-run-safe phases; the grace-period-expired path also sets
+`Application.status = DISQUALIFIED` (a deliberately terminal outcome for this version — a future
+Back Office "rejoin from Week 1" path is explicitly deferred, not built). A submission made inside
+the grace period is still accepted, recorded as `LATE_SUBMITTED`. Accepting a submission
+auto-advances the applicant to the next week's mission, capped at `FINAL_PROGRAM_WEEK = 4`. A
+`REPEAT` review decision reassigns the applicant a different published mission (this version: back
+at Week 1 — corrected to same-week in `v0.19.1`); with no alternate mission available,
+`Application.status` becomes `AWAITING_MISSION_ASSIGNMENT` and every `ORG_ADMIN`/`TECH_LEAD` in the
+tenant is notified. New `ApplicationStatus` values `DISQUALIFIED`/`AWAITING_MISSION_ASSIGNMENT`
+have no outgoing admin-initiated transition (`packages/auth/src/workflow.ts`). All new end-to-end
+scenarios are unit-tested but deferred at the scenario-regression level per `D-076` — see
+`docs/Regression_Scenarios.md` Known Gaps. Plan:
+`docs/plans/v0.18.5_Mission_Deadline_Lifecycle.md`; results:
+`docs/testing/v0.18.5_Mission_Deadline_Lifecycle_Test_Results.md`. See `D-080`.
+
+**Process note:** `v0.18.5`, `v0.19.0` and `v0.19.1` all ship from a single implementation commit
+instead of one commit per version, mirroring the accepted exception already recorded for
+`v0.17.0`/`v0.17.1`/`v0.18.0` under `D-073`. All three versions were built in one continuous local
+session before any of it was committed, so there was no prior per-version commit history to
+preserve or rewrite; splitting the single working-tree diff into three artificial commits after the
+fact (especially where one file, such as the applicant dashboard page, carries both `v0.19.0` and
+`v0.19.1` changes in the same hunks) would risk introducing broken intermediate states with no
+compensating benefit. This is recorded as a one-time accepted exception, not a precedent for future
+multi-version work — future iterations should commit as each version is completed.
 
 `v0.18.3` improves the local Ops Console regression-result experience (D-078). The regression runner
 already emitted detailed `REGRESSION_RESULT_JSON.results`; this baseline preserves those scenario rows
@@ -535,7 +605,7 @@ documentation for architecture, data model, data dictionary, deployment and test
 
 ## Portal Scope
 
-As of `v0.18.0` (previously a `v0.3.0` snapshot, refreshed at `v0.16.3`).
+As of `v0.19.0` (previously a `v0.3.0` snapshot, refreshed at `v0.16.3` and `v0.18.0`).
 
 Public Applicant Portal routes (`apps/applicant`, container `talentos-applicant`):
 
@@ -545,8 +615,9 @@ Public Applicant Portal routes (`apps/applicant`, container `talentos-applicant`
 - `/application` (authenticated)
 - `/access-denied` (`v0.14.2` tenant guard)
 - `/logged-out` (`v0.14.3` post-logout return, canonical host)
-- `/dashboard` + `program`, `tasks`, `resources`, `calendar`, `notifications`, `profile` (`v0.12.0`, accepted applicants)
-- `/dashboard/missions`, `/dashboard/missions/[id]` (`v0.14.0`; My Submission section `v0.15.0`; assigned-missions-only `v0.18.0`)
+- `/dashboard` + `program`, `tasks`, `resources`, `calendar`, `notifications`, `profile` (`v0.12.0`, accepted applicants; `program`/`tasks` rewired to mission-driven data at `v0.19.0`/`v0.19.1`)
+- `/dashboard/missions`, `/dashboard/missions/[id]` (`v0.14.0`; My Submission section `v0.15.0`; assigned-missions-only `v0.18.0`; Accept Mission action + deadline countdown `v0.18.5`; task-completion submission gate `v0.19.0`)
+- `/dashboard/tasks/[assignmentId]/[taskIndex]` (`v0.19.0`, per-task resource page with YouTube watch-gate for the tutorial task)
 - `/dashboard/journal`, `/dashboard/journal/new`, `/dashboard/journal/[id]` (`v0.17.0`, Engineering Journal)
 - `/api/auth/[...nextauth]`
 - `/api/branding/logo` (public tenant logo, `v0.9.0`)
@@ -559,9 +630,10 @@ Program Admin Portal routes (`apps/admin`, container `talentos-admin`, served at
 - `/`
 - `/applications`, `/applications/[id]`
 - `/programs`, `/programs/new`, `/programs/[id]`
-- `/programs/[id]/content` (`v0.16.0`, `manageProgramContent`)
-- `/missions`, `/missions/new`, `/missions/[id]` (`v0.14.0`)
+- `/programs/[id]/content` (`v0.16.0`, `manageProgramContent`; Video Resources/Weekly Tasks sections removed at `v0.19.0` — Calendar Events only)
+- `/missions`, `/missions/new`, `/missions/[id]` (`v0.14.0`; `tutorialUrl` field `v0.19.0`)
 - `/missions/[id]/submissions/[submissionId]` (`v0.15.0` submission review)
+- `/submissions` (`v0.19.0`, cross-mission filterable review list, `reviewSubmissions`)
 - `/operations` (`v0.8.0`)
 - `/settings` (`v0.9.0` branding)
 - `/organizations` (SUPER_ADMIN only, `v0.10.0`)
@@ -574,9 +646,12 @@ Program Admin Portal routes (`apps/admin`, container `talentos-admin`, served at
 Local Ops Console (`apps/ops`, host-run on `127.0.0.1:3300`, not containerized): Keycloak-gated
 operations UI running regression/cleanup/reset jobs (`v0.8.0`/`v0.12.2`/`v0.13.0`).
 
+External scheduled job (not a portal route): `scripts/mission-deadlines/sweep.ts`
+(`npm run mission-deadlines:sweep`, `v0.18.5`) — run by an external cron, not reachable over HTTP.
+
 ## Package Scope
 
-Packages, apps and infrastructure included as of `v0.18.0` (no new top-level package since `v0.16.3`):
+Packages, apps and infrastructure included as of `v0.19.0` (no new top-level package since `v0.16.3`):
 
 - `apps/applicant`
 - `apps/admin`

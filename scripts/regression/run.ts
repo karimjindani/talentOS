@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
+  acceptMissionAssignment,
   applyStatusTransition,
   cleanupRegressionData,
   createCalendarEvent,
@@ -32,6 +33,7 @@ import {
   listPreviousMissionAttemptHistoryForSubmissionReview,
   listPublishedProgramMissions,
   listPublishedPrograms,
+  markMissionTaskComplete,
   markNotificationRead,
   markRegressionData,
   markTaskCompleted,
@@ -285,12 +287,13 @@ const scenarios: Scenario[] = [
         regressionJournalInput(
           fixture,
           new Date("2026-06-02T00:00:00.000Z"),
-          "Current Attempt 2 reflection"
+          "Current Attempt 2 reflection",
+          fixture.attemptTwoMission.id
         )
       );
       const currentDraft = await saveSubmissionDraft({
         tenantId: fixture.tenant.id,
-        missionId: fixture.mission.id,
+        missionId: fixture.attemptTwoMission.id,
         applicantId: fixture.user.id,
         repositoryUrl: "https://github.com/regression/admin-previous-attempt-review",
         deploymentUrl: null,
@@ -510,7 +513,7 @@ const scenarios: Scenario[] = [
           missionId: weekTwoMission.id,
           weekNumber: 2,
           attemptNumber: 1,
-          status: "ACTIVE"
+          status: "ACCEPTED"
         }
       });
       await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: weekTwoAssignment.id });
@@ -558,7 +561,7 @@ const scenarios: Scenario[] = [
           missionId: fixture.mission.id,
           weekNumber: fixture.mission.weekNumber,
           attemptNumber: 2,
-          status: "ACTIVE"
+          status: "ACCEPTED"
         }
       });
       await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: attemptTwo.id });
@@ -582,7 +585,7 @@ const scenarios: Scenario[] = [
           missionId: fixture.mission.id,
           weekNumber: 1,
           attemptNumber: 1,
-          status: "ACTIVE"
+          status: "ACCEPTED"
         }
       });
       await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: otherApplicantAssignment.id });
@@ -645,7 +648,7 @@ const scenarios: Scenario[] = [
           missionId: otherTenantMission.id,
           weekNumber: 1,
           attemptNumber: 1,
-          status: "ACTIVE"
+          status: "ACCEPTED"
         }
       });
       await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: otherTenantAssignment.id });
@@ -690,6 +693,27 @@ const scenarios: Scenario[] = [
     name: "Repeat-week attempts preserve journal history without duplicate or infinite loops",
     run: async (ctx) => {
       const fixture = await createSubmissionFixture(ctx.runId);
+      // REPEAT repeats the *same week* with a different PUBLISHED mission for that week (never
+      // resets to week one), so a second Week 1 mission must exist for this fixture's repeat to
+      // produce Attempt 2 — this fixture's base mission happens to already be Week 1.
+      const alternateMission = await createMission({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Regression Repeat-Loop Alternate Mission ${ctx.runId}`,
+        difficulty: "BEGINNER",
+        status: "PUBLISHED",
+        weekNumber: 1,
+        order: 1,
+        brief: "Alternate Week 1 mission for the repeat-loop regression",
+        objective: "Exercise the repeat-with-alternate-mission loop",
+        acceptanceCriteria: "- Evidence links resolve",
+        deliverables: "- Repo\n- Deployment\n- Loom\n- Journal",
+        evaluationCriteria: "Accepted when evidence is complete",
+        competencyTags: ["AI-Assisted Development"],
+        actorUserId: fixture.actor.id
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Mission", entityId: alternateMission.id });
+
       const attemptOneJournal = await createTrackedJournalEntry(
         ctx.runId,
         regressionJournalInput(fixture, new Date("2026-07-04T00:00:00.000Z"), "Attempt 1 reflection")
@@ -721,23 +745,32 @@ const scenarios: Scenario[] = [
         },
         orderBy: { attemptNumber: "asc" }
       });
-      if (attempts.length !== 2 || attempts[0]?.status !== "REPEAT" || attempts[1]?.status !== "ACTIVE") {
-        throw new Error("Repeat review did not close Attempt 1 and create exactly one active Attempt 2.");
+      if (attempts.length !== 2 || attempts[0]?.status !== "REPEAT" || attempts[1]?.status !== "NOT_STARTED") {
+        throw new Error("Repeat review did not close Attempt 1 and create exactly one fresh Attempt 2.");
       }
-      const attemptTwo = attempts[1];
-      if (!attemptTwo) throw new Error("Repeat review did not create Attempt 2.");
+      if (attempts[1]?.missionId !== alternateMission.id) {
+        throw new Error("Repeat attempt reassigned the same mission instead of a different Week 1 mission.");
+      }
+      // A fresh attempt starts NOT_STARTED, same as any assignment — accept it before working on it.
+      const attemptTwo = await acceptMissionAssignment({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        missionAssignmentId: attempts[1].id
+      });
       await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: attemptTwo.id });
+      await markMissionTaskComplete({ tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionAssignmentId: attemptTwo.id, taskIndex: 1 });
+      await markMissionTaskComplete({ tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionAssignmentId: attemptTwo.id, taskIndex: 2 });
 
       const attemptTwoJournal = await createTrackedJournalEntry(
         ctx.runId,
-        regressionJournalInput(fixture, new Date("2026-07-05T00:00:00.000Z"), "Attempt 2 reflection")
+        regressionJournalInput(fixture, new Date("2026-07-05T00:00:00.000Z"), "Attempt 2 reflection", alternateMission.id)
       );
       if (attemptTwoJournal.missionAssignmentId !== attemptTwo.id) {
         throw new Error("Attempt 2 journal was mixed into Attempt 1.");
       }
       const attemptTwoSubmission = await saveSubmissionDraft({
         tenantId: fixture.tenant.id,
-        missionId: fixture.mission.id,
+        missionId: alternateMission.id,
         applicantId: fixture.user.id,
         repositoryUrl: "https://github.com/regression/repeat-attempt-2",
         deploymentUrl: null,
@@ -758,7 +791,7 @@ const scenarios: Scenario[] = [
         listEngineeringJournalEntriesForSubmissionReview({
           tenantId: fixture.tenant.id,
           applicantId: fixture.user.id,
-          missionId: fixture.mission.id,
+          missionId: alternateMission.id,
           missionAssignmentId: attemptTwo.id
         })
       ]);
@@ -803,11 +836,11 @@ const scenarios: Scenario[] = [
       });
       const followUpJournal = await createTrackedJournalEntry(
         ctx.runId,
-        regressionJournalInput(fixture, new Date("2026-07-06T00:00:00.000Z"), "Attempt 2 follow-up")
+        regressionJournalInput(fixture, new Date("2026-07-06T00:00:00.000Z"), "Attempt 2 follow-up", alternateMission.id)
       );
       await saveSubmissionDraft({
         tenantId: fixture.tenant.id,
-        missionId: fixture.mission.id,
+        missionId: alternateMission.id,
         applicantId: fixture.user.id,
         repositoryUrl: "https://github.com/regression/repeat-attempt-2-revised",
         deploymentUrl: null,
@@ -822,8 +855,10 @@ const scenarios: Scenario[] = [
         reviewerUserId: fixture.actor.id
       });
 
+      // Scoped by applicant/tenant, not a single missionId — Attempt 1's journal lives on the
+      // original mission and Attempts 2's on the alternate mission REPEAT reassigned.
       const journalsAfterResubmission = await prisma.engineeringJournalEntry.findMany({
-        where: { tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionId: fixture.mission.id },
+        where: { tenantId: fixture.tenant.id, applicantId: fixture.user.id },
         orderBy: { entryDate: "asc" }
       });
       if (journalsAfterResubmission.length !== 3 || journalsAfterResubmission.some((entry) => !entry.lockedAt)) {
@@ -846,7 +881,7 @@ const scenarios: Scenario[] = [
         if (!(error instanceof Error) || !error.message.includes("Invalid submission status transition")) throw error;
       }
       const finalJournalCount = await prisma.engineeringJournalEntry.count({
-        where: { tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionId: fixture.mission.id }
+        where: { tenantId: fixture.tenant.id, applicantId: fixture.user.id }
       });
       if (finalJournalCount !== 3) throw new Error("Re-review duplicated locked Engineering Journal entries.");
     }
@@ -894,7 +929,7 @@ const scenarios: Scenario[] = [
           missionId: replacementMission.id,
           weekNumber: fixture.mission.weekNumber,
           attemptNumber: 3,
-          status: "ACTIVE"
+          status: "ACCEPTED"
         }
       });
       await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: futureAttempt.id });
@@ -1869,11 +1904,44 @@ async function createSubmissionFixture(runId: string) {
     throw new Error("Submission fixture did not create a mission assignment.");
   }
   await markRegressionData({ runId, entityType: "MissionAssignment", entityId: assignment.id });
-  return { ...fixture, mission, assignment };
+  // Mirrors the real applicant flow: assignments start NOT_STARTED and must be explicitly accepted
+  // before evidence can be drafted/submitted against them.
+  const accepted = await acceptMissionAssignment({
+    tenantId: fixture.tenant.id,
+    applicantId: fixture.user.id,
+    missionAssignmentId: assignment.id
+  });
+  // Tasks 1 & 2 (Review Brief, Study Tutorial) must be complete before submitSubmission allows
+  // Task 3 (submit for review) — mirrors the real applicant flow.
+  await markMissionTaskComplete({ tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionAssignmentId: accepted.id, taskIndex: 1 });
+  await markMissionTaskComplete({ tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionAssignmentId: accepted.id, taskIndex: 2 });
+  return { ...fixture, mission, assignment: accepted };
 }
 
 async function createRepeatedSubmissionFixture(runId: string) {
   const fixture = await createSubmissionFixture(runId);
+  // The REPEAT decision repeats the *same week* with a different PUBLISHED mission for that week
+  // (never the one just failed, never a reset to week one), so a second Week 1 mission must exist
+  // here — this fixture's base mission happens to already be Week 1 — for the repeat to produce
+  // Attempt 2.
+  const alternateMission = await createMission({
+    tenantId: fixture.tenant.id,
+    programId: fixture.program.id,
+    title: `Regression Submission Mission (alternate) ${runId}`,
+    difficulty: "BEGINNER",
+    status: "PUBLISHED",
+    weekNumber: 1,
+    order: 1,
+    brief: "Alternate Week 1 mission for the repeat-loop regression",
+    objective: "Exercise the repeat-with-alternate-mission loop",
+    acceptanceCriteria: "- Evidence links resolve",
+    deliverables: "- Repo\n- Deployment\n- Loom\n- Journal",
+    evaluationCriteria: "Accepted when evidence is complete",
+    competencyTags: ["AI-Assisted Development"],
+    actorUserId: fixture.actor.id
+  });
+  await markRegressionData({ runId, entityType: "Mission", entityId: alternateMission.id });
+
   const attemptOneJournal = await createTrackedJournalEntry(
     runId,
     regressionJournalInput(
@@ -1904,21 +1972,30 @@ async function createRepeatedSubmissionFixture(runId: string) {
     reviewerUserId: fixture.actor.id
   });
 
-  const attemptTwo = await prisma.missionAssignment.findFirst({
+  const attemptTwoNotStarted = await prisma.missionAssignment.findFirst({
     where: {
       tenantId: fixture.tenant.id,
       programId: fixture.program.id,
       applicantId: fixture.user.id,
-      weekNumber: fixture.mission.weekNumber,
+      weekNumber: 1,
       attemptNumber: 2
     }
   });
-  if (!attemptTwo) {
+  if (!attemptTwoNotStarted) {
     throw new Error("Repeat fixture did not create Attempt 2.");
   }
-  await markRegressionData({ runId, entityType: "MissionAssignment", entityId: attemptTwo.id });
+  await markRegressionData({ runId, entityType: "MissionAssignment", entityId: attemptTwoNotStarted.id });
+  // Attempt 2 always starts NOT_STARTED, same as any fresh assignment — accept it so it's usable.
+  const attemptTwo = await acceptMissionAssignment({
+    tenantId: fixture.tenant.id,
+    applicantId: fixture.user.id,
+    missionAssignmentId: attemptTwoNotStarted.id
+  });
+  await markMissionTaskComplete({ tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionAssignmentId: attemptTwo.id, taskIndex: 1 });
+  await markMissionTaskComplete({ tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionAssignmentId: attemptTwo.id, taskIndex: 2 });
+  const attemptTwoMission = alternateMission;
 
-  return { ...fixture, attemptOneJournal, attemptOneSubmission, attemptTwo };
+  return { ...fixture, attemptOneJournal, attemptOneSubmission, attemptTwo, attemptTwoMission };
 }
 
 async function createTrackedJournalEntry(
@@ -1970,12 +2047,13 @@ async function createTrackedAssignmentJournal(
 function regressionJournalInput(
   fixture: Awaited<ReturnType<typeof createSubmissionFixture>>,
   entryDate: Date,
-  label: string
+  label: string,
+  missionId: string = fixture.mission.id
 ) {
   return {
     tenantId: fixture.tenant.id,
     applicantId: fixture.user.id,
-    missionId: fixture.mission.id,
+    missionId,
     entryDate,
     language: "English",
     workedOn: label,

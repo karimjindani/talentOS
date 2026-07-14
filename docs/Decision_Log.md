@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.18.4`
+Code version: `v0.19.1`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.18.4`
+Current documentation update: `v0.19.1`
 
 ## D-001
 
@@ -738,5 +738,120 @@ sentinel. Mock updated to simulate SSE stream. All 19 tests passing. (5) **Docum
 `docs/AI_MENTOR_END_TO_END_DEMO_GUIDE.md` added as a comprehensive demo guide;
 `docs/Testing_Strategy.md` and `docs/plans/v0.15.0_AI_Mentor_Roadmap.md` updated. No schema change.
 The regression suite is unchanged.
+
+Status: Approved
+
+## D-080
+
+`v0.18.5` gives every `MissionAssignment` an explicit time-boxed lifecycle instead of an open-ended
+`ACTIVE` state. Decisions: (1) **Explicit accept, not assignment time, starts the clock** —
+`acceptMissionAssignment` is a new applicant-initiated transition (`NOT_STARTED → ACCEPTED`) that
+computes `deadlineAt`/`graceEndsAt` from the mission's own `deadlineHours`/`gracePeriodHours` at the
+moment of acceptance; an assignment the applicant never accepts never expires, so an applicant is
+never penalized for a mission sitting unopened. (2) **`MissionAssignmentStatus` is rebuilt** as
+`NOT_STARTED → ACCEPTED → IN_PROGRESS → PENDING_EVALUATION | LATE_SUBMITTED`, with `OVERDUE`
+(deadline passed, still inside grace) and terminal `FAILED` (grace expired) as deadline-driven side
+states alongside the existing `PASSED`/`REPEAT` review outcomes — replacing the `v0.18.0`
+`ACTIVE`/`SUBMITTED` two-state model. (3) **Deadline enforcement is an external, idempotent
+scheduled job, not a request-time check** — per explicit product direction ("I prefer keeping
+scheduled background tasks separate from the app process, especially for future scaling"),
+`sweepMissionDeadlines` (`packages/db/src/mission-deadlines.ts`) runs via a standalone script
+(`scripts/mission-deadlines/sweep.ts`, `npm run mission-deadlines:sweep`) intended for an external
+cron, not a Next.js route or middleware. Idempotency is structural, not flag-based: each of the two
+sweep phases (`ACCEPTED|IN_PROGRESS` past `deadlineAt` → `OVERDUE`; `OVERDUE` past `graceEndsAt` →
+`FAILED` + `Application.status = DISQUALIFIED`) is a status-scoped `updateMany`, so re-running the
+sweep any number of times can never double-transition or double-notify — a run that finds nothing
+in the source status is a pure no-op. (4) **A late submission inside the grace period still
+counts** — evidence submitted after `deadlineAt` but before `graceEndsAt` is accepted and recorded
+as `LATE_SUBMITTED` rather than rejected, since the grace period's whole purpose is to tolerate
+exactly this. (5) **Acceptance auto-advances the applicant, capped at the final week** — accepting
+a submission creates the next week's assignment automatically (`FINAL_PROGRAM_WEEK = 4`); accepting
+Week 4 creates no Week 5. (6) **Rejection reassigns, never resets to a stale mission** — a `REPEAT`
+decision creates a new assignment for a different published mission (this version: back at Week 1);
+if no alternate mission exists, no assignment is created, `Application.status` becomes
+`AWAITING_MISSION_ASSIGNMENT`, and every `ORG_ADMIN`/`TECH_LEAD` in the tenant is notified to assign
+one manually — the failed mission is never reassigned and the applicant is never removed. (7)
+**A missed deadline is terminal for now, by explicit product decision** — grace-period expiry sets
+`Application.status = DISQUALIFIED` with no rejoin path; "For now, we can leave it at that. Later we
+will see what happens if person wants to apply again. Maybe Back Office admin allows them to rejoin
+program from Week 1" is recorded as deferred future work, not a gap to silently fill. Migration:
+`20260714090000_mission_deadlines_and_lifecycle`. All new end-to-end scenarios (accept, sweep
+transitions, late-submission acceptance, auto-advance cap, reject-reassignment,
+FAILED-blocks-resubmission) are unit-tested but deferred at the scenario-regression level — recorded
+in `docs/Regression_Scenarios.md` Known Gaps rather than silently missing, per `D-076`.
+
+**Process note:** this baseline, `D-081` (`v0.19.0`) and `D-082` (`v0.19.1`) all ship from a single
+implementation commit instead of one commit per version — the same kind of accepted one-time
+exception already recorded for `v0.17.0`–`v0.18.0` under `D-073`, since all three versions were
+built in one continuous session before any of it was committed. See the process note in
+`docs/Version_Baseline.md`.
+
+Plan: `docs/plans/v0.18.5_Mission_Deadline_Lifecycle.md`; results:
+`docs/testing/v0.18.5_Mission_Deadline_Lifecycle_Test_Results.md`.
+
+Status: Approved
+
+## D-081
+
+`v0.19.0` replaces the applicant Tasks/Resources experience — previously driven by the legacy
+program-level `ProgramTask`/`VideoResource` content unrelated to the mission actually being worked
+— with a fixed, mission-derived 3-task template, and gives reviewers a cross-mission admin
+Submissions tab. Decisions: (1) **Tasks are a fixed template per mission assignment, not
+admin-authored** — every assignment gets exactly three tasks (Review the Mission Brief, Study the
+Tutorial, Build & Submit Evidence); only `MissionTaskCompletion` (task 1/2) is a real row per
+attempt, task 3 is derived implicitly from `Submission.status` moving beyond `DRAFT`/
+`NEEDS_REVISION` rather than getting its own completion row, since "submitted" already is that
+task's completion signal. (2) **Submission is gated on tasks 1 and 2** — `saveSubmissionDraft`/
+`submitSubmission` reject a submit attempt until `areRequiredMissionTasksComplete` is true, matching
+the product requirement that an applicant "can only submit mission for review after complete that
+week/mission tasks." (3) **YouTube watch-gate uses the IFrame Player API's `onStateChange` event,
+not a timer or a client-trusted flag** — Task 2's "Mark as complete" stays disabled until
+`YT.PlayerState.ENDED` fires, so a mission author's tutorial video must actually play through; a
+mission with no `tutorialUrl` has no gate at all — task 2 completes directly. (4) **Legacy tables
+are kept, not migrated or deleted** — by explicit product decision ("Yes, keep the tables, just
+leave them unused for now"), `ProgramTask`/`VideoResource`/`UserTaskCompletion` remain real tables
+with no application code reading or writing them; only the applicant Tasks/Resources UI and the
+admin Program Content authoring page (which now manages only Calendar Events) stop using them. (5)
+**The Submissions admin tab introduces no new authorization surface** — `/submissions` reuses the
+existing `reviewSubmissions` capability and the existing per-submission review page; it is purely a
+cross-mission list/filter view (`listTenantSubmissions`) so reviewers no longer have to open each
+mission individually to find what needs review. (6) **Security fix folded into this iteration**: an
+automated review flagged `mission.tutorialUrl` rendered as a raw `<a href>` with no scheme
+validation (a `javascript:` URI XSS vector); fixed on both the write side (`parseOptionalHttpUrl` in
+the admin mission form action, rejecting non-http/https schemes) and the read side (a defensive
+scheme re-check before rendering the link on the applicant task page). Migration:
+`20260714110000_mission_tasks`. As with `D-080`, the new end-to-end scenarios (submission gating,
+watch-gate, Submissions tab reachability) are unit- and manually-tested but deferred at the
+scenario-regression level — see `docs/Regression_Scenarios.md` Known Gaps.
+
+Plan: `docs/plans/v0.19.0_Mission_Driven_Tasks.md`; results:
+`docs/testing/v0.19.0_Mission_Driven_Tasks_Test_Results.md`.
+
+Status: Approved
+
+## D-082
+
+`v0.19.1` is a patch correcting two remaining gaps from `D-080`/`D-081` without any schema change.
+(1) **Dashboard/Program/Tasks/Missions now read the real mission-lifecycle data** those two
+versions introduced instead of program-level placeholders: the Dashboard "Days Remaining" stat and
+every "current mission" card derive from the actual assignment's `deadlineAt` (not
+`Program.endsAt`); My Program's Start/End dates derive from the Week 1 assignment's `acceptedAt` +
+4 weeks; the live `DeadlineCountdown` is confirmed to appear only next to the current,
+unsubmitted mission — never a not-yet-accepted or already-resolved one — matching the explicit
+placement instruction ("add this on the mission page not in mission brief and my programm weeks,
+this only shows in the current or unsubmitted missions"). (2) **Reject-reassignment is corrected
+from "reset to Week 1" to "repeat the same week"** — per explicit product direction ("Reviewer
+Rejects Work -> Repeat the same week with different mission"), `createRepeatFromWeekOneTx` is
+renamed `createRepeatMissionForSameWeekTx` and now takes the failed assignment's own `weekNumber`
+instead of assuming `1`; a Week 3 rejection now reassigns a different Week 3 mission, not a fresh
+Week 1 attempt. The no-alternate-mission fallback (`AWAITING_MISSION_ASSIGNMENT` + reviewer
+notification, `D-080`) is unchanged in behavior, only now correctly scoped to the failed week. This
+pairs with the earlier `D-080` decision to leave a missed-deadline `DISQUALIFIED` applicant with no
+rejoin path for now — that remains deferred; only the *reject* (reviewer-driven) path changes here,
+not the *missed-deadline* (system-driven) path. No product code beyond the wiring/rename above; no
+migration.
+
+Plan: `docs/plans/v0.19.1_Dashboard_Wiring_And_Same_Week_Repeat.md`; results:
+`docs/testing/v0.19.1_Dashboard_Wiring_And_Same_Week_Repeat_Test_Results.md`.
 
 Status: Approved

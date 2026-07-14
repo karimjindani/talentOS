@@ -3,12 +3,50 @@
 import { revalidatePath } from "next/cache";
 import { requireTenantAccess } from "@/lib/tenant-guard";
 import {
+  acceptMissionAssignment,
   getAssignedProgramMission,
+  getLatestMissionAssignmentForMission,
   listApplicantApplications,
   parseEvidenceUrl,
   saveSubmissionDraft,
   submitSubmission
 } from "@talentos/db";
+
+export type AcceptMissionFormState = {
+  ok: boolean;
+  error: string | null;
+};
+
+/** The applicant's explicit "Accept Mission" action — starts the deadline/grace countdown. */
+export async function acceptMissionAction(
+  missionId: string,
+  _prev: AcceptMissionFormState,
+  _formData: FormData
+): Promise<AcceptMissionFormState> {
+  try {
+    const { tenant, actorUserId } = await requireTenantAccess("accessApplicantPortal");
+    if (!actorUserId) {
+      return { ok: false, error: "Your account is not linked to this organization." };
+    }
+
+    const assignment = await getLatestMissionAssignmentForMission(tenant.id, actorUserId, missionId);
+    if (!assignment) {
+      return { ok: false, error: "Mission is not assigned to your account." };
+    }
+
+    await acceptMissionAssignment({
+      tenantId: tenant.id,
+      applicantId: actorUserId,
+      missionAssignmentId: assignment.id
+    });
+
+    revalidatePath(`/dashboard/missions/${missionId}`);
+    revalidatePath("/dashboard/missions");
+    return { ok: true, error: null };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Something went wrong. Try again." };
+  }
+}
 
 export type SubmissionFormState = {
   ok: boolean;
