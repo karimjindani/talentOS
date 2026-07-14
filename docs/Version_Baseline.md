@@ -6,13 +6,13 @@ Version: `v0.19.1`
 
 Baseline name: `Mission Deadline Lifecycle, Mission-Driven Tasks & Dashboard Wiring`
 
-Baseline code commit: `_set on merge_`
+Baseline code commit: `03839a6`
 
 Baseline date: `2026-07-14`
 
 Previous baseline: `v0.18.4`
 
-Previous baseline commit: `_pending_`
+Previous baseline commit: `9e3733a`
 
 ## Baseline Summary
 

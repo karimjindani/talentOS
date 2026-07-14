@@ -2,7 +2,7 @@
 
 Code version: `v0.19.1`
 
-Baseline commit: `_pending_`
+Baseline commit: `03839a6`
 
 > `v0.19.1` (Dashboard Wiring & Same-Week Repeat, D-082) makes no schema change. It renames
 > `createRepeatFromWeekOneTx` to `createRepeatMissionForSameWeekTx` (now parameterized by the
