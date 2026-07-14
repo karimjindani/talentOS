@@ -1,6 +1,6 @@
 # Data Model
 
-Code version: `v0.18.0`
+Code version: `v0.18.4`
 
 Baseline commit: `bf59ca4`
 

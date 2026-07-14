@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.18.3`
+Code version: `v0.18.4`
 
 Baseline commit: `6ef1ef7`
 

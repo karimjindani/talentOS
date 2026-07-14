@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.18.2`
+Code version: `v0.18.4`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.18.2`
+Current documentation update: `v0.18.4`
 
 ## D-001
 
@@ -715,5 +715,21 @@ enhancement only.
 
 Plan: `docs/plans/v0.18.3_Ops_Regression_Scenario_Visibility.md`; results:
 `docs/testing/v0.18.3_Ops_Regression_Scenario_Visibility_Test_Results.md`.
+
+Status: Approved
+
+## D-079
+
+`v0.18.4` enables SSE streaming for AI Mentor LLM calls and fixes the send button for fresh users.
+Decisions: (1) **Streaming enabled** — `callGLM` now sends `stream: true` to the GLM-4.5-air endpoint
+so the first token reaches the browser sooner, reducing perceived latency from ~30 s (full response
+wait) to <2 s (first token). The `GLMChatRequest` type was widened from `stream: false` to
+`stream: boolean` for type safety. (2) **Send button fix for fresh users** — `loadHistory()` now
+auto-creates a conversation when `activeConversationId` is null (fresh user with no DB history), and
+`handleSend()` has a safety net that creates a conversation on the fly if the ID is still null. This
+fixes the silent failure where the send button did nothing for users with no existing conversations.
+(3) **Documentation** — `docs/AI_MENTOR_END_TO_END_DEMO_GUIDE.md` added as a comprehensive demo guide;
+`docs/Testing_Strategy.md` and `docs/plans/v0.15.0_AI_Mentor_Roadmap.md` updated. No schema change.
+The regression suite is unchanged.
 
 Status: Approved

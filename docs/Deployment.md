@@ -1,12 +1,12 @@
 # Deployment
 
-Code version: `v0.18.2`
+Code version: `v0.18.4`
 
 Baseline commit: `6ef1ef7`
 
-Current deployment update: `v0.18.2` (the latest deployment-affecting baselines are `v0.17.0`,
-`v0.17.1` and `v0.18.0` — all three require a database migration; `v0.18.1`/`v0.18.2` are docs/tooling
-baselines with no deployment, infra or migration change)
+Current deployment update: `v0.18.4` (the latest deployment-affecting baselines are `v0.17.0`,
+`v0.17.1` and `v0.18.0` — all three require a database migration; `v0.18.1`/`v0.18.2`/`v0.18.3`/`v0.18.4`
+are docs/tooling baselines with no deployment, infra or migration change)
 
 > `v0.18.1`/`v0.18.2` require **no deployment, infra or migration change** — `v0.18.1` is the
 > plan-template governance patch and `v0.18.2` adds regression scenarios and documentation only; no

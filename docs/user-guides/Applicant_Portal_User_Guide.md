@@ -1,8 +1,8 @@
 # Applicant Portal User Guide
 
-Applies to version: `v0.18.0`
+Applies to version: `v0.18.4`
 
-Last verified: 2026-07-08
+Last verified: 2026-07-14
 
 Audience: applicants and accepted program participants.
 

@@ -2,17 +2,17 @@
 
 ## Current Baseline
 
-Version: `v0.18.3`
+Version: `v0.18.4`
 
-Baseline name: `Ops Regression Scenario Visibility`
+Baseline name: `AI Mentor SSE Streaming + Send Button Fix`
 
 Baseline code commit: `_set on merge_`
 
-Baseline date: `2026-07-11`
+Baseline date: `2026-07-14`
 
-Previous baseline: `v0.18.2`
+Previous baseline: `v0.18.3`
 
-Previous baseline commit: `6ef1ef7`
+Previous baseline commit: `f7a330c`
 
 ## Baseline Summary
 

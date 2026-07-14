@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.18.2`
+Code version: `v0.18.4`
 
 Architecture baseline commit: `6ef1ef7`
 
-Current documentation update: `v0.18.2`
+Current documentation update: `v0.18.4`
 
 ## Overview
 

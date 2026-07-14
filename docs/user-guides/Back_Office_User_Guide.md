@@ -1,8 +1,8 @@
 # Back Office User Guide
 
-Applies to version: `v0.14.2`
+Applies to version: `v0.18.4`
 
-Last verified: 2026-07-05
+Last verified: 2026-07-14
 
 Audience: platform super admins, organization admins, HR reviewers, and tech leads.
 
