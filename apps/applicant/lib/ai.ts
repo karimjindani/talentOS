@@ -180,6 +180,79 @@ type GLMChatResponse = {
 };
 
 /**
+ * Parse an SSE (Server-Sent Events) stream from the GLM API.
+ *
+ * The stream emits `data: {...}` lines. Each JSON chunk contains a `choices[0].delta.content`
+ * field with a text fragment. We concatenate all fragments to build the full response.
+ * The final chunk includes `usage` with token counts.
+ *
+ * Example SSE line:
+ *   data: {"id":"123","choices":[{"delta":{"content":"Hello"}}],"usage":null}
+ *   data: [DONE]
+ */
+async function parseSSEStream(
+  response: Response
+): Promise<{ content: string; usage?: GLMChatResponse["usage"] }> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("LLM_NO_RESPONSE_BODY");
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+  let usage: GLMChatResponse["usage"] | undefined;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // Process complete SSE lines (separated by \n\n or \n)
+      const lines = buffer.split("\n");
+      // Keep the last incomplete line in the buffer
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith("data:")) continue;
+
+        const jsonStr = trimmed.slice(5).trim();
+        if (jsonStr === "[DONE]") continue;
+
+        try {
+          const chunk = JSON.parse(jsonStr) as GLMChatResponse & {
+            choices?: { delta?: { content?: string }; message?: { content?: string } }[];
+          };
+
+          // Extract content fragment — delta for streaming, message for non-streaming fallback
+          const fragment =
+            chunk.choices?.[0]?.delta?.content ??
+            chunk.choices?.[0]?.message?.content;
+          if (fragment) {
+            content += fragment;
+          }
+
+          // Capture usage from the final chunk
+          if (chunk.usage) {
+            usage = chunk.usage;
+          }
+        } catch {
+          // Skip malformed JSON lines
+          continue;
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return { content, usage };
+}
+
+/**
  * Call the ZhipuAI (GLM_Z.ai) chat completions endpoint with retry logic.
  *
  * Uses native fetch with timeout via AbortController.
@@ -246,16 +319,16 @@ async function callGLM(
         throw new Error(`LLM_HTTP_${response.status}`);
       }
 
-      const data = (await response.json()) as GLMChatResponse;
+      // Parse SSE stream response (stream: true returns text/event-stream)
+      const { content, usage } = await parseSSEStream(response);
 
-      const content = data.choices?.[0]?.message?.content;
       if (!content || typeof content !== "string") {
         throw new Error("LLM_INVALID_RESPONSE");
       }
 
       clearTimeout(timeoutId);
-      console.log(`[ai-mentor] callGLM: Success on attempt ${attempt}, contentLen=${content.length}, tokens=${data.usage?.completion_tokens ?? '?'}, retries=${retryCount}`);
-      return { content, usage: data.usage };
+      console.log(`[ai-mentor] callGLM: Success on attempt ${attempt}, contentLen=${content.length}, tokens=${usage?.completion_tokens ?? '?'}, retries=${retryCount}`);
+      return { content, usage };
     } catch (err) {
       clearTimeout(timeoutId);
       const errName = err instanceof Error ? err.name : 'unknown';
