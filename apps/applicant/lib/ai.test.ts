@@ -29,10 +29,55 @@ async function importAI() {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Mock an SSE streaming response from the GLM API.
+ * Splits content into fragments to simulate real streaming behavior.
+ */
 function mockGLMResponse(content: string, status = 200) {
+  // Split content into small fragments to simulate streaming
+  const fragments: string[] = [];
+  const chunkSize = 10;
+  for (let i = 0; i < content.length; i += chunkSize) {
+    fragments.push(content.slice(i, i + chunkSize));
+  }
+  if (fragments.length === 0) fragments.push("");
+
+  // Build SSE lines: data: {"choices":[{"delta":{"content":"..."}}]}\n
+  const sseLines: string[] = [];
+  for (const frag of fragments) {
+    sseLines.push(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: frag } }] })}`);
+  }
+  // Final chunk with usage and finish_reason
+  sseLines.push(`data: ${JSON.stringify({
+    choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+    usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+  })}`);
+  sseLines.push("data: [DONE]");
+
+  const fullSSE = sseLines.join("\n\n") + "\n\n";
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(fullSSE);
+
   return {
     ok: status >= 200 && status < 300,
     status,
+    body: {
+      getReader: () => {
+        let offset = 0;
+        return {
+          read: async () => {
+            if (offset >= bytes.length) {
+              return { done: true, value: undefined };
+            }
+            const value = bytes.slice(offset);
+            offset = bytes.length;
+            return { done: false, value };
+          },
+          releaseLock: () => {},
+        };
+      },
+    },
+    // Keep json() for backward compat with any non-streaming checks
     json: async () => ({
       choices: [
         {
@@ -50,6 +95,7 @@ function mockErrorResponse(status: number) {
   return {
     ok: false,
     status,
+    body: null,
     json: async () => ({ error: "error" }),
   };
 }
@@ -315,7 +361,7 @@ describe("AI Integration — buildSystemPrompt", () => {
 
 describe("AI Integration — request body format", () => {
   // UT-LLM-05: Request body format
-  it("sends correct model, messages, max_tokens, temperature, stream:false", async () => {
+  it("sends correct model, messages, max_tokens, temperature, stream:true", async () => {
     process.env.GLM_Z_API_KEY = "test-key";
     process.env.ZHIPUAI_MODEL = "glm-4.5-air";
     process.env.LLM_MAX_TOKENS = "1024";
@@ -341,7 +387,7 @@ describe("AI Integration — request body format", () => {
     expect(body.messages[1].content).toBe("What is SDLC?");
     expect(body.max_tokens).toBe(1024);
     expect(body.temperature).toBe(0.7);
-    expect(body.stream).toBe(false);
+    expect(body.stream).toBe(true);
 
     // Headers
     expect(callArgs[1].headers["Content-Type"]).toBe("application/json");
@@ -383,5 +429,143 @@ describe("AI Integration — request body format", () => {
     const callArgs = fetchMock.mock.calls[0];
     expect(callArgs[1].signal).toBeDefined();
     expect(callArgs[1].signal.aborted).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SSE Stream Parsing Tests (v0.18.4, D-079)
+// ---------------------------------------------------------------------------
+
+describe("AI Integration — SSE stream parsing", () => {
+  // UT-SSE-01: Multi-fragment SSE stream is correctly concatenated
+  it("concatenates multiple SSE fragments into full response", async () => {
+    process.env.GLM_Z_API_KEY = "test-key";
+    fetchMock.mockResolvedValueOnce(
+      mockGLMResponse("The SDLC has 7 phases: planning, analysis, design, implementation, testing, deployment, maintenance.")
+    );
+    const ai = await importAI();
+
+    const result = await ai.requestAIInteraction({
+      tenantId: "t1",
+      userId: "u1",
+      purpose: "mentor",
+      prompt: "Explain SDLC in detail",
+    });
+
+    expect(result.status).toBe("ok");
+    expect(result.message).toContain("SDLC has 7 phases");
+    expect(result.message).toContain("maintenance");
+  });
+
+  // UT-SSE-02: Empty content fragments are handled gracefully
+  it("handles empty content in SSE stream", async () => {
+    process.env.GLM_Z_API_KEY = "test-key";
+
+    // SSE with empty delta content then real content
+    const sseLines = [
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {} }] })}`,
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: "Hello" } }] })}`,
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: " world" } }] })}`,
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 } })}`,
+      "data: [DONE]",
+    ];
+    const fullSSE = sseLines.join("\n\n") + "\n\n";
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(fullSSE);
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => {
+          let offset = 0;
+          return {
+            read: async () => {
+              if (offset >= bytes.length) return { done: true, value: undefined };
+              const value = bytes.slice(offset);
+              offset = bytes.length;
+              return { done: false, value };
+            },
+            releaseLock: () => {},
+          };
+        },
+      },
+    });
+
+    const ai = await importAI();
+    const result = await ai.requestAIInteraction({
+      tenantId: "t1",
+      userId: "u1",
+      purpose: "mentor",
+      prompt: "Explain SDLC in detail",
+    });
+
+    expect(result.status).toBe("ok");
+    expect(result.message).toBe("Hello world");
+  });
+
+  // UT-SSE-03: Malformed SSE lines are skipped without error
+  it("skips malformed SSE lines gracefully", async () => {
+    process.env.GLM_Z_API_KEY = "test-key";
+
+    const sseLines = [
+      "data: {invalid json}",
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: "Valid" } }] })}`,
+      "data: not-json-at-all",
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: " response" } }] })}`,
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 } })}`,
+      "data: [DONE]",
+    ];
+    const fullSSE = sseLines.join("\n\n") + "\n\n";
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(fullSSE);
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => {
+          let offset = 0;
+          return {
+            read: async () => {
+              if (offset >= bytes.length) return { done: true, value: undefined };
+              const value = bytes.slice(offset);
+              offset = bytes.length;
+              return { done: false, value };
+            },
+            releaseLock: () => {},
+          };
+        },
+      },
+    });
+
+    const ai = await importAI();
+    const result = await ai.requestAIInteraction({
+      tenantId: "t1",
+      userId: "u1",
+      purpose: "mentor",
+      prompt: "Explain SDLC in detail",
+    });
+
+    expect(result.status).toBe("ok");
+    expect(result.message).toBe("Valid response");
+  });
+
+  // UT-SSE-04: [DONE] sentinel is handled correctly
+  it("handles [DONE] sentinel in SSE stream", async () => {
+    process.env.GLM_Z_API_KEY = "test-key";
+    // The mockGLMResponse already includes [DONE] at the end
+    fetchMock.mockResolvedValueOnce(mockGLMResponse("Test response with DONE"));
+    const ai = await importAI();
+
+    const result = await ai.requestAIInteraction({
+      tenantId: "t1",
+      userId: "u1",
+      purpose: "mentor",
+      prompt: "Explain SDLC in detail",
+    });
+
+    expect(result.status).toBe("ok");
+    expect(result.message).toBe("Test response with DONE");
   });
 });
