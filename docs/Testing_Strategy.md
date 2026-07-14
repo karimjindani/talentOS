@@ -17,7 +17,7 @@ The regression suite has two layers:
 The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts after
 each run.
 
-Current totals (as of `v0.18.2`): **243 unit tests across 34 files** (`npm test`) and **28 scenarios
+Current totals (as of `v0.18.2`): **261 unit tests across 33 files** (`npm test`) and **28 scenarios
 across 12 areas** (`scripts/regression/run.ts`), verified 27 passed / 0 failed / 1 pre-existing
 documented skip (storage upload/download) against a freshly migrated local database. CI
 (`.github/workflows/ci.yml`) runs the **unit suite only**; scenario regression is a local capability
@@ -343,6 +343,8 @@ on `ACCEPTED` (`mission-assignments.test.ts`, 7 tests), Week 1 Markdown mission 
 exactly one `MissionAssignment` row. The suite is **243 tests across 34 files**;
 `regression:all` is verified 21/22 passed, 1 pre-existing documented skip, 0 failed against a freshly
 migrated local database.
+
+From `v0.15.0`, the regression baseline also covers AI Mentor functionality: Rule-Based System Engine (RBSE) classification (`ai-rbse.test.ts`, 41 tests), knowledge base retrieval (`knowledge-base.test.ts`, 22 tests), applicant context building (`ai-context.test.ts`, 11 tests), LLM integration with smart caching (`ai.test.ts`, 15 tests; `ai-cache.test.ts`, 6 tests), and mentor database operations (`mentor.test.ts`, 13 tests). The suite is **261 tests across 33 files**; AI Mentor scenarios include cache behavior (hit/miss, static/dynamic keys, error handling, user isolation, RBSE bypass), conversation persistence, and UI interactions (load, send, new chat, scroll, render).
 
 From `v0.18.1`, every implementation plan must use `docs/plans/TEMPLATE.md` and fill in a **Test
 Scenarios** section — end-to-end behavioral cases distinct from unit tests, written before or during

@@ -161,7 +161,7 @@ type GLMChatRequest = {
   messages: { role: "system" | "user" | "assistant"; content: string }[];
   max_tokens: number;
   temperature: number;
-  stream: false;
+  stream: boolean;
 };
 
 /** ZhipuAI chat completion response shape (minimal). */
@@ -202,7 +202,7 @@ async function callGLM(
     ],
     max_tokens: effectiveMaxTokens,
     temperature: LLM_TEMPERATURE,
-    stream: false,
+    stream: true,
   };
 
   console.log(`[ai-mentor] callGLM: model=${ZHIPUAI_MODEL}, max_tokens=${effectiveMaxTokens}, systemPromptLen=${systemPrompt.length}, userPromptLen=${userPrompt.length}`);
