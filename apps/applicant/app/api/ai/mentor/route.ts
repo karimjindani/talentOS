@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requestAIInteraction, type MentorCard } from "@/lib/ai";
+import { requestAIInteraction, type MentorCard, type MentorConversationTurn } from "@/lib/ai";
 import { buildApplicantContext } from "@/lib/ai-context";
 import { retrieveKnowledge } from "@/lib/knowledge-base";
 import { resolveTenantAccess } from "@/lib/tenant-guard";
@@ -10,16 +10,16 @@ import {
 } from "@talentos/db";
 
 const MAX_PROMPT_LENGTH = 2000;
-const AFFIRMATIVE_FOLLOW_UP = /^(?:yes|yes please|yep|yeah|sure|okay|ok|continue|go ahead|please do|please)$/i;
+const SHORT_CONVERSATION_FOLLOW_UP = /^(?:yes|yes please|yep|yeah|sure|okay|ok|continue|go ahead|please do|please|no|nope|not yet|i (?:have not|haven't|did not|didn't) .*|no i (?:have not|haven't|did not|didn't) .*|i need help.*)$/i;
 
 function buildContinuationPrompt(prompt: string, previousMentorMessage?: string): string {
-  if (!previousMentorMessage || !AFFIRMATIVE_FOLLOW_UP.test(prompt.trim())) {
+  if (!previousMentorMessage || !SHORT_CONVERSATION_FOLLOW_UP.test(prompt.trim())) {
     return prompt;
   }
 
   return [
-    "The applicant replied positively to your previous question.",
-    "Continue the conversation from that question. Give the requested next guidance; do not repeat the previous answer or ask the same question again.",
+    "The applicant replied to your previous question.",
+    "Continue the conversation from that question. If they have not completed the suggested step, give the smallest practical setup step first; do not repeat the previous answer or ask the same question again.",
     "Previous mentor message:",
     previousMentorMessage.slice(-4000),
     `Applicant reply: ${prompt}`,
@@ -111,6 +111,13 @@ export async function POST(request: Request) {
       .filter((message) => message.role === "mentor")
       .at(-1)?.content;
     const effectivePrompt = buildContinuationPrompt(prompt, previousMentorMessage);
+    const conversationHistory: MentorConversationTurn[] = (history?.messages ?? [])
+      .slice(-8)
+      .map((message) => ({
+        role: message.role === "mentor" ? "assistant" as const : "user" as const,
+        // Limit each turn so a long older answer cannot consume the mentor's context window.
+        content: message.content.slice(-1200),
+      }));
 
     // Persist the user's original message, not the expanded internal prompt.
     await appendMessage(conversation.id, "user", prompt, null);
@@ -129,6 +136,7 @@ export async function POST(request: Request) {
       prompt: effectivePrompt,
       context,
       knowledge,
+      conversationHistory,
     });
 
     // Persist the mentor's response (with cards as JSON)

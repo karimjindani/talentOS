@@ -4,6 +4,11 @@ import type { KnowledgeSnippet } from "./knowledge-base";
 import { knowledgeToPromptSection } from "./knowledge-base";
 import { classifyQuestion } from "./ai-rbse";
 
+export type MentorConversationTurn = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export type AIInteractionRequest = {
   tenantId: string;
   userId?: string;
@@ -13,6 +18,8 @@ export type AIInteractionRequest = {
   context?: ApplicantContext;
   /** Phase 5: retrieved knowledge snippets for RAG-style responses. */
   knowledge?: KnowledgeSnippet[];
+  /** Recent persisted turns, oldest first. Keeps coaching continuous across messages. */
+  conversationHistory?: MentorConversationTurn[];
 };
 
 /** A rich content block that the mentor can return inside a response. */
@@ -131,12 +138,14 @@ function buildSystemPrompt(
 ): string {
   const parts: string[] = [
     "You are an AI Mentor for TalentOS, a platform that develops AI-native software engineers.",
+    "You are a supportive, practical AI Mentor for TalentOS—not a documentation reader.",
     "Guide interns through tasks, missions, progress, and engineering practices (SDLC, SEM, testing, deployment).",
     "",
     "RULES:",
-    "- Answer concisely using bullet points and Markdown.",
-    "- For simple questions, use only: **Summary**, a short **Details** section, and **Recommended Action**.",
-    "- Use the full multi-section format only when the user explicitly asks for a detailed explanation or guide.",
+    "- Start with a direct, human answer; do not dump documentation or repeat the user's context.",
+    "- Give exactly one small, concrete next action tailored to the applicant's current progress when relevant.",
+    "- End with one short, purposeful follow-up question that helps the learner move forward (for example, identify a blocker or confirm progress).",
+    "- For simple questions, use only: **What to do now** and **Next step**. Use a detailed guide only when explicitly requested.",
     "- Finish every sentence and section; do not begin an extra section if there is not enough room to complete it.",
     "- Keep normal responses under 220 words unless the user explicitly asks for a detailed explanation.",
     "- NEVER complete assignments for the intern — guide and explain only.",
@@ -266,7 +275,8 @@ async function callGLM(
   systemPrompt: string,
   userPrompt: string,
   maxTokens?: number,
-  model?: string
+  model?: string,
+  conversationHistory: MentorConversationTurn[] = []
 ): Promise<{ content: string; usage?: GLMChatResponse["usage"] }> {
   const url = `${AI_BASE_URL}/chat/completions`;
   const effectiveMaxTokens = maxTokens ?? LLM_MAX_TOKENS;
@@ -276,6 +286,7 @@ async function callGLM(
     model: effectiveModel,
     messages: [
       { role: "system", content: systemPrompt },
+      ...conversationHistory,
       { role: "user", content: userPrompt },
     ],
     max_tokens: effectiveMaxTokens,
@@ -545,7 +556,7 @@ async function generateStubResponse(
 export async function requestAIInteraction(
   request: AIInteractionRequest
 ): Promise<AIInteractionResponse> {
-  const { prompt, context, knowledge } = request;
+  const { prompt, context, knowledge, conversationHistory = [] } = request;
 
   // Step 1: Apply Rule-Based System Engine (RBSE)
   const rbseAction = classifyQuestion(prompt, context);
@@ -576,7 +587,10 @@ export async function requestAIInteraction(
   const cacheKey = buildLLMCacheKey(request.tenantId, request.userId, prompt, contextSig);
 
   // Check cache first — only for successful "ok" responses, never errors
-  const cached = getCachedLLMResponse(cacheKey);
+  // A response that relies on conversation turns is personal to this learner;
+  // never reuse it from the shared static cache.
+  const canUseCache = conversationHistory.length === 0;
+  const cached = canUseCache ? getCachedLLMResponse(cacheKey) : null;
   if (cached) {
     console.log(`[ai-mentor] Cache HIT for key: ${cacheKey.substring(0, 80)}...`);
     return { status: "ok", message: cached };
@@ -598,14 +612,14 @@ export async function requestAIInteraction(
     let usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | undefined;
     
     try {
-      const result = await callGLM(systemPrompt, prompt, maxTokens);
+      const result = await callGLM(systemPrompt, prompt, maxTokens, undefined, conversationHistory);
       content = result.content;
       usage = result.usage;
     } catch (primaryErr) {
       // Primary model failed — try fallback model (glm-5.1)
       const errMsg = primaryErr instanceof Error ? primaryErr.message : "unknown";
       console.log(`[ai-mentor] Primary model ${AI_MODEL} failed (${errMsg}), trying fallback model ${AI_FALLBACK_MODEL}`);
-      const fallbackResult = await callGLM(systemPrompt, prompt, maxTokens, AI_FALLBACK_MODEL);
+      const fallbackResult = await callGLM(systemPrompt, prompt, maxTokens, AI_FALLBACK_MODEL, conversationHistory);
       content = fallbackResult.content;
       usage = fallbackResult.usage;
       console.log(`[ai-mentor] Fallback model ${AI_FALLBACK_MODEL} succeeded, responseLen=${content.length}`);
@@ -615,8 +629,10 @@ export async function requestAIInteraction(
     console.log(`[ai-mentor] GLM call succeeded in ${duration}ms, responseLen=${content.length}, tokens=${usage?.completion_tokens ?? '?'}`);
     
     // Cache the successful response — never cache errors
-    setCachedLLMResponse(cacheKey, content);
-    console.log(`[ai-mentor] Cached response for key: ${cacheKey.substring(0, 80)}...`);
+    if (canUseCache) {
+      setCachedLLMResponse(cacheKey, content);
+      console.log(`[ai-mentor] Cached response for key: ${cacheKey.substring(0, 80)}...`);
+    }
     
     return {
       status: "ok",
