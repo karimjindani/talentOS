@@ -201,10 +201,12 @@ describe("Smart LLM Cache — Verification", () => {
 
   it("NEVER CACHE ERRORS: failed LLM → error response not cached, retry on next call", async () => {
     process.env.GLM_Z_API_KEY = "test-key";
-    // First call fails with 500, retry also fails
+    // First call: primary model fails (attempt + retry), fallback model also fails (attempt + retry)
     fetchMock.mockResolvedValueOnce({ ok: false, status: 500, body: null, json: async () => ({}) });
     fetchMock.mockResolvedValueOnce({ ok: false, status: 500, body: null, json: async () => ({}) });
-    // Second attempt (after error) succeeds
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, body: null, json: async () => ({}) });
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, body: null, json: async () => ({}) });
+    // Second call (after error) succeeds
     fetchMock.mockResolvedValueOnce(mockGLMResponse("Fresh response after recovery."));
     const ai = await importAI();
 
