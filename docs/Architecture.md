@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.19.1`
+Code version: `v0.19.2`
 
-Architecture baseline commit: `03839a6`
+Architecture baseline commit: `_pending_`
 
-Current documentation update: `v0.19.1`
+Current documentation update: `v0.19.2`
 
 ## Overview
 
@@ -134,6 +134,14 @@ renders only next to the current, unsubmitted mission. It also corrects the `v0.
 reject-reassignment behavior: `createRepeatFromWeekOneTx` is renamed
 `createRepeatMissionForSameWeekTx` and now repeats the **same week that failed** with a different
 mission, rather than always resetting to Week 1.
+
+### Logout Regression Fix & Confirmation Gates (`v0.19.2`)
+
+`v0.19.2` restores the applicant dashboard sidebar Logout button (`ApplicantShell.tsx`) that had
+been silently reverted by the `feat/applicant-ai-mentor-skeleton` merge (PR #45) — the `v0.14.3`/
+D-066 centralized-logout architecture itself is unchanged, only the shell's own affordance was
+missing. No new architectural surface; a `vitest.config.ts` alias fix and a governance-only
+`AGENTS.md` addition (Confirmation Gates) accompany it.
 
 ## Container Topology
 

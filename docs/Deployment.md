@@ -1,14 +1,18 @@
 # Deployment
 
-Code version: `v0.19.1`
+Code version: `v0.19.2`
 
-Baseline commit: `03839a6`
+Baseline commit: `_pending_`
 
-Current deployment update: `v0.19.1` (the latest deployment-affecting baselines are `v0.18.5` and
-`v0.19.0` — both require a database migration; `v0.19.1` is code-only with no migration; `v0.18.1`/
-`v0.18.2`/`v0.18.3`/`v0.18.4` were docs/tooling baselines with no deployment, infra or migration
-change)
+Current deployment update: `v0.19.2` (the latest deployment-affecting baselines are `v0.18.5` and
+`v0.19.0` — both require a database migration; `v0.19.1`/`v0.19.2` are code-only with no migration;
+`v0.18.1`/`v0.18.2`/`v0.18.3`/`v0.18.4` were docs/tooling baselines with no deployment, infra or
+migration change)
 
+> `v0.19.2` (Logout Regression Fix & Confirmation Gates, D-083) **requires no database migration** —
+> rebuild the applicant container: `docker compose up -d --build applicant`. `AGENTS.md` is a
+> repo-governance doc; it has no deployment effect.
+>
 > `v0.19.1` (Dashboard Wiring & Same-Week Repeat, D-082) **requires no database migration** — rebuild
 > both containers: `docker compose up -d --build applicant admin`.
 >

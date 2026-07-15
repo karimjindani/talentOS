@@ -14,7 +14,10 @@ export default defineConfig({
       { find: /^@talentos\/auth$/, replacement: resolve(root, "packages/auth/src/index.ts") },
       { find: /^@talentos\/auth\/(.+)$/, replacement: resolve(root, "packages/auth/src/$1") },
       { find: /^@talentos\/db$/, replacement: resolve(root, "packages/db/src/index.ts") },
-      { find: /^@talentos\/db\/(.+)$/, replacement: resolve(root, "packages/db/src/$1") }
+      { find: /^@talentos\/db\/(.+)$/, replacement: resolve(root, "packages/db/src/$1") },
+      // Mirrors apps/applicant/tsconfig.json's "@/*" -> "./*". Scoped to applicant only —
+      // apps/admin has the same tsconfig pattern but no test currently imports through it.
+      { find: /^@\/(.+)$/, replacement: resolve(root, "apps/applicant/$1") }
     ]
   }
 });

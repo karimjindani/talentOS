@@ -2,19 +2,32 @@
 
 ## Current Baseline
 
-Version: `v0.19.1`
+Version: `v0.19.2`
 
-Baseline name: `Mission Deadline Lifecycle, Mission-Driven Tasks & Dashboard Wiring`
+Baseline name: `Logout Regression Fix & Confirmation Gates`
 
-Baseline code commit: `03839a6`
+Baseline code commit: `_pending_`
 
-Baseline date: `2026-07-14`
+Baseline date: `2026-07-15`
 
-Previous baseline: `v0.18.4`
+Previous baseline: `v0.19.1`
 
-Previous baseline commit: `9e3733a`
+Previous baseline commit: `d77cb8f`
 
 ## Baseline Summary
+
+`v0.19.2` is a patch bundling two small, unrelated fixes that predate the `v0.18.5`–`v0.19.1`
+mission-lifecycle work but were left uncommitted until now. The `v0.14.3`/D-066 applicant dashboard
+sidebar Logout button had gone missing — a regression from the `feat/applicant-ai-mentor-skeleton`
+merge (PR #45) reverting part of an earlier main-branch merge — and is restored in
+`ApplicantShell.tsx`, alongside a `vitest.config.ts` alias fix (`@/(.+)` → `apps/applicant/$1`) so
+`ApplicantShell.test.ts` can resolve its new mocked import of `@/lib/logout-action`. A new
+`AGENTS.md` **Confirmation Gates** section requires stopping to ask the user before starting a
+versioned documentation-update process or pushing to a remote branch. No schema change; no
+migration; unit suite unchanged at 427 tests across 43 files;
+`regression:all` 35/36 passed, 1 pre-existing documented skip, 0 failed. Plan:
+`docs/plans/v0.19.2_Logout_Regression_And_Confirmation_Gates.md`; results:
+`docs/testing/v0.19.2_Logout_Regression_And_Confirmation_Gates_Test_Results.md`. See `D-083`.
 
 `v0.19.1` is a patch that wires the applicant Dashboard, My Program, Tasks and Missions pages to
 the real mission-lifecycle data `v0.18.5`/`v0.19.0` introduced (Days Remaining and every "current

@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.19.1`
+Code version: `v0.19.2`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.19.1`
+Current documentation update: `v0.19.2`
 
 ## D-001
 
@@ -853,5 +853,32 @@ migration.
 
 Plan: `docs/plans/v0.19.1_Dashboard_Wiring_And_Same_Week_Repeat.md`; results:
 `docs/testing/v0.19.1_Dashboard_Wiring_And_Same_Week_Repeat_Test_Results.md`.
+
+Status: Approved
+
+## D-083
+
+`v0.19.2` is a patch bundling two small, unrelated fixes that predate the `v0.18.5`–`v0.19.1`
+mission-lifecycle work but were left uncommitted until now. (1) **Logout regression restored** —
+the `v0.14.3`/D-066 applicant dashboard sidebar Logout button had gone missing: the
+`feat/applicant-ai-mentor-skeleton` branch (merged via PR #45) reverted part of an earlier
+main-branch merge that had added it, silently trapping accepted applicants in the dashboard with no
+sign-out (the dashboard shell replaces `PortalHeader` entirely, so it must carry its own logout
+affordance). The fix restores the `<form action={logoutAction}>` button in `ApplicantShell.tsx`,
+reusing the existing OIDC RP-initiated logout action unchanged. A `vitest.config.ts` alias gap
+surfaced in the process: `apps/applicant/tsconfig.json`'s `"@/*" -> "./*"` path was never mirrored
+in the Vitest resolver, so `ApplicantShell.test.ts` (which now imports the logout action through
+`@/lib/logout-action`) could not resolve the module; a scoped `@/(.+)` → `apps/applicant/$1` alias
+fixes this, and the test mocks the logout action the same way
+`apps/applicant/lib/logout-action.test.ts` already does (the real chain pulls in `next-auth` →
+`next/server`, which needs the Next.js runtime and isn't resolvable under plain Vitest). (2) **A new
+`AGENTS.md` "Confirmation Gates" section** requires any agent working in this repo to stop and ask
+for explicit user confirmation before (a) starting the documentation-update process for a versioned
+iteration, or (b) pushing commits to a remote branch — closing a gap where the repo's process docs
+described *what* to do for versioning and pushing but never said to check in with the user first.
+No schema change; no migration; unit suite unchanged at 427 tests across 43 files.
+
+Plan: `docs/plans/v0.19.2_Logout_Regression_And_Confirmation_Gates.md`; results:
+`docs/testing/v0.19.2_Logout_Regression_And_Confirmation_Gates_Test_Results.md`.
 
 Status: Approved

@@ -1,9 +1,11 @@
 # Data Dictionary
 
-Code version: `v0.19.1`
+Code version: `v0.19.2`
 
-Baseline commit: `03839a6`
+Baseline commit: `_pending_`
 
+> `v0.19.2` (Logout Regression Fix & Confirmation Gates, D-083) makes no schema change.
+>
 > `v0.19.1` (Dashboard Wiring & Same-Week Repeat, D-082) makes no schema change — a function rename
 > (`createRepeatFromWeekOneTx` → `createRepeatMissionForSameWeekTx`) and dashboard/program/tasks/
 > missions pages reading already-shipped `MissionAssignment` fields.

@@ -1,8 +1,8 @@
 # Testing Strategy
 
-Code version: `v0.19.1`
+Code version: `v0.19.2`
 
-Baseline commit: `03839a6`
+Baseline commit: `_pending_`
 
 ## Goals
 
@@ -433,3 +433,8 @@ From `v0.19.1`, the regression baseline also covers the same-week repeat correct
 unit test and the existing repeat-loop `missions`-area scenarios assert a `REPEAT` decision
 reassigns the same week that failed, not Week 1. The suite is **427 tests across 43 files**;
 `regression:all` is verified 35/36 passed, 1 pre-existing documented skip, 0 failed. See `D-082`.
+
+From `v0.19.2`, the regression baseline also covers the restored applicant dashboard Logout button
+(`ApplicantShell.test.ts`, 13 tests, now with the `@/lib/logout-action` mock so the file resolves)
+and the `vitest.config.ts` `@/(.+)` alias that makes `@/`-style imports resolvable for
+`apps/applicant` tests. No unit-test-count change (427 tests across 43 files). See `D-083`.

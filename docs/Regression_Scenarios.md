@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.19.1`
+Code version: `v0.19.2`
 
 ## Purpose
 

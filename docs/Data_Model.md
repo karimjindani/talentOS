@@ -1,9 +1,12 @@
 # Data Model
 
-Code version: `v0.19.1`
+Code version: `v0.19.2`
 
-Baseline commit: `03839a6`
+Baseline commit: `_pending_`
 
+> `v0.19.2` (Logout Regression Fix & Confirmation Gates, D-083) makes no schema change — a restored
+> UI affordance, a Vitest alias fix and a governance-only `AGENTS.md` addition.
+>
 > `v0.19.1` (Dashboard Wiring & Same-Week Repeat, D-082) makes no schema change. It renames
 > `createRepeatFromWeekOneTx` to `createRepeatMissionForSameWeekTx` (now parameterized by the
 > failed assignment's own `weekNumber` instead of assuming `1`) and rewires several applicant pages
