@@ -20,6 +20,8 @@ export type AIInteractionRequest = {
   knowledge?: KnowledgeSnippet[];
   /** Recent persisted turns, oldest first. Keeps coaching continuous across messages. */
   conversationHistory?: MentorConversationTurn[];
+  /** Called as model text arrives, enabling end-to-end UI streaming. */
+  onToken?: (token: string) => void | Promise<void>;
 };
 
 /** A rich content block that the mentor can return inside a response. */
@@ -143,8 +145,11 @@ function buildSystemPrompt(
     "",
     "RULES:",
     "- Start with a direct, human answer; do not dump documentation or repeat the user's context.",
+    "- Continue naturally from recent turns. Treat short replies such as yes, no, done, not yet, an error message, or a platform name as answers to your previous question.",
+    "- Match the applicant's language and tone. If they use Roman Urdu mixed with English, reply naturally in the same mix while keeping technical terms in English.",
+    "- Briefly acknowledge progress or frustration when it is relevant; never restart with a generic introduction during an active conversation.",
     "- Give exactly one small, concrete next action tailored to the applicant's current progress when relevant.",
-    "- End with one short, purposeful follow-up question that helps the learner move forward (for example, identify a blocker or confirm progress).",
+    "- End with at most one short, purposeful follow-up question only when it helps the learner move forward.",
     "- For simple questions, use only: **What to do now** and **Next step**. Use a detailed guide only when explicitly requested.",
     "- Finish every sentence and section; do not begin an extra section if there is not enough room to complete it.",
     "- Keep normal responses under 220 words unless the user explicitly asks for a detailed explanation.",
@@ -203,7 +208,8 @@ type GLMChatResponse = {
  *   data: [DONE]
  */
 async function parseSSEStream(
-  response: Response
+  response: Response,
+  onToken?: (token: string) => void | Promise<void>
 ): Promise<{ content: string; usage?: GLMChatResponse["usage"] }> {
   const reader = response.body?.getReader();
   if (!reader) {
@@ -245,6 +251,7 @@ async function parseSSEStream(
             chunk.choices?.[0]?.message?.content;
           if (fragment) {
             content += fragment;
+            await onToken?.(fragment);
           }
 
           // Capture usage from the final chunk
@@ -276,7 +283,8 @@ async function callGLM(
   userPrompt: string,
   maxTokens?: number,
   model?: string,
-  conversationHistory: MentorConversationTurn[] = []
+  conversationHistory: MentorConversationTurn[] = [],
+  onToken?: (token: string) => void | Promise<void>
 ): Promise<{ content: string; usage?: GLMChatResponse["usage"] }> {
   const url = `${AI_BASE_URL}/chat/completions`;
   const effectiveMaxTokens = maxTokens ?? LLM_MAX_TOKENS;
@@ -336,7 +344,7 @@ async function callGLM(
       }
 
       // Parse SSE stream response (stream: true returns text/event-stream)
-      const { content, usage } = await parseSSEStream(response);
+      const { content, usage } = await parseSSEStream(response, onToken);
 
       if (!content || typeof content !== "string") {
         throw new Error("LLM_INVALID_RESPONSE");
@@ -556,10 +564,15 @@ async function generateStubResponse(
 export async function requestAIInteraction(
   request: AIInteractionRequest
 ): Promise<AIInteractionResponse> {
-  const { prompt, context, knowledge, conversationHistory = [] } = request;
+  const { prompt, context, knowledge, conversationHistory = [], onToken } = request;
 
   // Step 1: Apply Rule-Based System Engine (RBSE)
-  const rbseAction = classifyQuestion(prompt, context);
+  // RBSE shortcuts are useful for isolated first-turn requests, but they lose
+  // conversational meaning (for example, "I use Windows" answering a setup
+  // question). Once a real history exists, let the model interpret the turn.
+  const rbseAction = conversationHistory.length > 0
+    ? ({ type: "allow_llm" } as const)
+    : classifyQuestion(prompt, context);
   
   switch (rbseAction.type) {
     case "blocked":
@@ -612,14 +625,14 @@ export async function requestAIInteraction(
     let usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | undefined;
     
     try {
-      const result = await callGLM(systemPrompt, prompt, maxTokens, undefined, conversationHistory);
+      const result = await callGLM(systemPrompt, prompt, maxTokens, undefined, conversationHistory, onToken);
       content = result.content;
       usage = result.usage;
     } catch (primaryErr) {
       // Primary model failed — try fallback model (glm-5.1)
       const errMsg = primaryErr instanceof Error ? primaryErr.message : "unknown";
       console.log(`[ai-mentor] Primary model ${AI_MODEL} failed (${errMsg}), trying fallback model ${AI_FALLBACK_MODEL}`);
-      const fallbackResult = await callGLM(systemPrompt, prompt, maxTokens, AI_FALLBACK_MODEL, conversationHistory);
+      const fallbackResult = await callGLM(systemPrompt, prompt, maxTokens, AI_FALLBACK_MODEL, conversationHistory, onToken);
       content = fallbackResult.content;
       usage = fallbackResult.usage;
       console.log(`[ai-mentor] Fallback model ${AI_FALLBACK_MODEL} succeeded, responseLen=${content.length}`);
