@@ -145,11 +145,14 @@ describe("AI Integration — requestAIInteraction", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  // UT-ERR-01: Fallback to stub on LLM failure
+  // UT-ERR-01: Fallback to stub on LLM failure (both primary and fallback fail)
   it("returns error status with stub content when LLM fails", async () => {
     process.env.GLM_Z_API_KEY = "test-key";
+    // Primary model: network failure on both retry attempts
     fetchMock.mockRejectedValueOnce(new Error("network failure"));
-    // Second attempt (retry) also fails
+    fetchMock.mockRejectedValueOnce(new Error("network failure"));
+    // Fallback model: also fails
+    fetchMock.mockRejectedValueOnce(new Error("network failure"));
     fetchMock.mockRejectedValueOnce(new Error("network failure"));
     const ai = await importAI();
 
@@ -240,9 +243,12 @@ describe("AI Integration — requestAIInteraction", () => {
 });
 
 describe("AI Integration — callGLM error handling", () => {
-  // UT-LLM-06: Auth error
+  // UT-LLM-06: Auth error — no retry, but fallback model is tried
   it("throws LLM_AUTH_ERROR on 401 without retrying", async () => {
     process.env.GLM_Z_API_KEY = "bad-key";
+    // Primary model gets 401
+    fetchMock.mockResolvedValueOnce(mockErrorResponse(401));
+    // Fallback model also gets 401
     fetchMock.mockResolvedValueOnce(mockErrorResponse(401));
     const ai = await importAI();
 
@@ -255,15 +261,16 @@ describe("AI Integration — callGLM error handling", () => {
 
     // Should fall back to stub with error status
     expect(result.status).toBe("error");
-    // Should only have been called once (no retry on auth error)
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Primary (1 call, no retry) + fallback (1 call, no retry) = 2 total
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  // UT-LLM-07: Rate limit
-  it("falls back to stub on 429 rate limit", async () => {
+  // UT-LLM-07: Rate limit — no retry, fail fast
+  it("falls back to stub on 429 rate limit without retrying", async () => {
     process.env.GLM_Z_API_KEY = "test-key";
+    // Primary model gets 429
     fetchMock.mockResolvedValueOnce(mockErrorResponse(429));
-    // Retry also 429
+    // Fallback model also gets 429
     fetchMock.mockResolvedValueOnce(mockErrorResponse(429));
     const ai = await importAI();
 
@@ -275,6 +282,8 @@ describe("AI Integration — callGLM error handling", () => {
     });
 
     expect(result.status).toBe("error");
+    // Primary (1 call, no retry) + fallback (1 call, no retry) = 2 total
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   // UT-LLM-09: Retry on 500
@@ -363,9 +372,9 @@ describe("AI Integration — request body format", () => {
   // UT-LLM-05: Request body format
   it("sends correct model, messages, max_tokens, temperature, stream:true", async () => {
     process.env.GLM_Z_API_KEY = "test-key";
-    process.env.ZHIPUAI_MODEL = "glm-4.5-air";
-    process.env.LLM_MAX_TOKENS = "1024";
-    process.env.LLM_TEMPERATURE = "0.7";
+    process.env.AI_MODEL = "glm-5.2";
+    process.env.LLM_MAX_TOKENS = "256";
+    process.env.LLM_TEMPERATURE = "0.5";
     fetchMock.mockResolvedValueOnce(mockGLMResponse("ok"));
     const ai = await importAI();
 
@@ -380,13 +389,14 @@ describe("AI Integration — request body format", () => {
     const callArgs = fetchMock.mock.calls[0];
     const body = JSON.parse(callArgs[1].body);
 
-    expect(body.model).toBe("glm-4.5-air");
+    expect(body.model).toBe("glm-5.2");
     expect(body.messages).toHaveLength(2);
     expect(body.messages[0].role).toBe("system");
     expect(body.messages[1].role).toBe("user");
     expect(body.messages[1].content).toBe("What is SDLC?");
-    expect(body.max_tokens).toBe(1024);
-    expect(body.temperature).toBe(0.7);
+    // Code uses Math.max(LLM_MAX_TOKENS, 512) for non-detailed prompts
+    expect(body.max_tokens).toBe(512);
+    expect(body.temperature).toBe(0.5);
     expect(body.stream).toBe(true);
 
     // Headers

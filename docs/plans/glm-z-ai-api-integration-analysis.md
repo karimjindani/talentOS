@@ -87,8 +87,8 @@ export async function requestAIInteraction(
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `ZHIPUAI_API_KEY` | ZhipuAI API key for GLM access | `xxxxxxxx.xxxxxxxx` |
-| `ZHIPUAI_BASE_URL` | Base URL for ZhipuAI API (optional, has default) | `https://open.bigmodel.cn/api/paas/v4` |
-| `ZHIPUAI_MODEL` | Model identifier to use | `glm-4` or `glm-4-flash` |
+| `AI_BASE_URL` | Base URL for AI API (LiteLLM proxy or ZhipuAI, optional, has default) | `https://api.z.ai/api/coding/paas/v4` |
+| `AI_MODEL` | Model identifier to use | `glm-5.2` |
 | `LLM_MAX_TOKENS` | Max response tokens (optional) | `1024` |
 | `LLM_TEMPERATURE` | Sampling temperature (optional) | `0.7` |
 

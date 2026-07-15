@@ -10,6 +10,21 @@ import {
 } from "@talentos/db";
 
 const MAX_PROMPT_LENGTH = 2000;
+const AFFIRMATIVE_FOLLOW_UP = /^(?:yes|yes please|yep|yeah|sure|okay|ok|continue|go ahead|please do|please)$/i;
+
+function buildContinuationPrompt(prompt: string, previousMentorMessage?: string): string {
+  if (!previousMentorMessage || !AFFIRMATIVE_FOLLOW_UP.test(prompt.trim())) {
+    return prompt;
+  }
+
+  return [
+    "The applicant replied positively to your previous question.",
+    "Continue the conversation from that question. Give the requested next guidance; do not repeat the previous answer or ask the same question again.",
+    "Previous mentor message:",
+    previousMentorMessage.slice(-4000),
+    `Applicant reply: ${prompt}`,
+  ].join("\n\n");
+}
 
 /** GET /api/ai/mentor — load the user's conversation history. */
 export async function GET() {
@@ -88,22 +103,30 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Persist the user's message
+    // Load the previous mentor message before persisting the follow-up so short
+    // confirmations such as "yes" can continue the current conversation.
     const conversation = await getOrCreateConversation(tenant.id, actorUserId);
+    const history = await loadConversationHistory(tenant.id, actorUserId);
+    const previousMentorMessage = history?.messages
+      .filter((message) => message.role === "mentor")
+      .at(-1)?.content;
+    const effectivePrompt = buildContinuationPrompt(prompt, previousMentorMessage);
+
+    // Persist the user's original message, not the expanded internal prompt.
     await appendMessage(conversation.id, "user", prompt, null);
 
     // Build real applicant context (Phase 4) — safe fallback if no data
     const context = await buildApplicantContext(tenant.id, actorUserId);
 
     // Retrieve relevant knowledge snippets (Phase 5) — limit to top 2 for faster LLM response
-    const knowledge = retrieveKnowledge(prompt, 2);
+    const knowledge = retrieveKnowledge(effectivePrompt, 2);
 
     // Generate the mentor response
     const response = await requestAIInteraction({
       tenantId: tenant.id,
       userId: actorUserId,
       purpose: "mentor",
-      prompt,
+      prompt: effectivePrompt,
       context,
       knowledge,
     });

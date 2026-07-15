@@ -35,11 +35,12 @@ export type AIInteractionResponse = {
 
 // Support both GLM_Z_API_KEY (user's naming) and ZHIPUAI_API_KEY (standard naming)
 const ZHIPUAI_API_KEY = process.env.GLM_Z_API_KEY ?? process.env.ZHIPUAI_API_KEY;
-// Z.AI coding endpoint (api.z.ai) — works with the GLM_Z API key
-const ZHIPUAI_BASE_URL =
-  process.env.ZHIPUAI_BASE_URL ?? "https://api.z.ai/api/coding/paas/v4";
-const ZHIPUAI_MODEL = process.env.ZHIPUAI_MODEL ?? "glm-4.5-air";
-const LLM_MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS ?? "1024", 10); // 1024 is enough for complete structured responses
+// AI API endpoint (LiteLLM proxy or direct ZhipuAI)
+const AI_BASE_URL =
+  process.env.AI_BASE_URL ?? "https://api.z.ai/api/coding/paas/v4";
+const AI_MODEL = process.env.AI_MODEL ?? "glm-5.2";
+const AI_FALLBACK_MODEL = process.env.AI_FALLBACK_MODEL ?? "glm-5.1";
+const LLM_MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS ?? "512", 10);
 const LLM_TEMPERATURE = parseFloat(process.env.LLM_TEMPERATURE ?? "0.7");
 const LLM_TIMEOUT_MS = 60_000; // 60 second timeout — fail fast, don't make user wait 2 minutes
 const LLM_MAX_RETRIES = 1; // Only retry on network/server errors, not timeouts
@@ -134,8 +135,10 @@ function buildSystemPrompt(
     "",
     "RULES:",
     "- Answer concisely using bullet points and Markdown.",
-    "- Use sections: **Summary**, **Details**, **Key Concepts**, **Example** (if relevant), **Recommended Action**.",
-    "- Keep responses under 300 words unless the user explicitly asks for a detailed explanation.",
+    "- For simple questions, use only: **Summary**, a short **Details** section, and **Recommended Action**.",
+    "- Use the full multi-section format only when the user explicitly asks for a detailed explanation or guide.",
+    "- Finish every sentence and section; do not begin an extra section if there is not enough room to complete it.",
+    "- Keep normal responses under 220 words unless the user explicitly asks for a detailed explanation.",
     "- NEVER complete assignments for the intern — guide and explain only.",
     "- If you don't know something, say so honestly.",
   ];
@@ -262,13 +265,15 @@ async function parseSSEStream(
 async function callGLM(
   systemPrompt: string,
   userPrompt: string,
-  maxTokens?: number
+  maxTokens?: number,
+  model?: string
 ): Promise<{ content: string; usage?: GLMChatResponse["usage"] }> {
-  const url = `${ZHIPUAI_BASE_URL}/chat/completions`;
+  const url = `${AI_BASE_URL}/chat/completions`;
   const effectiveMaxTokens = maxTokens ?? LLM_MAX_TOKENS;
+  const effectiveModel = model ?? AI_MODEL;
 
   const body: GLMChatRequest = {
-    model: ZHIPUAI_MODEL,
+    model: effectiveModel,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
@@ -278,7 +283,7 @@ async function callGLM(
     stream: true,
   };
 
-  console.log(`[ai-mentor] callGLM: model=${ZHIPUAI_MODEL}, max_tokens=${effectiveMaxTokens}, systemPromptLen=${systemPrompt.length}, userPromptLen=${userPrompt.length}`);
+  console.log(`[ai-mentor] callGLM: model=${effectiveModel}, max_tokens=${effectiveMaxTokens}, systemPromptLen=${systemPrompt.length}, userPromptLen=${userPrompt.length}`);
   
   let lastError: Error | null = null;
   let retryCount = 0;
@@ -343,8 +348,8 @@ async function callGLM(
         lastError = new Error("LLM_NETWORK_ERROR");
       }
       
-      // Don't retry on auth errors or timeouts — these won't succeed on retry
-      if (lastError.message === "LLM_AUTH_ERROR" || lastError.message === "LLM_TIMEOUT") {
+      // Don't retry on auth errors, timeouts, or rate limits — these won't succeed on retry
+      if (lastError.message === "LLM_AUTH_ERROR" || lastError.message === "LLM_TIMEOUT" || lastError.message === "LLM_RATE_LIMIT") {
         throw lastError;
       }
       
@@ -584,11 +589,28 @@ export async function requestAIInteraction(
     const lowerPrompt = prompt.toLowerCase();
     const isDetailedRequest = lowerPrompt.includes("detailed") || lowerPrompt.includes("complete") || 
       lowerPrompt.includes("in detail") || lowerPrompt.includes("all phases") || lowerPrompt.includes("explain everything");
-    const maxTokens = isDetailedRequest ? Math.max(LLM_MAX_TOKENS, 2048) : LLM_MAX_TOKENS;
+    const maxTokens = isDetailedRequest ? Math.max(LLM_MAX_TOKENS, 1024) : Math.max(LLM_MAX_TOKENS, 512);
     
-    console.log(`[ai-mentor] Calling GLM: model=${ZHIPUAI_MODEL}, maxTokens=${maxTokens}, promptLen=${prompt.length}, systemPromptLen=${systemPrompt.length}, detailed=${isDetailedRequest}`);
+    console.log(`[ai-mentor] Calling GLM: model=${AI_MODEL}, maxTokens=${maxTokens}, promptLen=${prompt.length}, systemPromptLen=${systemPrompt.length}, detailed=${isDetailedRequest}`);
     const startTime = Date.now();
-    const { content, usage } = await callGLM(systemPrompt, prompt, maxTokens);
+    
+    let content: string;
+    let usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | undefined;
+    
+    try {
+      const result = await callGLM(systemPrompt, prompt, maxTokens);
+      content = result.content;
+      usage = result.usage;
+    } catch (primaryErr) {
+      // Primary model failed — try fallback model (glm-5.1)
+      const errMsg = primaryErr instanceof Error ? primaryErr.message : "unknown";
+      console.log(`[ai-mentor] Primary model ${AI_MODEL} failed (${errMsg}), trying fallback model ${AI_FALLBACK_MODEL}`);
+      const fallbackResult = await callGLM(systemPrompt, prompt, maxTokens, AI_FALLBACK_MODEL);
+      content = fallbackResult.content;
+      usage = fallbackResult.usage;
+      console.log(`[ai-mentor] Fallback model ${AI_FALLBACK_MODEL} succeeded, responseLen=${content.length}`);
+    }
+    
     const duration = Date.now() - startTime;
     console.log(`[ai-mentor] GLM call succeeded in ${duration}ms, responseLen=${content.length}, tokens=${usage?.completion_tokens ?? '?'}`);
     
@@ -601,7 +623,7 @@ export async function requestAIInteraction(
       message: content,
     };
   } catch (err) {
-    // Log the error (without exposing the API key) and fall back to stub
+    // Both primary and fallback failed — fall back to stub
     const errorMsg = err instanceof Error ? err.message : "unknown";
     console.error(`[ai-mentor] LLM call failed (${errorMsg}), falling back to stub`);
 
