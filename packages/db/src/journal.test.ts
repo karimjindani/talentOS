@@ -49,10 +49,12 @@ import {
   listApplicantJournalEntries,
   listEngineeringJournalEntriesForSubmissionReview,
   listPreviousMissionAttemptHistoryForSubmissionReview,
+  normalizeJournalEntryDate,
   parseJournalEvidenceLinks,
   updateJournalEntry,
   updatePreferredJournalLanguage,
-  validateConfidenceRating
+  validateConfidenceRating,
+  validateTimeSpentHours
 } from "./journal";
 
 type CurrentAssignmentScope = {
@@ -764,7 +766,7 @@ describe("engineering journal data access", () => {
 
   it("allows editing an existing entry while the assignment is unsubmitted", async () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-07-07T11:00:00.000Z"));
+    vi.setSystemTime(new Date("2026-07-08T11:00:00.000Z"));
 
     await updateJournalEntry({ id: "journal-1", ...journalInput({ entryDate: new Date("2026-07-08T00:00:00.000Z") }) });
 
@@ -882,6 +884,40 @@ describe("engineering journal data access", () => {
       "https://example.com/demo"
     ]);
     expect(() => parseJournalEvidenceLinks("ftp://example.com/file")).toThrow("valid URLs");
+    expect(() => parseJournalEvidenceLinks("https://user:password@example.com/private")).toThrow("username or password");
+  });
+
+  it("accepts today and back-dated journal dates but rejects future dates", () => {
+    const now = new Date("2026-07-16T18:30:00.000Z");
+    expect(normalizeJournalEntryDate(new Date("2026-07-16T20:00:00.000Z"), now)).toEqual(
+      new Date("2026-07-16T00:00:00.000Z")
+    );
+    expect(normalizeJournalEntryDate(new Date("2026-07-01T12:00:00.000Z"), now)).toEqual(
+      new Date("2026-07-01T00:00:00.000Z")
+    );
+    expect(() => normalizeJournalEntryDate(new Date("2026-07-17T00:00:00.000Z"), now)).toThrow("future");
+  });
+
+  it("uses the applicant calendar time zone when validating today's date", () => {
+    const now = new Date("2026-07-15T22:30:00.000Z");
+
+    expect(
+      normalizeJournalEntryDate(new Date("2026-07-16T00:00:00.000Z"), now, "Asia/Karachi")
+    ).toEqual(new Date("2026-07-16T00:00:00.000Z"));
+    expect(() =>
+      normalizeJournalEntryDate(new Date("2026-07-17T00:00:00.000Z"), now, "Asia/Karachi")
+    ).toThrow("future");
+    expect(() =>
+      normalizeJournalEntryDate(new Date("2026-07-16T00:00:00.000Z"), now, "Not/A_Time_Zone")
+    ).toThrow("time zone is invalid");
+  });
+
+  it("uses an explicit positive time-spent range", () => {
+    expect(validateTimeSpentHours(0.25)).toBe(0.25);
+    expect(validateTimeSpentHours(24)).toBe(24);
+    expect(() => validateTimeSpentHours(0)).toThrow("at least 0.25");
+    expect(() => validateTimeSpentHours(0.1)).toThrow("at least 0.25");
+    expect(() => validateTimeSpentHours(24.25)).toThrow("no more than 24");
   });
 
   it("updates preferred journal language with a normalized fallback", async () => {

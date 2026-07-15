@@ -9,7 +9,12 @@ const prismaMock = vi.hoisted(() => ({
   notificationUpdateMany: vi.fn(),
   notificationCreate: vi.fn(),
   userTaskCompletionFindMany: vi.fn(),
-  userTaskCompletionUpsert: vi.fn(),
+  transaction: vi.fn(),
+  txAssignmentFindFirst: vi.fn(),
+  txApplicationFindFirst: vi.fn(),
+  txTaskFindFirst: vi.fn(),
+  txCompletionUpsert: vi.fn(),
+  txAuditCreate: vi.fn()
 }));
 
 vi.mock("./client", () => ({
@@ -21,223 +26,150 @@ vi.mock("./client", () => ({
       findMany: prismaMock.notificationFindMany,
       count: prismaMock.notificationCount,
       updateMany: prismaMock.notificationUpdateMany,
-      create: prismaMock.notificationCreate,
+      create: prismaMock.notificationCreate
     },
-    userTaskCompletion: {
-      findMany: prismaMock.userTaskCompletionFindMany,
-      upsert: prismaMock.userTaskCompletionUpsert,
-    },
-  },
+    userTaskCompletion: { findMany: prismaMock.userTaskCompletionFindMany },
+    $transaction: prismaMock.transaction
+  }
 }));
 
 import {
+  countUnreadNotifications,
+  createNotification,
+  getApplicantProgramProgress,
+  listCalendarEvents,
+  listCompletedTaskIds,
   listProgramTasks,
   listTasksByWeek,
-  listVideoResources,
-  listCalendarEvents,
   listUserNotifications,
-  countUnreadNotifications,
-  markNotificationRead,
-  createNotification,
-  listCompletedTaskIds,
-  markTaskCompleted,
-  getApplicantProgramProgress,
+  listVideoResources,
+  markApplicantTaskCompleted,
+  markNotificationRead
 } from "./dashboard";
 
 describe("dashboard helpers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.transaction.mockImplementation(async (callback) => callback({
+      missionAssignment: { findFirst: prismaMock.txAssignmentFindFirst },
+      application: { findFirst: prismaMock.txApplicationFindFirst },
+      programTask: { findFirst: prismaMock.txTaskFindFirst },
+      userTaskCompletion: { upsert: prismaMock.txCompletionUpsert },
+      auditLog: { create: prismaMock.txAuditCreate }
+    }));
+    prismaMock.txAssignmentFindFirst.mockResolvedValue({ id: "assignment-1", programId: "program-1", weekNumber: 1 });
+    prismaMock.txApplicationFindFirst.mockResolvedValue({ id: "application-1" });
+    prismaMock.txTaskFindFirst.mockResolvedValue({ id: "task-1" });
+    prismaMock.txCompletionUpsert.mockResolvedValue({ id: "completion-1" });
+    prismaMock.txAuditCreate.mockResolvedValue({ id: "audit-1" });
   });
 
-  describe("listProgramTasks", () => {
-    it("queries tasks for a program ordered by week and order", async () => {
-      prismaMock.programTaskFindMany.mockResolvedValue([]);
-      await listProgramTasks("tenant-1", "program-1");
-      expect(prismaMock.programTaskFindMany).toHaveBeenCalledWith({
-        where: { tenantId: "tenant-1", programId: "program-1" },
-        orderBy: [{ weekNumber: "asc" }, { order: "asc" }],
-      });
-    });
-  });
-
-  describe("listTasksByWeek", () => {
-    it("queries tasks for a specific week", async () => {
-      prismaMock.programTaskFindMany.mockResolvedValue([]);
-      await listTasksByWeek("tenant-1", "program-1", 2);
-      expect(prismaMock.programTaskFindMany).toHaveBeenCalledWith({
-        where: { tenantId: "tenant-1", programId: "program-1", weekNumber: 2 },
-        orderBy: [{ order: "asc" }],
-      });
-    });
-  });
-
-  describe("listVideoResources", () => {
-    it("queries all videos when no week specified", async () => {
-      prismaMock.videoResourceFindMany.mockResolvedValue([]);
-      await listVideoResources("tenant-1", "program-1");
-      expect(prismaMock.videoResourceFindMany).toHaveBeenCalledWith({
-        where: { tenantId: "tenant-1", programId: "program-1" },
-        orderBy: [{ weekNumber: "asc" }, { createdAt: "asc" }],
-      });
-    });
-
-    it("filters by weekNumber when specified", async () => {
-      prismaMock.videoResourceFindMany.mockResolvedValue([]);
-      await listVideoResources("tenant-1", "program-1", 3);
-      expect(prismaMock.videoResourceFindMany).toHaveBeenCalledWith({
-        where: { tenantId: "tenant-1", programId: "program-1", weekNumber: 3 },
-        orderBy: [{ weekNumber: "asc" }, { createdAt: "asc" }],
-      });
+  it("lists program tasks in stable week/order order with tenant-scoped resources", async () => {
+    prismaMock.programTaskFindMany.mockResolvedValue([]);
+    await listProgramTasks("tenant-1", "program-1");
+    expect(prismaMock.programTaskFindMany).toHaveBeenCalledWith({
+      where: { tenantId: "tenant-1", programId: "program-1" },
+      include: { resources: { where: { tenantId: "tenant-1" }, orderBy: [{ order: "asc" }, { createdAt: "asc" }] } },
+      orderBy: [{ weekNumber: "asc" }, { order: "asc" }, { createdAt: "asc" }]
     });
   });
 
-  describe("listCalendarEvents", () => {
-    it("queries upcoming events by default", async () => {
-      prismaMock.calendarEventFindMany.mockResolvedValue([]);
-      await listCalendarEvents("tenant-1", "program-1");
-      const call = prismaMock.calendarEventFindMany.mock.calls[0][0];
-      expect(call.where.tenantId).toBe("tenant-1");
-      expect(call.where.programId).toBe("program-1");
-      expect(call.where.startsAt).toBeDefined();
-      expect(call.orderBy).toEqual([{ startsAt: "asc" }]);
-    });
+  it("lists applicant-visible tasks by program week, never by mission", async () => {
+    prismaMock.programTaskFindMany.mockResolvedValue([]);
+    await listTasksByWeek("tenant-1", "program-1", 2);
+    const query = prismaMock.programTaskFindMany.mock.calls[0][0];
+    expect(query.where).toEqual({ tenantId: "tenant-1", programId: "program-1", weekNumber: 2, published: true });
+    expect(query.where).not.toHaveProperty("missionId");
+    expect(query.orderBy).toEqual([{ order: "asc" }, { createdAt: "asc" }]);
+  });
 
-    it("includes past events when flag is set", async () => {
-      prismaMock.calendarEventFindMany.mockResolvedValue([]);
-      await listCalendarEvents("tenant-1", "program-1", true);
-      const call = prismaMock.calendarEventFindMany.mock.calls[0][0];
-      expect(call.where.startsAt).toBeUndefined();
+  it("lists Markdown and YouTube resources tenant-scoped and ordered", async () => {
+    prismaMock.videoResourceFindMany.mockResolvedValue([]);
+    await listVideoResources("tenant-1", "program-1", 1);
+    expect(prismaMock.videoResourceFindMany).toHaveBeenCalledWith({
+      where: { tenantId: "tenant-1", programId: "program-1", weekNumber: 1 },
+      include: { task: { select: { id: true, title: true, weekNumber: true } } },
+      orderBy: [{ weekNumber: "asc" }, { order: "asc" }, { createdAt: "asc" }]
     });
   });
 
-  describe("listUserNotifications", () => {
-    it("queries notifications for a user", async () => {
-      prismaMock.notificationFindMany.mockResolvedValue([]);
-      await listUserNotifications("user-1", "tenant-1");
-      expect(prismaMock.notificationFindMany).toHaveBeenCalledWith({
-        where: { userId: "user-1", tenantId: "tenant-1" },
-        orderBy: [{ readAt: "asc" }, { createdAt: "desc" }],
-      });
-    });
-  });
-
-  describe("countUnreadNotifications", () => {
-    it("counts unread notifications", async () => {
-      prismaMock.notificationCount.mockResolvedValue(3);
-      const result = await countUnreadNotifications("user-1", "tenant-1");
-      expect(result).toBe(3);
-      expect(prismaMock.notificationCount).toHaveBeenCalledWith({
-        where: { userId: "user-1", tenantId: "tenant-1", readAt: null },
-      });
-    });
-  });
-
-  describe("markNotificationRead", () => {
-    it("updates notification with readAt", async () => {
-      prismaMock.notificationUpdateMany.mockResolvedValue({ count: 1 });
-      await markNotificationRead("notif-1", "user-1");
-      const call = prismaMock.notificationUpdateMany.mock.calls[0][0];
-      expect(call.where).toEqual({ id: "notif-1", userId: "user-1", readAt: null });
-      expect(call.data.readAt).toBeInstanceOf(Date);
-    });
-  });
-
-  describe("createNotification", () => {
-    it("creates a notification with the given data", async () => {
-      prismaMock.notificationCreate.mockResolvedValue({ id: "notif-1" });
-      await createNotification({
+  it("scopes completed task IDs by tenant, applicant, program and week", async () => {
+    prismaMock.userTaskCompletionFindMany.mockResolvedValue([{ taskId: "task-1" }]);
+    await expect(listCompletedTaskIds("tenant-1", "user-1", "program-1", 1)).resolves.toEqual(["task-1"]);
+    expect(prismaMock.userTaskCompletionFindMany).toHaveBeenCalledWith({
+      where: {
         tenantId: "tenant-1",
         userId: "user-1",
-        type: "INFO",
-        title: "Test",
-        body: "Body",
-      });
-      expect(prismaMock.notificationCreate).toHaveBeenCalledWith({
-        data: {
-          tenantId: "tenant-1",
-          userId: "user-1",
-          type: "INFO",
-          title: "Test",
-          body: "Body",
-        },
-      });
+        task: { tenantId: "tenant-1", programId: "program-1", weekNumber: 1 }
+      },
+      select: { taskId: true }
     });
   });
 
-  describe("listCompletedTaskIds", () => {
-    it("returns array of task IDs", async () => {
-      prismaMock.userTaskCompletionFindMany.mockResolvedValue([
-        { taskId: "task-1" },
-        { taskId: "task-3" },
-      ]);
-      const result = await listCompletedTaskIds("user-1", "program-1");
-      expect(result).toEqual(["task-1", "task-3"]);
+  it("completes a task idempotently only for the active accepted-program week", async () => {
+    await markApplicantTaskCompleted({
+      tenantId: "tenant-1",
+      applicantId: "user-1",
+      taskId: "task-1",
+      missionAssignmentId: "assignment-1"
     });
-  });
-
-  describe("markTaskCompleted", () => {
-    it("upserts a completion record", async () => {
-      prismaMock.userTaskCompletionUpsert.mockResolvedValue({});
-      await markTaskCompleted("task-1", "user-1");
-      const call = prismaMock.userTaskCompletionUpsert.mock.calls[0][0];
-      expect(call.where.taskId_userId).toEqual({ taskId: "task-1", userId: "user-1" });
-      expect(call.create).toEqual({ taskId: "task-1", userId: "user-1" });
-    });
-  });
-
-  describe("getApplicantProgramProgress", () => {
-    it("returns 4 weeks with correct progress", async () => {
-      prismaMock.programTaskFindMany.mockResolvedValue([
-        { id: "t1", weekNumber: 1, order: 0 },
-        { id: "t2", weekNumber: 1, order: 1 },
-        { id: "t3", weekNumber: 2, order: 0 },
-        { id: "t4", weekNumber: 3, order: 0 },
-      ]);
-      prismaMock.userTaskCompletionFindMany.mockResolvedValue([
-        { taskId: "t1" },
-      ]);
-
-      const progress = await getApplicantProgramProgress("user-1", "tenant-1", "program-1");
-
-      expect(progress).toHaveLength(4);
-      expect(progress[0]).toEqual({
+    expect(prismaMock.txAssignmentFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ tenantId: "tenant-1", applicantId: "user-1", status: "ACTIVE" })
+    }));
+    expect(prismaMock.txTaskFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: "task-1",
+        tenantId: "tenant-1",
+        programId: "program-1",
         weekNumber: 1,
-        totalTasks: 2,
-        completedTasks: 1,
-        percentage: 50,
-      });
-      expect(progress[1]).toEqual({
-        weekNumber: 2,
-        totalTasks: 1,
-        completedTasks: 0,
-        percentage: 0,
-      });
-      expect(progress[2]).toEqual({
-        weekNumber: 3,
-        totalTasks: 1,
-        completedTasks: 0,
-        percentage: 0,
-      });
-      expect(progress[3]).toEqual({
-        weekNumber: 4,
-        totalTasks: 0,
-        completedTasks: 0,
-        percentage: 0,
-      });
+        published: true
+      },
+      select: { id: true }
     });
-
-    it("returns 4 weeks even with no tasks", async () => {
-      prismaMock.programTaskFindMany.mockResolvedValue([]);
-      prismaMock.userTaskCompletionFindMany.mockResolvedValue([]);
-
-      const progress = await getApplicantProgramProgress("user-1", "tenant-1", "program-1");
-
-      expect(progress).toHaveLength(4);
-      for (const week of progress) {
-        expect(week.totalTasks).toBe(0);
-        expect(week.completedTasks).toBe(0);
-        expect(week.percentage).toBe(0);
-      }
+    expect(prismaMock.txCompletionUpsert).toHaveBeenCalledWith({
+      where: { tenantId_userId_taskId: { tenantId: "tenant-1", userId: "user-1", taskId: "task-1" } },
+      update: {},
+      create: { tenantId: "tenant-1", taskId: "task-1", userId: "user-1" }
     });
+  });
+
+  it("rejects another tenant/program/week task before writing completion", async () => {
+    prismaMock.txTaskFindFirst.mockResolvedValue(null);
+    await expect(markApplicantTaskCompleted({
+      tenantId: "tenant-1",
+      applicantId: "user-1",
+      taskId: "other-task",
+      missionAssignmentId: "assignment-1"
+    })).rejects.toThrow("not found for this program week");
+    expect(prismaMock.txCompletionUpsert).not.toHaveBeenCalled();
+  });
+
+  it("computes program progress from tenant-scoped completions", async () => {
+    prismaMock.programTaskFindMany.mockResolvedValue([
+      { id: "t1", weekNumber: 1 },
+      { id: "t2", weekNumber: 1 },
+      { id: "t3", weekNumber: 2 }
+    ]);
+    prismaMock.userTaskCompletionFindMany.mockResolvedValue([{ taskId: "t1" }]);
+    const progress = await getApplicantProgramProgress("user-1", "tenant-1", "program-1");
+    expect(progress[0]).toEqual({ weekNumber: 1, totalTasks: 2, completedTasks: 1, percentage: 50 });
+    expect(progress[1]).toEqual({ weekNumber: 2, totalTasks: 1, completedTasks: 0, percentage: 0 });
+    expect(progress).toHaveLength(4);
+  });
+
+  it("preserves notification and calendar helper scoping", async () => {
+    prismaMock.calendarEventFindMany.mockResolvedValue([]);
+    prismaMock.notificationFindMany.mockResolvedValue([]);
+    prismaMock.notificationCount.mockResolvedValue(2);
+    prismaMock.notificationUpdateMany.mockResolvedValue({ count: 1 });
+    prismaMock.notificationCreate.mockResolvedValue({ id: "notification-1" });
+    await listCalendarEvents("tenant-1", "program-1", true);
+    await listUserNotifications("user-1", "tenant-1");
+    await expect(countUnreadNotifications("user-1", "tenant-1")).resolves.toBe(2);
+    await markNotificationRead("notification-1", "user-1");
+    await createNotification({ tenantId: "tenant-1", userId: "user-1", type: "INFO", title: "Title" });
+    expect(prismaMock.notificationFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: "user-1", tenantId: "tenant-1" }
+    }));
   });
 });

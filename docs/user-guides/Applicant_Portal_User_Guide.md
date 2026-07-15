@@ -109,7 +109,8 @@ Progress** bars track your missions: a mission counts toward progress only when 
 Mission** card shows the next mission in your program (with your submission status) and links
 straight to it; when every mission is accepted, your portfolio evidence is complete. Weekly tasks
 remain a separate checklist with their own tile — completing tasks does not change Overall
-Progress.
+Progress, but every required task for your assigned week must be complete before you can submit that
+week's mission.
 
 To sign out from the dashboard, use the **Logout** button at the bottom of the sidebar (below your
 name and email). Signing out ends both the portal session and the Keycloak single sign-on session and
@@ -122,6 +123,23 @@ you open another tenant's `/dashboard` or `/application` without a membership th
 an **Access denied** page ("You are not a member of this organization") with two options: **Apply to
 join** (opens that tenant's apply form) or **Sign out**. Applying is open to anyone signed in — submitting
 an application is what enrolls you as an `APPLICANT` in that tenant.
+
+## Weekly Tasks And Resources
+
+Open **Tasks** to see the week from your current assignment, required/optional labels, overall required
+task progress, and the items still blocking submission. Select **Mark complete** after finishing a
+task. Completion is saved for your account and program week; it remains complete if a reviewer asks
+you to repeat that week. Tasks cannot be unchecked in the current MVP.
+
+Each Week 1 task has ordered learning material:
+
+- a Markdown guide displayed safely in the portal;
+- a YouTube resource, which opens in a new tab when its final URL is available.
+
+The seeded Week 1 tasks are **Environment Setup**, **Git and GitHub Basics**, and **Introduction to
+AI-Assisted Coding**. The first guide is **Introduction to TalentOS**. The introductory video is still
+pending, so the portal shows that state instead of linking to a fake video. The **Resources** page also
+collects the current program's task-linked material in one read-only view.
 
 ## Missions
 
@@ -157,18 +175,24 @@ Each mission detail page has a **My Submission** section where you provide your 
   criteria live in the repository.
 - **Deployed application URL** — any reachable `http(s)` link to your running application.
 - **Loom walkthrough URL** — must be on `loom.com`.
-- **Engineering journal** — inline Markdown describing what you built, your decisions and what you
-  learned.
 
 Workflow:
 
 1. Fill in your evidence and select **Save draft** as often as you like.
-2. Select **Submit for review** when ready (at least one evidence link is required). Your evidence is
-   locked while under review.
-3. A reviewer either **accepts** your submission or **requests changes** with written feedback. You are
+2. Use the submission checklist to confirm all required week tasks are complete, at least four journal
+   entries belong to this assignment attempt, and all three evidence URLs are present and valid.
+3. Select **Submit for review**. TalentOS checks that the GitHub repository, deployed page, and Loom
+   page are publicly reachable at that moment. Internal/private destinations are rejected.
+4. If any check fails, the submission stays a draft (or revision), journals stay unchanged, and the
+   page shows an actionable error. Successful submission timestamps the submission and locks only the
+   journals for this assignment attempt.
+5. A reviewer either **accepts** your submission or **requests changes** with written feedback. You are
    notified either way (see **Notifications**), and the feedback appears on the mission page.
-4. If changes are requested, edit your evidence and **Resubmit for review** — this loop can repeat.
-5. An accepted submission is final: it becomes portfolio evidence for the mission's competencies.
+6. If changes are requested, edit your evidence and **Resubmit for review** — readiness and public URL
+   checks run again for the same assignment attempt.
+7. If the reviewer asks you to repeat the week, your completed week tasks remain complete, but the new
+   attempt needs at least four newly linked journal entries and fresh validated submission evidence.
+8. An accepted submission is final: it becomes portfolio evidence for the mission's competencies.
 
 The missions list shows a status chip per mission: **Not started**, **Draft saved**, **Submitted**,
 **Revision requested**, or **Accepted**.
@@ -181,7 +205,9 @@ mission-submission journal is no longer shown in applicant or admin interfaces.
 The dedicated **Journal** dashboard page stores daily structured reflections. Entries are linked to
 your tenant, user account, accepted program, selected published mission and the mission's week number.
 You can create back-dated entries, but each date can have only one journal entry. If you already wrote
-an entry for a date, edit that entry instead of creating another one.
+an entry for a date, edit that entry instead of creating another one. Today and past dates are allowed;
+future dates are blocked in both the form and the server. The form uses your browser's local time zone
+to determine today. There is no 24-hour creation cooldown.
 
 Each journal entry asks for:
 
@@ -190,13 +216,19 @@ Each journal entry asks for:
 - How you solved it
 - What you learned
 - How you used AI, or that no AI was used
-- Confidence rating from 1 to 5
+- Confidence rating from 1 to 5, with an accessible explanation from "I need significant help" to
+  "I could explain this to someone else"
 - Time spent in hours
 - Evidence links such as GitHub, PR, deployed URL or video links
 
 You may write in English, Roman Urdu, Roman Hindi or another language. Use **Profile** to set your
 Preferred Journal Language; new journal entries use that preference by default. TalentOS does not
 translate or process languages automatically yet.
+
+The mission submission checklist counts only journal entries linked to the exact current assignment
+attempt and dated today or earlier. Previous attempts, another applicant/tenant, unlinked legacy rows,
+and future dates do not count toward the minimum of four. `entryDate` is the date you selected;
+submission time is recorded separately after all submission checks pass.
 
 AI scoring columns exist in the database for future mentor/reviewer workflows, but real AI scoring is
 not active in this version.

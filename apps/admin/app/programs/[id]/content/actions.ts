@@ -10,7 +10,8 @@ import {
   deleteVideoResource,
   updateCalendarEvent,
   updateProgramTask,
-  updateVideoResource
+  updateVideoResource,
+  LearningResourceType
 } from "@talentos/db";
 import { requireTenantAccess } from "@/lib/tenant-guard";
 
@@ -88,6 +89,28 @@ function requiredHttpUrl(formData: FormData, name: string): string {
   return url.toString();
 }
 
+function optionalHttpUrl(formData: FormData, name: string): string | null {
+  return text(formData, name) ? requiredHttpUrl(formData, name) : null;
+}
+
+function resourceType(formData: FormData): LearningResourceType {
+  const value = text(formData, "type");
+  if (value !== LearningResourceType.MARKDOWN && value !== LearningResourceType.YOUTUBE) {
+    throw new Error("Choose Markdown or YouTube as the resource type.");
+  }
+  return value;
+}
+
+function optionalPositiveInteger(formData: FormData, name: string): number | null {
+  const value = text(formData, name);
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error("Duration must be a positive number of seconds.");
+  }
+  return parsed;
+}
+
 function contentPath(programId: string): string {
   return `/programs/${programId}/content`;
 }
@@ -103,10 +126,15 @@ export async function createVideoResourceAction(formData: FormData) {
   await createVideoResource({
     tenantId: tenant.id,
     programId,
+    taskId: optionalText(formData, "taskId"),
+    type: resourceType(formData),
     title: requiredText(formData, "title", "Title"),
-    url: requiredHttpUrl(formData, "url"),
+    url: optionalHttpUrl(formData, "url"),
+    markdownContent: optionalText(formData, "markdownContent"),
     description: optionalText(formData, "description"),
     weekNumber: optionalWeek(formData),
+    order: Number.parseInt(text(formData, "order"), 10) || 0,
+    durationSeconds: optionalPositiveInteger(formData, "durationSeconds"),
     actorUserId
   });
 
@@ -121,10 +149,15 @@ export async function updateVideoResourceAction(formData: FormData) {
     id: requiredText(formData, "id", "Resource"),
     tenantId: tenant.id,
     programId,
+    taskId: optionalText(formData, "taskId"),
+    type: resourceType(formData),
     title: requiredText(formData, "title", "Title"),
-    url: requiredHttpUrl(formData, "url"),
+    url: optionalHttpUrl(formData, "url"),
+    markdownContent: optionalText(formData, "markdownContent"),
     description: optionalText(formData, "description"),
     weekNumber: optionalWeek(formData),
+    order: Number.parseInt(text(formData, "order"), 10) || 0,
+    durationSeconds: optionalPositiveInteger(formData, "durationSeconds"),
     actorUserId
   });
 
@@ -156,6 +189,8 @@ export async function createProgramTaskAction(formData: FormData) {
     weekNumber: requiredWeek(formData),
     order: Number.parseInt(text(formData, "order"), 10) || 0,
     dueAt: optionalDate(formData, "dueAt"),
+    required: formData.get("required") === "on",
+    published: formData.get("published") === "on",
     actorUserId
   });
 
@@ -175,6 +210,8 @@ export async function updateProgramTaskAction(formData: FormData) {
     weekNumber: requiredWeek(formData),
     order: Number.parseInt(text(formData, "order"), 10) || 0,
     dueAt: optionalDate(formData, "dueAt"),
+    required: formData.get("required") === "on",
+    published: formData.get("published") === "on",
     actorUserId
   });
 

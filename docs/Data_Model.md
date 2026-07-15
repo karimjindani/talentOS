@@ -4,6 +4,14 @@ Code version: `v0.18.0`
 
 Baseline commit: `bf59ca4`
 
+> Current weekly-task/submission-readiness work evolves the existing `ProgramTask`, `VideoResource`,
+> and `UserTaskCompletion` models instead of creating parallel models. Tasks remain scoped by
+> tenant/program/week and gain `required` and `published` flags. The legacy-named `VideoResource`
+> becomes a reusable task resource with `MARKDOWN`/`YOUTUBE` type, optional `taskId`, optional URL,
+> Markdown content, ordering, and optional duration. Task completions gain an authoritative
+> `tenantId` and are unique on `[tenantId, userId, taskId]`. Migration:
+> `20260716090000_weekly_tasks_submission_readiness`.
+>
 > Assignment-linked journal attempts add `MissionAssignment.attemptNumber/status`, nullable
 > `missionAssignmentId` links on `Submission` and `EngineeringJournalEntry`, and
 > `EngineeringJournalEntry.lockedAt`. A submission now belongs to one assignment attempt. Submitting
@@ -154,8 +162,10 @@ erDiagram
     User ||--o{ EngineeringJournalEntry : writes
     Tenant ||--o{ ProgramTask : owns
     Program ||--o{ ProgramTask : schedules
+    ProgramTask ||--o{ VideoResource : provides
     ProgramTask ||--o{ UserTaskCompletion : "completed via"
     User ||--o{ UserTaskCompletion : completes
+    Tenant ||--o{ UserTaskCompletion : owns
     Tenant ||--o{ VideoResource : owns
     Program ||--o{ VideoResource : curates
     Tenant ||--o{ CalendarEvent : owns
@@ -191,21 +201,27 @@ erDiagram
 - `Submission`: participant mission evidence (repository/deployment/Loom URLs + legacy inline journal
   markdown) moving through the SEM review loop; tenant-scoped, one row per assignment attempt,
   reviewed by staff (`reviewerUserId`, `reviewerFeedback`, `reviewedAt`); an `ACCEPTED` submission is
-  terminal portfolio/graduation evidence for the mission's `competencyTags`.
+  terminal portfolio/graduation evidence for the mission's `competencyTags`. Final submission requires
+  every required task for the assignment's program/week, at least four eligible current-attempt
+  journals, and publicly reachable GitHub/deployment/Loom evidence.
 - `EngineeringJournalEntry`: dedicated daily reflection entry for an accepted applicant, linked to a
   published mission and assignment attempt, distinct from the older `Submission.journalMarkdown`
   field. Unique on
   `[tenantId, applicantId, entryDate]` (one entry per applicant per calendar date); carries nullable
-  AI-review/scoring fields as schema placeholders only. `lockedAt` is set when its attempt is submitted.
-- `ProgramTask`: weekly task/assignment (week 1-4) within a program, shown on the applicant
-  dashboard; completion tracked per user via `UserTaskCompletion`.
-- `VideoResource`: external video resource (YouTube/Loom URL) curated per program and optionally
-  per week.
+  AI-review/scoring fields as schema placeholders only. `entryDate` is an applicant-selected calendar
+  date, separate from `createdAt`, `updatedAt`, and `Submission.submittedAt`; future dates are rejected.
+  `lockedAt` is set when its exact assignment attempt is submitted.
+- `ProgramTask`: ordered required/optional, published/unpublished learning task within a tenant-owned
+  program week. It is not linked to a mission or assignment attempt; completion therefore remains
+  valid when the applicant repeats the same week.
+- `VideoResource`: legacy table/model name for a program/task learning resource. A resource can be
+  `MARKDOWN` (safe-rendered `markdownContent`) or `YOUTUBE` (optional public YouTube `url`), is ordered,
+  and may carry an optional duration. A null YouTube URL represents an explicit pending-video state.
 - `CalendarEvent`: scheduled event for a program (dashboard calendar).
 - `Notification`: in-app notification for a specific user (`NotificationType`: INFO, WARNING,
   SUCCESS, TASK_DUE) with read tracking (`readAt`).
-- `UserTaskCompletion`: join table recording which user completed which `ProgramTask`
-  (unique `[taskId, userId]`).
+- `UserTaskCompletion`: tenant-scoped join table recording which applicant completed which
+  `ProgramTask` (unique `[tenantId, userId, taskId]`). It deliberately has no `missionAssignmentId`.
 - `StoredFile`: tenant-scoped metadata for an object stored in MinIO (bytes live in the object store).
 - `RegressionDataMarker`: local/dev marker rows identifying records created by regression workflows and
   safe to remove during regression cleanup.

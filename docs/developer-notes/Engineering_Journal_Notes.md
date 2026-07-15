@@ -12,12 +12,17 @@ Journal entries are linked to the applicant's active `MissionAssignment` attempt
 - Saved journal entries open in read-only mode by default.
 - Existing entries can only be changed through the explicit Edit button.
 - Each applicant can have only one journal entry per entry date.
-- The previous 24-hour create wait is currently disabled.
-- Back-dated entries are allowed.
+- There is no 24-hour creation cooldown.
+- Today and back-dated entries are allowed; future `entryDate` values are rejected in the browser and
+  again by `packages/db/src/journal.ts`. The form uses the applicant browser's IANA time zone so local
+  today does not lag behind UTC around midnight.
 - Once the related assignment is submitted, journal entries for that assignment are locked.
 - Locked journal entries stay readable but cannot be edited.
 - The persisted `lockedAt` timestamp is not cleared by revision, resubmission, acceptance or repeat.
 - Delete functionality is not implemented.
+
+`entryDate` is the applicant-selected calendar date. It does not replace `createdAt`, `updatedAt`,
+`lockedAt`, or `Submission.submittedAt`; each timestamp retains its separate meaning.
 
 ## Mission Assignment Relationship
 
@@ -30,6 +35,18 @@ Journal creation validates the active assignment attempt and stores its ID. This
 Submitting an assignment sets `lockedAt` only on journal entries with the same tenant, applicant and assignment ID. The UI hides the edit flow for locked entries, and the database helper rejects updates as a server-side guard.
 
 A **Repeat week** review marks the old submission and assignment attempt as `REPEAT`, then creates one new active attempt for the same week. The old submission and locked journals remain unchanged. Double review is rejected, preventing duplicate attempts or repeat loops.
+
+## Submission Readiness
+
+The central `getMissionSubmissionReadiness` helper requires at least four eligible entries before an
+assignment can be submitted. Its journal query always filters by tenant, applicant, and the exact
+current `missionAssignmentId`, and excludes future-dated rows. Previous attempts, another mission,
+another applicant/tenant, and unlinked legacy records do not count.
+
+Week-level task completion is intentionally different: required tasks are derived from the
+assignment's program and week and remain complete across repeat attempts. A `NEEDS_REVISION` review
+reuses the same attempt and keeps already submitted entries locked; applicants may add new entries to
+the reopened attempt. A `REPEAT` review creates a new attempt whose journal count starts at zero.
 
 ## Admin Review Behavior
 

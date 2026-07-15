@@ -116,15 +116,23 @@ Only published programs are visible to applicants.
 Organization Admins and Super Admins manage the applicant dashboard's curriculum content per
 program from **Programs → [program] → Manage content** (`/programs/[id]/content`):
 
-- **Video resources** — title, video URL (YouTube/Loom/etc.), description, optional week (1–4).
-  Shown on the applicant Resources page and week views.
-- **Weekly tasks** — title, description, week (1–4), order, optional due date. Shown on the
-  applicant Tasks page; applicants tick them off as a checklist.
+- **Learning resources** — associate a resource with a weekly task, choose **Markdown** or
+  **YouTube**, and set title, description, order, and optional duration. Markdown content is stored
+  directly; YouTube URLs must be public YouTube links and may remain blank while production is pending.
+- **Weekly tasks** — title, description, program week, order, optional due date, required state, and
+  published state. Published tasks appear on the applicant Tasks page. Required tasks block mission
+  submission for that program week until the applicant marks them complete.
 - **Calendar events** — title, description, start/end time, location. Shown on the applicant
   Calendar page.
 
 Each entry can be edited inline or deleted. All changes are audited. HR and Tech Lead see a
-read-only notice on this page.
+read-only notice on this page. The page also flags published required tasks that are missing either a
+Markdown or YouTube resource.
+
+The demo seed configures three ordered required Week 1 tasks: **Environment Setup**, **Git and GitHub
+Basics**, and **Introduction to AI-Assisted Coding**. Each has Markdown content and a YouTube resource
+record. The final introductory YouTube video is not supplied yet, so its URL is intentionally pending;
+the repository includes a short production outline and does not seed a fake link.
 
 ## Missions
 
@@ -167,6 +175,11 @@ never review each other's work (Graduate Profile: graduates are not code reviewe
    or a repeat requires written feedback.
 5. The applicant is notified automatically (acceptance or revision request with your feedback), and
    the review is recorded in the audit log.
+
+Before a submission can reach this review screen in **Submitted** state, the server requires every
+published required task for the assignment's program week, at least four journals linked to that exact
+attempt, and publicly reachable GitHub/deployment/Loom URLs. These checks do not grant reviewers any
+new journal write permission; journal context remains read-only.
 
 A submission can be reviewed only while it is in **Submitted** status. A revision reuses the current
 attempt. A repeat keeps the old submission and its locked Engineering Journal entries as read-only

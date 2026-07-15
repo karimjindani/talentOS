@@ -54,6 +54,53 @@ export function getAssignedProgramMission(
   });
 }
 
+export function getCurrentMissionAssignmentForApplicantProgram(
+  tenantId: string,
+  applicantId: string,
+  programId: string
+) {
+  return prisma.missionAssignment.findFirst({
+    where: {
+      tenantId,
+      applicantId,
+      programId,
+      status: "ACTIVE",
+      mission: { status: "PUBLISHED" }
+    },
+    include: { mission: true },
+    orderBy: [{ weekNumber: "asc" }, { attemptNumber: "desc" }]
+  });
+}
+
+export function getLatestMissionAssignmentForApplicantProgram(
+  tenantId: string,
+  applicantId: string,
+  programId: string
+) {
+  return prisma.missionAssignment.findFirst({
+    where: { tenantId, applicantId, programId, mission: { status: "PUBLISHED" } },
+    include: { mission: true },
+    orderBy: [{ weekNumber: "desc" }, { attemptNumber: "desc" }]
+  });
+}
+
+export function getApplicantMissionAssignmentForMission(
+  tenantId: string,
+  applicantId: string,
+  missionId: string
+) {
+  return prisma.missionAssignment.findFirst({
+    where: {
+      tenantId,
+      applicantId,
+      missionId,
+      mission: { status: "PUBLISHED" }
+    },
+    include: { mission: true },
+    orderBy: { attemptNumber: "desc" }
+  });
+}
+
 export function assignWeekMissionToAcceptedApplicant(input: MissionAssignmentInput) {
   return prisma.$transaction((tx) => assignWeekMissionToAcceptedApplicantTx(tx, input));
 }

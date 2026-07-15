@@ -80,6 +80,11 @@ enum NotificationType {
   TASK_DUE
 }
 
+enum LearningResourceType {
+  MARKDOWN
+  YOUTUBE
+}
+
 model Tenant {
   id             String   @id @default(cuid())
   name           String
@@ -105,6 +110,7 @@ model Tenant {
   storedFiles        StoredFile[]
   programTasks       ProgramTask[]
   videoResources     VideoResource[]
+  taskCompletions    UserTaskCompletion[]
   notifications      Notification[]
   calendarEvents     CalendarEvent[]
   submissions        Submission[]
@@ -482,7 +488,7 @@ model RegressionDataMarker {
   @@map("regression_data_markers")
 }
 
-/// A task/assignment scoped to a program and a specific week (1-4).
+/// A learning task scoped to a tenant-owned program week, independent of mission attempts.
 model ProgramTask {
   id          String    @id @default(cuid())
   tenantId    String
@@ -492,33 +498,43 @@ model ProgramTask {
   description String?
   dueAt       DateTime?
   order       Int       @default(0)
+  required    Boolean   @default(true)
+  published   Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   program     Program              @relation(fields: [programId], references: [id], onDelete: Cascade)
   completions UserTaskCompletion[]
+  resources   VideoResource[]
 
-  @@index([tenantId, programId, weekNumber])
+  @@index([tenantId, programId, weekNumber, published, order])
   @@map("program_tasks")
 }
 
-/// A video resource (external URL — YouTube/Loom) scoped to a program and optionally a week.
+/// A Markdown or YouTube learning resource; legacy model/table name retained for compatibility.
 model VideoResource {
-  id          String   @id @default(cuid())
-  tenantId    String
-  programId   String
-  weekNumber  Int?
-  title       String
-  url         String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String               @id @default(cuid())
+  tenantId        String
+  programId       String
+  taskId          String?
+  weekNumber      Int?
+  type            LearningResourceType @default(YOUTUBE)
+  title           String
+  url             String?
+  markdownContent String?
+  description     String?
+  order           Int                  @default(0)
+  durationSeconds Int?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
-  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  program Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
+  task    ProgramTask? @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, programId, weekNumber])
+  @@index([tenantId, taskId, order])
   @@map("video_resources")
 }
 
@@ -564,14 +580,17 @@ model CalendarEvent {
 /// Join table tracking which applicant has completed a ProgramTask.
 model UserTaskCompletion {
   id          String   @id @default(cuid())
+  tenantId    String
   taskId      String
   userId      String
   completedAt DateTime @default(now())
 
+  tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   task ProgramTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([taskId, userId])
-  @@index([userId])
+  @@unique([tenantId, userId, taskId])
+  @@index([tenantId, userId])
+  @@index([tenantId, taskId])
   @@map("user_task_completions")
 }

@@ -8,6 +8,7 @@ const prismaMock = vi.hoisted(() => ({
   txResourceDeleteMany: vi.fn(),
   txResourceFindFirstOrThrow: vi.fn(),
   txTaskCreate: vi.fn(),
+  txTaskFindFirst: vi.fn(),
   txTaskUpdateMany: vi.fn(),
   txTaskDeleteMany: vi.fn(),
   txTaskFindFirstOrThrow: vi.fn(),
@@ -53,6 +54,7 @@ describe("program content data access", () => {
         },
         programTask: {
           create: prismaMock.txTaskCreate,
+          findFirst: prismaMock.txTaskFindFirst,
           updateMany: prismaMock.txTaskUpdateMany,
           deleteMany: prismaMock.txTaskDeleteMany,
           findFirstOrThrow: prismaMock.txTaskFindFirstOrThrow
@@ -72,6 +74,7 @@ describe("program content data access", () => {
     prismaMock.txResourceDeleteMany.mockResolvedValue({ count: 1 });
     prismaMock.txResourceFindFirstOrThrow.mockResolvedValue({ id: "res-1" });
     prismaMock.txTaskCreate.mockResolvedValue({ id: "task-1" });
+    prismaMock.txTaskFindFirst.mockResolvedValue({ weekNumber: 1 });
     prismaMock.txTaskUpdateMany.mockResolvedValue({ count: 1 });
     prismaMock.txTaskDeleteMany.mockResolvedValue({ count: 1 });
     prismaMock.txTaskFindFirstOrThrow.mockResolvedValue({ id: "task-1" });
@@ -90,7 +93,13 @@ describe("program content data access", () => {
       select: { id: true }
     });
     expect(prismaMock.txResourceCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ tenantId: "tenant-1", programId: "program-1", weekNumber: 1 })
+      data: expect.objectContaining({
+        tenantId: "tenant-1",
+        programId: "program-1",
+        taskId: "task-1",
+        type: "YOUTUBE",
+        weekNumber: 1
+      })
     });
     expect(prismaMock.txAuditLogCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: "resource.created", entityType: "VideoResource" })
@@ -142,6 +151,22 @@ describe("program content data access", () => {
     });
   });
 
+  it("stores Markdown content without a URL and rejects unsafe YouTube hosts", async () => {
+    await createVideoResource({
+      ...resourceInput(),
+      type: "MARKDOWN",
+      url: null,
+      markdownContent: "# Safe learning content"
+    });
+    expect(prismaMock.txResourceCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ type: "MARKDOWN", url: null, markdownContent: "# Safe learning content" })
+    });
+
+    await expect(createVideoResource({ ...resourceInput(), url: "https://example.com/video" })).rejects.toThrow(
+      "public YouTube URL"
+    );
+  });
+
   it("deletes are tenant-scoped, audited, and reject cross-tenant ids", async () => {
     await deleteVideoResource({ id: "res-1", tenantId: "tenant-1", actorUserId: "admin-1" });
     expect(prismaMock.txResourceDeleteMany).toHaveBeenCalledWith({ where: { id: "res-1", tenantId: "tenant-1" } });
@@ -163,10 +188,15 @@ function resourceInput() {
   return {
     tenantId: "tenant-1",
     programId: "program-1",
+    taskId: "task-1",
+    type: "YOUTUBE" as const,
     title: "REST API Best Practices",
     url: "https://www.youtube.com/watch?v=abc",
+    markdownContent: null,
     description: "API design principles.",
     weekNumber: 1,
+    order: 1,
+    durationSeconds: 180,
     actorUserId: "admin-1"
   };
 }
@@ -180,6 +210,8 @@ function taskInput() {
     weekNumber: 1,
     order: 0,
     dueAt: new Date("2026-07-10"),
+    required: true,
+    published: true,
     actorUserId: "admin-1"
   };
 }

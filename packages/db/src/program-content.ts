@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { LearningResourceType, Prisma } from "@prisma/client";
 import { prisma } from "./client";
 
 // Program-content management helpers (v0.16.0, D-069): video resources, weekly tasks and
@@ -25,25 +25,80 @@ async function assertProgramBelongsToTenant(
 export type VideoResourceInput = {
   tenantId: string;
   programId: string;
+  taskId: string | null;
+  type: LearningResourceType;
   title: string;
-  url: string;
+  url: string | null;
+  markdownContent: string | null;
   description: string | null;
   weekNumber: number | null;
+  order: number;
+  durationSeconds: number | null;
   actorUserId: string | null;
 };
+
+async function normalizeLearningResourceInput(tx: Prisma.TransactionClient, input: VideoResourceInput) {
+  let weekNumber = input.weekNumber;
+  if (input.taskId) {
+    const task = await tx.programTask.findFirst({
+      where: { id: input.taskId, tenantId: input.tenantId, programId: input.programId },
+      select: { weekNumber: true }
+    });
+    if (!task) {
+      throw new Error("Program task not found for this tenant.");
+    }
+    weekNumber = task.weekNumber;
+  }
+
+  if (input.type === LearningResourceType.MARKDOWN) {
+    const markdownContent = input.markdownContent?.trim();
+    if (!markdownContent) {
+      throw new Error("Markdown content is required for a Markdown resource.");
+    }
+    return { weekNumber, url: null, markdownContent };
+  }
+
+  if (input.url) {
+    validateYouTubeUrl(input.url);
+  }
+  return { weekNumber, url: input.url, markdownContent: null };
+}
+
+function validateYouTubeUrl(value: string): void {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("Enter a valid YouTube URL (including https://).");
+  }
+  const host = url.hostname.toLowerCase();
+  if (
+    url.protocol !== "https:" ||
+    Boolean(url.username || url.password) ||
+    (host !== "youtube.com" && host !== "www.youtube.com" && host !== "youtu.be")
+  ) {
+    throw new Error("Enter a valid public YouTube URL.");
+  }
+}
 
 export function createVideoResource(input: VideoResourceInput) {
   return prisma.$transaction(async (tx) => {
     await assertProgramBelongsToTenant(tx, input.programId, input.tenantId);
+    const normalized = await normalizeLearningResourceInput(tx, input);
 
     const resource = await tx.videoResource.create({
       data: {
         tenantId: input.tenantId,
         programId: input.programId,
+        taskId: input.taskId,
+        type: input.type,
         title: input.title,
-        url: input.url,
+        url: normalized.url,
+        markdownContent: normalized.markdownContent,
         description: input.description,
-        weekNumber: input.weekNumber
+        weekNumber: normalized.weekNumber,
+        order: input.order,
+        durationSeconds: input.durationSeconds
       }
     });
 
@@ -54,7 +109,7 @@ export function createVideoResource(input: VideoResourceInput) {
         action: "resource.created",
         entityType: "VideoResource",
         entityId: resource.id,
-        metadata: { programId: input.programId, weekNumber: input.weekNumber }
+        metadata: { programId: input.programId, taskId: input.taskId, weekNumber: normalized.weekNumber, type: input.type }
       }
     });
 
@@ -66,13 +121,19 @@ export type UpdateVideoResourceInput = VideoResourceInput & { id: string };
 
 export function updateVideoResource(input: UpdateVideoResourceInput) {
   return prisma.$transaction(async (tx) => {
+    const normalized = await normalizeLearningResourceInput(tx, input);
     const result = await tx.videoResource.updateMany({
       where: { id: input.id, tenantId: input.tenantId, programId: input.programId },
       data: {
+        taskId: input.taskId,
+        type: input.type,
         title: input.title,
-        url: input.url,
+        url: normalized.url,
+        markdownContent: normalized.markdownContent,
         description: input.description,
-        weekNumber: input.weekNumber
+        weekNumber: normalized.weekNumber,
+        order: input.order,
+        durationSeconds: input.durationSeconds
       }
     });
     if (result.count === 0) {
@@ -86,7 +147,7 @@ export function updateVideoResource(input: UpdateVideoResourceInput) {
         action: "resource.updated",
         entityType: "VideoResource",
         entityId: input.id,
-        metadata: { programId: input.programId, weekNumber: input.weekNumber }
+        metadata: { programId: input.programId, taskId: input.taskId, weekNumber: normalized.weekNumber, type: input.type }
       }
     });
 
@@ -132,6 +193,8 @@ export type ProgramTaskInput = {
   weekNumber: number;
   order: number;
   dueAt: Date | null;
+  required: boolean;
+  published: boolean;
   actorUserId: string | null;
 };
 
@@ -147,7 +210,9 @@ export function createProgramTask(input: ProgramTaskInput) {
         description: input.description,
         weekNumber: input.weekNumber,
         order: input.order,
-        dueAt: input.dueAt
+        dueAt: input.dueAt,
+        required: input.required,
+        published: input.published
       }
     });
 
@@ -177,7 +242,9 @@ export function updateProgramTask(input: UpdateProgramTaskInput) {
         description: input.description,
         weekNumber: input.weekNumber,
         order: input.order,
-        dueAt: input.dueAt
+        dueAt: input.dueAt,
+        required: input.required,
+        published: input.published
       }
     });
     if (result.count === 0) {

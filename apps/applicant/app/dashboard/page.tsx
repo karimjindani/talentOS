@@ -5,7 +5,7 @@ import {
   getTenantBySlug,
   getUserByEmail,
   listApplicantApplications,
-  listProgramTasks,
+  listPublishedProgramTasks,
   listCalendarEvents,
   listUserNotifications,
   getApplicantMissionProgress,
@@ -37,8 +37,8 @@ export default async function DashboardPage() {
   }
 
   const program = acceptedApp.program;
-  const tasks = await listProgramTasks(tenant.id, program.id);
-  const completedTaskIds = await listCompletedTaskIds(user.id, program.id);
+  const tasks = await listPublishedProgramTasks(tenant.id, program.id);
+  const completedTaskIds = await listCompletedTaskIds(tenant.id, user.id, program.id);
   const events = await listCalendarEvents(tenant.id, program.id);
   const notifications = await listUserNotifications(user.id, tenant.id);
   // Mission-driven progress (v0.16.0, D-069): the SEM learning loop is the source of truth — only

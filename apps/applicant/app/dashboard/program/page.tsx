@@ -4,7 +4,7 @@ import {
   getTenantBySlug,
   getUserByEmail,
   listApplicantApplications,
-  listProgramTasks,
+  listPublishedProgramTasks,
   listVideoResources,
   getApplicantProgramProgress,
   listCompletedTaskIds,
@@ -29,9 +29,9 @@ export default async function ProgramPage() {
   }
 
   const program = acceptedApp.program;
-  const tasks = await listProgramTasks(tenant.id, program.id);
+  const tasks = await listPublishedProgramTasks(tenant.id, program.id);
   const videos = await listVideoResources(tenant.id, program.id);
-  const completedTaskIds = await listCompletedTaskIds(user.id, program.id);
+  const completedTaskIds = await listCompletedTaskIds(tenant.id, user.id, program.id);
   const weekProgress = await getApplicantProgramProgress(user.id, tenant.id, program.id);
 
   const overallPercentage =

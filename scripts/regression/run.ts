@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { LearningResourceType } from "@prisma/client";
 import {
   applyStatusTransition,
   cleanupRegressionData,
@@ -19,6 +20,7 @@ import {
   getApplicantProgramProgress,
   getApplicantSubmission,
   getAssignedProgramMission,
+  getMissionSubmissionReadiness,
   getTenantBySlug,
   getTenantSubmission,
   getTenantProgram,
@@ -32,9 +34,10 @@ import {
   listPreviousMissionAttemptHistoryForSubmissionReview,
   listPublishedProgramMissions,
   listPublishedPrograms,
+  listTasksByWeek,
+  markApplicantTaskCompleted,
   markNotificationRead,
   markRegressionData,
-  markTaskCompleted,
   prisma,
   reviewSubmission,
   saveSubmissionDraft,
@@ -87,6 +90,15 @@ const LOCAL = {
   tenantAdminUrl: "http://demo.lvh.me:3200",
   tenantApplicantUrl: "http://demo.lvh.me:3100",
   opsUrl: "http://127.0.0.1:3300"
+};
+
+const REGRESSION_EVIDENCE_CHECKER = {
+  checkEvidenceUrl: async (url: string) => ({
+    reachable: true,
+    finalUrl: url,
+    statusCode: 200,
+    error: null
+  })
 };
 
 const scenarios: Scenario[] = [
@@ -164,6 +176,67 @@ const scenarios: Scenario[] = [
   },
   {
     area: "applicant",
+    name: "Applicant completes an assigned-week task and future journal dates are rejected",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const task = await createProgramTask({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Applicant current-week task ${ctx.runId}`,
+        description: "Visible only in the applicant's assigned program week.",
+        weekNumber: fixture.assignment.weekNumber,
+        order: 0,
+        dueAt: null,
+        required: true,
+        published: true,
+        actorUserId: fixture.actor.id
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "ProgramTask", entityId: task.id });
+
+      const visibleTasks = await listTasksByWeek(
+        fixture.tenant.id,
+        fixture.program.id,
+        fixture.assignment.weekNumber
+      );
+      if (!visibleTasks.some((candidate) => candidate.id === task.id)) {
+        throw new Error("Applicant task query did not return the assigned program week task.");
+      }
+
+      const completion = await markApplicantTaskCompleted({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        taskId: task.id,
+        missionAssignmentId: fixture.assignment.id
+      });
+      await markRegressionData({
+        runId: ctx.runId,
+        entityType: "UserTaskCompletion",
+        entityId: completion.id
+      });
+      const completedTaskIds = await listCompletedTaskIds(
+        fixture.tenant.id,
+        fixture.user.id,
+        fixture.program.id,
+        fixture.assignment.weekNumber
+      );
+      if (!completedTaskIds.includes(task.id)) {
+        throw new Error("Applicant task completion did not update current-week progress.");
+      }
+
+      const tomorrow = new Date();
+      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+      try {
+        await createJournalEntry({
+          ...regressionJournalInput(fixture, tomorrow, "Future journal should fail")
+        });
+        throw new Error("Applicant could create a future-dated journal entry.");
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("future")) throw error;
+      }
+    }
+  },
+  {
+    area: "applicant",
     name: "Submitted assignment journals are read-only and remain preserved",
     run: async (ctx) => {
       const fixture = await createSubmissionFixture(ctx.runId);
@@ -180,7 +253,11 @@ const scenarios: Scenario[] = [
         loomUrl: null
       });
       await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
-      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      await submitRegressionSubmission(ctx.runId, {
+        id: draft.id,
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id
+      });
 
       try {
         await updateJournalEntry({
@@ -226,6 +303,72 @@ const scenarios: Scenario[] = [
   },
   {
     area: "admin",
+    name: "Admin content path exposes ordered Markdown and YouTube resources for a weekly task",
+    run: async (ctx) => {
+      const fixture = await createProgramFixture(ctx.runId, "PUBLISHED");
+      const task = await createProgramTask({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Admin resource task ${ctx.runId}`,
+        description: "Admin-configured weekly learning task.",
+        weekNumber: 1,
+        order: 1,
+        dueAt: null,
+        required: true,
+        published: true,
+        actorUserId: fixture.actor.id
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "ProgramTask", entityId: task.id });
+
+      const resources = await Promise.all([
+        createVideoResource({
+          tenantId: fixture.tenant.id,
+          programId: fixture.program.id,
+          taskId: task.id,
+          type: LearningResourceType.MARKDOWN,
+          title: "Admin Markdown resource",
+          url: null,
+          markdownContent: "# Admin-configured guide",
+          description: "Required reading",
+          weekNumber: 1,
+          order: 1,
+          durationSeconds: null,
+          actorUserId: fixture.actor.id
+        }),
+        createVideoResource({
+          tenantId: fixture.tenant.id,
+          programId: fixture.program.id,
+          taskId: task.id,
+          type: LearningResourceType.YOUTUBE,
+          title: "Admin YouTube resource",
+          url: null,
+          markdownContent: null,
+          description: "Final YouTube URL pending",
+          weekNumber: 1,
+          order: 2,
+          durationSeconds: 180,
+          actorUserId: fixture.actor.id
+        })
+      ]);
+      for (const resource of resources) {
+        await markRegressionData({ runId: ctx.runId, entityType: "VideoResource", entityId: resource.id });
+      }
+
+      const tasks = await listTasksByWeek(fixture.tenant.id, fixture.program.id, 1);
+      const configured = tasks.find((candidate) => candidate.id === task.id);
+      if (
+        !configured ||
+        configured.resources.length !== 2 ||
+        configured.resources[0]?.type !== LearningResourceType.MARKDOWN ||
+        configured.resources[1]?.type !== LearningResourceType.YOUTUBE ||
+        configured.resources[1]?.url !== null
+      ) {
+        throw new Error("Admin content path did not preserve task resource types, order, or pending video state.");
+      }
+    }
+  },
+  {
+    area: "admin",
     name: "Reviewer loads assignment-linked journals and completes submission review",
     run: async (ctx) => {
       const fixture = await createSubmissionFixture(ctx.runId);
@@ -243,7 +386,11 @@ const scenarios: Scenario[] = [
         journalMarkdown: "Legacy submission journal remains visible."
       });
       await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
-      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      await submitRegressionSubmission(ctx.runId, {
+        id: draft.id,
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id
+      });
 
       const submission = await getTenantSubmission(draft.id, fixture.tenant.id);
       if (!submission || submission.journalMarkdown !== "Legacy submission journal remains visible.") {
@@ -259,7 +406,7 @@ const scenarios: Scenario[] = [
         missionId: submission.missionId,
         missionAssignmentId: submission.missionAssignmentId
       });
-      if (journals.length !== 1 || journals[0]?.id !== journal.id) {
+      if (journals.length !== 4 || !journals.some((entry) => entry.id === journal.id)) {
         throw new Error("Admin review did not load the linked Engineering Journal entry.");
       }
 
@@ -297,7 +444,7 @@ const scenarios: Scenario[] = [
         loomUrl: null
       });
       await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: currentDraft.id });
-      await submitSubmission({
+      await submitRegressionSubmission(ctx.runId, {
         id: currentDraft.id,
         tenantId: fixture.tenant.id,
         applicantId: fixture.user.id
@@ -321,17 +468,19 @@ const scenarios: Scenario[] = [
         })
       ]);
 
-      if (currentEntries.length !== 1 || currentEntries[0]?.id !== currentJournal.id) {
+      if (currentEntries.length !== 4 || !currentEntries.some((entry) => entry.id === currentJournal.id)) {
         throw new Error("Current-attempt journal evidence was not kept separate on Admin review.");
       }
       if (
         previousHistory.length !== 1 ||
         previousHistory[0]?.attemptNumber !== 1 ||
-        previousHistory[0]?.journalEntries[0]?.id !== fixture.attemptOneJournal.id
+        !previousHistory[0]?.journalEntries.some((entry) => entry.id === fixture.attemptOneJournal.id)
       ) {
         throw new Error("Admin review did not load the previous attempt as separate optional context.");
       }
-      const previousEntry = previousHistory[0]?.journalEntries[0];
+      const previousEntry = previousHistory[0]?.journalEntries.find(
+        (entry) => entry.id === fixture.attemptOneJournal.id
+      );
       if (!previousEntry || "lockedAt" in previousEntry || "updatedAt" in previousEntry) {
         throw new Error("Previous-attempt history exposed journal mutation fields.");
       }
@@ -392,6 +541,120 @@ const scenarios: Scenario[] = [
   },
   {
     area: "missions",
+    name: "Submission readiness requires weekly tasks, four current-attempt journals, and all evidence URLs",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const tasks = await Promise.all(
+        ["Environment setup", "Git and GitHub basics"].map((title, order) =>
+          createProgramTask({
+            tenantId: fixture.tenant.id,
+            programId: fixture.program.id,
+            title: `${title} ${ctx.runId}`,
+            description: "Required regression task",
+            weekNumber: fixture.assignment.weekNumber,
+            order,
+            dueAt: null,
+            required: true,
+            published: true,
+            actorUserId: fixture.actor.id
+          })
+        )
+      );
+      for (const task of tasks) {
+        await markRegressionData({ runId: ctx.runId, entityType: "ProgramTask", entityId: task.id });
+      }
+
+      const draft = await saveSubmissionDraft({
+        tenantId: fixture.tenant.id,
+        missionId: fixture.mission.id,
+        applicantId: fixture.user.id,
+        repositoryUrl: "https://github.com/regression/readiness-gate",
+        deploymentUrl: "https://example.com/regression/readiness-gate",
+        loomUrl: "https://www.loom.com/share/readiness-gate"
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
+
+      const initialReadiness = await getMissionSubmissionReadiness({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        missionAssignmentId: fixture.assignment.id
+      });
+      if (
+        initialReadiness.ready ||
+        initialReadiness.tasks.required !== 2 ||
+        initialReadiness.tasks.completed !== 0 ||
+        initialReadiness.journals.completed !== 0
+      ) {
+        throw new Error("Submission readiness did not report the required task and journal blockers.");
+      }
+
+      try {
+        await submitSubmission(
+          { id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id },
+          REGRESSION_EVIDENCE_CHECKER
+        );
+        throw new Error("An incomplete assignment was submitted.");
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("Complete all required")) throw error;
+      }
+
+      for (const task of tasks) {
+        const completion = await markApplicantTaskCompleted({
+          tenantId: fixture.tenant.id,
+          applicantId: fixture.user.id,
+          taskId: task.id,
+          missionAssignmentId: fixture.assignment.id
+        });
+        await markRegressionData({
+          runId: ctx.runId,
+          entityType: "UserTaskCompletion",
+          entityId: completion.id
+        });
+      }
+
+      try {
+        await submitSubmission(
+          { id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id },
+          REGRESSION_EVIDENCE_CHECKER
+        );
+        throw new Error("An assignment with too few journals was submitted.");
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("at least 4 Engineering Journal entries")) throw error;
+      }
+
+      await ensureMinimumAssignmentJournals(ctx.runId, {
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        missionAssignmentId: fixture.assignment.id
+      });
+      const ready = await getMissionSubmissionReadiness({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        missionAssignmentId: fixture.assignment.id
+      });
+      if (!ready.ready || ready.tasks.completed !== 2 || ready.journals.completed !== 4) {
+        throw new Error("Completed prerequisites did not make the assignment ready for submission.");
+      }
+
+      await submitSubmission(
+        { id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id },
+        REGRESSION_EVIDENCE_CHECKER
+      );
+      const lockedCount = await prisma.engineeringJournalEntry.count({
+        where: {
+          tenantId: fixture.tenant.id,
+          applicantId: fixture.user.id,
+          missionAssignmentId: fixture.assignment.id,
+          lockedAt: { not: null }
+        }
+      });
+      if (lockedCount !== 4) {
+        throw new Error("Submitting the ready assignment did not lock its four current-attempt journals.");
+      }
+    }
+  },
+  {
+    area: "missions",
     name: "Submission loop: draft, submit, request changes, resubmit, accept — with notifications and audit",
     run: async (ctx) => {
       const fixture = await createSubmissionFixture(ctx.runId);
@@ -407,7 +670,11 @@ const scenarios: Scenario[] = [
         journalMarkdown: "## Week 1\nRegression journal entry."
       });
       await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
-      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      await submitRegressionSubmission(ctx.runId, {
+        id: draft.id,
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id
+      });
 
       // Reviewer requests changes → applicant is notified with the feedback.
       await reviewSubmission({
@@ -436,7 +703,11 @@ const scenarios: Scenario[] = [
         loomUrl: "https://www.loom.com/share/regression-v2",
         journalMarkdown: "## Week 1\nRevised after feedback."
       });
-      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      await submitRegressionSubmission(ctx.runId, {
+        id: draft.id,
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id
+      });
       await reviewSubmission({
         id: draft.id,
         tenantId: fixture.tenant.id,
@@ -528,7 +799,11 @@ const scenarios: Scenario[] = [
         loomUrl: null
       });
       await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
-      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      await submitRegressionSubmission(ctx.runId, {
+        id: draft.id,
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id
+      });
 
       const [lockedJournal, unlockedJournal] = await Promise.all([
         prisma.engineeringJournalEntry.findUnique({ where: { id: assignmentJournal.id } }),
@@ -680,7 +955,15 @@ const scenarios: Scenario[] = [
         missionId: adminSubmission.missionId,
         missionAssignmentId: adminSubmission.missionAssignmentId
       });
-      if (reviewJournals.length !== 1 || reviewJournals[0]?.id !== assignmentJournal.id) {
+      if (
+        reviewJournals.length !== 4 ||
+        !reviewJournals.some((entry) => entry.id === assignmentJournal.id) ||
+        reviewJournals.some((entry) =>
+          [otherAssignmentJournal.id, otherAttemptJournal.id, otherApplicantJournal.id, otherTenantJournal.id].includes(
+            entry.id
+          )
+        )
+      ) {
         throw new Error("Admin review mixed journals from another tenant, applicant, mission, or assignment attempt.");
       }
     }
@@ -690,6 +973,30 @@ const scenarios: Scenario[] = [
     name: "Repeat-week attempts preserve journal history without duplicate or infinite loops",
     run: async (ctx) => {
       const fixture = await createSubmissionFixture(ctx.runId);
+      const retainedTask = await createProgramTask({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Repeat-safe Week 1 task ${ctx.runId}`,
+        description: "Week-level learning remains complete across assignment attempts.",
+        weekNumber: fixture.assignment.weekNumber,
+        order: 0,
+        dueAt: null,
+        required: true,
+        published: true,
+        actorUserId: fixture.actor.id
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "ProgramTask", entityId: retainedTask.id });
+      const retainedCompletion = await markApplicantTaskCompleted({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        taskId: retainedTask.id,
+        missionAssignmentId: fixture.assignment.id
+      });
+      await markRegressionData({
+        runId: ctx.runId,
+        entityType: "UserTaskCompletion",
+        entityId: retainedCompletion.id
+      });
       const attemptOneJournal = await createTrackedJournalEntry(
         ctx.runId,
         regressionJournalInput(fixture, new Date("2026-07-04T00:00:00.000Z"), "Attempt 1 reflection")
@@ -703,7 +1010,11 @@ const scenarios: Scenario[] = [
         loomUrl: null
       });
       await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: attemptOneSubmission.id });
-      await submitSubmission({ id: attemptOneSubmission.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      await submitRegressionSubmission(ctx.runId, {
+        id: attemptOneSubmission.id,
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id
+      });
       await reviewSubmission({
         id: attemptOneSubmission.id,
         tenantId: fixture.tenant.id,
@@ -727,6 +1038,19 @@ const scenarios: Scenario[] = [
       const attemptTwo = attempts[1];
       if (!attemptTwo) throw new Error("Repeat review did not create Attempt 2.");
       await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: attemptTwo.id });
+
+      const attemptTwoReadiness = await getMissionSubmissionReadiness({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        missionAssignmentId: attemptTwo.id
+      });
+      if (
+        attemptTwoReadiness.tasks.required !== 1 ||
+        attemptTwoReadiness.tasks.completed !== 1 ||
+        attemptTwoReadiness.journals.completed !== 0
+      ) {
+        throw new Error("Repeat attempt did not retain week tasks while resetting attempt-level journal progress.");
+      }
 
       const attemptTwoJournal = await createTrackedJournalEntry(
         ctx.runId,
@@ -763,13 +1087,19 @@ const scenarios: Scenario[] = [
         })
       ]);
       if (
-        attemptOneReviewJournals.map((entry) => entry.id).join(",") !== attemptOneJournal.id ||
-        attemptTwoReviewJournals.map((entry) => entry.id).join(",") !== attemptTwoJournal.id
+        attemptOneReviewJournals.length !== 4 ||
+        attemptTwoReviewJournals.length !== 1 ||
+        !attemptOneReviewJournals.some((entry) => entry.id === attemptOneJournal.id) ||
+        !attemptTwoReviewJournals.some((entry) => entry.id === attemptTwoJournal.id)
       ) {
         throw new Error("Repeat attempts mixed old and new Engineering Journal entries.");
       }
 
-      await submitSubmission({ id: attemptTwoSubmission.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      await submitRegressionSubmission(ctx.runId, {
+        id: attemptTwoSubmission.id,
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id
+      });
       try {
         await reviewSubmission({
           id: attemptOneSubmission.id,
@@ -805,6 +1135,9 @@ const scenarios: Scenario[] = [
         ctx.runId,
         regressionJournalInput(fixture, new Date("2026-07-06T00:00:00.000Z"), "Attempt 2 follow-up")
       );
+      const journalCountBeforeResubmission = await prisma.engineeringJournalEntry.count({
+        where: { tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionId: fixture.mission.id }
+      });
       await saveSubmissionDraft({
         tenantId: fixture.tenant.id,
         missionId: fixture.mission.id,
@@ -813,7 +1146,11 @@ const scenarios: Scenario[] = [
         deploymentUrl: null,
         loomUrl: null
       });
-      await submitSubmission({ id: attemptTwoSubmission.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      await submitRegressionSubmission(ctx.runId, {
+        id: attemptTwoSubmission.id,
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id
+      });
       await reviewSubmission({
         id: attemptTwoSubmission.id,
         tenantId: fixture.tenant.id,
@@ -826,7 +1163,10 @@ const scenarios: Scenario[] = [
         where: { tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionId: fixture.mission.id },
         orderBy: { entryDate: "asc" }
       });
-      if (journalsAfterResubmission.length !== 3 || journalsAfterResubmission.some((entry) => !entry.lockedAt)) {
+      if (
+        journalsAfterResubmission.length !== journalCountBeforeResubmission ||
+        journalsAfterResubmission.some((entry) => !entry.lockedAt)
+      ) {
         throw new Error("Resubmission duplicated journal rows or left submitted rows unlocked.");
       }
       if (!journalsAfterResubmission.some((entry) => entry.id === followUpJournal.id)) {
@@ -848,7 +1188,9 @@ const scenarios: Scenario[] = [
       const finalJournalCount = await prisma.engineeringJournalEntry.count({
         where: { tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionId: fixture.mission.id }
       });
-      if (finalJournalCount !== 3) throw new Error("Re-review duplicated locked Engineering Journal entries.");
+      if (finalJournalCount !== journalCountBeforeResubmission) {
+        throw new Error("Re-review duplicated locked Engineering Journal entries.");
+      }
     }
   },
   {
@@ -915,7 +1257,7 @@ const scenarios: Scenario[] = [
       if (
         previousHistory.length !== 1 ||
         previousHistory[0]?.mission.id !== fixture.mission.id ||
-        previousHistory[0]?.journalEntries[0]?.id !== fixture.attemptOneJournal.id
+        !previousHistory[0]?.journalEntries.some((entry) => entry.id === fixture.attemptOneJournal.id)
       ) {
         throw new Error("A different mission variant did not preserve the previous week's attempt context.");
       }
@@ -1220,7 +1562,11 @@ const scenarios: Scenario[] = [
         journalMarkdown: null
       });
       await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
-      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      await submitRegressionSubmission(ctx.runId, {
+        id: draft.id,
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id
+      });
 
       const locked = await isJournalMissionLockedForApplicant(fixture.tenant.id, fixture.user.id, fixture.mission.id);
       if (!locked) throw new Error("Mission was not reported as locked after its submission was submitted.");
@@ -1267,6 +1613,103 @@ const scenarios: Scenario[] = [
       if (!otherTenant) return skip("Only one tenant exists locally; cross-tenant read scenario needs two tenants.");
       const crossTenantRead = await getApplicantSubmission(fixture.mission.id, fixture.user.id, otherTenant.id);
       if (crossTenantRead) throw new Error("Submission was readable through a different tenant id.");
+    }
+  },
+  {
+    area: "tenant",
+    name: "Submission readiness ignores task completions from another tenant, applicant, or week",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const requiredTask = await createProgramTask({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Tenant-scoped readiness task ${ctx.runId}`,
+        description: "Only the assigned applicant's in-tenant completion counts.",
+        weekNumber: fixture.assignment.weekNumber,
+        order: 0,
+        dueAt: null,
+        required: true,
+        published: true,
+        actorUserId: fixture.actor.id
+      });
+      const otherWeekTask = await createProgramTask({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Other-week readiness task ${ctx.runId}`,
+        description: "A completion from Week 2 must not satisfy Week 1.",
+        weekNumber: fixture.assignment.weekNumber + 1,
+        order: 0,
+        dueAt: null,
+        required: true,
+        published: true,
+        actorUserId: fixture.actor.id
+      });
+      for (const task of [requiredTask, otherWeekTask]) {
+        await markRegressionData({ runId: ctx.runId, entityType: "ProgramTask", entityId: task.id });
+      }
+
+      const otherApplicant = await prisma.user.create({
+        data: {
+          email: `task-boundary+${ctx.runId}@regression.talentos.local`,
+          name: "Task Boundary Applicant"
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "User", entityId: otherApplicant.id });
+      const otherTenant = await prisma.tenant.create({
+        data: {
+          name: "Regression Task Boundary",
+          slug: `task-boundary-${randomUUID().slice(0, 8)}`
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Tenant", entityId: otherTenant.id });
+
+      const contaminants = await Promise.all([
+        prisma.userTaskCompletion.create({
+          data: { tenantId: fixture.tenant.id, userId: otherApplicant.id, taskId: requiredTask.id }
+        }),
+        prisma.userTaskCompletion.create({
+          data: { tenantId: fixture.tenant.id, userId: fixture.user.id, taskId: otherWeekTask.id }
+        }),
+        prisma.userTaskCompletion.create({
+          data: { tenantId: otherTenant.id, userId: fixture.user.id, taskId: requiredTask.id }
+        })
+      ]);
+      for (const completion of contaminants) {
+        await markRegressionData({
+          runId: ctx.runId,
+          entityType: "UserTaskCompletion",
+          entityId: completion.id
+        });
+      }
+
+      const isolated = await getMissionSubmissionReadiness({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        missionAssignmentId: fixture.assignment.id
+      });
+      if (isolated.tasks.required !== 1 || isolated.tasks.completed !== 0) {
+        throw new Error("Readiness counted a task completion from another tenant, applicant, or week.");
+      }
+
+      const ownCompletion = await markApplicantTaskCompleted({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        taskId: requiredTask.id,
+        missionAssignmentId: fixture.assignment.id
+      });
+      await markRegressionData({
+        runId: ctx.runId,
+        entityType: "UserTaskCompletion",
+        entityId: ownCompletion.id
+      });
+      const completed = await getMissionSubmissionReadiness({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        missionAssignmentId: fixture.assignment.id
+      });
+      if (completed.tasks.completed !== 1) {
+        throw new Error("Readiness did not count the applicant's tenant-scoped Week 1 completion.");
+      }
     }
   },
   {
@@ -1546,7 +1989,7 @@ const scenarios: Scenario[] = [
       if (
         history.length !== 1 ||
         history[0]?.missionAssignmentId !== fixture.assignment.id ||
-        history[0]?.journalEntries[0]?.id !== fixture.attemptOneJournal.id
+        !history[0]?.journalEntries.some((entry) => entry.id === fixture.attemptOneJournal.id)
       ) {
         throw new Error("Previous-attempt history did not return only the exact in-scope attempt.");
       }
@@ -1596,8 +2039,17 @@ const scenarios: Scenario[] = [
       const fixture = await createAcceptedDashboardFixture(ctx.runId);
       const progress = await getApplicantProgramProgress(fixture.user.id, fixture.tenant.id, fixture.program.id);
       if (progress.length !== 4) throw new Error("Dashboard progress did not return four weeks.");
-      await markTaskCompleted(fixture.task.id, fixture.user.id);
-      const completedIds = await listCompletedTaskIds(fixture.user.id, fixture.program.id);
+      await markApplicantTaskCompleted({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        taskId: fixture.task.id,
+        missionAssignmentId: fixture.assignment.id
+      });
+      const completedIds = await listCompletedTaskIds(
+        fixture.tenant.id,
+        fixture.user.id,
+        fixture.program.id
+      );
       if (!completedIds.includes(fixture.task.id)) throw new Error("Task completion did not persist.");
       await markNotificationRead(fixture.notification.id, fixture.user.id);
       const updated = await prisma.notification.findUnique({ where: { id: fixture.notification.id } });
@@ -1627,7 +2079,11 @@ const scenarios: Scenario[] = [
         journalMarkdown: "Regression journal"
       });
       await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
-      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      await submitRegressionSubmission(ctx.runId, {
+        id: draft.id,
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id
+      });
 
       const pending = await getApplicantMissionProgress(fixture.tenant.id, fixture.user.id, fixture.program.id);
       if (pending.overall.accepted !== 0) throw new Error("A pending (SUBMITTED) mission must not move the progress bar.");
@@ -1660,25 +2116,6 @@ const scenarios: Scenario[] = [
       }
 
       const fixture = await createProgramFixture(ctx.runId, "PUBLISHED");
-      const resource = await createVideoResource({
-        tenantId: fixture.tenant.id,
-        programId: fixture.program.id,
-        title: `Regression Resource ${ctx.runId}`,
-        url: "https://www.youtube.com/watch?v=regression",
-        description: "Regression resource",
-        weekNumber: 1,
-        actorUserId: fixture.actor.id
-      });
-      await updateVideoResource({
-        id: resource.id,
-        tenantId: fixture.tenant.id,
-        programId: fixture.program.id,
-        title: `Regression Resource ${ctx.runId} (updated)`,
-        url: "https://www.youtube.com/watch?v=regression",
-        description: "Updated",
-        weekNumber: 2,
-        actorUserId: fixture.actor.id
-      });
       const task = await createProgramTask({
         tenantId: fixture.tenant.id,
         programId: fixture.program.id,
@@ -1687,8 +2124,63 @@ const scenarios: Scenario[] = [
         weekNumber: 1,
         order: 0,
         dueAt: null,
+        required: true,
+        published: true,
         actorUserId: fixture.actor.id
       });
+      const markdownResource = await createVideoResource({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        taskId: task.id,
+        type: LearningResourceType.MARKDOWN,
+        title: `Regression Markdown ${ctx.runId}`,
+        url: null,
+        markdownContent: "# Regression guide\n\nRead this before completing the task.",
+        description: "Regression Markdown resource",
+        weekNumber: 99,
+        order: 1,
+        durationSeconds: null,
+        actorUserId: fixture.actor.id
+      });
+      const videoResource = await createVideoResource({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        taskId: task.id,
+        type: LearningResourceType.YOUTUBE,
+        title: `Regression Video ${ctx.runId}`,
+        url: "https://www.youtube.com/watch?v=regression",
+        markdownContent: null,
+        description: "Regression YouTube resource",
+        weekNumber: 99,
+        order: 2,
+        durationSeconds: 180,
+        actorUserId: fixture.actor.id
+      });
+      await updateVideoResource({
+        id: videoResource.id,
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        taskId: task.id,
+        type: LearningResourceType.YOUTUBE,
+        title: `Regression Video ${ctx.runId} (updated)`,
+        url: "https://youtu.be/regression",
+        markdownContent: null,
+        description: "Updated",
+        weekNumber: 2,
+        order: 2,
+        durationSeconds: 180,
+        actorUserId: fixture.actor.id
+      });
+      const weekTasks = await listTasksByWeek(fixture.tenant.id, fixture.program.id, 1);
+      const configuredTask = weekTasks.find((candidate) => candidate.id === task.id);
+      if (
+        !configuredTask ||
+        configuredTask.weekNumber !== 1 ||
+        !configuredTask.required ||
+        configuredTask.resources.map((resource) => resource.type).join(",") !== "MARKDOWN,YOUTUBE"
+      ) {
+        throw new Error("Week-level task resources did not load in the configured order.");
+      }
       const event = await createCalendarEvent({
         tenantId: fixture.tenant.id,
         programId: fixture.program.id,
@@ -1700,8 +2192,9 @@ const scenarios: Scenario[] = [
         actorUserId: fixture.actor.id
       });
       for (const [action, entityId] of [
-        ["resource.created", resource.id],
-        ["resource.updated", resource.id],
+        ["resource.created", markdownResource.id],
+        ["resource.created", videoResource.id],
+        ["resource.updated", videoResource.id],
         ["task.created", task.id],
         ["event.created", event.id]
       ] as const) {
@@ -1710,10 +2203,10 @@ const scenarios: Scenario[] = [
       }
 
       // Cross-tenant delete must fail; same-tenant delete succeeds and is audited.
-      await deleteVideoResource({ id: resource.id, tenantId: fixture.tenant.id, actorUserId: fixture.actor.id });
+      await deleteVideoResource({ id: videoResource.id, tenantId: fixture.tenant.id, actorUserId: fixture.actor.id });
       let crossTenantDeleteFailed = false;
       try {
-        await deleteVideoResource({ id: resource.id, tenantId: fixture.tenant.id, actorUserId: fixture.actor.id });
+        await deleteVideoResource({ id: videoResource.id, tenantId: fixture.tenant.id, actorUserId: fixture.actor.id });
       } catch {
         crossTenantDeleteFailed = true;
       }
@@ -1891,7 +2384,7 @@ async function createRepeatedSubmissionFixture(runId: string) {
     loomUrl: null
   });
   await markRegressionData({ runId, entityType: "Submission", entityId: attemptOneSubmission.id });
-  await submitSubmission({
+  await submitRegressionSubmission(runId, {
     id: attemptOneSubmission.id,
     tenantId: fixture.tenant.id,
     applicantId: fixture.user.id
@@ -1928,6 +2421,108 @@ async function createTrackedJournalEntry(
   const entry = await createJournalEntry(input);
   await markRegressionData({ runId, entityType: "EngineeringJournalEntry", entityId: entry.id });
   return entry;
+}
+
+async function submitRegressionSubmission(
+  runId: string,
+  input: Parameters<typeof submitSubmission>[0]
+) {
+  const submission = await prisma.submission.findFirst({
+    where: {
+      id: input.id,
+      tenantId: input.tenantId,
+      applicantId: input.applicantId
+    },
+    select: {
+      id: true,
+      missionId: true,
+      missionAssignmentId: true,
+      repositoryUrl: true,
+      deploymentUrl: true,
+      loomUrl: true,
+      journalMarkdown: true
+    }
+  });
+  if (!submission?.missionAssignmentId) {
+    throw new Error("Regression submission is not linked to an assignment attempt.");
+  }
+
+  if (!submission.repositoryUrl || !submission.deploymentUrl || !submission.loomUrl) {
+    await saveSubmissionDraft({
+      tenantId: input.tenantId,
+      missionId: submission.missionId,
+      applicantId: input.applicantId,
+      repositoryUrl: submission.repositoryUrl ?? `https://github.com/regression/${submission.id}`,
+      deploymentUrl: submission.deploymentUrl ?? `https://example.com/regression/${submission.id}`,
+      loomUrl: submission.loomUrl ?? `https://www.loom.com/share/${submission.id}`,
+      journalMarkdown: submission.journalMarkdown
+    });
+  }
+
+  await ensureMinimumAssignmentJournals(runId, {
+    tenantId: input.tenantId,
+    applicantId: input.applicantId,
+    missionAssignmentId: submission.missionAssignmentId
+  });
+
+  return submitSubmission(input, REGRESSION_EVIDENCE_CHECKER);
+}
+
+async function ensureMinimumAssignmentJournals(
+  runId: string,
+  input: { tenantId: string; applicantId: string; missionAssignmentId: string }
+) {
+  const assignment = await prisma.missionAssignment.findFirst({
+    where: {
+      id: input.missionAssignmentId,
+      tenantId: input.tenantId,
+      applicantId: input.applicantId
+    },
+    select: {
+      id: true,
+      tenantId: true,
+      applicantId: true,
+      programId: true,
+      missionId: true,
+      weekNumber: true
+    }
+  });
+  if (!assignment) {
+    throw new Error("Regression assignment was not found for journal setup.");
+  }
+
+  const [attemptJournalCount, applicantDates] = await Promise.all([
+    prisma.engineeringJournalEntry.count({
+      where: {
+        tenantId: assignment.tenantId,
+        applicantId: assignment.applicantId,
+        missionAssignmentId: assignment.id
+      }
+    }),
+    prisma.engineeringJournalEntry.findMany({
+      where: { tenantId: assignment.tenantId, applicantId: assignment.applicantId },
+      select: { entryDate: true }
+    })
+  ]);
+  const usedDates = new Set(applicantDates.map((entry) => entry.entryDate.toISOString().slice(0, 10)));
+  let candidateDay = 1;
+
+  for (let index = attemptJournalCount; index < 4; index += 1) {
+    let entryDate = new Date(Date.UTC(2025, 0, candidateDay));
+    while (usedDates.has(entryDate.toISOString().slice(0, 10))) {
+      candidateDay += 1;
+      entryDate = new Date(Date.UTC(2025, 0, candidateDay));
+    }
+    usedDates.add(entryDate.toISOString().slice(0, 10));
+    candidateDay += 1;
+
+    await createTrackedAssignmentJournal(runId, {
+      ...assignment,
+      missionAssignmentId: assignment.id,
+      entryDate,
+      label: `Regression readiness journal ${index + 1}`
+    });
+  }
 }
 
 async function createTrackedAssignmentJournal(
@@ -2011,6 +2606,23 @@ async function createProgramFixture(runId: string, status: "DRAFT" | "PUBLISHED"
 
 async function createAcceptedDashboardFixture(runId: string) {
   const fixture = await createApplicationFixture(runId);
+  const mission = await createMission({
+    tenantId: fixture.tenant.id,
+    programId: fixture.program.id,
+    title: `Regression Dashboard Mission ${runId}`,
+    difficulty: "BEGINNER",
+    status: "PUBLISHED",
+    weekNumber: 1,
+    order: 0,
+    brief: "Regression dashboard mission",
+    objective: "Provide an active week for task completion",
+    acceptanceCriteria: "- Complete the assigned task",
+    deliverables: "- Task completion",
+    evaluationCriteria: "The task is completed in the assigned week",
+    competencyTags: ["Planning"],
+    actorUserId: fixture.actor.id
+  });
+  await markRegressionData({ runId, entityType: "Mission", entityId: mission.id });
   const application = await createSubmittedApplication({
     tenantId: fixture.tenant.id,
     programId: fixture.program.id,
@@ -2025,6 +2637,17 @@ async function createAcceptedDashboardFixture(runId: string) {
     actorUserId: fixture.actor.id,
     reviewerNotes: "Accepted for dashboard regression"
   });
+  const assignment = await prisma.missionAssignment.findFirst({
+    where: {
+      tenantId: fixture.tenant.id,
+      applicantId: fixture.user.id,
+      programId: fixture.program.id,
+      missionId: mission.id,
+      status: "ACTIVE"
+    }
+  });
+  if (!assignment) throw new Error("Dashboard fixture did not create an active assignment.");
+  await markRegressionData({ runId, entityType: "MissionAssignment", entityId: assignment.id });
   const task = await prisma.programTask.create({
     data: {
       tenantId: fixture.tenant.id,
@@ -2044,7 +2667,7 @@ async function createAcceptedDashboardFixture(runId: string) {
       body: "Regression notification"
     }
   });
-  return { ...fixture, application, task, notification };
+  return { ...fixture, application, mission, assignment, task, notification };
 }
 
 async function expectHttp(url: string, okStatuses: number[]) {

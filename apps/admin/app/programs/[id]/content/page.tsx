@@ -40,7 +40,7 @@ const deleteButtonClass = "rounded-lg border border-red-300 px-3 py-2 text-sm fo
 const saveButtonClass = "rounded-lg bg-brand-blue px-4 py-2 text-sm font-semibold text-white";
 const addButtonClass = "rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white";
 
-// Program Content management (v0.16.0, D-069): the applicant dashboard's video resources, weekly
+// Program Content management (v0.16.0, D-069): the applicant dashboard's learning resources, weekly
 // tasks and calendar events, previously seed-script-only. Requires manageProgramContent
 // (ORG_ADMIN / SUPER_ADMIN); other Back Office roles see a read-only notice.
 export default async function ProgramContentPage({ params }: ProgramContentPageProps) {
@@ -84,13 +84,13 @@ export default async function ProgramContentPage({ params }: ProgramContentPageP
         </Link>
       </div>
       <p className="mt-2 text-sm text-slate-600">
-        Video resources, weekly tasks and calendar events shown on the applicant dashboard for this
-        program. All changes are audited.
+        Weekly tasks, task-linked Markdown/YouTube learning resources and calendar events shown on
+        the applicant dashboard. All changes are audited.
       </p>
 
       {/* ------------------------------------------------------------------ */}
       <section className="mt-8">
-        <h2 className="text-xl font-semibold">Video resources ({resources.length})</h2>
+        <h2 className="text-xl font-semibold">Learning resources ({resources.length})</h2>
         <div className="mt-3 space-y-3">
           {resources.map((resource) => (
             <form
@@ -102,12 +102,28 @@ export default async function ProgramContentPage({ params }: ProgramContentPageP
               <input type="hidden" name="programId" value={program.id} />
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <label className={labelClass}>
+                  Weekly task
+                  <select name="taskId" defaultValue={resource.taskId ?? ""} className={inputClass}>
+                    <option value="">General / legacy resource</option>
+                    {tasks.map((task) => (
+                      <option key={task.id} value={task.id}>Week {task.weekNumber} - {task.title}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className={labelClass}>
+                  Type
+                  <select name="type" defaultValue={resource.type} className={inputClass}>
+                    <option value="MARKDOWN">Markdown</option>
+                    <option value="YOUTUBE">YouTube</option>
+                  </select>
+                </label>
+                <label className={labelClass}>
                   Title
                   <input name="title" required defaultValue={resource.title} className={inputClass} />
                 </label>
                 <label className={labelClass}>
-                  Video URL
-                  <input name="url" type="url" required defaultValue={resource.url} className={inputClass} />
+                  YouTube URL (optional while pending)
+                  <input name="url" type="url" defaultValue={resource.url ?? ""} className={inputClass} />
                 </label>
                 <label className={labelClass}>
                   Description
@@ -124,7 +140,19 @@ export default async function ProgramContentPage({ params }: ProgramContentPageP
                     className={inputClass}
                   />
                 </label>
+                <label className={labelClass}>
+                  Order
+                  <input name="order" type="number" min={0} defaultValue={resource.order} className={inputClass} />
+                </label>
+                <label className={labelClass}>
+                  Duration (seconds)
+                  <input name="durationSeconds" type="number" min={1} defaultValue={resource.durationSeconds ?? ""} className={inputClass} />
+                </label>
               </div>
+              <label className={`${labelClass} mt-3`}>
+                Markdown content
+                <textarea name="markdownContent" rows={6} defaultValue={resource.markdownContent ?? ""} className={inputClass} />
+              </label>
               <div className="mt-3 flex gap-2">
                 <button type="submit" className={saveButtonClass}>
                   Save
@@ -139,15 +167,31 @@ export default async function ProgramContentPage({ params }: ProgramContentPageP
 
         <form action={createVideoResourceAction} className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
           <input type="hidden" name="programId" value={program.id} />
-          <h3 className="text-sm font-semibold text-slate-700">Add video resource</h3>
+          <h3 className="text-sm font-semibold text-slate-700">Add learning resource</h3>
           <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <label className={labelClass}>
+              Weekly task
+              <select name="taskId" required defaultValue="" className={inputClass}>
+                <option value="" disabled>Select a task</option>
+                {tasks.map((task) => (
+                  <option key={task.id} value={task.id}>Week {task.weekNumber} - {task.title}</option>
+                ))}
+              </select>
+            </label>
+            <label className={labelClass}>
+              Type
+              <select name="type" defaultValue="MARKDOWN" className={inputClass}>
+                <option value="MARKDOWN">Markdown</option>
+                <option value="YOUTUBE">YouTube</option>
+              </select>
+            </label>
             <label className={labelClass}>
               Title
               <input name="title" required className={inputClass} />
             </label>
             <label className={labelClass}>
-              Video URL
-              <input name="url" type="url" required placeholder="https://www.youtube.com/..." className={inputClass} />
+              YouTube URL (optional while pending)
+              <input name="url" type="url" placeholder="https://www.youtube.com/..." className={inputClass} />
             </label>
             <label className={labelClass}>
               Description
@@ -157,7 +201,19 @@ export default async function ProgramContentPage({ params }: ProgramContentPageP
               Week (optional)
               <input name="weekNumber" type="number" min={1} max={4} className={inputClass} />
             </label>
+            <label className={labelClass}>
+              Order
+              <input name="order" type="number" min={0} defaultValue={0} className={inputClass} />
+            </label>
+            <label className={labelClass}>
+              Duration (seconds)
+              <input name="durationSeconds" type="number" min={1} className={inputClass} />
+            </label>
           </div>
+          <label className={`${labelClass} mt-3`}>
+            Markdown content
+            <textarea name="markdownContent" rows={6} className={inputClass} />
+          </label>
           <button type="submit" className={`mt-3 ${addButtonClass}`}>
             Add resource
           </button>
@@ -198,6 +254,26 @@ export default async function ProgramContentPage({ params }: ProgramContentPageP
                   <input name="dueAt" type="date" defaultValue={toDateInput(task.dueAt)} className={inputClass} />
                 </label>
               </div>
+              <div className="mt-3 flex flex-wrap gap-5 text-sm text-slate-700">
+                <label className="flex items-center gap-2">
+                  <input name="required" type="checkbox" defaultChecked={task.required} />
+                  Required for submission
+                </label>
+                <label className="flex items-center gap-2">
+                  <input name="published" type="checkbox" defaultChecked={task.published} />
+                  Published to applicants
+                </label>
+              </div>
+              {task.required && (!task.resources.some((resource) => resource.type === "MARKDOWN") || !task.resources.some((resource) => resource.type === "YOUTUBE")) ? (
+                <p className="mt-3 text-sm font-medium text-amber-700">
+                  Required resource missing: each required task needs Markdown and YouTube resources.
+                </p>
+              ) : null}
+              {task.required && task.resources.some((resource) => resource.type === "YOUTUBE" && !resource.url) ? (
+                <p className="mt-3 text-sm font-medium text-amber-700">
+                  YouTube resource is configured, but its final public URL is still pending.
+                </p>
+              ) : null}
               <div className="mt-3 flex gap-2">
                 <button type="submit" className={saveButtonClass}>
                   Save
@@ -233,6 +309,16 @@ export default async function ProgramContentPage({ params }: ProgramContentPageP
             <label className={labelClass}>
               Due date
               <input name="dueAt" type="date" className={inputClass} />
+            </label>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-5 text-sm text-slate-700">
+            <label className="flex items-center gap-2">
+              <input name="required" type="checkbox" defaultChecked />
+              Required for submission
+            </label>
+            <label className="flex items-center gap-2">
+              <input name="published" type="checkbox" defaultChecked />
+              Published to applicants
             </label>
           </div>
           <button type="submit" className={`mt-3 ${addButtonClass}`}>

@@ -4,6 +4,20 @@ import {
   createRepeatMissionAssignmentTx,
   getActiveMissionAssignmentForMissionTx
 } from "./mission-assignments";
+import {
+  assertMissionSubmissionReady,
+  getMissionSubmissionReadiness,
+  getMissionSubmissionReadinessWithClient,
+  SubmissionReadinessError
+} from "./submission-readiness";
+import {
+  checkPublicEvidenceUrl,
+  parseEvidenceUrl,
+  type EvidenceUrlKind,
+  type PublicUrlCheckResult
+} from "./url-safety";
+
+export { parseEvidenceUrl } from "./url-safety";
 
 // Mission-submission workflow helpers (v0.15.0, D-067). All reads/writes are tenant-scoped via the
 // Submission.tenantId column; writes additionally verify the mission chain and the applicant owner.
@@ -12,46 +26,27 @@ import {
 // defense in depth.
 
 /** Evidence-URL kinds and their allowed hosts. Deployment URLs may live anywhere (any http/https). */
-const EVIDENCE_HOST_SUFFIX: Record<"repository" | "loom", string> = {
-  repository: "github.com",
-  loom: "loom.com"
-};
-
 /**
  * Validate an optional evidence URL (empty → null). Repository and Loom links are host-allowlisted
  * (mirrors the apply flow's profile-link rule) so stored links can't be used for phishing;
  * deployment links only need to be well-formed http(s).
  */
-export function parseEvidenceUrl(raw: string, kind: "repository" | "deployment" | "loom"): string | null {
-  const value = raw.trim();
-  if (!value) {
-    return null;
-  }
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error(`Enter a valid ${kind} URL (including https://).`);
-  }
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new Error(`Enter a valid ${kind} URL (including https://).`);
-  }
-  if (kind === "deployment") {
-    return url.toString();
-  }
-  const host = url.hostname.toLowerCase();
-  const suffix = EVIDENCE_HOST_SUFFIX[kind];
-  if (host !== suffix && !host.endsWith(`.${suffix}`)) {
-    throw new Error(`The ${kind} URL must be on ${suffix}.`);
-  }
-  return url.toString();
-}
-
 /** The applicant's own submission for a mission (or null before their first draft). */
 export function getApplicantSubmission(missionId: string, applicantId: string, tenantId: string) {
   return prisma.submission.findFirst({
     where: { missionId, applicantId, tenantId },
     orderBy: { createdAt: "desc" }
+  });
+}
+
+/** The applicant's submission for one exact assignment attempt. */
+export function getApplicantSubmissionForAssignment(
+  missionAssignmentId: string,
+  applicantId: string,
+  tenantId: string
+) {
+  return prisma.submission.findFirst({
+    where: { missionAssignmentId, applicantId, tenantId }
   });
 }
 
@@ -212,51 +207,115 @@ export type SubmitSubmissionInput = {
   applicantId: string;
 };
 
-/**
- * Move the applicant's own DRAFT / NEEDS_REVISION submission to SUBMITTED. Requires at least one
- * evidence URL so reviewers always have something to open.
- */
-export async function submitSubmission({ id, tenantId, applicantId }: SubmitSubmissionInput) {
+export type SubmitSubmissionDependencies = {
+  checkEvidenceUrl?: (url: string, kind: EvidenceUrlKind) => Promise<PublicUrlCheckResult>;
+};
+
+/** Validate readiness and public evidence before atomically submitting and locking this attempt. */
+export async function submitSubmission(
+  { id, tenantId, applicantId }: SubmitSubmissionInput,
+  dependencies: SubmitSubmissionDependencies = {}
+) {
+  const submission = await prisma.submission.findFirst({
+    where: { id, tenantId, applicantId }
+  });
+  if (!submission) {
+    throw new Error("Submission not found for this tenant.");
+  }
+  if (submission.status !== "DRAFT" && submission.status !== "NEEDS_REVISION") {
+    throw new Error(`Invalid submission status transition from ${submission.status} to SUBMITTED.`);
+  }
+  if (!submission.missionAssignmentId) {
+    throw new Error("This submission is not linked to an assignment attempt.");
+  }
+  const missionAssignmentId = submission.missionAssignmentId;
+
+  const preflight = await getMissionSubmissionReadiness({
+    tenantId,
+    applicantId,
+    missionAssignmentId
+  });
+  if (preflight.submission?.id !== submission.id) {
+    throw new Error("Submission does not belong to the current assignment attempt.");
+  }
+  assertMissionSubmissionReady(preflight);
+
+  const checkEvidenceUrl = dependencies.checkEvidenceUrl ?? checkPublicEvidenceUrl;
+  const evidenceChecks = await Promise.all(
+    (["repository", "deployment", "loom"] as const).map(async (kind) => {
+      const value = preflight.urls[kind].value;
+      if (!value) {
+        throw new SubmissionReadinessError(`${kind} URL is required.`, [`${kind} URL is required.`]);
+      }
+      return checkEvidenceUrl(value, kind);
+    })
+  );
+  const networkBlockers = evidenceChecks
+    .filter((result) => !result.reachable)
+    .map((result) => result.error ?? "A submission URL is not publicly reachable.");
+  if (networkBlockers.length > 0) {
+    throw new SubmissionReadinessError(networkBlockers.join(" "), networkBlockers);
+  }
+
+  const checkedUrls = {
+    repositoryUrl: preflight.urls.repository.value,
+    deploymentUrl: preflight.urls.deployment.value,
+    loomUrl: preflight.urls.loom.value
+  };
+
   return prisma.$transaction(async (tx) => {
-    const submission = await tx.submission.findFirst({
-      where: { id, tenantId, applicantId }
+    const current = await getMissionSubmissionReadinessWithClient(tx, {
+      tenantId,
+      applicantId,
+      missionAssignmentId
     });
-    if (!submission) {
-      throw new Error("Submission not found for this tenant.");
+    assertMissionSubmissionReady(current);
+    if (current.submission?.id !== submission.id) {
+      throw new Error("Submission does not belong to the current assignment attempt.");
     }
-    if (submission.status !== "DRAFT" && submission.status !== "NEEDS_REVISION") {
-      throw new Error(`Invalid submission status transition from ${submission.status} to SUBMITTED.`);
-    }
-    if (!submission.repositoryUrl && !submission.deploymentUrl && !submission.loomUrl) {
-      throw new Error("Add at least one evidence link (repository, deployment or Loom) before submitting.");
-    }
-    if (!submission.missionAssignmentId) {
-      throw new Error("This submission is not linked to an assignment attempt.");
+    if (
+      current.urls.repository.value !== checkedUrls.repositoryUrl ||
+      current.urls.deployment.value !== checkedUrls.deploymentUrl ||
+      current.urls.loom.value !== checkedUrls.loomUrl
+    ) {
+      throw new Error("Submission evidence changed during validation. Please submit again.");
     }
 
     const submittedAt = new Date();
-    const updated = await tx.submission.update({
-      where: { id: submission.id },
-      data: { status: "SUBMITTED", submittedAt }
-    });
-
-    await tx.engineeringJournalEntry.updateMany({
+    const update = await tx.submission.updateMany({
       where: {
+        id: submission.id,
         tenantId,
         applicantId,
-        missionAssignmentId: submission.missionAssignmentId,
-        lockedAt: null
+        status: { in: ["DRAFT", "NEEDS_REVISION"] }
       },
-      data: { lockedAt: submittedAt }
+      data: { status: "SUBMITTED", submittedAt }
     });
-    await tx.missionAssignment.updateMany({
+    if (update.count !== 1) {
+      throw new Error("This submission was already processed. Refresh the page to see its current status.");
+    }
+
+    const assignmentUpdate = await tx.missionAssignment.updateMany({
       where: {
-        id: submission.missionAssignmentId,
+        id: missionAssignmentId,
         tenantId,
         applicantId,
         status: "ACTIVE"
       },
       data: { status: "SUBMITTED" }
+    });
+    if (assignmentUpdate.count !== 1) {
+      throw new Error("The assignment attempt is no longer open for submission.");
+    }
+
+    await tx.engineeringJournalEntry.updateMany({
+      where: {
+        tenantId,
+        applicantId,
+        missionAssignmentId,
+        lockedAt: null
+      },
+      data: { lockedAt: submittedAt }
     });
 
     await tx.auditLog.create({
@@ -268,13 +327,13 @@ export async function submitSubmission({ id, tenantId, applicantId }: SubmitSubm
         entityId: submission.id,
         metadata: {
           missionId: submission.missionId,
-          missionAssignmentId: submission.missionAssignmentId,
+          missionAssignmentId,
           resubmission: submission.status === "NEEDS_REVISION"
         }
       }
     });
 
-    return updated;
+    return tx.submission.findFirstOrThrow({ where: { id: submission.id, tenantId, applicantId } });
   });
 }
 

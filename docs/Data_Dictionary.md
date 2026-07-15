@@ -4,6 +4,11 @@ Code version: `v0.18.0`
 
 Baseline commit: `bf59ca4`
 
+> Current weekly-task/submission-readiness work adds `LearningResourceType` (`MARKDOWN`, `YOUTUBE`),
+> extends `program_tasks` with `required`/`published`, extends the legacy-named `video_resources` table
+> with task association and reusable resource content fields, and makes `user_task_completions`
+> tenant-scoped. Migration: `20260716090000_weekly_tasks_submission_readiness`.
+>
 > Assignment-linked journal attempts add assignment attempt/status fields, assignment foreign keys on
 > submissions and journal entries, persisted journal lock timestamps, and the terminal `REPEAT`
 > submission outcome. Migration: `20260710170000_assignment_linked_journal_attempts`.
@@ -234,7 +239,7 @@ field. Unique on `[tenantId, applicantId, entryDate]` — one entry per applican
 | `missionId` | Mission the reflection is written against; must be assigned to the applicant (`v0.18.0`). |
 | `missionAssignmentId` | Nullable legacy-safe link to the exact assignment attempt. New entries always set it. |
 | `weekNumber` | Program week, derived from the selected mission — not trusted from the client. |
-| `entryDate` | Calendar date of the reflection; unique per applicant per tenant. |
+| `entryDate` | Applicant-selected calendar date of the reflection; unique per applicant per tenant. Today/past are allowed and future dates are rejected. It is separate from system timestamps. |
 | `language` | Entry language, seeded from `User.preferredJournalLanguage`. |
 | `workedOn` | What the applicant worked on that day. |
 | `challenge` | The main challenge encountered. |
@@ -270,7 +275,7 @@ field. Unique on `[tenantId, applicantId, entryDate]` — one entry per applican
 | `deploymentUrl` | Deployed-application evidence link (any http/https). |
 | `loomUrl` | Loom walkthrough evidence link (host-allowlisted to loom.com). |
 | `journalMarkdown` | Inline Engineering Journal (Markdown). |
-| `submittedAt` | Last submitted-for-review timestamp. |
+| `submittedAt` | Last submitted-for-review timestamp, set only after readiness and public URL checks pass; separate from journal `entryDate`. |
 | `reviewerFeedback` | Written staff feedback shown to the applicant. |
 | `reviewedAt` | Last review timestamp. |
 | `reviewerUserId` | Staff reviewer (ORG_ADMIN / TECH_LEAD / SUPER_ADMIN); `SetNull` on user delete. |
@@ -286,17 +291,27 @@ field. Unique on `[tenantId, applicantId, entryDate]` — one entry per applican
 | `description` | Optional task details. |
 | `dueAt` | Optional due date. |
 | `order` | Sort order within the week (default 0). |
+| `required` | Whether completion blocks submission for missions assigned in this program week (default `true`). |
+| `published` | Whether applicants may see and complete the task (default `true`). |
 
 ## VideoResource
+
+Legacy model/table name retained for compatibility. It now represents either Markdown or YouTube
+learning content and may be attached to a `ProgramTask`.
 
 | Field | Purpose |
 | --- | --- |
 | `tenantId` | Owning tenant. |
 | `programId` | Program the resource belongs to. |
-| `weekNumber` | Optional program week the resource is curated for. |
+| `taskId` | Optional `ProgramTask` association. When present, the task supplies the authoritative week. |
+| `type` | `LearningResourceType`: `MARKDOWN` or `YOUTUBE` (default `YOUTUBE` for legacy rows). |
+| `weekNumber` | Optional program week; derived from the associated task when `taskId` is present. |
 | `title` | Resource title. |
-| `url` | External video URL (YouTube/Loom), embedded on the dashboard Resources page. |
+| `url` | Optional validated public YouTube URL for `YOUTUBE` resources. `null` means the final video is pending. |
+| `markdownContent` | Markdown source for `MARKDOWN` resources; rendered as text/React elements without raw HTML. |
 | `description` | Optional description. |
+| `order` | Stable display order within a task/week. |
+| `durationSeconds` | Optional video/resource duration. |
 
 ## Notification
 
@@ -325,9 +340,13 @@ field. Unique on `[tenantId, applicantId, entryDate]` — one entry per applican
 
 | Field | Purpose |
 | --- | --- |
-| `taskId` | Completed `ProgramTask`; unique together with `userId`. |
-| `userId` | User who completed the task. |
+| `tenantId` | Authoritative tenant scope for the completion. |
+| `taskId` | Completed `ProgramTask`; unique together with `tenantId` and `userId`. |
+| `userId` | Applicant who completed the task. |
 | `completedAt` | Completion timestamp (default now). |
+
+Completions are week-level through the related task's `programId` and `weekNumber`; they do not point
+to `MissionAssignment`, so a repeat attempt in the same week retains learning-task completion.
 
 ## AuditLog
 

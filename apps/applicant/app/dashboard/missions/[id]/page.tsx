@@ -4,8 +4,10 @@ import { auth } from "@/auth";
 import { getTenantContext } from "@talentos/ui";
 import { isSubmissionEditable } from "@talentos/auth";
 import {
-  getApplicantSubmission,
+  getApplicantSubmissionForAssignment,
+  getApplicantMissionAssignmentForMission,
   getAssignedProgramMission,
+  getMissionSubmissionReadiness,
   getTenantBySlug,
   getUserByEmail,
   listApplicantApplications,
@@ -36,7 +38,17 @@ export default async function ApplicantMissionDetailPage({ params }: MissionDeta
     notFound();
   }
 
-  const submission = await getApplicantSubmission(mission.id, user.id, tenant.id);
+  const assignment = await getApplicantMissionAssignmentForMission(tenant.id, user.id, mission.id);
+  const submission = assignment
+    ? await getApplicantSubmissionForAssignment(assignment.id, user.id, tenant.id)
+    : null;
+  const readiness = assignment && (!submission || isSubmissionEditable(submission.status))
+    ? await getMissionSubmissionReadiness({
+        tenantId: tenant.id,
+        applicantId: user.id,
+        missionAssignmentId: submission?.missionAssignmentId ?? assignment.id
+      })
+    : null;
 
   return (
     <article className="max-w-4xl">
@@ -99,6 +111,7 @@ export default async function ApplicantMissionDetailPage({ params }: MissionDeta
                 deploymentUrl: submission?.deploymentUrl ?? "",
                 loomUrl: submission?.loomUrl ?? ""
               }}
+              readiness={readiness ? { tasks: readiness.tasks, journals: readiness.journals } : null}
             />
           ) : (
             <SubmittedEvidence submission={submission} />

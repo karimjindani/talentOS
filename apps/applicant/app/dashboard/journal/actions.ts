@@ -76,6 +76,7 @@ function readJournalForm(formData: FormData) {
   return {
     missionId,
     entryDate: parseEntryDate(formData.get("entryDate")),
+    calendarTimeZone: String(formData.get("calendarTimeZone") ?? "UTC").trim() || "UTC",
     language: readLanguage(formData),
     workedOn: String(formData.get("workedOn") ?? "").trim(),
     challenge: String(formData.get("challenge") ?? "").trim(),
