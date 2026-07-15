@@ -6,7 +6,7 @@ Version: `v0.19.2`
 
 Baseline name: `Logout Regression Fix & Confirmation Gates`
 
-Baseline code commit: `_pending_`
+Baseline code commit: `c7df9d9`
 
 Baseline date: `2026-07-15`
 

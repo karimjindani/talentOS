@@ -2,7 +2,7 @@
 
 Code version: `v0.19.2`
 
-Baseline commit: `_pending_`
+Baseline commit: `c7df9d9`
 
 > `v0.19.2` (Logout Regression Fix & Confirmation Gates, D-083) makes no schema change.
 >

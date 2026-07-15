@@ -2,7 +2,7 @@
 
 Code version: `v0.19.2`
 
-Baseline commit: `_pending_`
+Baseline commit: `c7df9d9`
 
 Current deployment update: `v0.19.2` (the latest deployment-affecting baselines are `v0.18.5` and
 `v0.19.0` — both require a database migration; `v0.19.1`/`v0.19.2` are code-only with no migration;
