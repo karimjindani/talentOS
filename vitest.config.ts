@@ -7,7 +7,12 @@ const root = fileURLToPath(new URL(".", import.meta.url));
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["packages/**/*.test.ts", "apps/**/*.test.ts"]
+    include: ["packages/**/*.test.ts", "apps/**/*.test.ts"],
+    // Use forks pool for better isolation — the default threads pool causes
+    // cross-file mock contamination and slow vi.resetModules() under the full suite.
+    pool: "forks",
+    // Give dynamic-import-heavy tests enough headroom under the full suite.
+    testTimeout: 15_000,
   },
   resolve: {
     alias: [
