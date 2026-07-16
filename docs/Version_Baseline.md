@@ -2,32 +2,32 @@
 
 ## Current Baseline
 
-Version: `v0.19.2`
+Version: `v0.19.3`
 
-Baseline name: `Logout Regression Fix & Confirmation Gates`
+Baseline name: `AI Mentor RBSE Name Blocking & Token Tracking`
 
-Baseline code commit: `c7df9d9`
+Baseline code commit: `83fa5b9`
 
-Baseline date: `2026-07-15`
+Baseline date: `2026-07-16`
 
-Previous baseline: `v0.19.1`
+Previous baseline: `v0.19.2`
 
-Previous baseline commit: `d77cb8f`
+Previous baseline commit: `c7df9d9`
 
 ## Baseline Summary
 
-`v0.19.2` is a patch bundling two small, unrelated fixes that predate the `v0.18.5`–`v0.19.1`
-mission-lifecycle work but were left uncommitted until now. The `v0.14.3`/D-066 applicant dashboard
-sidebar Logout button had gone missing — a regression from the `feat/applicant-ai-mentor-skeleton`
-merge (PR #45) reverting part of an earlier main-branch merge — and is restored in
-`ApplicantShell.tsx`, alongside a `vitest.config.ts` alias fix (`@/(.+)` → `apps/applicant/$1`) so
-`ApplicantShell.test.ts` can resolve its new mocked import of `@/lib/logout-action`. A new
-`AGENTS.md` **Confirmation Gates** section requires stopping to ask the user before starting a
-versioned documentation-update process or pushing to a remote branch. No schema change; no
-migration; unit suite unchanged at 427 tests across 43 files;
-`regression:all` 35/36 passed, 1 pre-existing documented skip, 0 failed. Plan:
-`docs/plans/v0.19.2_Logout_Regression_And_Confirmation_Gates.md`; results:
-`docs/testing/v0.19.2_Logout_Regression_And_Confirmation_Gates_Test_Results.md`. See `D-083`.
+`v0.19.3` is a patch that (1) adds regex-based personal-name pattern matching to the AI Mentor RBSE
+so questions like "explain hitesh" or "who is john" are blocked before any LLM call — previously
+"explain" was an allowed topic so these reached GLM; (2) adds `stream_options.include_usage` to the
+GLM streaming request so token counts are returned in the SSE stream (fixes `tokens=?` in logs);
+(3) ensures RBSE always runs regardless of conversation history so blocked questions never reach
+GLM even in multi-turn conversations; and (4) switches the Vitest pool from `threads` to `forks`
+with `testTimeout: 15_000` to eliminate cross-file mock contamination that caused 6 spurious test
+failures under the full 43-file suite. No schema change; no migration; unit suite: 427 tests across
+43 files, all pass; `regression:all` 32/36 passed, 3 pre-existing infra failures (Ops console not
+in Docker, Keycloak admin redirect), 1 documented skip. Plan:
+`docs/plans/v0.19.3_AI_Mentor_RBSE_Name_Blocking_And_Token_Tracking.md`; results:
+`docs/testing/v0.19.3_AI_Mentor_RBSE_Name_Blocking_And_Token_Tracking_Test_Results.md`. See `D-084`.
 
 `v0.19.1` is a patch that wires the applicant Dashboard, My Program, Tasks and Missions pages to
 the real mission-lifecycle data `v0.18.5`/`v0.19.0` introduced (Days Remaining and every "current

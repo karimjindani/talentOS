@@ -882,3 +882,26 @@ Plan: `docs/plans/v0.19.2_Logout_Regression_And_Confirmation_Gates.md`; results:
 `docs/testing/v0.19.2_Logout_Regression_And_Confirmation_Gates_Test_Results.md`.
 
 Status: Approved
+
+## D-084
+
+`v0.19.3` is a patch addressing three AI Mentor issues and a test infrastructure problem.
+(1) **RBSE personal-name blocking** — the Rule-Based System Engine allowed questions like
+"explain hitesh" to reach the GLM LLM because "explain" is an allowed topic. Regex patterns
+(`PERSONAL_NAME_PATTERNS`) now catch "explain \<Name\>", "who is \<Name\>", "tell me about
+\<Name\>", "describe \<Name\>", and "what do you know about \<Name\>" at the RBSE layer, with a
+`NAME_PATTERN_ALLOWLIST` ensuring technical terms (SDLC, testing, deployment, etc.) still pass.
+RBSE also now always runs regardless of conversation history — previously multi-turn conversations
+bypassed RBSE entirely via a `conversationHistory.length > 0` check. (2) **Token usage tracking**
+— the GLM streaming request was missing `stream_options.include_usage`, so the SSE stream never
+included token counts (logs showed `tokens=?`). Adding `stream_options: { include_usage: true }`
+fixes this. (3) **Test isolation** — the Vitest default `threads` pool caused cross-file mock
+contamination and slow `vi.resetModules()` under the full 43-file suite, leading to 6 spurious
+failures (timeouts + wrong mock state). Switching to `forks` pool with `testTimeout: 15_000`
+gives each test file its own process, eliminating the issue. No schema change; no migration;
+unit suite: 427 tests across 43 files, all pass.
+
+Plan: `docs/plans/v0.19.3_AI_Mentor_RBSE_Name_Blocking_And_Token_Tracking.md`; results:
+`docs/testing/v0.19.3_AI_Mentor_RBSE_Name_Blocking_And_Token_Tracking_Test_Results.md`.
+
+Status: Approved

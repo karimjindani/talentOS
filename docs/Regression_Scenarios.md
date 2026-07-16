@@ -178,3 +178,9 @@ Cleanup rules:
   Program's start/end dates from the Week 1 `acceptedAt`; the countdown appearing only on the
   current, unsubmitted mission) were verified manually in a real browser session but have no
   automated scenario coverage.
+- **AI Mentor RBSE name blocking (`v0.19.3`, D-084)** — the personal-name regex patterns
+  (`PERSONAL_NAME_PATTERNS` in `ai-rbse.ts`) are unit-tested (`ai-rbse.test.ts`,
+  `ai.test.ts`) but have no dedicated `scripts/regression/run.ts` scenario: a real applicant
+  typing "explain hitesh" in the AI Mentor chat and receiving the blocked response without
+  a GLM API call. The token usage tracking (`stream_options.include_usage`) is also only
+  verified manually via Docker logs.
