@@ -179,6 +179,7 @@ type GLMChatRequest = {
   max_tokens: number;
   temperature: number;
   stream: boolean;
+  stream_options?: { include_usage: boolean };
 };
 
 /** ZhipuAI chat completion response shape (minimal). */
@@ -300,6 +301,7 @@ async function callGLM(
     max_tokens: effectiveMaxTokens,
     temperature: LLM_TEMPERATURE,
     stream: true,
+    stream_options: { include_usage: true },
   };
 
   console.log(`[ai-mentor] callGLM: model=${effectiveModel}, max_tokens=${effectiveMaxTokens}, systemPromptLen=${systemPrompt.length}, userPromptLen=${userPrompt.length}`);
@@ -567,12 +569,10 @@ export async function requestAIInteraction(
   const { prompt, context, knowledge, conversationHistory = [], onToken } = request;
 
   // Step 1: Apply Rule-Based System Engine (RBSE)
-  // RBSE shortcuts are useful for isolated first-turn requests, but they lose
-  // conversational meaning (for example, "I use Windows" answering a setup
-  // question). Once a real history exists, let the model interpret the turn.
-  const rbseAction = conversationHistory.length > 0
-    ? ({ type: "allow_llm" } as const)
-    : classifyQuestion(prompt, context);
+  // RBSE always runs first — blocked questions and direct answers are handled
+  // before any LLM call, regardless of conversation history. Only "allow_llm"
+  // questions proceed to the LLM (with history for multi-turn context).
+  const rbseAction = classifyQuestion(prompt, context);
   
   switch (rbseAction.type) {
     case "blocked":
