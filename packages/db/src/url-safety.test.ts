@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildSubmissionEvidenceLinks,
   checkPublicEvidenceUrl,
+  createPinnedLookup,
   isBlockedIpAddress,
   MAX_DEPLOYMENT_URLS,
   normalizeDeploymentUrls,
@@ -91,6 +92,20 @@ describe("SSRF address protections", () => {
     expect(isBlockedIpAddress("198.50.100.10")).toBe(false);
     expect(isBlockedIpAddress("203.1.113.10")).toBe(false);
     expect(isBlockedIpAddress("2606:2800:220:1:248:1893:25c8:1946")).toBe(false);
+  });
+});
+
+describe("pinned DNS lookup", () => {
+  it("supports both Node's single-address and all-address callback modes", () => {
+    const lookup = createPinnedLookup({ address: "93.184.216.34", family: 4 });
+    const single = vi.fn();
+    const all = vi.fn();
+
+    lookup("example.com", { all: false }, single);
+    lookup("example.com", { all: true }, all);
+
+    expect(single).toHaveBeenCalledWith(null, "93.184.216.34", 4);
+    expect(all).toHaveBeenCalledWith(null, [{ address: "93.184.216.34", family: 4 }]);
   });
 });
 

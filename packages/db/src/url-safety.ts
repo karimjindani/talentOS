@@ -359,9 +359,7 @@ function defaultRequestOnce(
 ): Promise<BoundedHttpResponse> {
   return new Promise((resolve, reject) => {
     const transport = url.protocol === "https:" ? httpsRequest : httpRequest;
-    const pinnedLookup: LookupFunction = (_hostname, _options, callback) => {
-      callback(null, address.address, address.family);
-    };
+    const pinnedLookup = createPinnedLookup(address);
     const request = transport(
       url,
       {
@@ -388,6 +386,16 @@ function defaultRequestOnce(
     request.on("error", reject);
     request.end();
   });
+}
+
+export function createPinnedLookup(address: ResolvedAddress): LookupFunction {
+  return (_hostname, options, callback) => {
+    if (options.all) {
+      callback(null, [{ address: address.address, family: address.family }]);
+      return;
+    }
+    callback(null, address.address, address.family);
+  };
 }
 
 function failure(url: URL, error: string, statusCode: number | null = null): PublicUrlCheckResult {
