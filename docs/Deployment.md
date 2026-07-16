@@ -1,13 +1,41 @@
 # Deployment
 
-Code version: `v0.18.4`
+Code version: `v0.19.2`
 
-Baseline commit: `6ef1ef7`
+Baseline commit: `c7df9d9`
 
-Current deployment update: `v0.18.4` (the latest deployment-affecting baselines are `v0.17.0`,
-`v0.17.1` and `v0.18.0` — all three require a database migration; `v0.18.1`/`v0.18.2`/`v0.18.3`/`v0.18.4`
-are docs/tooling baselines with no deployment, infra or migration change)
+Current deployment update: `v0.19.2` (the latest deployment-affecting baselines are `v0.18.5` and
+`v0.19.0` — both require a database migration; `v0.19.1`/`v0.19.2` are code-only with no migration;
+`v0.18.1`/`v0.18.2`/`v0.18.3`/`v0.18.4` were docs/tooling baselines with no deployment, infra or
+migration change)
 
+> `v0.19.2` (Logout Regression Fix & Confirmation Gates, D-083) **requires no database migration** —
+> rebuild the applicant container: `docker compose up -d --build applicant`. `AGENTS.md` is a
+> repo-governance doc; it has no deployment effect.
+>
+> `v0.19.1` (Dashboard Wiring & Same-Week Repeat, D-082) **requires no database migration** — rebuild
+> both containers: `docker compose up -d --build applicant admin`.
+>
+> `v0.19.0` (Mission-Driven Tasks & Submissions Admin Tab, D-081) **requires a database migration**:
+> `20260714110000_mission_tasks` (adds `mission_task_completions`, `missions.tutorialUrl`). After
+> pulling the code, run `npx prisma migrate deploy --schema packages/db/prisma/schema.prisma`, then
+> rebuild both containers: `docker compose up -d --build applicant admin`. No topology change; the
+> legacy `ProgramTask`/`VideoResource`/`UserTaskCompletion` tables are left in place, unused.
+>
+> `v0.18.5` (Mission Deadline & Lifecycle, D-080) **requires a database migration**:
+> `20260714090000_mission_deadlines_and_lifecycle` (adds `missions.deadlineHours`/
+> `gracePeriodHours`, `mission_assignments.acceptedAt`/`deadlineAt`/`graceEndsAt`, rebuilds the
+> `MissionAssignmentStatus` enum, extends `ApplicationStatus`). After pulling the code, run
+> `npx prisma migrate deploy --schema packages/db/prisma/schema.prisma`, then rebuild both
+> containers: `docker compose up -d --build applicant admin`. **New operational requirement:** this
+> baseline adds a standalone deadline-sweep script (`scripts/mission-deadlines/sweep.ts`) that is
+> **not** wired into any request path or container — it must be scheduled as an external cron job
+> (e.g. hourly) running `npm run mission-deadlines:sweep` against the deployment's database and
+> environment. The sweep is idempotent (safe to run more often than needed, or to re-run after a
+> failure) but if it is never scheduled, assignments will never transition to `OVERDUE`/`FAILED` and
+> applicants will never be marked `DISQUALIFIED` for a missed deadline. No topology change beyond
+> adding this cron entry.
+>
 > `v0.18.1`/`v0.18.2` require **no deployment, infra or migration change** — `v0.18.1` is the
 > plan-template governance patch and `v0.18.2` adds regression scenarios and documentation only; no
 > product code, schema or Docker configuration changed in either.
@@ -328,7 +356,8 @@ Applicant container (`APPLICANT_PORT=3100`):
 - Apply page (authenticated): `http://demo.lvh.me:3100/apply`
 - Applicant application page (authenticated): `http://demo.lvh.me:3100/application`
 - Accepted applicant dashboard: `http://demo.lvh.me:3100/dashboard`
-- Applicant missions (`v0.14.0`, assigned-only as of `v0.18.0`): `http://demo.lvh.me:3100/dashboard/missions`
+- Applicant missions (`v0.14.0`, assigned-only as of `v0.18.0`; accept/deadline `v0.18.5`; task gate `v0.19.0`): `http://demo.lvh.me:3100/dashboard/missions`
+- Per-task resource page (`v0.19.0`, YouTube watch-gate for the tutorial task): `http://demo.lvh.me:3100/dashboard/tasks/<assignmentId>/<taskIndex>`
 - Engineering Journal (`v0.17.0`): `http://demo.lvh.me:3100/dashboard/journal`
 - Access denied page (`v0.14.2`, non-members of the host tenant): `http://demo.lvh.me:3100/access-denied`
 - Post-logout return route (`v0.14.3`, canonical host): `http://lvh.me:3100/logged-out`
@@ -340,8 +369,9 @@ Admin container (`ADMIN_PORT=3200`, routes at root, RBAC-gated):
 - Admin applications: `http://demo.lvh.me:3200/applications`
 - Admin programs: `http://demo.lvh.me:3200/programs`
 - Program content management (`v0.16.0`, ORG_ADMIN): `http://demo.lvh.me:3200/programs/<programId>/content`
-- Admin missions (`v0.14.0`): `http://demo.lvh.me:3200/missions`
+- Admin missions (`v0.14.0`; `tutorialUrl` field `v0.19.0`): `http://demo.lvh.me:3200/missions`
 - Submission review (`v0.15.0`): `http://demo.lvh.me:3200/missions/<missionId>/submissions/<submissionId>`
+- Submissions tab (`v0.19.0`, cross-mission filterable list): `http://demo.lvh.me:3200/submissions`
 - Admin operations page: `http://demo.lvh.me:3200/operations`
 - Organizations console (SUPER_ADMIN only): `http://lvh.me:3200/organizations`
 - Admin settings: `http://demo.lvh.me:3200/settings`
@@ -385,5 +415,18 @@ After deployment, verify:
 - Mission-driven dashboard progress (`v0.16.0`): after accepting a submission, the applicant
   dashboard's Overall Progress / Missions Accepted tile moves and the **Current Mission** card
   advances to the next mission.
+- Mission deadline lifecycle (`v0.18.5`): as `accepted@…`, a `NOT_STARTED` mission shows an Accept
+  Mission action; accepting it starts a live deadline/grace countdown (`v0.19.1` for the
+  Dashboard/My Program/Tasks wiring); running `npm run mission-deadlines:sweep` twice in a row
+  against a fixture past its deadline transitions it to `OVERDUE` once and is a no-op the second
+  time.
+- Mission-driven tasks (`v0.19.0`): as `accepted@…`, a mission's Tasks 1/2 must be marked complete
+  before the mission page's Submit button is enabled; a mission with a `tutorialUrl` requires
+  watching the embedded video to the end before Task 2 can be marked complete.
+- Submissions admin tab (`v0.19.0`): as `orgadmin@…`, `/submissions` lists submissions across every
+  mission with status/program filters; `techlead@…` can also review, `hr@…` is read-only, and
+  `applicant@…` cannot reach it.
+- Same-week repeat (`v0.19.1`): rejecting a Week `N` submission (`REPEAT` decision) reassigns the
+  applicant a different published mission for Week `N`, not a fresh Week 1 attempt.
 - Scenario regression (`v0.13.0`): `npm run regression:all` completes with no failures (documented
   skips allowed), or run it from the Ops Console at `http://127.0.0.1:3300`.

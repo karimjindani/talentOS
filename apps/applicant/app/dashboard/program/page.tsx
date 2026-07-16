@@ -1,14 +1,17 @@
+import Link from "next/link";
 import { auth } from "@/auth";
 import { getTenantContext } from "@talentos/ui";
 import {
   getTenantBySlug,
   getUserByEmail,
   listApplicantApplications,
-  listProgramTasks,
-  listVideoResources,
-  getApplicantProgramProgress,
-  listCompletedTaskIds,
+  listAssignedMissionsWithTasks,
+  getApplicantMissionProgress
 } from "@talentos/db";
+import { DeadlineCountdown } from "@/components/DeadlineCountdown";
+
+const PROGRAM_WEEKS = 4;
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 function formatDate(value: Date | null | undefined) {
   if (!value) return "—";
@@ -29,13 +32,17 @@ export default async function ProgramPage() {
   }
 
   const program = acceptedApp.program;
-  const tasks = await listProgramTasks(tenant.id, program.id);
-  const videos = await listVideoResources(tenant.id, program.id);
-  const completedTaskIds = await listCompletedTaskIds(user.id, program.id);
-  const weekProgress = await getApplicantProgramProgress(user.id, tenant.id, program.id);
+  // Mission-driven progress (v0.19.1): the SEM loop is the single source of truth for both
+  // per-week completion and the task checklist, replacing the old ProgramTask/VideoResource system.
+  const missionProgress = await getApplicantMissionProgress(tenant.id, user.id, program.id);
+  const missionsWithTasks = await listAssignedMissionsWithTasks(tenant.id, user.id, program.id);
+  const missionsByWeek = new Map(missionsWithTasks.map((entry) => [entry.mission.weekNumber, entry]));
 
-  const overallPercentage =
-    weekProgress.reduce((sum, w) => sum + w.percentage, 0) / weekProgress.length;
+  // The program's timeline is driven by the applicant's own pace, not a fixed calendar date: it
+  // starts the moment they accept the Week 1 mission, and runs for a fixed 4-week arc from there.
+  const week1AcceptedAt = missionsByWeek.get(1)?.assignment.acceptedAt ?? null;
+  const startDate = week1AcceptedAt;
+  const endDate = startDate ? new Date(startDate.getTime() + PROGRAM_WEEKS * WEEK_MS) : null;
 
   return (
     <div>
@@ -48,91 +55,89 @@ export default async function ProgramPage() {
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           <div>
             <p className="text-sm font-medium text-slate-500">Start Date</p>
-            <p className="mt-1 font-semibold text-slate-800">{formatDate(program.startsAt)}</p>
+            <p className="mt-1 font-semibold text-slate-800">
+              {startDate ? formatDate(startDate) : "Not started — accept your Week 1 mission"}
+            </p>
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500">End Date</p>
-            <p className="mt-1 font-semibold text-slate-800">{formatDate(program.endsAt)}</p>
+            <p className="mt-1 font-semibold text-slate-800">{endDate ? formatDate(endDate) : "—"}</p>
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500">Overall Progress</p>
-            <p className="mt-1 font-semibold text-brand-blue">{Math.round(overallPercentage)}%</p>
+            <p className="mt-1 font-semibold text-brand-blue">{missionProgress.overall.percentage}%</p>
           </div>
         </div>
       </div>
 
-      {/* 4-week breakdown */}
+      {/* 4-week breakdown, mission-driven */}
       <div className="mt-6 space-y-4">
-        {weekProgress.map((week) => {
-          const weekTasks = tasks.filter((t) => t.weekNumber === week.weekNumber);
-          const weekVideos = videos.filter((v) => v.weekNumber === week.weekNumber);
-          const allDone = week.totalTasks > 0 && week.completedTasks === week.totalTasks;
+        {missionProgress.weeks.map((week) => {
+          const entry = missionsByWeek.get(week.weekNumber);
+          const allDone = week.totalMissions > 0 && week.acceptedMissions === week.totalMissions;
+          const isCurrent = missionProgress.currentMission?.weekNumber === week.weekNumber;
 
           return (
             <div key={week.weekNumber} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-brand-navy">Week {week.weekNumber}</h3>
+                <h3 className="text-lg font-semibold text-brand-navy">
+                  Week {week.weekNumber}
+                  {entry ? <span className="ml-2 font-normal text-slate-500">· {entry.mission.title}</span> : null}
+                </h3>
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-semibold ${
                     allDone
                       ? "bg-emerald-100 text-emerald-700"
-                      : week.totalTasks === 0
+                      : week.totalMissions === 0
                         ? "bg-slate-100 text-slate-500"
-                        : "bg-brand-mist text-brand-blue"
+                        : isCurrent
+                          ? "bg-brand-mist text-brand-blue"
+                          : "bg-amber-100 text-amber-700"
                   }`}
                 >
-                  {allDone ? "Completed" : week.totalTasks === 0 ? "No tasks" : `${week.percentage}% done`}
+                  {allDone ? "Completed" : week.totalMissions === 0 ? "Not assigned yet" : isCurrent ? "Current" : `${week.percentage}%`}
                 </span>
               </div>
 
-              {/* Progress bar */}
               <div className="mt-3 h-2 rounded-full bg-slate-100">
                 <div className="h-2 rounded-full bg-brand-blue" style={{ width: `${week.percentage}%` }} />
               </div>
 
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                {/* Tasks */}
-                <div>
-                  <p className="text-sm font-medium text-slate-500">
-                    Tasks ({weekTasks.length})
-                  </p>
-                  <div className="mt-2 space-y-2">
-                    {weekTasks.length === 0 ? (
-                      <p className="text-xs text-slate-400">No tasks for this week</p>
-                    ) : (
-                      weekTasks.map((task) => {
-                        const done = completedTaskIds.includes(task.id);
-                        return (
-                          <div key={task.id} className="flex items-center gap-2 text-sm">
-                            <div className={`h-4 w-4 shrink-0 rounded ${done ? "bg-emerald-500" : "border-2 border-slate-300"}`} />
-                            <span className={done ? "text-slate-400 line-through" : "text-slate-700"}>
-                              {task.title}
-                            </span>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+              {isCurrent &&
+              entry &&
+              ["ACCEPTED", "IN_PROGRESS", "OVERDUE"].includes(entry.assignment.status) &&
+              entry.assignment.deadlineAt &&
+              entry.assignment.graceEndsAt ? (
+                <div className="mt-4">
+                  <DeadlineCountdown deadlineAt={entry.assignment.deadlineAt} graceEndsAt={entry.assignment.graceEndsAt} />
                 </div>
+              ) : null}
 
-                {/* Videos */}
-                <div>
-                  <p className="text-sm font-medium text-slate-500">
-                    Resources ({weekVideos.length})
-                  </p>
-                  <div className="mt-2 space-y-2">
-                    {weekVideos.length === 0 ? (
-                      <p className="text-xs text-slate-400">No resources for this week</p>
-                    ) : (
-                      weekVideos.map((video) => (
-                        <div key={video.id} className="text-sm text-slate-700">
-                          🎬 {video.title}
-                        </div>
-                      ))
-                    )}
+              {entry ? (
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-slate-500">Tasks</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                    {entry.tasks.map((task) => {
+                      const href =
+                        task.index === 3
+                          ? `/dashboard/missions/${entry.mission.id}`
+                          : `/dashboard/tasks/${entry.assignment.id}/${task.index}`;
+                      return (
+                        <Link
+                          key={task.index}
+                          href={href}
+                          className="flex items-center gap-2 rounded-xl border border-slate-100 p-3 text-sm transition hover:border-brand-blue"
+                        >
+                          <div className={`h-4 w-4 shrink-0 rounded ${task.complete ? "bg-emerald-500" : "border-2 border-slate-300"}`} />
+                          <span className={task.complete ? "text-slate-400 line-through" : "text-slate-700"}>{task.title}</span>
+                        </Link>
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
+              ) : (
+                <p className="mt-4 text-xs text-slate-400">No mission assigned for this week yet.</p>
+              )}
             </div>
           );
         })}

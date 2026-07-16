@@ -1,17 +1,15 @@
+import Link from "next/link";
 import { auth } from "@/auth";
 import { getTenantContext } from "@talentos/ui";
 import {
+  getApplicantMissionProgress,
   getTenantBySlug,
   getUserByEmail,
   listApplicantApplications,
-  listProgramTasks,
-  listCompletedTaskIds,
+  listAssignedMissionsWithTasks,
+  type MissionTaskSummary
 } from "@talentos/db";
-
-function formatDate(value: Date | null | undefined) {
-  if (!value) return "No due date";
-  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
+import { DeadlineCountdown } from "@/components/DeadlineCountdown";
 
 export default async function TasksPage() {
   const session = await auth();
@@ -27,70 +25,95 @@ export default async function TasksPage() {
   }
 
   const program = acceptedApp.program;
-  const tasks = await listProgramTasks(tenant.id, program.id);
-  const completedTaskIds = await listCompletedTaskIds(user.id, program.id);
-
-  const now = new Date();
+  const missionsWithTasks = await listAssignedMissionsWithTasks(tenant.id, user.id, program.id);
+  const missionProgress = await getApplicantMissionProgress(tenant.id, user.id, program.id);
 
   return (
     <div>
       <h1 className="text-3xl font-bold text-brand-navy">Tasks</h1>
-      <p className="mt-2 text-slate-600">All tasks for {program.name}, grouped by week.</p>
+      <p className="mt-2 text-slate-600">
+        Every mission breaks into the same 3 steps. Complete Review Brief and Study Tutorial before you can
+        submit a mission for review.
+      </p>
 
       <div className="mt-6 space-y-6">
-        {[1, 2, 3, 4].map((weekNum) => {
-          const weekTasks = tasks.filter((t) => t.weekNumber === weekNum);
-          return (
-            <div key={weekNum}>
-              <h2 className="mb-3 text-lg font-semibold text-brand-navy">Week {weekNum}</h2>
-              {weekTasks.length === 0 ? (
-                <p className="text-sm text-slate-400">No tasks for this week.</p>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {weekTasks.map((task) => {
-                    const done = completedTaskIds.includes(task.id);
-                    const overdue = !done && task.dueAt && new Date(task.dueAt) < now;
-                    return (
-                      <div
-                        key={task.id}
-                        className={`rounded-2xl border bg-white p-5 shadow-sm ${
-                          overdue ? "border-rose-200" : "border-slate-200"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start gap-3">
-                            <div className={`mt-0.5 h-5 w-5 shrink-0 rounded ${done ? "bg-emerald-500" : "border-2 border-slate-300"}`} />
-                            <div>
-                              <p className={`font-semibold ${done ? "text-slate-400 line-through" : "text-slate-800"}`}>
-                                {task.title}
-                              </p>
-                              {task.description ? (
-                                <p className="mt-1 text-sm text-slate-600">{task.description}</p>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="mt-3 flex items-center gap-3 text-xs">
-                          <span className={`rounded-full px-2 py-1 font-medium ${
-                            done
-                              ? "bg-emerald-100 text-emerald-700"
-                              : overdue
-                                ? "bg-rose-100 text-rose-700"
-                                : "bg-amber-100 text-amber-700"
-                          }`}>
-                            {done ? "Completed" : overdue ? "Overdue" : "Pending"}
-                          </span>
-                          <span className="text-slate-500">Due: {formatDate(task.dueAt)}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
+        {missionsWithTasks.length === 0 ? (
+          <p className="text-sm text-slate-400">No missions assigned yet.</p>
+        ) : (
+          missionsWithTasks.map(({ assignment, mission, tasks }) => {
+            const isCurrent = missionProgress.currentMission?.id === mission.id;
+            const hasLiveDeadline =
+              isCurrent &&
+              ["ACCEPTED", "IN_PROGRESS", "OVERDUE"].includes(assignment.status) &&
+              assignment.deadlineAt &&
+              assignment.graceEndsAt;
+
+            return (
+              <div key={assignment.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-lg font-semibold text-brand-navy">
+                    Week {mission.weekNumber} · {mission.title}
+                  </h2>
+                  <Link
+                    href={`/dashboard/missions/${mission.id}`}
+                    className="text-sm font-medium text-brand-blue hover:underline"
+                  >
+                    Open mission →
+                  </Link>
                 </div>
-              )}
-            </div>
-          );
-        })}
+                {hasLiveDeadline && assignment.deadlineAt && assignment.graceEndsAt ? (
+                  <div className="mt-3">
+                    <DeadlineCountdown deadlineAt={assignment.deadlineAt} graceEndsAt={assignment.graceEndsAt} />
+                  </div>
+                ) : null}
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  {tasks.map((task) => (
+                    <TaskCard key={task.index} assignmentId={assignment.id} missionId={mission.id} task={task} />
+                  ))}
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
+  );
+}
+
+function TaskCard({
+  assignmentId,
+  missionId,
+  task
+}: {
+  assignmentId: string;
+  missionId: string;
+  task: MissionTaskSummary;
+}) {
+  // Tasks 1 & 2 open the per-task resource page; Task 3 has no checkbox of its own — it's
+  // completed by submitting, so it links straight to the mission detail page instead.
+  const href = task.index === 3 ? `/dashboard/missions/${missionId}` : `/dashboard/tasks/${assignmentId}/${task.index}`;
+
+  return (
+    <Link
+      href={href}
+      className={`h-full rounded-xl border p-4 transition hover:border-brand-blue ${
+        task.complete ? "border-emerald-200 bg-emerald-50" : "border-slate-200"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <div className={`mt-0.5 h-5 w-5 shrink-0 rounded ${task.complete ? "bg-emerald-500" : "border-2 border-slate-300"}`} />
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-blue">Task {task.index}</p>
+          <p className={`font-semibold ${task.complete ? "text-slate-500" : "text-slate-800"}`}>{task.title}</p>
+        </div>
+      </div>
+      <span
+        className={`mt-3 inline-block rounded-full px-2 py-1 text-xs font-medium ${
+          task.complete ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+        }`}
+      >
+        {task.complete ? "Completed" : "Pending"}
+      </span>
+    </Link>
   );
 }

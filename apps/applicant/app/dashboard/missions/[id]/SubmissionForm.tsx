@@ -15,13 +15,15 @@ type SubmissionFormProps = {
   };
   /** True when this is a resubmission after NEEDS_REVISION. */
   isRevision: boolean;
+  /** False until Tasks 1 & 2 (Review Brief, Study Tutorial) are checked off. */
+  canSubmit: boolean;
 };
 
 const inputClass =
   "w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 " +
   "focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/30";
 
-export function SubmissionForm({ missionId, defaults, isRevision }: SubmissionFormProps) {
+export function SubmissionForm({ missionId, defaults, isRevision, canSubmit }: SubmissionFormProps) {
   const action = saveSubmissionAction.bind(null, missionId);
   const [state, formAction, pending] = useActionState(action, INITIAL_STATE);
 
@@ -91,8 +93,9 @@ export function SubmissionForm({ missionId, defaults, isRevision }: SubmissionFo
           type="submit"
           name="intent"
           value="submit"
-          disabled={pending}
-          className="cursor-pointer rounded-xl bg-brand-blue px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-navy disabled:opacity-60"
+          disabled={pending || !canSubmit}
+          title={canSubmit ? undefined : "Complete Tasks 1 & 2 before submitting for review."}
+          className="cursor-pointer rounded-xl bg-brand-blue px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-navy disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isRevision ? "Resubmit for review" : "Submit for review"}
         </button>

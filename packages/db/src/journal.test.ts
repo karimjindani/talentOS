@@ -614,7 +614,7 @@ describe("engineering journal data access", () => {
         tenantId: "tenant-1",
         applicantId: "user-1",
         missionId: "mission-1",
-        status: "ACTIVE",
+        status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] },
         mission: { status: "PUBLISHED" }
       },
       include: { mission: { select: { id: true, programId: true, weekNumber: true } } },
