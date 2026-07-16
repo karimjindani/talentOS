@@ -30,6 +30,7 @@
     "regression:all": "tsx scripts/regression/run.ts all",
     "ops:start": "npm run start -w @talentos/ops",
     "ops:cleanup-regression": "tsx scripts/cleanup-regression-data.ts",
+    "mission-deadlines:sweep": "tsx scripts/mission-deadlines/sweep.ts",
     "local:bootstrap": "tsx scripts/local/bootstrap.ts",
     "local:doctor": "tsx scripts/local/doctor.ts",
     "local:smoke-login": "tsx scripts/local/smoke-login.ts",

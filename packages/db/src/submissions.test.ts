@@ -7,16 +7,23 @@ const prismaMock = vi.hoisted(() => ({
   missionAssignmentFindMany: vi.fn(),
   transaction: vi.fn(),
   txMissionFindFirst: vi.fn(),
+  txMissionFindMany: vi.fn(),
   txMissionAssignmentFindFirst: vi.fn(),
   txMissionAssignmentUpdateMany: vi.fn(),
   txMissionAssignmentCreate: vi.fn(),
+  txApplicationFindFirst: vi.fn(),
+  txApplicationUpdateMany: vi.fn(),
+  txMissionAssignmentGroupBy: vi.fn(),
+  txTenantMembershipFindMany: vi.fn(),
+  txNotificationCreateMany: vi.fn(),
   txSubmissionFindFirst: vi.fn(),
   txSubmissionCreate: vi.fn(),
   txSubmissionUpdate: vi.fn(),
   txSubmissionFindFirstOrThrow: vi.fn(),
   txAuditLogCreate: vi.fn(),
   txNotificationCreate: vi.fn(),
-  txJournalUpdateMany: vi.fn()
+  txJournalUpdateMany: vi.fn(),
+  txMissionTaskCompletionFindMany: vi.fn()
 }));
 
 vi.mock("./client", () => ({
@@ -39,6 +46,7 @@ import {
   getApplicantMissionProgress,
   getApplicantSubmission,
   listMissionSubmissions,
+  listTenantSubmissions,
   parseEvidenceUrl,
   reviewSubmission,
   saveSubmissionDraft,
@@ -77,12 +85,15 @@ describe("submission data access", () => {
     }
     prismaMock.transaction.mockImplementation(async (callback) =>
       callback({
-        mission: { findFirst: prismaMock.txMissionFindFirst },
+        mission: { findFirst: prismaMock.txMissionFindFirst, findMany: prismaMock.txMissionFindMany },
         missionAssignment: {
           findFirst: prismaMock.txMissionAssignmentFindFirst,
           updateMany: prismaMock.txMissionAssignmentUpdateMany,
-          create: prismaMock.txMissionAssignmentCreate
+          create: prismaMock.txMissionAssignmentCreate,
+          groupBy: prismaMock.txMissionAssignmentGroupBy
         },
+        application: { findFirst: prismaMock.txApplicationFindFirst, updateMany: prismaMock.txApplicationUpdateMany },
+        tenantMembership: { findMany: prismaMock.txTenantMembershipFindMany },
         submission: {
           findFirst: prismaMock.txSubmissionFindFirst,
           create: prismaMock.txSubmissionCreate,
@@ -91,9 +102,13 @@ describe("submission data access", () => {
         },
         engineeringJournalEntry: { updateMany: prismaMock.txJournalUpdateMany },
         auditLog: { create: prismaMock.txAuditLogCreate },
-        notification: { create: prismaMock.txNotificationCreate }
+        notification: { create: prismaMock.txNotificationCreate, createMany: prismaMock.txNotificationCreateMany },
+        missionTaskCompletion: { findMany: prismaMock.txMissionTaskCompletionFindMany }
       })
     );
+    // Tasks 1 & 2 complete by default so existing submit-flow tests are unaffected by the gate;
+    // tests for the gate itself override this.
+    prismaMock.txMissionTaskCompletionFindMany.mockResolvedValue([{ taskIndex: 1 }, { taskIndex: 2 }]);
     prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({
       id: "assignment-1",
       tenantId: "tenant-1",
@@ -102,7 +117,9 @@ describe("submission data access", () => {
       missionId: "mission-1",
       weekNumber: 1,
       attemptNumber: 1,
-      status: "ACTIVE",
+      status: "ACCEPTED",
+      deadlineAt: new Date("2026-07-21T00:00:00.000Z"),
+      graceEndsAt: new Date("2026-07-22T00:00:00.000Z"),
       mission: { id: "mission-1", programId: "program-1", weekNumber: 1 }
     });
     prismaMock.txSubmissionCreate.mockResolvedValue({ id: "sub-1" });
@@ -110,9 +127,15 @@ describe("submission data access", () => {
     prismaMock.txSubmissionFindFirstOrThrow.mockResolvedValue({ id: "sub-1" });
     prismaMock.txAuditLogCreate.mockResolvedValue({ id: "audit-1" });
     prismaMock.txNotificationCreate.mockResolvedValue({ id: "notif-1" });
+    prismaMock.txNotificationCreateMany.mockResolvedValue({ count: 0 });
     prismaMock.txMissionAssignmentUpdateMany.mockResolvedValue({ count: 1 });
     prismaMock.txMissionAssignmentCreate.mockResolvedValue({ id: "assignment-2", attemptNumber: 2 });
     prismaMock.txJournalUpdateMany.mockResolvedValue({ count: 1 });
+    prismaMock.txApplicationFindFirst.mockResolvedValue({ id: "application-1" });
+    prismaMock.txApplicationUpdateMany.mockResolvedValue({ count: 1 });
+    prismaMock.txMissionFindMany.mockResolvedValue([]);
+    prismaMock.txMissionAssignmentGroupBy.mockResolvedValue([]);
+    prismaMock.txTenantMembershipFindMany.mockResolvedValue([]);
   });
 
   it("reads the applicant's own submission tenant-scoped", async () => {
@@ -130,6 +153,22 @@ describe("submission data access", () => {
     );
   });
 
+  it("lists tenant-wide submissions with no filters by default", async () => {
+    await listTenantSubmissions("tenant-1");
+    expect(prismaMock.submissionFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tenantId: "tenant-1" } })
+    );
+  });
+
+  it("filters tenant-wide submissions by status and program", async () => {
+    await listTenantSubmissions("tenant-1", { status: "SUBMITTED", programId: "program-1" });
+    expect(prismaMock.submissionFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId: "tenant-1", status: "SUBMITTED", mission: { programId: "program-1" } }
+      })
+    );
+  });
+
   it("creates a first draft only for a PUBLISHED mission of the tenant, with audit", async () => {
     prismaMock.txSubmissionFindFirst.mockResolvedValue(null);
     await saveSubmissionDraft(draftInput());
@@ -139,7 +178,7 @@ describe("submission data access", () => {
         tenantId: "tenant-1",
         applicantId: "user-1",
         missionId: "mission-1",
-        status: "ACTIVE",
+        status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] },
         mission: { status: "PUBLISHED" }
       },
       include: { mission: { select: { id: true, programId: true, weekNumber: true } } },
@@ -155,6 +194,11 @@ describe("submission data access", () => {
     });
     expect(prismaMock.txAuditLogCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: "submission.created", entityType: "Submission" })
+    });
+    // First draft moves the assignment ACCEPTED -> IN_PROGRESS.
+    expect(prismaMock.txMissionAssignmentUpdateMany).toHaveBeenCalledWith({
+      where: { id: "assignment-1", tenantId: "tenant-1", applicantId: "user-1", status: "ACCEPTED" },
+      data: { status: "IN_PROGRESS" }
     });
   });
 
@@ -259,6 +303,104 @@ describe("submission data access", () => {
     expect(prismaMock.txSubmissionFindFirst).toHaveBeenCalledWith({
       where: { id: "sub-1", tenantId: "tenant-1", applicantId: "user-1" }
     });
+    expect(prismaMock.txMissionAssignmentUpdateMany).toHaveBeenCalledWith({
+      where: { id: "assignment-1", tenantId: "tenant-1", applicantId: "user-1", status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] } },
+      data: { status: "PENDING_EVALUATION" }
+    });
+  });
+
+  it("marks the assignment LATE_SUBMITTED when submitted after the deadline but within the grace period", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-22T00:00:00.000Z")); // between deadlineAt (07-21) and graceEndsAt (07-22 + defaults)
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({
+      id: "assignment-1",
+      status: "OVERDUE",
+      deadlineAt: new Date("2026-07-21T00:00:00.000Z"),
+      graceEndsAt: new Date("2026-07-23T00:00:00.000Z")
+    });
+    prismaMock.txSubmissionFindFirst.mockResolvedValue({
+      id: "sub-1",
+      status: "DRAFT",
+      missionId: "mission-1",
+      missionAssignmentId: "assignment-1",
+      repositoryUrl: "https://github.com/u/r",
+      deploymentUrl: null,
+      loomUrl: null
+    });
+
+    await submitSubmission({ id: "sub-1", tenantId: "tenant-1", applicantId: "user-1" });
+
+    expect(prismaMock.txMissionAssignmentUpdateMany).toHaveBeenCalledWith({
+      where: { id: "assignment-1", tenantId: "tenant-1", applicantId: "user-1", status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] } },
+      data: { status: "LATE_SUBMITTED" }
+    });
+    vi.useRealTimers();
+  });
+
+  it("rejects a submission attempted after the grace period has passed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-25T00:00:00.000Z")); // after graceEndsAt
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({
+      id: "assignment-1",
+      status: "OVERDUE",
+      deadlineAt: new Date("2026-07-21T00:00:00.000Z"),
+      graceEndsAt: new Date("2026-07-23T00:00:00.000Z")
+    });
+    prismaMock.txSubmissionFindFirst.mockResolvedValue({
+      id: "sub-1",
+      status: "DRAFT",
+      missionId: "mission-1",
+      missionAssignmentId: "assignment-1",
+      repositoryUrl: "https://github.com/u/r",
+      deploymentUrl: null,
+      loomUrl: null
+    });
+
+    await expect(submitSubmission({ id: "sub-1", tenantId: "tenant-1", applicantId: "user-1" })).rejects.toThrow(
+      "deadline and grace period"
+    );
+    expect(prismaMock.txSubmissionUpdate).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("rejects a submission when the assignment has already been marked FAILED", async () => {
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({
+      id: "assignment-1",
+      status: "FAILED",
+      deadlineAt: new Date("2026-07-21T00:00:00.000Z"),
+      graceEndsAt: new Date("2026-07-23T00:00:00.000Z")
+    });
+    prismaMock.txSubmissionFindFirst.mockResolvedValue({
+      id: "sub-1",
+      status: "DRAFT",
+      missionId: "mission-1",
+      missionAssignmentId: "assignment-1",
+      repositoryUrl: "https://github.com/u/r",
+      deploymentUrl: null,
+      loomUrl: null
+    });
+
+    await expect(submitSubmission({ id: "sub-1", tenantId: "tenant-1", applicantId: "user-1" })).rejects.toThrow(
+      "deadline and grace period"
+    );
+  });
+
+  it("rejects submitting for review until Tasks 1 & 2 (Review Brief, Study Tutorial) are complete", async () => {
+    prismaMock.txMissionTaskCompletionFindMany.mockResolvedValue([{ taskIndex: 1 }]); // Task 2 missing
+    prismaMock.txSubmissionFindFirst.mockResolvedValue({
+      id: "sub-1",
+      status: "DRAFT",
+      missionId: "mission-1",
+      missionAssignmentId: "assignment-1",
+      repositoryUrl: "https://github.com/u/r",
+      deploymentUrl: null,
+      loomUrl: null
+    });
+
+    await expect(submitSubmission({ id: "sub-1", tenantId: "tenant-1", applicantId: "user-1" })).rejects.toThrow(
+      "Complete the mission tasks"
+    );
+    expect(prismaMock.txSubmissionUpdate).not.toHaveBeenCalled();
   });
 
   it("rejects submitting from a non-editable status", async () => {
@@ -332,7 +474,59 @@ describe("submission data access", () => {
     });
   });
 
-  it("closes a repeated attempt and creates exactly one next assignment attempt", async () => {
+  it("closes a repeated attempt and creates exactly one alternate same-week assignment attempt", async () => {
+    const assignment = {
+      id: "assignment-1",
+      tenantId: "tenant-1",
+      programId: "program-1",
+      applicantId: "user-1",
+      missionId: "mission-1",
+      weekNumber: 3,
+      attemptNumber: 1
+    };
+    prismaMock.txSubmissionFindFirst.mockResolvedValue({
+      id: "sub-1",
+      status: "SUBMITTED",
+      missionId: "mission-1",
+      missionAssignmentId: "assignment-1",
+      applicantId: "user-1",
+      mission: { id: "mission-1", title: "Build a Landing Page" },
+      missionAssignment: assignment
+    });
+    // 1st call: "latest overall attempt" guard. 2nd call: latest same-week attempt for the next attemptNumber.
+    prismaMock.txMissionAssignmentFindFirst
+      .mockResolvedValueOnce({ id: "assignment-1" })
+      .mockResolvedValueOnce({ attemptNumber: 1 });
+    prismaMock.txMissionFindMany.mockResolvedValue([{ id: "mission-alt", title: "Alt Mission", order: 1 }]);
+
+    await reviewSubmission({
+      id: "sub-1",
+      tenantId: "tenant-1",
+      status: "REPEAT",
+      reviewerFeedback: "Repeat Week 3 with a fresh attempt.",
+      reviewerUserId: "lead-1"
+    });
+
+    expect(prismaMock.txMissionAssignmentUpdateMany).toHaveBeenCalledWith({
+      where: { id: "assignment-1", tenantId: "tenant-1", applicantId: "user-1" },
+      data: { status: "REPEAT" }
+    });
+    // Repeats the same week (3) with a different mission — never resets back to week one.
+    expect(prismaMock.txMissionAssignmentCreate).toHaveBeenCalledTimes(1);
+    expect(prismaMock.txMissionAssignmentCreate).toHaveBeenCalledWith({
+      data: {
+        tenantId: "tenant-1",
+        programId: "program-1",
+        applicantId: "user-1",
+        missionId: "mission-alt",
+        weekNumber: 3,
+        attemptNumber: 2,
+        status: "NOT_STARTED"
+      }
+    });
+  });
+
+  it("does not auto-advance the week when the decision is REPEAT", async () => {
     const assignment = {
       id: "assignment-1",
       tenantId: "tenant-1",
@@ -351,24 +545,89 @@ describe("submission data access", () => {
       mission: { id: "mission-1", title: "Build a Landing Page" },
       missionAssignment: assignment
     });
-    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({ id: "assignment-1", attemptNumber: 1 });
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValueOnce({ id: "assignment-1" }).mockResolvedValueOnce(null);
+    prismaMock.txMissionFindMany.mockResolvedValue([]); // no alternate week-1 mission
 
     await reviewSubmission({
       id: "sub-1",
       tenantId: "tenant-1",
       status: "REPEAT",
-      reviewerFeedback: "Repeat Week 1 with a fresh attempt.",
+      reviewerFeedback: "n/a",
       reviewerUserId: "lead-1"
     });
 
-    expect(prismaMock.txMissionAssignmentUpdateMany).toHaveBeenCalledWith({
-      where: { id: "assignment-1", tenantId: "tenant-1", applicantId: "user-1" },
-      data: { status: "REPEAT" }
+    // assignWeekMissionToAcceptedApplicantTx (auto-advance) is never invoked on REPEAT.
+    expect(prismaMock.txApplicationUpdateMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.txApplicationUpdateMany).toHaveBeenCalledWith({
+      where: { tenantId: "tenant-1", programId: "program-1", applicantId: "user-1", status: "ACCEPTED" },
+      data: { status: "AWAITING_MISSION_ASSIGNMENT" }
     });
-    expect(prismaMock.txMissionAssignmentCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("auto-advances to the next week when a submission is ACCEPTED, unless already at the final week", async () => {
+    const assignment = {
+      id: "assignment-1",
+      tenantId: "tenant-1",
+      programId: "program-1",
+      applicantId: "user-1",
+      missionId: "mission-1",
+      weekNumber: 2,
+      attemptNumber: 1
+    };
+    prismaMock.txSubmissionFindFirst.mockResolvedValue({
+      id: "sub-1",
+      status: "SUBMITTED",
+      missionId: "mission-1",
+      applicantId: "user-1",
+      mission: { id: "mission-1", title: "Build a Landing Page" },
+      missionAssignment: assignment
+    });
+    prismaMock.txApplicationFindFirst.mockResolvedValue({ id: "application-1" });
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue(null); // no existing week-3 assignment yet
+    prismaMock.txMissionFindMany.mockResolvedValue([{ id: "mission-w3", title: "Week 3 Mission", order: 1 }]);
+
+    await reviewSubmission({
+      id: "sub-1",
+      tenantId: "tenant-1",
+      status: "ACCEPTED",
+      reviewerFeedback: "Nice work.",
+      reviewerUserId: "lead-1"
+    });
+
     expect(prismaMock.txMissionAssignmentCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ attemptNumber: 2, status: "ACTIVE" })
+      data: expect.objectContaining({ weekNumber: 3, attemptNumber: 1, status: "NOT_STARTED" })
     });
+  });
+
+  it("does not assign a Week 5 when accepting the final Week 4 submission (fixed four-week program)", async () => {
+    const assignment = {
+      id: "assignment-1",
+      tenantId: "tenant-1",
+      programId: "program-1",
+      applicantId: "user-1",
+      missionId: "mission-1",
+      weekNumber: 4,
+      attemptNumber: 1
+    };
+    prismaMock.txSubmissionFindFirst.mockResolvedValue({
+      id: "sub-1",
+      status: "SUBMITTED",
+      missionId: "mission-1",
+      applicantId: "user-1",
+      mission: { id: "mission-1", title: "Build a Landing Page" },
+      missionAssignment: assignment
+    });
+
+    await reviewSubmission({
+      id: "sub-1",
+      tenantId: "tenant-1",
+      status: "ACCEPTED",
+      reviewerFeedback: "Program complete!",
+      reviewerUserId: "lead-1"
+    });
+
+    expect(prismaMock.txApplicationFindFirst).not.toHaveBeenCalled();
+    expect(prismaMock.txMissionAssignmentCreate).not.toHaveBeenCalled();
   });
 
   it("refuses to review a submission that is not SUBMITTED (double-review guard)", async () => {

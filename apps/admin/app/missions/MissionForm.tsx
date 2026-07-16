@@ -128,6 +128,20 @@ export function MissionForm({
         placeholder="Describe the customer/problem context, constraints, expected outcome, and available resources."
         helpText="Frame the real-world situation applicants are solving."
       />
+      <label className="block">
+        <span className="text-sm font-medium">Tutorial URL</span>
+        <input
+          name="tutorialUrl"
+          type="url"
+          defaultValue={mission?.tutorialUrl ?? ""}
+          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+          placeholder="https://www.youtube.com/watch?v=..."
+        />
+        <span className="mt-1 block text-xs text-slate-500">
+          Shown on Task 2 (&quot;Study the Tutorial&quot;) of this mission&apos;s task checklist. Optional.
+        </span>
+      </label>
+
       <TextArea
         name="deliverables"
         label="Deliverables"

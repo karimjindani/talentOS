@@ -45,6 +45,24 @@ function parseStatus(value: FormDataEntryValue | null): MissionStatus {
   return MISSION_STATUSES.includes(input) ? input : "DRAFT";
 }
 
+/** Rejects javascript:/data: etc. — this link is rendered as a raw <a href> on the applicant portal. */
+function parseOptionalHttpUrl(value: FormDataEntryValue | null): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    return null;
+  }
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error("Tutorial URL must be a valid URL (including https://).");
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error("Tutorial URL must use http or https.");
+  }
+  return url.toString();
+}
+
 function readMissionForm(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
   if (!title) {
@@ -66,7 +84,8 @@ function readMissionForm(formData: FormData) {
     acceptanceCriteria: String(formData.get("acceptanceCriteria") ?? "").trim(),
     deliverables: String(formData.get("deliverables") ?? "").trim(),
     evaluationCriteria: String(formData.get("evaluationCriteria") ?? "").trim(),
-    competencyTags: parseTags(formData.get("competencyTags"))
+    competencyTags: parseTags(formData.get("competencyTags")),
+    tutorialUrl: parseOptionalHttpUrl(formData.get("tutorialUrl"))
   };
 }
 

@@ -126,6 +126,7 @@ function baseMissionInput() {
     deliverables: "Deliverables",
     evaluationCriteria: "Evaluation",
     competencyTags: ["Requirements Engineering"],
+    tutorialUrl: null,
     actorUserId: "actor-1"
   };
 }

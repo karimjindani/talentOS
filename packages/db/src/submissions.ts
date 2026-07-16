@@ -1,9 +1,16 @@
 import { type SubmissionStatus } from "@prisma/client";
 import { prisma } from "./client";
 import {
-  createRepeatMissionAssignmentTx,
+  assignWeekMissionToAcceptedApplicantTx,
+  createRepeatMissionForSameWeekTx,
   getActiveMissionAssignmentForMissionTx
 } from "./mission-assignments";
+import { REQUIRED_TASK_INDEXES } from "./mission-tasks";
+
+// Programs run a fixed four-week arc; accepting the week-4 submission completes the program
+// instead of assigning a week 5 (assignWeekMissionToAcceptedApplicantTx already no-ops when no
+// PUBLISHED mission exists for a week, but the explicit cap keeps that intent obvious here).
+const FINAL_PROGRAM_WEEK = 4;
 
 // Mission-submission workflow helpers (v0.15.0, D-067). All reads/writes are tenant-scoped via the
 // Submission.tenantId column; writes additionally verify the mission chain and the applicant owner.
@@ -69,6 +76,27 @@ export function listMissionSubmissions(tenantId: string, missionId: string) {
   return prisma.submission.findMany({
     where: { tenantId, missionId },
     include: { applicant: { select: { id: true, name: true, email: true } } },
+    orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }]
+  });
+}
+
+export type TenantSubmissionFilters = {
+  status?: SubmissionStatus;
+  programId?: string;
+};
+
+/** All submissions across every mission in the tenant (the top-level Submissions admin page). */
+export function listTenantSubmissions(tenantId: string, filters: TenantSubmissionFilters = {}) {
+  return prisma.submission.findMany({
+    where: {
+      tenantId,
+      ...(filters.status ? { status: filters.status } : {}),
+      ...(filters.programId ? { mission: { programId: filters.programId } } : {})
+    },
+    include: {
+      applicant: { select: { id: true, name: true, email: true } },
+      mission: { select: { id: true, title: true, weekNumber: true, programId: true, program: { select: { name: true } } } }
+    },
     orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }]
   });
 }
@@ -165,6 +193,12 @@ export async function saveSubmissionDraft(input: SubmissionEvidenceInput) {
           ...evidence
         }
       });
+      // First draft moves the assignment from ACCEPTED to IN_PROGRESS; no-op if it's already
+      // IN_PROGRESS or OVERDUE (drafting during the grace period doesn't change its status).
+      await tx.missionAssignment.updateMany({
+        where: { id: assignment.id, tenantId: input.tenantId, applicantId: input.applicantId, status: "ACCEPTED" },
+        data: { status: "IN_PROGRESS" }
+      });
       await tx.auditLog.create({
         data: {
           tenantId: input.tenantId,
@@ -234,7 +268,35 @@ export async function submitSubmission({ id, tenantId, applicantId }: SubmitSubm
       throw new Error("This submission is not linked to an assignment attempt.");
     }
 
+    const assignment = await tx.missionAssignment.findFirst({
+      where: { id: submission.missionAssignmentId, tenantId, applicantId }
+    });
+    if (!assignment) {
+      throw new Error("This submission's assignment attempt was not found.");
+    }
+    if (assignment.status === "FAILED") {
+      throw new Error("The deadline and grace period for this mission have passed.");
+    }
+
+    // Tasks 1 & 2 (Review Brief, Study Tutorial) must be checked off before Task 3 (this submit
+    // action) is allowed — Task 3 itself has no completion row; it's this transition.
+    const requiredCompletions = await tx.missionTaskCompletion.findMany({
+      where: { missionAssignmentId: assignment.id, taskIndex: { in: [...REQUIRED_TASK_INDEXES] } },
+      select: { taskIndex: true }
+    });
+    const completedTaskIndexes = new Set(requiredCompletions.map((completion) => completion.taskIndex));
+    if (!REQUIRED_TASK_INDEXES.every((index) => completedTaskIndexes.has(index))) {
+      throw new Error("Complete the mission tasks (Review Brief, Study Tutorial) before submitting for review.");
+    }
+
     const submittedAt = new Date();
+    // Trust the clock over the (possibly stale, externally-swept) assignment status — the sweep may
+    // not have run yet, so lateness is judged directly against the stored deadline/grace timestamps.
+    if (assignment.graceEndsAt && submittedAt.getTime() > assignment.graceEndsAt.getTime()) {
+      throw new Error("The deadline and grace period for this mission have passed.");
+    }
+    const isLate = Boolean(assignment.deadlineAt && submittedAt.getTime() > assignment.deadlineAt.getTime());
+
     const updated = await tx.submission.update({
       where: { id: submission.id },
       data: { status: "SUBMITTED", submittedAt }
@@ -254,9 +316,9 @@ export async function submitSubmission({ id, tenantId, applicantId }: SubmitSubm
         id: submission.missionAssignmentId,
         tenantId,
         applicantId,
-        status: "ACTIVE"
+        status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] }
       },
-      data: { status: "SUBMITTED" }
+      data: { status: isLate ? "LATE_SUBMITTED" : "PENDING_EVALUATION" }
     });
 
     await tx.auditLog.create({
@@ -317,8 +379,10 @@ export async function reviewSubmission({ id, tenantId, status, reviewerFeedback,
     });
 
     if (submission.missionAssignment) {
+      // NEEDS_REVISION returns to IN_PROGRESS (not NOT_STARTED/ACCEPTED) since a draft already
+      // exists for the applicant to revise.
       const assignmentStatus =
-        status === "ACCEPTED" ? "PASSED" : status === "REPEAT" ? "REPEAT" : "ACTIVE";
+        status === "ACCEPTED" ? "PASSED" : status === "REPEAT" ? "REPEAT" : "IN_PROGRESS";
       await tx.missionAssignment.updateMany({
         where: {
           id: submission.missionAssignment.id,
@@ -329,7 +393,14 @@ export async function reviewSubmission({ id, tenantId, status, reviewerFeedback,
       });
 
       if (status === "REPEAT") {
-        await createRepeatMissionAssignmentTx(tx, submission.missionAssignment);
+        await createRepeatMissionForSameWeekTx(tx, submission.missionAssignment);
+      } else if (status === "ACCEPTED" && submission.missionAssignment.weekNumber < FINAL_PROGRAM_WEEK) {
+        await assignWeekMissionToAcceptedApplicantTx(tx, {
+          tenantId,
+          programId: submission.missionAssignment.programId,
+          applicantId: submission.applicantId,
+          weekNumber: submission.missionAssignment.weekNumber + 1
+        });
       }
     } else if (status === "REPEAT") {
       throw new Error("A repeat decision requires a linked assignment attempt.");

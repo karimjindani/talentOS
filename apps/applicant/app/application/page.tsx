@@ -62,6 +62,18 @@ export default async function ApplicationPage() {
                     <p className="mt-1 text-slate-600">{application.reviewerNotes}</p>
                   </div>
                 ) : null}
+                {application.status === "DISQUALIFIED" ? (
+                  <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+                    A mission deadline and its grace period both passed without a submission, so this program has
+                    ended for this application.
+                  </div>
+                ) : null}
+                {application.status === "AWAITING_MISSION_ASSIGNMENT" ? (
+                  <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    A new Week 1 mission needs to be assigned before you can continue. An admin or tech lead has
+                    been notified.
+                  </div>
+                ) : null}
                 {application.answers.length > 0 ? (
                   <div className="mt-4 space-y-3">
                     {application.answers.map((answer) => (

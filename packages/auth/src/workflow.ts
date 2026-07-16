@@ -4,15 +4,22 @@ export type ApplicationStatus =
   | "UNDER_REVIEW"
   | "ACCEPTED"
   | "REJECTED"
-  | "WAITLISTED";
+  | "WAITLISTED"
+  | "DISQUALIFIED"
+  | "AWAITING_MISSION_ASSIGNMENT";
 
+// DISQUALIFIED and AWAITING_MISSION_ASSIGNMENT are set by system automation (the deadline sweep and
+// the reject-with-no-alternate-mission path), not by an admin action through this transition table —
+// they're terminal here, same as ACCEPTED/REJECTED, so no reviewer action button offers a way out.
 const ALLOWED_TRANSITIONS: Record<ApplicationStatus, ApplicationStatus[]> = {
   DRAFT: ["SUBMITTED"],
   SUBMITTED: ["UNDER_REVIEW", "ACCEPTED", "REJECTED", "WAITLISTED"],
   UNDER_REVIEW: ["ACCEPTED", "REJECTED", "WAITLISTED"],
   ACCEPTED: [],
   REJECTED: [],
-  WAITLISTED: ["ACCEPTED", "REJECTED"]
+  WAITLISTED: ["ACCEPTED", "REJECTED"],
+  DISQUALIFIED: [],
+  AWAITING_MISSION_ASSIGNMENT: []
 };
 
 export function canTransitionApplicationStatus(from: ApplicationStatus, to: ApplicationStatus): boolean {
