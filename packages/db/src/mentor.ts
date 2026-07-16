@@ -74,10 +74,11 @@ export async function appendMessage(
  */
 export async function loadConversationHistory(
   tenantId: string,
-  userId: string
+  userId: string,
+  conversationId?: string
 ): Promise<SavedConversation | null> {
   const conversation = await prisma.mentorConversation.findFirst({
-    where: { tenantId, userId },
+    where: { tenantId, userId, ...(conversationId ? { id: conversationId } : {}) },
     orderBy: { updatedAt: "desc" },
     include: {
       messages: {
@@ -104,6 +105,27 @@ export async function loadConversationHistory(
   };
 }
 
+/** List a user's conversations without loading every message. */
+export async function listConversations(tenantId: string, userId: string) {
+  return prisma.mentorConversation.findMany({
+    where: { tenantId, userId },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, title: true, createdAt: true, updatedAt: true },
+  });
+}
+
+/** Delete a conversation only when it belongs to the current tenant and user. */
+export async function deleteConversation(
+  tenantId: string,
+  userId: string,
+  conversationId: string
+): Promise<boolean> {
+  const result = await prisma.mentorConversation.deleteMany({
+    where: { id: conversationId, tenantId, userId },
+  });
+  return result.count > 0;
+}
+
 /**
  * Start a brand-new conversation for a user (e.g. "New chat" button).
  */
@@ -117,4 +139,16 @@ export async function createConversation(
     select: { id: true },
   });
   return created;
+}
+
+export async function updateConversationTitle(
+  tenantId: string,
+  userId: string,
+  conversationId: string,
+  title: string
+): Promise<void> {
+  await prisma.mentorConversation.updateMany({
+    where: { id: conversationId, tenantId, userId },
+    data: { title },
+  });
 }

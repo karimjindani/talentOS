@@ -4,6 +4,11 @@ import type { KnowledgeSnippet } from "./knowledge-base";
 import { knowledgeToPromptSection } from "./knowledge-base";
 import { classifyQuestion } from "./ai-rbse";
 
+export type MentorConversationTurn = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export type AIInteractionRequest = {
   tenantId: string;
   userId?: string;
@@ -13,6 +18,10 @@ export type AIInteractionRequest = {
   context?: ApplicantContext;
   /** Phase 5: retrieved knowledge snippets for RAG-style responses. */
   knowledge?: KnowledgeSnippet[];
+  /** Recent persisted turns, oldest first. Keeps coaching continuous across messages. */
+  conversationHistory?: MentorConversationTurn[];
+  /** Called as model text arrives, enabling end-to-end UI streaming. */
+  onToken?: (token: string) => void | Promise<void>;
 };
 
 /** A rich content block that the mentor can return inside a response. */
@@ -35,11 +44,12 @@ export type AIInteractionResponse = {
 
 // Support both GLM_Z_API_KEY (user's naming) and ZHIPUAI_API_KEY (standard naming)
 const ZHIPUAI_API_KEY = process.env.GLM_Z_API_KEY ?? process.env.ZHIPUAI_API_KEY;
-// Z.AI coding endpoint (api.z.ai) — works with the GLM_Z API key
-const ZHIPUAI_BASE_URL =
-  process.env.ZHIPUAI_BASE_URL ?? "https://api.z.ai/api/coding/paas/v4";
-const ZHIPUAI_MODEL = process.env.ZHIPUAI_MODEL ?? "glm-4.5-air";
-const LLM_MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS ?? "1024", 10); // 1024 is enough for complete structured responses
+// AI API endpoint (LiteLLM proxy or direct ZhipuAI)
+const AI_BASE_URL =
+  process.env.AI_BASE_URL ?? "https://api.z.ai/api/coding/paas/v4";
+const AI_MODEL = process.env.AI_MODEL ?? "glm-5.2";
+const AI_FALLBACK_MODEL = process.env.AI_FALLBACK_MODEL ?? "glm-5.1";
+const LLM_MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS ?? "512", 10);
 const LLM_TEMPERATURE = parseFloat(process.env.LLM_TEMPERATURE ?? "0.7");
 const LLM_TIMEOUT_MS = 60_000; // 60 second timeout — fail fast, don't make user wait 2 minutes
 const LLM_MAX_RETRIES = 1; // Only retry on network/server errors, not timeouts
@@ -130,12 +140,19 @@ function buildSystemPrompt(
 ): string {
   const parts: string[] = [
     "You are an AI Mentor for TalentOS, a platform that develops AI-native software engineers.",
+    "You are a supportive, practical AI Mentor for TalentOS—not a documentation reader.",
     "Guide interns through tasks, missions, progress, and engineering practices (SDLC, SEM, testing, deployment).",
     "",
     "RULES:",
-    "- Answer concisely using bullet points and Markdown.",
-    "- Use sections: **Summary**, **Details**, **Key Concepts**, **Example** (if relevant), **Recommended Action**.",
-    "- Keep responses under 300 words unless the user explicitly asks for a detailed explanation.",
+    "- Start with a direct, human answer; do not dump documentation or repeat the user's context.",
+    "- Continue naturally from recent turns. Treat short replies such as yes, no, done, not yet, an error message, or a platform name as answers to your previous question.",
+    "- Match the applicant's language and tone. If they use Roman Urdu mixed with English, reply naturally in the same mix while keeping technical terms in English.",
+    "- Briefly acknowledge progress or frustration when it is relevant; never restart with a generic introduction during an active conversation.",
+    "- Give exactly one small, concrete next action tailored to the applicant's current progress when relevant.",
+    "- End with at most one short, purposeful follow-up question only when it helps the learner move forward.",
+    "- For simple questions, use only: **What to do now** and **Next step**. Use a detailed guide only when explicitly requested.",
+    "- Finish every sentence and section; do not begin an extra section if there is not enough room to complete it.",
+    "- Keep normal responses under 220 words unless the user explicitly asks for a detailed explanation.",
     "- NEVER complete assignments for the intern — guide and explain only.",
     "- If you don't know something, say so honestly.",
   ];
@@ -162,6 +179,7 @@ type GLMChatRequest = {
   max_tokens: number;
   temperature: number;
   stream: boolean;
+  stream_options?: { include_usage: boolean };
 };
 
 /** ZhipuAI chat completion response shape (minimal). */
@@ -191,7 +209,8 @@ type GLMChatResponse = {
  *   data: [DONE]
  */
 async function parseSSEStream(
-  response: Response
+  response: Response,
+  onToken?: (token: string) => void | Promise<void>
 ): Promise<{ content: string; usage?: GLMChatResponse["usage"] }> {
   const reader = response.body?.getReader();
   if (!reader) {
@@ -233,6 +252,7 @@ async function parseSSEStream(
             chunk.choices?.[0]?.message?.content;
           if (fragment) {
             content += fragment;
+            await onToken?.(fragment);
           }
 
           // Capture usage from the final chunk
@@ -262,23 +282,29 @@ async function parseSSEStream(
 async function callGLM(
   systemPrompt: string,
   userPrompt: string,
-  maxTokens?: number
+  maxTokens?: number,
+  model?: string,
+  conversationHistory: MentorConversationTurn[] = [],
+  onToken?: (token: string) => void | Promise<void>
 ): Promise<{ content: string; usage?: GLMChatResponse["usage"] }> {
-  const url = `${ZHIPUAI_BASE_URL}/chat/completions`;
+  const url = `${AI_BASE_URL}/chat/completions`;
   const effectiveMaxTokens = maxTokens ?? LLM_MAX_TOKENS;
+  const effectiveModel = model ?? AI_MODEL;
 
   const body: GLMChatRequest = {
-    model: ZHIPUAI_MODEL,
+    model: effectiveModel,
     messages: [
       { role: "system", content: systemPrompt },
+      ...conversationHistory,
       { role: "user", content: userPrompt },
     ],
     max_tokens: effectiveMaxTokens,
     temperature: LLM_TEMPERATURE,
     stream: true,
+    stream_options: { include_usage: true },
   };
 
-  console.log(`[ai-mentor] callGLM: model=${ZHIPUAI_MODEL}, max_tokens=${effectiveMaxTokens}, systemPromptLen=${systemPrompt.length}, userPromptLen=${userPrompt.length}`);
+  console.log(`[ai-mentor] callGLM: model=${effectiveModel}, max_tokens=${effectiveMaxTokens}, systemPromptLen=${systemPrompt.length}, userPromptLen=${userPrompt.length}`);
   
   let lastError: Error | null = null;
   let retryCount = 0;
@@ -320,7 +346,7 @@ async function callGLM(
       }
 
       // Parse SSE stream response (stream: true returns text/event-stream)
-      const { content, usage } = await parseSSEStream(response);
+      const { content, usage } = await parseSSEStream(response, onToken);
 
       if (!content || typeof content !== "string") {
         throw new Error("LLM_INVALID_RESPONSE");
@@ -343,8 +369,8 @@ async function callGLM(
         lastError = new Error("LLM_NETWORK_ERROR");
       }
       
-      // Don't retry on auth errors or timeouts — these won't succeed on retry
-      if (lastError.message === "LLM_AUTH_ERROR" || lastError.message === "LLM_TIMEOUT") {
+      // Don't retry on auth errors, timeouts, or rate limits — these won't succeed on retry
+      if (lastError.message === "LLM_AUTH_ERROR" || lastError.message === "LLM_TIMEOUT" || lastError.message === "LLM_RATE_LIMIT") {
         throw lastError;
       }
       
@@ -540,9 +566,12 @@ async function generateStubResponse(
 export async function requestAIInteraction(
   request: AIInteractionRequest
 ): Promise<AIInteractionResponse> {
-  const { prompt, context, knowledge } = request;
+  const { prompt, context, knowledge, conversationHistory = [], onToken } = request;
 
   // Step 1: Apply Rule-Based System Engine (RBSE)
+  // RBSE always runs first — blocked questions and direct answers are handled
+  // before any LLM call, regardless of conversation history. Only "allow_llm"
+  // questions proceed to the LLM (with history for multi-turn context).
   const rbseAction = classifyQuestion(prompt, context);
   
   switch (rbseAction.type) {
@@ -571,7 +600,10 @@ export async function requestAIInteraction(
   const cacheKey = buildLLMCacheKey(request.tenantId, request.userId, prompt, contextSig);
 
   // Check cache first — only for successful "ok" responses, never errors
-  const cached = getCachedLLMResponse(cacheKey);
+  // A response that relies on conversation turns is personal to this learner;
+  // never reuse it from the shared static cache.
+  const canUseCache = conversationHistory.length === 0;
+  const cached = canUseCache ? getCachedLLMResponse(cacheKey) : null;
   if (cached) {
     console.log(`[ai-mentor] Cache HIT for key: ${cacheKey.substring(0, 80)}...`);
     return { status: "ok", message: cached };
@@ -584,24 +616,43 @@ export async function requestAIInteraction(
     const lowerPrompt = prompt.toLowerCase();
     const isDetailedRequest = lowerPrompt.includes("detailed") || lowerPrompt.includes("complete") || 
       lowerPrompt.includes("in detail") || lowerPrompt.includes("all phases") || lowerPrompt.includes("explain everything");
-    const maxTokens = isDetailedRequest ? Math.max(LLM_MAX_TOKENS, 2048) : LLM_MAX_TOKENS;
+    const maxTokens = isDetailedRequest ? Math.max(LLM_MAX_TOKENS, 1024) : Math.max(LLM_MAX_TOKENS, 512);
     
-    console.log(`[ai-mentor] Calling GLM: model=${ZHIPUAI_MODEL}, maxTokens=${maxTokens}, promptLen=${prompt.length}, systemPromptLen=${systemPrompt.length}, detailed=${isDetailedRequest}`);
+    console.log(`[ai-mentor] Calling GLM: model=${AI_MODEL}, maxTokens=${maxTokens}, promptLen=${prompt.length}, systemPromptLen=${systemPrompt.length}, detailed=${isDetailedRequest}`);
     const startTime = Date.now();
-    const { content, usage } = await callGLM(systemPrompt, prompt, maxTokens);
+    
+    let content: string;
+    let usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | undefined;
+    
+    try {
+      const result = await callGLM(systemPrompt, prompt, maxTokens, undefined, conversationHistory, onToken);
+      content = result.content;
+      usage = result.usage;
+    } catch (primaryErr) {
+      // Primary model failed — try fallback model (glm-5.1)
+      const errMsg = primaryErr instanceof Error ? primaryErr.message : "unknown";
+      console.log(`[ai-mentor] Primary model ${AI_MODEL} failed (${errMsg}), trying fallback model ${AI_FALLBACK_MODEL}`);
+      const fallbackResult = await callGLM(systemPrompt, prompt, maxTokens, AI_FALLBACK_MODEL, conversationHistory, onToken);
+      content = fallbackResult.content;
+      usage = fallbackResult.usage;
+      console.log(`[ai-mentor] Fallback model ${AI_FALLBACK_MODEL} succeeded, responseLen=${content.length}`);
+    }
+    
     const duration = Date.now() - startTime;
     console.log(`[ai-mentor] GLM call succeeded in ${duration}ms, responseLen=${content.length}, tokens=${usage?.completion_tokens ?? '?'}`);
     
     // Cache the successful response — never cache errors
-    setCachedLLMResponse(cacheKey, content);
-    console.log(`[ai-mentor] Cached response for key: ${cacheKey.substring(0, 80)}...`);
+    if (canUseCache) {
+      setCachedLLMResponse(cacheKey, content);
+      console.log(`[ai-mentor] Cached response for key: ${cacheKey.substring(0, 80)}...`);
+    }
     
     return {
       status: "ok",
       message: content,
     };
   } catch (err) {
-    // Log the error (without exposing the API key) and fall back to stub
+    // Both primary and fallback failed — fall back to stub
     const errorMsg = err instanceof Error ? err.message : "unknown";
     console.error(`[ai-mentor] LLM call failed (${errorMsg}), falling back to stub`);
 

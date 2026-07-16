@@ -84,8 +84,8 @@ This guide documents the complete AI Mentor implementation in TalentOS, includin
 ```bash
 # Required for real LLM integration
 GLM_Z_API_KEY=your_api_key_here
-ZHIPUAI_BASE_URL=https://api.z.ai/api/coding/paas/v4
-ZHIPUAI_MODEL=glm-4.5-air
+AI_BASE_URL=https://api.z.ai/api/coding/paas/v4
+AI_MODEL=glm-5.2
 
 # Optional tuning
 LLM_MAX_TOKENS=512      # Reduced from 1024 for faster responses
