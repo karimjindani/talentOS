@@ -6,6 +6,7 @@ import { LearningResourceType } from "@prisma/client";
 import {
   acceptMissionAssignment,
   applyStatusTransition,
+  buildSubmissionEvidenceLinks,
   cleanupRegressionData,
   createCalendarEvent,
   createJournalEntry,
@@ -383,7 +384,7 @@ const scenarios: Scenario[] = [
         missionId: fixture.mission.id,
         applicantId: fixture.user.id,
         repositoryUrl: "https://github.com/regression/admin-journal-review",
-        deploymentUrl: null,
+        deploymentUrl: "https://admin-app.example.com; https://admin-api.example.com",
         loomUrl: null,
         journalMarkdown: "Legacy submission journal remains visible."
       });
@@ -397,6 +398,16 @@ const scenarios: Scenario[] = [
       const submission = await getTenantSubmission(draft.id, fixture.tenant.id);
       if (!submission || submission.journalMarkdown !== "Legacy submission journal remains visible.") {
         throw new Error("Admin review did not load the submission journal context.");
+      }
+      const deploymentLinks = buildSubmissionEvidenceLinks(submission).filter((link) =>
+        link.label.startsWith("Deployed application")
+      );
+      if (
+        deploymentLinks.length !== 2 ||
+        deploymentLinks[0]?.href !== "https://admin-app.example.com/" ||
+        deploymentLinks[1]?.href !== "https://admin-api.example.com/"
+      ) {
+        throw new Error("Admin review did not expose each deployed application URL as a separate link.");
       }
       if (!submission.missionAssignmentId) {
         throw new Error("Admin review submission was not linked to an assignment attempt.");
@@ -572,7 +583,8 @@ const scenarios: Scenario[] = [
         missionId: fixture.mission.id,
         applicantId: fixture.user.id,
         repositoryUrl: "https://github.com/regression/readiness-gate",
-        deploymentUrl: "https://example.com/regression/readiness-gate",
+        deploymentUrl:
+          "https://example.com/regression/readiness-gate; https://api.example.com/regression/readiness-gate",
         loomUrl: "https://www.loom.com/share/readiness-gate"
       });
       await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
@@ -635,8 +647,55 @@ const scenarios: Scenario[] = [
         applicantId: fixture.user.id,
         missionAssignmentId: fixture.assignment.id
       });
-      if (!ready.ready || ready.tasks.completed !== 2 || ready.journals.completed !== 4) {
+      if (
+        !ready.ready ||
+        ready.tasks.completed !== 2 ||
+        ready.journals.completed !== 4 ||
+        ready.urls.deployment.count !== 2
+      ) {
         throw new Error("Completed prerequisites did not make the assignment ready for submission.");
+      }
+
+      const failingDeploymentUrl = "https://api.example.com/regression/readiness-gate";
+      const checkedDeploymentUrls: string[] = [];
+      const oneFailedDeploymentChecker = {
+        checkEvidenceUrl: async (url: string, kind: "repository" | "deployment" | "loom") => {
+          if (kind === "deployment") checkedDeploymentUrls.push(url);
+          const failed = url === failingDeploymentUrl;
+          return {
+            reachable: !failed,
+            finalUrl: url,
+            statusCode: failed ? 503 : 200,
+            error: failed ? "Deployed application is not publicly reachable (HTTP 503)." : null
+          };
+        }
+      };
+      try {
+        await submitSubmission(
+          { id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id },
+          oneFailedDeploymentChecker
+        );
+        throw new Error("A submission with one unreachable deployment URL was submitted.");
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes(failingDeploymentUrl)) throw error;
+      }
+      if (checkedDeploymentUrls.length !== 2) {
+        throw new Error("Submission readiness did not check every deployed application URL.");
+      }
+      const stillDraft = await prisma.submission.findFirst({
+        where: { id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id },
+        select: { status: true }
+      });
+      const prematurelyLocked = await prisma.engineeringJournalEntry.count({
+        where: {
+          tenantId: fixture.tenant.id,
+          applicantId: fixture.user.id,
+          missionAssignmentId: fixture.assignment.id,
+          lockedAt: { not: null }
+        }
+      });
+      if (stillDraft?.status !== "DRAFT" || prematurelyLocked !== 0) {
+        throw new Error("Failed deployment validation changed submission status or locked journals.");
       }
 
       await submitSubmission(

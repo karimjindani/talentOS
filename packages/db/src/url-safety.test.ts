@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildSubmissionEvidenceLinks,
   checkPublicEvidenceUrl,
   isBlockedIpAddress,
+  MAX_DEPLOYMENT_URLS,
+  normalizeDeploymentUrls,
+  parseDeploymentUrls,
   parseEvidenceUrl,
   type PublicUrlCheckDependencies
 } from "./url-safety";
@@ -18,6 +22,47 @@ describe("evidence URL syntax", () => {
     expect(() => parseEvidenceUrl("https://user:pass@example.com", "deployment")).toThrow("valid public");
     expect(() => parseEvidenceUrl("file:///etc/passwd", "deployment")).toThrow("valid public");
     expect(() => parseEvidenceUrl("http://localhost:3000", "deployment")).toThrow("valid public");
+  });
+});
+
+describe("deployment URL lists", () => {
+  it("keeps existing single-URL submissions compatible", () => {
+    expect(parseDeploymentUrls("https://app.example.com")).toEqual(["https://app.example.com/"]);
+    expect(normalizeDeploymentUrls("https://app.example.com")).toBe("https://app.example.com/");
+  });
+
+  it("splits semicolons, trims spaces and removes blank segments", () => {
+    expect(parseDeploymentUrls(" https://app.example.com ; ; https://api.example.com ")).toEqual([
+      "https://app.example.com/",
+      "https://api.example.com/"
+    ]);
+  });
+
+  it("removes exact normalized duplicates while preserving order", () => {
+    expect(
+      parseDeploymentUrls("https://api.example.com;https://app.example.com;https://api.example.com/")
+    ).toEqual(["https://api.example.com/", "https://app.example.com/"]);
+  });
+
+  it("identifies the malformed URL that blocks the list", () => {
+    expect(() => parseDeploymentUrls("https://app.example.com;not-a-url")).toThrow("not-a-url");
+  });
+
+  it("limits deployment URL input to a reasonable maximum", () => {
+    const urls = Array.from({ length: MAX_DEPLOYMENT_URLS + 1 }, (_, index) => `https://app${index}.example.com`);
+    expect(() => parseDeploymentUrls(urls.join(";"))).toThrow(`${MAX_DEPLOYMENT_URLS}`);
+  });
+
+  it("builds a separate labeled link for each deployment URL", () => {
+    const links = buildSubmissionEvidenceLinks({
+      repositoryUrl: "https://github.com/acme/project",
+      deploymentUrl: "https://app.example.com/;https://api.example.com/",
+      loomUrl: "https://www.loom.com/share/demo"
+    });
+    expect(links.filter((link) => link.label.startsWith("Deployed application"))).toEqual([
+      { label: "Deployed application 1", href: "https://app.example.com/" },
+      { label: "Deployed application 2", href: "https://api.example.com/" }
+    ]);
   });
 });
 

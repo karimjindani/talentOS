@@ -7,18 +7,20 @@ import {
 } from "./mission-assignments";
 import {
   assertMissionSubmissionReady,
+  checkMissionSubmissionUrlReachability,
   getMissionSubmissionReadiness,
   getMissionSubmissionReadinessWithClient,
   SubmissionReadinessError
 } from "./submission-readiness";
 import {
   checkPublicEvidenceUrl,
+  normalizeDeploymentUrls,
   parseEvidenceUrl,
   type EvidenceUrlKind,
   type PublicUrlCheckResult
 } from "./url-safety";
 
-export { parseEvidenceUrl } from "./url-safety";
+export { normalizeDeploymentUrls, parseDeploymentUrls, parseEvidenceUrl } from "./url-safety";
 import { REQUIRED_TASK_INDEXES } from "./mission-tasks";
 
 // Programs run a fixed four-week arc; accepting the week-4 submission completes the program
@@ -170,7 +172,7 @@ export async function saveSubmissionDraft(input: SubmissionEvidenceInput) {
       journalMarkdown?: string | null;
     } = {
       repositoryUrl: input.repositoryUrl,
-      deploymentUrl: input.deploymentUrl,
+      deploymentUrl: normalizeDeploymentUrls(input.deploymentUrl),
       loomUrl: input.loomUrl
     };
     if (Object.prototype.hasOwnProperty.call(input, "journalMarkdown")) {
@@ -274,27 +276,16 @@ export async function submitSubmission(
   }
   assertMissionSubmissionReady(preflight);
 
-  const checkEvidenceUrl = dependencies.checkEvidenceUrl ?? checkPublicEvidenceUrl;
-  const evidenceChecks = await Promise.all(
-    (["repository", "deployment", "loom"] as const).map(async (kind) => {
-      const value = preflight.urls[kind].value;
-      if (!value) {
-        throw new SubmissionReadinessError(`${kind} URL is required.`, [`${kind} URL is required.`]);
-      }
-      return checkEvidenceUrl(value, kind);
-    })
+  const checkedPreflight = await checkMissionSubmissionUrlReachability(
+    preflight,
+    dependencies.checkEvidenceUrl ?? checkPublicEvidenceUrl
   );
-  const networkBlockers = evidenceChecks
-    .filter((result) => !result.reachable)
-    .map((result) => result.error ?? "A submission URL is not publicly reachable.");
-  if (networkBlockers.length > 0) {
-    throw new SubmissionReadinessError(networkBlockers.join(" "), networkBlockers);
-  }
+  assertMissionSubmissionReady(checkedPreflight);
 
   const checkedUrls = {
-    repositoryUrl: preflight.urls.repository.value,
-    deploymentUrl: preflight.urls.deployment.value,
-    loomUrl: preflight.urls.loom.value
+    repositoryUrl: checkedPreflight.urls.repository.value,
+    deploymentUrl: checkedPreflight.urls.deployment.value,
+    loomUrl: checkedPreflight.urls.loom.value
   };
 
   return prisma.$transaction(async (tx) => {

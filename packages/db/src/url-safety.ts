@@ -35,6 +35,13 @@ export type PublicUrlCheckResult = {
   error: string | null;
 };
 
+export const MAX_DEPLOYMENT_URLS = 10;
+
+export type SubmissionEvidenceLink = {
+  label: string;
+  href: string;
+};
+
 const DEFAULT_TIMEOUT_MS = 4_000;
 const DEFAULT_MAX_REDIRECTS = 3;
 const HEAD_FALLBACK_STATUSES = new Set([400, 403, 405, 501]);
@@ -82,6 +89,56 @@ export function parseEvidenceUrl(raw: string, kind: EvidenceUrlKind): string | n
 
   url.hash = "";
   return url.toString();
+}
+
+/** Parse, validate and de-duplicate the semicolon-separated deployment field. */
+export function parseDeploymentUrls(raw: string | null | undefined): string[] {
+  const segments = (raw ?? "")
+    .split(";")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (segments.length > MAX_DEPLOYMENT_URLS) {
+    throw new Error(`Enter no more than ${MAX_DEPLOYMENT_URLS} deployed application URLs.`);
+  }
+
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  for (const segment of segments) {
+    let parsed: string | null;
+    try {
+      parsed = parseEvidenceUrl(segment, "deployment");
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Enter a valid public deployment URL.";
+      throw new Error(`Deployment URL "${segment}" is invalid. ${detail}`);
+    }
+    if (parsed && !seen.has(parsed)) {
+      seen.add(parsed);
+      urls.push(parsed);
+    }
+  }
+  return urls;
+}
+
+/** Canonical storage format for the existing Submission.deploymentUrl string column. */
+export function normalizeDeploymentUrls(raw: string | null | undefined): string | null {
+  const urls = parseDeploymentUrls(raw);
+  return urls.length > 0 ? urls.join(";") : null;
+}
+
+/** Shared Applicant/Admin evidence view model so deployment URLs never render as one broken link. */
+export function buildSubmissionEvidenceLinks(input: {
+  repositoryUrl: string | null;
+  deploymentUrl: string | null;
+  loomUrl: string | null;
+}): SubmissionEvidenceLink[] {
+  const links: SubmissionEvidenceLink[] = [];
+  if (input.repositoryUrl) links.push({ label: "Git repository", href: input.repositoryUrl });
+  for (const [index, href] of parseDeploymentUrls(input.deploymentUrl).entries()) {
+    links.push({ label: `Deployed application ${index + 1}`, href });
+  }
+  if (input.loomUrl) links.push({ label: "Loom walkthrough", href: input.loomUrl });
+  return links;
 }
 
 /**

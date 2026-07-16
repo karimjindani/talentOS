@@ -7,6 +7,7 @@ import {
   getAssignedProgramMission,
   getLatestMissionAssignmentForMission,
   listApplicantApplications,
+  normalizeDeploymentUrls,
   parseEvidenceUrl,
   saveSubmissionDraft,
   submitSubmission
@@ -82,7 +83,7 @@ export async function saveSubmissionAction(
     }
 
     const repositoryUrl = parseEvidenceUrl(String(formData.get("repositoryUrl") ?? ""), "repository");
-    const deploymentUrl = parseEvidenceUrl(String(formData.get("deploymentUrl") ?? ""), "deployment");
+    const deploymentUrl = normalizeDeploymentUrls(String(formData.get("deploymentUrl") ?? ""));
     const loomUrl = parseEvidenceUrl(String(formData.get("loomUrl") ?? ""), "loom");
 
     const draft = await saveSubmissionDraft({

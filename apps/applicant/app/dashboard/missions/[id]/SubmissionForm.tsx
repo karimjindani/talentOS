@@ -62,15 +62,18 @@ export function SubmissionForm({ missionId, defaults, isRevision, readiness, can
       </label>
 
       <label className="grid gap-1.5 text-sm font-medium text-slate-700">
-        Deployed application URL
+        Deployed application URL(s)
         <input
-          type="url"
+          type="text"
           name="deploymentUrl"
           value={deploymentUrl}
           onChange={(event) => setDeploymentUrl(event.target.value)}
-          placeholder="https://your-app.example.com"
+          placeholder="https://app.example.com; https://api.example.com"
           className={inputClass}
         />
+        <span className="text-xs font-normal text-slate-500">
+          Enter one or more public URLs. Separate multiple URLs with a semicolon (;).
+        </span>
       </label>
 
       <label className="grid gap-1.5 text-sm font-medium text-slate-700">
@@ -107,8 +110,8 @@ export function SubmissionForm({ missionId, defaults, isRevision, readiness, can
           />
           <ChecklistItem complete={Boolean(repositoryUrl.trim())} text="GitHub repository URL provided" />
           <ChecklistItem complete={false} status="Checked on submit" text="GitHub repository is publicly accessible" />
-          <ChecklistItem complete={Boolean(deploymentUrl.trim())} text="Deployed application URL provided" />
-          <ChecklistItem complete={false} status="Checked on submit" text="Deployed application is publicly accessible" />
+          <ChecklistItem complete={Boolean(deploymentUrl.trim())} text="Deployed application URL(s) provided" />
+          <ChecklistItem complete={false} status="Checked on submit" text="Every deployed application URL is publicly accessible" />
           <ChecklistItem complete={Boolean(loomUrl.trim())} text="Loom walkthrough URL provided" />
           <ChecklistItem complete={false} status="Checked on submit" text="Loom walkthrough is publicly accessible" />
         </div>
@@ -118,7 +121,7 @@ export function SubmissionForm({ missionId, defaults, isRevision, readiness, can
           </p>
         ) : null}
         <p className="mt-3 text-xs text-slate-500">
-          Public access to all three links is checked when you submit for review.
+          Public access to the repository, every deployed application URL and the Loom walkthrough is checked when you submit for review.
         </p>
       </section>
 

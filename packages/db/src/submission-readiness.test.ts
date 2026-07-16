@@ -20,7 +20,11 @@ vi.mock("./client", () => ({
   }
 }));
 
-import { getMissionSubmissionReadiness, REQUIRED_JOURNAL_ENTRY_COUNT } from "./submission-readiness";
+import {
+  checkMissionSubmissionUrlReachability,
+  getMissionSubmissionReadiness,
+  REQUIRED_JOURNAL_ENTRY_COUNT
+} from "./submission-readiness";
 
 describe("mission submission readiness", () => {
   beforeEach(() => {
@@ -122,6 +126,73 @@ describe("mission submission readiness", () => {
     expect(readiness.ready).toBe(false);
     expect(readiness.urls.deployment.present).toBe(false);
     expect(readiness.urls.loom.validFormat).toBe(false);
+  });
+
+  it("reports the number and normalized values of deployment URLs", async () => {
+    prismaMock.submissionFindFirst.mockResolvedValue({
+      id: "submission-2",
+      status: "DRAFT",
+      repositoryUrl: "https://github.com/acme/project",
+      deploymentUrl: " https://app.example.com ; ; https://api.example.com ",
+      loomUrl: "https://www.loom.com/share/demo"
+    });
+
+    const readiness = await getMissionSubmissionReadiness(input());
+
+    expect(readiness.urls.deployment).toEqual(expect.objectContaining({
+      present: true,
+      validFormat: true,
+      count: 2,
+      values: ["https://app.example.com/", "https://api.example.com/"]
+    }));
+  });
+
+  it("reports the exact malformed deployment URL", async () => {
+    prismaMock.submissionFindFirst.mockResolvedValue({
+      id: "submission-2",
+      status: "DRAFT",
+      repositoryUrl: "https://github.com/acme/project",
+      deploymentUrl: "https://app.example.com;not-a-url",
+      loomUrl: "https://www.loom.com/share/demo"
+    });
+
+    const readiness = await getMissionSubmissionReadiness(input());
+
+    expect(readiness.ready).toBe(false);
+    expect(readiness.urls.deployment.validFormat).toBe(false);
+    expect(readiness.urls.deployment.reachability).toEqual([
+      expect.objectContaining({ value: "https://app.example.com/", validFormat: true }),
+      expect.objectContaining({ value: "not-a-url", validFormat: false })
+    ]);
+    expect(readiness.blockers.join(" ")).toContain("not-a-url");
+  });
+
+  it("checks every deployment URL and reports the exact unreachable URL", async () => {
+    prismaMock.submissionFindFirst.mockResolvedValue({
+      id: "submission-2",
+      status: "DRAFT",
+      repositoryUrl: "https://github.com/acme/project",
+      deploymentUrl: "https://app.example.com;https://api.example.com",
+      loomUrl: "https://www.loom.com/share/demo"
+    });
+    const readiness = await getMissionSubmissionReadiness(input());
+    const failingUrl = "https://api.example.com/";
+    const checker = vi.fn(async (url: string) => ({
+      reachable: url !== failingUrl,
+      finalUrl: url,
+      statusCode: url === failingUrl ? 503 : 200,
+      error: url === failingUrl ? "Deployed application is not publicly reachable (HTTP 503)." : null
+    }));
+
+    const checked = await checkMissionSubmissionUrlReachability(readiness, checker);
+
+    expect(checker).toHaveBeenCalledTimes(4);
+    expect(checked.ready).toBe(false);
+    expect(checked.urls.deployment.reachability).toEqual([
+      expect.objectContaining({ value: "https://app.example.com/", reachable: true }),
+      expect.objectContaining({ value: failingUrl, reachable: false })
+    ]);
+    expect(checked.blockers.join(" ")).toContain(failingUrl);
   });
 
   it("rejects an assignment from another tenant or applicant", async () => {

@@ -281,6 +281,23 @@ describe("submission data access", () => {
     expect(updateData).not.toHaveProperty("journalMarkdown");
   });
 
+  it("normalizes multiple deployment URLs when saving a draft", async () => {
+    prismaMock.txSubmissionFindFirst.mockResolvedValue({ id: "sub-1", status: "DRAFT" });
+
+    await saveSubmissionDraft({
+      ...draftInputWithoutJournal(),
+      deploymentUrl:
+        " https://app.example.com ; ; https://api.example.com; https://app.example.com "
+    });
+
+    expect(prismaMock.txSubmissionUpdate).toHaveBeenCalledWith({
+      where: { id: "sub-1" },
+      data: expect.objectContaining({
+        deploymentUrl: "https://app.example.com/;https://api.example.com/"
+      })
+    });
+  });
+
   it("blocks incomplete readiness without changing status or locking journals", async () => {
     prismaMock.submissionFindFirst.mockResolvedValue(submittableSubmission());
     readinessMock.getReadiness.mockResolvedValue({
@@ -332,6 +349,54 @@ describe("submission data access", () => {
       where: { id: "assignment-1", tenantId: "tenant-1", applicantId: "user-1", status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] } },
       data: { status: "PENDING_EVALUATION" }
     });
+  });
+
+  it("checks every deployment URL before submitting", async () => {
+    const submission = {
+      ...submittableSubmission(),
+      deploymentUrl: "https://app.example.com/;https://api.example.com/"
+    };
+    const readiness = readyReadiness({
+      deploymentUrls: ["https://app.example.com/", "https://api.example.com/"]
+    });
+    prismaMock.submissionFindFirst.mockResolvedValue(submission);
+    readinessMock.getReadiness.mockResolvedValue(readiness);
+    readinessMock.getReadinessWithClient.mockResolvedValue(readiness);
+    const dependencies = reachableDependencies();
+
+    await submitSubmission({ id: "sub-1", tenantId: "tenant-1", applicantId: "user-1" }, dependencies);
+
+    expect(dependencies.checkEvidenceUrl).toHaveBeenCalledTimes(4);
+    expect(dependencies.checkEvidenceUrl).toHaveBeenCalledWith("https://app.example.com/", "deployment");
+    expect(dependencies.checkEvidenceUrl).toHaveBeenCalledWith("https://api.example.com/", "deployment");
+    expect(prismaMock.txSubmissionUpdateMany).toHaveBeenCalled();
+    expect(prismaMock.txJournalUpdateMany).toHaveBeenCalled();
+  });
+
+  it("does not submit or lock journals when one of several deployment URLs is unreachable", async () => {
+    const failingUrl = "https://api.example.com/";
+    const readiness = readyReadiness({
+      deploymentUrls: ["https://app.example.com/", failingUrl]
+    });
+    prismaMock.submissionFindFirst.mockResolvedValue({
+      ...submittableSubmission(),
+      deploymentUrl: `https://app.example.com/;${failingUrl}`
+    });
+    readinessMock.getReadiness.mockResolvedValue(readiness);
+    const dependencies = reachableDependencies();
+    dependencies.checkEvidenceUrl.mockImplementation(async (url: string) => ({
+      reachable: url !== failingUrl,
+      finalUrl: url,
+      statusCode: url === failingUrl ? 503 : 200,
+      error: url === failingUrl ? "Deployed application is not publicly reachable (HTTP 503)." : null
+    }));
+
+    await expect(
+      submitSubmission({ id: "sub-1", tenantId: "tenant-1", applicantId: "user-1" }, dependencies)
+    ).rejects.toThrow(failingUrl);
+    expect(prismaMock.transaction).not.toHaveBeenCalled();
+    expect(prismaMock.txSubmissionUpdateMany).not.toHaveBeenCalled();
+    expect(prismaMock.txJournalUpdateMany).not.toHaveBeenCalled();
   });
 
   it("marks the assignment LATE_SUBMITTED when submitted after the deadline but within the grace period", async () => {
@@ -757,7 +822,8 @@ function submittableSubmission() {
   };
 }
 
-function readyReadiness() {
+function readyReadiness(options?: { deploymentUrls?: string[] }) {
+  const deploymentUrls = options?.deploymentUrls ?? ["https://app.example.com/"];
   return {
     ready: true,
     assignment: {
@@ -772,9 +838,37 @@ function readyReadiness() {
     tasks: { required: 3, completed: 3, incomplete: [] },
     journals: { required: 4, completed: 4 },
     urls: {
-      repository: { present: true, validFormat: true, value: "https://github.com/u/r", error: null },
-      deployment: { present: true, validFormat: true, value: "https://app.example.com/", error: null },
-      loom: { present: true, validFormat: true, value: "https://www.loom.com/share/demo", error: null }
+      repository: {
+        present: true,
+        validFormat: true,
+        value: "https://github.com/u/r",
+        reachable: null,
+        statusCode: null,
+        error: null
+      },
+      deployment: {
+        present: true,
+        validFormat: true,
+        value: deploymentUrls.join(";"),
+        count: deploymentUrls.length,
+        values: deploymentUrls,
+        reachability: deploymentUrls.map((url) => ({
+          value: url,
+          validFormat: true,
+          reachable: null,
+          statusCode: null,
+          error: null
+        })),
+        error: null
+      },
+      loom: {
+        present: true,
+        validFormat: true,
+        value: "https://www.loom.com/share/demo",
+        reachable: null,
+        statusCode: null,
+        error: null
+      }
     },
     blockers: []
   };

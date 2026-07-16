@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { getTenantContext } from "@talentos/ui";
 import { isSubmissionEditable } from "@talentos/auth";
 import {
+  buildSubmissionEvidenceLinks,
   getApplicantSubmissionForAssignment,
   getApplicantMissionAssignmentForMission,
   getAssignedProgramMission,
@@ -244,11 +245,7 @@ function MissionAssignmentStatusBadge({ status }: { status: MissionAssignment["s
 }
 
 function SubmittedEvidence({ submission }: { submission: Submission }) {
-  const links = [
-    { label: "Git repository", href: submission.repositoryUrl },
-    { label: "Deployed application", href: submission.deploymentUrl },
-    { label: "Loom walkthrough", href: submission.loomUrl }
-  ].filter((link): link is { label: string; href: string } => Boolean(link.href));
+  const links = buildSubmissionEvidenceLinks(submission);
 
   return (
     <div className="mt-4 grid gap-4 text-sm">
