@@ -30,6 +30,7 @@
     "regression:all": "tsx scripts/regression/run.ts all",
     "ops:start": "npm run start -w @talentos/ops",
     "ops:cleanup-regression": "tsx scripts/cleanup-regression-data.ts",
+    "mission-deadlines:sweep": "tsx scripts/mission-deadlines/sweep.ts",
     "local:bootstrap": "tsx scripts/local/bootstrap.ts",
     "local:doctor": "tsx scripts/local/doctor.ts",
     "local:smoke-login": "tsx scripts/local/smoke-login.ts",
@@ -40,11 +41,19 @@
   "devDependencies": {
     "@playwright/test": "^1.61.1",
     "@types/node": "^24.0.0",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "es-abstract": "^1.24.2",
     "prisma": "^6.10.0",
     "tsx": "^4.20.0",
     "typescript": "^5.8.0",
     "typescript-eslint": "^8.62.0",
     "vitest": "^3.2.0"
+  },
+  "dependencies": {
+    "date-fns": "^4.4.0",
+    "lucide-react": "^1.23.0",
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.1.1",
+    "remark-gfm": "^4.0.1"
   }
 }

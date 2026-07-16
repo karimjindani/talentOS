@@ -1,13 +1,44 @@
 # Data Dictionary
 
-Code version: `v0.18.0`
+Code version: `v0.19.2`
 
-Baseline commit: `bf59ca4`
+Baseline commit: `c7df9d9`
 
 > Current weekly-task/submission-readiness work adds `LearningResourceType` (`MARKDOWN`, `YOUTUBE`),
 > extends `program_tasks` with `required`/`published`, extends the legacy-named `video_resources` table
 > with task association and reusable resource content fields, and makes `user_task_completions`
 > tenant-scoped. Migration: `20260716090000_weekly_tasks_submission_readiness`.
+>
+> `v0.19.2` (Logout Regression Fix & Confirmation Gates, D-083) makes no schema change.
+>
+> `v0.19.1` (Dashboard Wiring & Same-Week Repeat, D-082) makes no schema change — a function rename
+> (`createRepeatFromWeekOneTx` → `createRepeatMissionForSameWeekTx`) and dashboard/program/tasks/
+> missions pages reading already-shipped `MissionAssignment` fields.
+>
+> `v0.19.0` (Mission-Driven Tasks & Submissions Admin Tab, D-081) adds `missions.tutorialUrl`
+> (String?) and `mission_task_completion`: `id` (cuid PK), `tenantId` (FK→tenants), `missionAssignmentId`
+> (FK→mission_assignments, Cascade), `taskIndex` (Int, 1 or 2), `completedAt` (DateTime, default
+> now()). Unique on `[missionAssignmentId, taskIndex]` (constraint name
+> `mission_task_completion_key`). Task 3 has no row of its own — see `MissionAssignment` notes.
+> The later weekly-task/readiness slice reactivates `program_tasks`, `video_resources`, and
+> `user_task_completions` as a separate program-week learning track. `mission_task_completion`
+> remains the assignment-attempt workflow-step model.
+> Migration: `20260714110000_mission_tasks`.
+>
+> `v0.18.5` (Mission Deadline & Lifecycle, D-080) adds `missions.deadlineHours` (Int, default 168),
+> `missions.gracePeriodHours` (Int, default 24), `mission_assignments.acceptedAt`/`deadlineAt`/
+> `graceEndsAt` (all nullable DateTime); changes the `mission_assignments` default status to
+> `NOT_STARTED` and rebuilds the `MissionAssignmentStatus` enum to `NOT_STARTED, ACCEPTED,
+> IN_PROGRESS, PENDING_EVALUATION, LATE_SUBMITTED, OVERDUE, FAILED, PASSED, REPEAT`; extends
+> `ApplicationStatus` with `DISQUALIFIED` and `AWAITING_MISSION_ASSIGNMENT` (both terminal — no
+> outgoing transition in `packages/auth/src/workflow.ts`). Migration:
+> `20260714090000_mission_deadlines_and_lifecycle`.
+>
+> `v0.15.0` (AI Mentor MVP, D-066) adds `mentor_conversation`: `id`, `tenantId` (FK→tenants),
+> `userId` (FK→users), `title`, `createdAt`, `updatedAt`, index on `[tenantId, userId, updatedAt]`;
+> and `mentor_message`: `id`, `conversationId` (FK→mentor_conversation), `role` (`"user"` |
+> `"mentor"`), `content`, `cardsJson` (optional JSON-serialised `MentorCard[]`), `createdAt`, index on
+> `[conversationId, createdAt]`.
 >
 > Assignment-linked journal attempts add assignment attempt/status fields, assignment foreign keys on
 > submissions and journal entries, persisted journal lock timestamps, and the terminal `REPEAT`
@@ -175,7 +206,7 @@ Baseline commit: `bf59ca4`
 | `tenantId` | Owning tenant. |
 | `programId` | Program receiving the application. |
 | `applicantId` | User who submitted the application. |
-| `status` | `DRAFT`, `SUBMITTED`, `UNDER_REVIEW`, `ACCEPTED`, `REJECTED` or `WAITLISTED`. |
+| `status` | `DRAFT`, `SUBMITTED`, `UNDER_REVIEW`, `ACCEPTED`, `REJECTED`, `WAITLISTED`, `DISQUALIFIED` (`v0.18.5`, grace period expired with no submission — terminal) or `AWAITING_MISSION_ASSIGNMENT` (`v0.18.5`, a `REPEAT` decision had no alternate mission to reassign — terminal until an admin manually assigns one). |
 | `submittedAt` | Submission timestamp. |
 | `reviewedAt` | Review completion timestamp. |
 | `reviewerNotes` | Internal admin review notes. |
@@ -209,6 +240,9 @@ Baseline commit: `bf59ca4`
 | `deliverables` | Required artifacts such as PRD, repository, deployment URL and Loom video. |
 | `evaluationCriteria` | Completion level or grading rubric. |
 | `competencyTags` | Competency mapping labels. |
+| `deadlineHours` | Hours from acceptance until the submission deadline; default `168` (7 days) (`v0.18.5`). |
+| `gracePeriodHours` | Hours after the deadline during which a late submission is still accepted; default `24` (`v0.18.5`). |
+| `tutorialUrl` | Optional YouTube tutorial link for the fixed Task 2 "Study the Tutorial" step; when set, the task requires watching to the end before it can be marked complete (`v0.19.0`). |
 
 ## MissionAssignment
 
@@ -220,10 +254,28 @@ Baseline commit: `bf59ca4`
 | `missionId` | Published mission assigned to the applicant. |
 | `weekNumber` | Program week for the assignment. |
 | `attemptNumber` | Attempt sequence within the applicant's program week, starting at 1. |
-| `status` | `ACTIVE`, `SUBMITTED`, `PASSED` or `REPEAT`. |
+| `status` | `NOT_STARTED`, `ACCEPTED`, `IN_PROGRESS`, `PENDING_EVALUATION`, `LATE_SUBMITTED`, `OVERDUE`, `FAILED`, `PASSED` or `REPEAT` (`v0.18.5`; replaces the earlier `ACTIVE`/`SUBMITTED` model). |
 | `assignedAt` | Timestamp for when the assignment was made. |
+| `acceptedAt` | Timestamp of the applicant's explicit Accept Mission action; null until accepted. Deadline/grace are computed from this, not `assignedAt` (`v0.18.5`). |
+| `deadlineAt` | `acceptedAt` + the mission's `deadlineHours`; null until accepted (`v0.18.5`). |
+| `graceEndsAt` | `deadlineAt` + the mission's `gracePeriodHours`; null until accepted (`v0.18.5`). |
 | `createdAt` | Row creation timestamp. |
 | `updatedAt` | Row update timestamp. |
+
+## MissionTaskCompletion
+
+Per-assignment-attempt completion row for the fixed Task 1 (Review the Mission Brief) and Task 2
+(Study the Tutorial) template (`v0.19.0`). Task 3 (Build & Submit Evidence) has no row of its own —
+it is derived from the linked `Submission.status` moving beyond `DRAFT`/`NEEDS_REVISION`. Unique on
+`[missionAssignmentId, taskIndex]`; cascades on `MissionAssignment` delete, so regression cleanup
+needs no separate marker for this table.
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant; keeps task completions isolated by organization. |
+| `missionAssignmentId` | The assignment attempt this task completion belongs to. |
+| `taskIndex` | `1` (Review the Mission Brief) or `2` (Study the Tutorial). |
+| `completedAt` | Completion timestamp (default now). |
 
 ## EngineeringJournalEntry
 
@@ -282,6 +334,9 @@ field. Unique on `[tenantId, applicantId, entryDate]` — one entry per applican
 
 ## ProgramTask
 
+Program-week learning task used by the Applicant Tasks page and submission-readiness service.
+This is separate from assignment-attempt workflow steps stored in `MissionTaskCompletion`.
+
 | Field | Purpose |
 | --- | --- |
 | `tenantId` | Owning tenant. |
@@ -337,6 +392,8 @@ learning content and may be attached to a `ProgramTask`.
 | `location` | Optional location or meeting link. |
 
 ## UserTaskCompletion
+
+**Unused by application code as of `v0.19.0`** — see `ProgramTask`.
 
 | Field | Purpose |
 | --- | --- |
@@ -429,6 +486,32 @@ knowledge-base and AI roadmap pillars (see `docs/vision.md` Phases 5-8).
 | `createdAt` | Marker creation timestamp. |
 
 Cleanup must delete only marked records. Seeded and user-created unmarked records must remain untouched.
+
+## MentorConversation
+
+| Field | Purpose |
+| --- | --- |
+| `id` | Unique conversation ID (cuid). |
+| `tenantId` | Owning tenant — cascades on tenant delete. |
+| `userId` | Owning user — cascades on user delete. |
+| `title` | Conversation title; defaults to `"New Conversation"`. |
+| `createdAt` | Creation timestamp. |
+| `updatedAt` | Last-update timestamp (auto-updated). |
+
+Index: `(tenantId, userId, updatedAt)` for efficient per-user conversation listing.
+
+## MentorMessage
+
+| Field | Purpose |
+| --- | --- |
+| `id` | Unique message ID (cuid). |
+| `conversationId` | Parent conversation — cascades on conversation delete. |
+| `role` | Message author role: `"user"` or `"mentor"`. |
+| `content` | Message text content. |
+| `cardsJson` | Optional JSON-serialised `MentorCard[]` for rich card rendering. |
+| `createdAt` | Creation timestamp. |
+
+Index: `(conversationId, createdAt)` for chronological message retrieval.
 
 ## Tenant Isolation
 

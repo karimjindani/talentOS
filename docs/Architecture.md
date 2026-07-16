@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.18.2`
+Code version: `v0.19.2`
 
-Architecture baseline commit: `6ef1ef7`
+Architecture baseline commit: `c7df9d9`
 
-Current documentation update: `v0.18.2`
+Current documentation update: `v0.19.2`
 
 ## Overview
 
@@ -107,6 +107,63 @@ Markdown source under `packages/db/prisma/seed-data/missions/ai-native-engineeri
 imported into standard `Mission` fields by the seed script; the app never reads the Markdown file
 paths at runtime, only the imported database content.
 
+### Mission Deadline & Lifecycle (`v0.18.5`)
+
+`v0.18.5` gives every `MissionAssignment` an explicit time-boxed lifecycle instead of the open-ended
+`v0.18.0` `ACTIVE` state. An applicant must explicitly **accept** a `NOT_STARTED` assignment
+(`acceptMissionAssignment`) before evidence can be drafted; accepting is what computes and starts
+`deadlineAt`/`graceEndsAt` from the mission's own `deadlineHours`/`gracePeriodHours` — an assignment
+that is never accepted never expires. Deadline enforcement is **not** a request-time check: a
+standalone, idempotent sweep (`packages/db/src/mission-deadlines.ts`,
+`scripts/mission-deadlines/sweep.ts`, `npm run mission-deadlines:sweep`) is intended to run as an
+external scheduled job (cron), deliberately kept out of the app process for future scaling. Each of
+its two phases is a status-scoped `updateMany` — `ACCEPTED|IN_PROGRESS` past `deadlineAt` →
+`OVERDUE`; `OVERDUE` past `graceEndsAt` with no submission → `FAILED` + `Application.status =
+DISQUALIFIED` — so re-running the sweep any number of times cannot double-transition or
+double-notify. A submission made after the deadline but before grace expiry is still accepted
+(`LATE_SUBMITTED`). Accepting a submission auto-advances the applicant to the next week's mission,
+capped at `FINAL_PROGRAM_WEEK = 4`. A `REPEAT` review decision reassigns a different published
+mission for the same week that failed (`v0.19.1`; this version shipped it as a reset to Week 1); no
+alternate mission moves `Application.status` to `AWAITING_MISSION_ASSIGNMENT` and notifies every
+`ORG_ADMIN`/`TECH_LEAD` in the tenant. A missed deadline (`DISQUALIFIED`) is a deliberately terminal
+outcome for now — a future Back Office "rejoin from Week 1" workflow is explicitly deferred.
+
+### Mission-Driven Tasks & Submissions Admin Tab (`v0.19.0`)
+
+`v0.19.0` replaces the applicant Tasks/Resources experience with a fixed 3-task template derived
+directly from each mission assignment — Task 1 "Review the Mission Brief", Task 2 "Study the
+Tutorial" (an optional `Mission.tutorialUrl`, YouTube-watch-gated via the IFrame Player API's
+`onStateChange`/`YT.PlayerState.ENDED`), Task 3 "Build & Submit Evidence" (no completion row of its
+own — implied complete once `Submission.status` moves beyond `DRAFT`/`NEEDS_REVISION`) — instead of
+the legacy program-level `ProgramTask`/`VideoResource` content. `packages/db/src/mission-tasks.ts`
+gates `saveSubmissionDraft`/`submitSubmission` on Tasks 1 and 2 being complete
+(`areRequiredMissionTasksComplete`). Each task links to a per-task resource page
+(`/dashboard/tasks/[assignmentId]/[taskIndex]`). The legacy tables remain in the schema, unused, by
+explicit product decision; only the applicant UI and the admin Program Content authoring page (now
+Calendar Events only) stop reading/writing them. A new admin **Submissions** tab (`/submissions`)
+lists and filters submissions across every mission for reviewers — reusing the existing
+`reviewSubmissions` capability and the existing per-submission review page, introducing no new
+authorization surface.
+
+### Dashboard Wiring & Same-Week Repeat (`v0.19.1`)
+
+`v0.19.1` wires the Dashboard, My Program, Tasks and Missions pages to the mission-lifecycle data
+`v0.18.5`/`v0.19.0` introduced: "Days Remaining" and every "current mission" countdown derive from
+the applicant's actual assignment `deadlineAt` (not `Program.endsAt`); My Program's Start/End dates
+derive from the Week 1 assignment's `acceptedAt` + 4 weeks; the `DeadlineCountdown` component
+renders only next to the current, unsubmitted mission. It also corrects the `v0.18.5`
+reject-reassignment behavior: `createRepeatFromWeekOneTx` is renamed
+`createRepeatMissionForSameWeekTx` and now repeats the **same week that failed** with a different
+mission, rather than always resetting to Week 1.
+
+### Logout Regression Fix & Confirmation Gates (`v0.19.2`)
+
+`v0.19.2` restores the applicant dashboard sidebar Logout button (`ApplicantShell.tsx`) that had
+been silently reverted by the `feat/applicant-ai-mentor-skeleton` merge (PR #45) — the `v0.14.3`/
+D-066 centralized-logout architecture itself is unchanged, only the shell's own affordance was
+missing. No new architectural surface; a `vitest.config.ts` alias fix and a governance-only
+`AGENTS.md` addition (Confirmation Gates) accompany it.
+
 ## Container Topology
 
 | Module | App | Container | Host port | Internal port |
@@ -118,6 +175,7 @@ paths at runtime, only the imported database content.
 | Keycloak database | — | `talentos-keycloak-postgres` | — (internal) | `5432` |
 | Object storage | `minio/minio` | `talentos-minio` | `9000`/`9001` (`S3_PORT`/`S3_CONSOLE_PORT`) | `9000`/`9001` |
 | Ops Console | `apps/ops` | — (host-run, not containerized) | `3300` (`OPS_PORT`, loopback only) | — |
+| Mission deadline sweep | `scripts/mission-deadlines/sweep.ts` | — (external cron, not a service) | — | — |
 
 ## Technology Stack
 
@@ -488,7 +546,21 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
    - Current working slice: final submission requires all required tasks for the assigned program week,
      at least four current-attempt journals, and publicly reachable GitHub/deployment/Loom URLs. Repeat
      attempts retain week-task completion but require four journals linked to the new attempt.
-   - Next: competency rollup / portfolio view over accepted submissions.
+   - Mission deadline & lifecycle (v0.18.5, D-080): explicit Accept Mission action starts a
+     per-mission deadline/grace countdown; an idempotent external sweep script transitions
+     `OVERDUE`/`FAILED`+`DISQUALIFIED`; accepting a submission auto-advances the applicant to the
+     next week (capped at week 4); a `REPEAT` decision reassigns an alternate mission for the same
+     week that failed (corrected from a Week 1 reset at `v0.19.1`, D-082), notifying reviewers when
+     no alternate mission exists.
+   - Mission-driven tasks & Submissions admin tab (v0.19.0, D-081): a fixed 3-task template per
+     assignment (Review Brief / Study Tutorial with YouTube watch-gate / Build & Submit Evidence)
+     gates submission; a new admin Submissions tab lists/filters submissions across all missions.
+     These assignment-attempt steps coexist with required `ProgramTask` learning tasks: mission steps
+     reset per attempt, while program-week task completion remains reusable across same-week repeats.
+   - Dashboard wiring (v0.19.1, D-082): Dashboard/My Program/Tasks/Missions pages read the real
+     mission-lifecycle deadline and task-completion data instead of program-level placeholders.
+   - Next: competency rollup / portfolio view over accepted submissions; a Back Office "rejoin from
+     Week 1" workflow for disqualified applicants (explicitly deferred, not yet designed).
 
 6. Engineering Journal — delivered in `v0.17.0`, date-uniqueness hardened in `v0.17.1`
    - Done: dedicated daily structured-reflection module (`EngineeringJournalEntry`) at
@@ -500,11 +572,37 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
    - Next: real AI review/scoring (current fields are schema placeholders only), recruiter visibility,
      export/weekly-summary features.
 
-7. AI Mentor Boundary
-   - Expand the current AI service boundary into tenant-aware, auditable mentor workflows.
+7. AI Mentor — delivered in `v0.15.0`
+   - Done: full conversational AI mentor at `/dashboard/mentor` for accepted applicants. The chat UI
+     (`apps/applicant/app/dashboard/mentor/page.tsx`) supports multi-conversation management with
+     per-conversation loading state, auto-scroll, suggested questions, and a "Still working..." timer.
+     Messages render Markdown (`react-markdown` + `remark-gfm` + Prism syntax highlighting) and rich
+     cards (`CardRenderer.tsx`: task, progress, timeline, tips, badge, warning) via a `cardsJson` field.
+     Conversations persist to `localStorage` (`talentos:mentor-conversations`) and to the database
+     (`MentorConversation` / `MentorMessage` models in `packages/db/src/mentor.ts`).
+   - **API route** (`apps/applicant/app/api/ai/mentor/route.ts`): `GET` loads conversation history,
+     `POST` accepts a prompt with auth guard + Zod validation, builds applicant context, retrieves
+     knowledge-base snippets, calls the LLM, and persists the exchange.
+   - **LLM integration** (`apps/applicant/lib/ai.ts`): `callGLM` calls ZhipuAI GLM-4.5-air with
+     1024 max tokens, 60 s timeout, and 1 retry. `buildSystemPrompt` assembles the system persona.
+     `requestAIInteraction` orchestrates: RBSE classification → LLM call → stub fallback on failure.    A **smart in-memory response cache** (`LLM_RESPONSE_CACHE`, D-070) avoids redundant LLM calls:
+    dynamic prompts (user-specific) are keyed by `tenant + user + contextSignature + prompt`, while
+    static knowledge prompts are keyed by `prompt` only (shared across users). The cache has a 5-minute
+    TTL, 200-entry cap with LRU eviction, and never caches errors. The context signature
+    (`buildContextSignature` in `ai-context.ts`) hashes program, progress, task, mission, and submission
+    state so any context change invalidates the dynamic cache entry.   - **RBSE classifier** (`apps/applicant/lib/ai-rbse.ts`): rule-based engine that classifies user
+     input into `blocked`, `direct_answer`, or `allow_llm` actions against an `ALLOWED_TOPICS` list.
+   - **Knowledge base** (`apps/applicant/lib/knowledge-base.ts`): keyword-based retrieval from
+     platform docs (SDLC, SEM, Mission Framework, etc.) with score ranking and a limit of 2 snippets.
+   - **Applicant context** (`apps/applicant/lib/ai-context.ts`): `buildApplicantContext` assembles
+     program, progress, upcoming tasks, missions — all tenant-scoped.
+   - Next: LiteLLM proxy integration, streaming responses, multi-turn context windowing,
+    edge/Redis-backed cache for multi-instance deployments.
 
 8. Knowledge Base
-   - Add tenant-owned knowledge documents for AI assistance and program support.
+   - The initial knowledge base is implemented as keyword-based retrieval from platform documentation
+     (`apps/applicant/lib/knowledge-base.ts`). Future: tenant-owned knowledge documents for AI
+     assistance and program support via a `KnowledgeBaseDocument` model.
 
 9. GitHub Integration
    - Connect participant repositories and collect project evidence.

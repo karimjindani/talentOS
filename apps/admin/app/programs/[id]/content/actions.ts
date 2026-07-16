@@ -110,13 +110,12 @@ function optionalPositiveInteger(formData: FormData, name: string): number | nul
   }
   return parsed;
 }
-
 function contentPath(programId: string): string {
   return `/programs/${programId}/content`;
 }
 
 // ---------------------------------------------------------------------------
-// Video resources
+// Weekly learning resources
 // ---------------------------------------------------------------------------
 
 export async function createVideoResourceAction(formData: FormData) {

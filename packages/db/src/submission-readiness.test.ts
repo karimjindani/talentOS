@@ -33,7 +33,7 @@ describe("mission submission readiness", () => {
       programId: "program-1",
       weekNumber: 1,
       attemptNumber: 2,
-      status: "ACTIVE"
+      status: "ACCEPTED"
     });
     prismaMock.applicationFindFirst.mockResolvedValue({ id: "application-1" });
     prismaMock.submissionFindFirst.mockResolvedValue({

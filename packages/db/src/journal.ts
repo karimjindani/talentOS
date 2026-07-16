@@ -263,7 +263,10 @@ export async function isJournalMissionLockedForApplicant(tenantId: string, appli
     orderBy: { attemptNumber: "desc" }
   });
   if (assignment) {
-    return assignment.status !== "ACTIVE";
+    // "Locked" means the applicant can no longer edit journal entries for this attempt: not yet
+    // accepted (NOT_STARTED) is also non-editable, but that's "not started" rather than "locked" —
+    // callers only use this to gate edits, so both read the same here.
+    return !["ACCEPTED", "IN_PROGRESS", "OVERDUE"].includes(assignment.status);
   }
 
   const legacySubmission = await prisma.submission.findFirst({
@@ -541,7 +544,10 @@ async function assertActiveAssignmentForAcceptedProgram(
       select: { status: true },
       orderBy: { attemptNumber: "desc" }
     });
-    if (latestAssignment && latestAssignment.status !== "ACTIVE") {
+    // getActiveMissionAssignmentForMissionTx already excludes ACCEPTED/IN_PROGRESS/OVERDUE, so
+    // reaching here with an assignment means it's either not yet accepted (NOT_STARTED — treated
+    // the same as "not assigned" below, not as locked) or past submission (locked).
+    if (latestAssignment && latestAssignment.status !== "NOT_STARTED") {
       throw new Error(JOURNAL_LOCKED_AFTER_SUBMISSION_MESSAGE);
     }
     throw new Error("Mission is not assigned to this applicant.");

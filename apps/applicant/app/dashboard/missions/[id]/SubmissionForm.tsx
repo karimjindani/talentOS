@@ -19,13 +19,15 @@ type SubmissionFormProps = {
   } | null;
   /** True when this is a resubmission after NEEDS_REVISION. */
   isRevision: boolean;
+  /** False until Tasks 1 & 2 (Review Brief, Study Tutorial) are checked off. */
+  canSubmit: boolean;
 };
 
 const inputClass =
   "w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 " +
   "focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/30";
 
-export function SubmissionForm({ missionId, defaults, isRevision, readiness }: SubmissionFormProps) {
+export function SubmissionForm({ missionId, defaults, isRevision, readiness, canSubmit }: SubmissionFormProps) {
   const action = saveSubmissionAction.bind(null, missionId);
   const [state, formAction, pending] = useActionState(action, INITIAL_STATE);
   const [repositoryUrl, setRepositoryUrl] = useState(defaults.repositoryUrl);
@@ -34,6 +36,7 @@ export function SubmissionForm({ missionId, defaults, isRevision, readiness }: S
   const tasksReady = Boolean(readiness && readiness.tasks.completed === readiness.tasks.required);
   const journalsReady = Boolean(readiness && readiness.journals.completed >= readiness.journals.required);
   const urlsPresent = Boolean(repositoryUrl.trim() && deploymentUrl.trim() && loomUrl.trim());
+  const knownRequirementsReady = canSubmit && tasksReady && journalsReady && urlsPresent;
 
   return (
     <form action={formAction} className="mt-4 grid gap-4">
@@ -93,6 +96,7 @@ export function SubmissionForm({ missionId, defaults, isRevision, readiness }: S
       <section className="border-y border-slate-200 py-4" aria-labelledby="submission-checklist-heading">
         <h3 id="submission-checklist-heading" className="font-semibold text-slate-900">Submission checklist</h3>
         <div className="mt-3 grid gap-2 text-sm">
+          <ChecklistItem complete={canSubmit} text="Mission steps Review Brief and Study Tutorial completed" />
           <ChecklistItem
             complete={tasksReady}
             text={`${readiness?.tasks.completed ?? 0} of ${readiness?.tasks.required ?? 0} required weekly tasks completed`}
@@ -132,8 +136,13 @@ export function SubmissionForm({ missionId, defaults, isRevision, readiness }: S
           type="submit"
           name="intent"
           value="submit"
-          disabled={pending || !tasksReady || !journalsReady || !urlsPresent}
-          className="cursor-pointer rounded-xl bg-brand-blue px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-navy disabled:opacity-60"
+          disabled={pending || !knownRequirementsReady}
+          title={
+            canSubmit
+              ? undefined
+              : "Complete the Review Brief and Study Tutorial mission steps before submitting for review."
+          }
+          className="cursor-pointer rounded-xl bg-brand-blue px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-navy disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isRevision ? "Resubmit for review" : "Submit for review"}
         </button>

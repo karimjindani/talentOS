@@ -177,7 +177,7 @@ export async function getMissionSubmissionReadinessWithClient(
   };
   const blockers: string[] = [];
 
-  if (assignment.status !== "ACTIVE") {
+  if (!["ACCEPTED", "IN_PROGRESS", "OVERDUE"].includes(assignment.status)) {
     blockers.push("The current assignment attempt is not open for submission.");
   }
   if (submission && submission.status !== "DRAFT" && submission.status !== "NEEDS_REVISION") {

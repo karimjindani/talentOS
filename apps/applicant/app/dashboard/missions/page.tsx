@@ -2,13 +2,14 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { getTenantContext } from "@talentos/ui";
 import {
+  getApplicantMissionProgress,
   getTenantBySlug,
   getUserByEmail,
-  listAssignedProgramMissions,
+  listAssignedMissionsWithTasks,
   listApplicantApplications,
-  listApplicantProgramSubmissions,
-  type SubmissionStatus
+  type MissionAssignmentStatus
 } from "@talentos/db";
+import { DeadlineCountdown } from "@/components/DeadlineCountdown";
 
 export default async function ApplicantMissionsPage() {
   const session = await auth();
@@ -24,10 +25,8 @@ export default async function ApplicantMissionsPage() {
   }
 
   const program = acceptedApp.program;
-  const missions = await listAssignedProgramMissions(tenant.id, user.id, program.id);
-  // Per-mission submission status chips (v0.15.0, D-067).
-  const submissions = await listApplicantProgramSubmissions(tenant.id, user.id, program.id);
-  const statusByMission = new Map(submissions.map((submission) => [submission.missionId, submission.status]));
+  const missionsWithTasks = await listAssignedMissionsWithTasks(tenant.id, user.id, program.id);
+  const missionProgress = await getApplicantMissionProgress(tenant.id, user.id, program.id);
 
   return (
     <div>
@@ -36,63 +35,83 @@ export default async function ApplicantMissionsPage() {
         Real-world engineering assignments for {program.name}. Complete the full SEM lifecycle each time.
       </p>
 
-      {missions.length === 0 ? (
+      {missionsWithTasks.length === 0 ? (
         <p className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
           No assigned missions are available yet.
         </p>
       ) : (
         <div className="mt-8 grid gap-4">
-          {missions.map((mission) => (
-            <Link
-              key={mission.id}
-              href={`/dashboard/missions/${mission.id}`}
-              className="block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-brand-blue hover:shadow-md"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-blue">
-                    Week {mission.weekNumber} {"\u2022"} {mission.difficulty}
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold text-brand-navy">{mission.title}</h2>
+          {missionsWithTasks.map(({ mission, assignment }) => {
+            const isCurrent = missionProgress.currentMission?.id === mission.id;
+            const hasLiveDeadline =
+              isCurrent &&
+              ["ACCEPTED", "IN_PROGRESS", "OVERDUE"].includes(assignment.status) &&
+              assignment.deadlineAt &&
+              assignment.graceEndsAt;
+
+            return (
+              <Link
+                key={mission.id}
+                href={`/dashboard/missions/${mission.id}`}
+                className="block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-brand-blue hover:shadow-md"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-brand-blue">
+                      Week {mission.weekNumber} • {mission.difficulty}
+                    </p>
+                    <h2 className="mt-2 text-xl font-semibold text-brand-navy">{mission.title}</h2>
+                  </div>
+                  <MissionSubmissionChip status={assignment.status} />
                 </div>
-                <MissionSubmissionChip status={statusByMission.get(mission.id) ?? null} />
-              </div>
-              <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">{mission.objective || mission.brief}</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {mission.competencyTags.slice(0, 5).map((tag) => (
-                  <span key={tag} className="rounded-full bg-brand-mist px-3 py-1 text-xs font-semibold text-brand-blue">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </Link>
-          ))}
+                <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">{mission.objective || mission.brief}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {mission.competencyTags.slice(0, 5).map((tag) => (
+                    <span key={tag} className="rounded-full bg-brand-mist px-3 py-1 text-xs font-semibold text-brand-blue">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                {hasLiveDeadline && assignment.deadlineAt && assignment.graceEndsAt ? (
+                  <div className="mt-4">
+                    <DeadlineCountdown deadlineAt={assignment.deadlineAt} graceEndsAt={assignment.graceEndsAt} />
+                  </div>
+                ) : null}
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-function MissionSubmissionChip({ status }: { status: SubmissionStatus | null }) {
+function MissionSubmissionChip({ status }: { status: MissionAssignmentStatus | null }) {
   if (!status) {
     return (
       <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">Not started</span>
     );
   }
-  const styles: Record<SubmissionStatus, string> = {
-    DRAFT: "bg-slate-100 text-slate-700",
-    SUBMITTED: "bg-blue-100 text-blue-700",
-    REVIEWED: "bg-slate-100 text-slate-700",
-    NEEDS_REVISION: "bg-amber-100 text-amber-800",
-    ACCEPTED: "bg-emerald-100 text-emerald-700",
+  const styles: Record<MissionAssignmentStatus, string> = {
+    NOT_STARTED: "bg-slate-100 text-slate-700",
+    ACCEPTED: "bg-blue-100 text-blue-700",
+    IN_PROGRESS: "bg-blue-100 text-blue-700",
+    PENDING_EVALUATION: "bg-indigo-100 text-indigo-700",
+    LATE_SUBMITTED: "bg-amber-100 text-amber-800",
+    OVERDUE: "bg-amber-100 text-amber-800",
+    FAILED: "bg-rose-100 text-rose-700",
+    PASSED: "bg-emerald-100 text-emerald-700",
     REPEAT: "bg-rose-100 text-rose-700"
   };
-  const labels: Record<SubmissionStatus, string> = {
-    DRAFT: "Draft saved",
-    SUBMITTED: "Submitted",
-    REVIEWED: "Reviewed",
-    NEEDS_REVISION: "Revision requested",
+  const labels: Record<MissionAssignmentStatus, string> = {
+    NOT_STARTED: "Not started",
     ACCEPTED: "Accepted",
+    IN_PROGRESS: "In progress",
+    PENDING_EVALUATION: "Submitted",
+    LATE_SUBMITTED: "Submitted (late)",
+    OVERDUE: "Overdue — grace period",
+    FAILED: "Failed",
+    PASSED: "Accepted",
     REPEAT: "Repeat assigned"
   };
   return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${styles[status]}`}>{labels[status]}</span>;

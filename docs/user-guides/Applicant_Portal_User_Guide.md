@@ -1,8 +1,8 @@
 # Applicant Portal User Guide
 
-Applies to version: `v0.18.0`
+Applies to version: `v0.18.4`
 
-Last verified: 2026-07-08
+Last verified: 2026-07-14
 
 Audience: applicants and accepted program participants.
 
@@ -154,8 +154,7 @@ To view missions:
 4. Open a mission to review the objective, acceptance criteria, deliverables, evaluation criteria, and
    competency tags.
 
-The demo program seeds the full four-week mission arc (`v0.15.1`), evolving one product — TaskPilot —
-from idea to production:
+The seeded Week 1 mission is **Build a Public Product Landing Page**.
 
 In `v0.18.0`, Week 1 has multiple seeded variants so interns do not all start with the exact same
 assignment. The assigned mission is the one that appears in your dashboard.
@@ -167,35 +166,79 @@ assignment. The assigned mission is the one that appears in your dashboard.
 | 3 | Containerize, Automate and Load-Test TaskPilot | Advanced |
 | 4 | Take TaskPilot to Production | Expert |
 
-### Submitting mission work (`v0.15.0`)
+### Mission acceptance, tasks, submission, and review
 
-Each mission detail page has a **My Submission** section where you provide your evidence:
+Open an assigned mission and select **Accept Mission** to start its deadline and grace-period clock.
+Each assignment attempt has fixed mission steps for reviewing the brief, studying the mission tutorial,
+and building/submitting evidence. These are separate from the reusable weekly learning tasks shown on
+the Tasks page; both sets must be complete before submission.
 
 - **Git repository URL** — must be on `github.com`; your PRD, README, user stories and acceptance
   criteria live in the repository.
-- **Deployed application URL** — any reachable `http(s)` link to your running application.
-- **Loom walkthrough URL** — must be on `loom.com`.
-
-Workflow:
+- **Deployed application URL** — any reachable public `http(s)` link to your running application.
+- **Loom walkthrough URL** — must be a supported public `loom.com` share/watch link.
 
 1. Fill in your evidence and select **Save draft** as often as you like.
-2. Use the submission checklist to confirm all required week tasks are complete, at least four journal
-   entries belong to this assignment attempt, and all three evidence URLs are present and valid.
+2. Use the submission checklist to confirm mission steps and required week tasks are complete, at least
+   four journal entries belong to this assignment attempt, and all three evidence URLs are present.
 3. Select **Submit for review**. TalentOS checks that the GitHub repository, deployed page, and Loom
    page are publicly reachable at that moment. Internal/private destinations are rejected.
 4. If any check fails, the submission stays a draft (or revision), journals stay unchanged, and the
-   page shows an actionable error. Successful submission timestamps the submission and locks only the
-   journals for this assignment attempt.
-5. A reviewer either **accepts** your submission or **requests changes** with written feedback. You are
-   notified either way (see **Notifications**), and the feedback appears on the mission page.
-6. If changes are requested, edit your evidence and **Resubmit for review** — readiness and public URL
-   checks run again for the same assignment attempt.
-7. If the reviewer asks you to repeat the week, your completed week tasks remain complete, but the new
-   attempt needs at least four newly linked journal entries and fresh validated submission evidence.
-8. An accepted submission is final: it becomes portfolio evidence for the mission's competencies.
+   page shows an actionable error. Successful submission timestamps the submission, updates the
+   deadline-aware assignment status, and locks only the journals for this attempt.
+5. A reviewer can accept, request changes, or require a same-week repeat. Feedback appears on the
+   mission page and the applicant receives a notification.
+6. A revision reuses the same attempt and reruns readiness and URL checks. A repeat creates a fresh
+   assignment attempt: weekly learning tasks remain complete, while mission steps and the minimum four
+   attempt-linked journals must be completed again.
+7. An accepted submission is final and becomes portfolio evidence for the mission's competencies.
 
-The missions list shows a status chip per mission: **Not started**, **Draft saved**, **Submitted**,
-**Revision requested**, or **Accepted**.
+## AI Mentor
+
+The AI Mentor is a conversational assistant available to accepted applicants at
+`http://demo.lvh.me:3100/dashboard/mentor`.
+
+### What the AI Mentor does
+
+The mentor answers questions about your program, tasks, missions, software engineering practices (SDLC,
+SEM, mission framework), and general career guidance. It uses a rule-based classifier to stay on-topic
+and a knowledge base drawn from platform documentation.
+
+### Using the AI Mentor
+
+1. Sign in as an accepted applicant.
+2. Open the dashboard.
+3. Select **AI Mentor** in the sidebar.
+4. Type a question in the chat input and press **Enter** or click **Send**.
+5. The mentor's response appears as a formatted message with Markdown rendering and syntax-highlighted
+   code blocks.
+6. Use the **suggested questions** chips above the input for quick prompts.
+
+### Conversation management
+
+- **New Chat**: Click the **New Chat** button to start a fresh conversation.
+- **Conversation history**: Previous conversations are listed in the sidebar. Click any to resume.
+- **Persistence**: Conversations are saved to your browser's local storage and to the database, so they
+  persist across sessions.
+- **Loading indicator**: Each conversation shows its own loading spinner while the mentor is thinking.
+  A "Still working..." message appears if the response takes more than a few seconds.
+
+### Rich cards
+
+The mentor can render rich cards inside responses, including task cards, progress indicators, timelines,
+tips, badges, and warnings.
+
+### Response caching
+
+The mentor caches LLM responses to avoid redundant API calls and reduce latency:
+
+- **Dynamic questions** (about your tasks, progress, timeline) are cached per user and per context — if
+  your program state hasn't changed, asking the same question again returns the cached response
+  instantly.
+- **Static knowledge questions** (e.g., "Explain SDLC") are cached across all users, so common
+  questions are fast for everyone.
+- Cached responses expire after 5 minutes. If you complete a task or your context changes, the cache
+  is automatically invalidated for dynamic questions.
 
 Daily reflection is recorded only through the dedicated Engineering Journal. The legacy inline
 mission-submission journal is no longer shown in applicant or admin interfaces.

@@ -85,7 +85,8 @@ export default async function ProgramContentPage({ params }: ProgramContentPageP
       </div>
       <p className="mt-2 text-sm text-slate-600">
         Weekly tasks, task-linked Markdown/YouTube learning resources and calendar events shown on
-        the applicant dashboard. All changes are audited.
+        the applicant dashboard. Mission workflow steps and tutorial links remain managed per mission.
+        All changes are audited.
       </p>
 
       {/* ------------------------------------------------------------------ */}

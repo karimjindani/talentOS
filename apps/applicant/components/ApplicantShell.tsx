@@ -20,6 +20,7 @@ export const APPLICANT_NAV_ITEMS: ApplicantNavItem[] = [
   { href: "/dashboard/calendar", label: "Calendar" },
   { href: "/dashboard/notifications", label: "Notifications" },
   { href: "/dashboard/profile", label: "Profile" },
+  { href: "/dashboard/mentor", label: "AI Mentor" },
 ];
 
 const baseLinkClass = "rounded-lg px-3 py-2 font-medium transition-colors";

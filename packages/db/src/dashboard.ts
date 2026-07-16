@@ -155,12 +155,12 @@ export function markApplicantTaskCompleted(input: CompleteApplicantTaskInput) {
         id: input.missionAssignmentId,
         tenantId: input.tenantId,
         applicantId: input.applicantId,
-        status: "ACTIVE"
+        status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] }
       },
       select: { id: true, programId: true, weekNumber: true }
     });
     if (!assignment) {
-      throw new Error("The active assignment was not found for this applicant.");
+      throw new Error("An open assignment was not found for this applicant.");
     }
 
     const acceptedApplication = await tx.application.findFirst({

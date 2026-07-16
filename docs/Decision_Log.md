@@ -1,10 +1,10 @@
 # Decision Log
 
-Code version: `v0.18.2`
+Code version: `v0.19.2`
 
 Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
 
-Current documentation update: `v0.18.2`
+Current documentation update: `v0.19.2`
 
 ## D-001
 
@@ -435,119 +435,65 @@ Status: Approved
 
 ## D-066
 
-`v0.14.3` fixes two related logout defects. (1) An accepted applicant had **no way to sign out**: the
-dashboard layout replaces `PortalHeader` (which held the only Logout button) with `ApplicantShell`,
-and since `v0.12.0` redirects accepted applicants from `/` and `/application` to `/dashboard`, they
-could never reach a page with a logout affordance. (2) RP-initiated Keycloak logout was **broken on
-every tenant subdomain** in both portals since `v0.12.1`: the logout forms derived
-`post_logout_redirect_uri` from the request Host, but Keycloak only supports `*` wildcards at the end
-of a redirect-URI pattern — the registered `http://*.lvh.me:{port}/*` hostname wildcards never match,
-so Keycloak answered "Invalid redirect uri" (the `v0.10.2` validation had run on the canonical host
-only). Decision: centralize logout in a shared `buildTenantLogoutUrl` (`packages/auth-web`) that
-always returns through the canonical AUTH_URL origin's new `/logged-out` route — the only origin
-Keycloak can validate — carrying the tenant origin in the OIDC `state` parameter; `/logged-out`
-bounces the user back to their tenant via the existing allow-listed `resolveTenantRedirect` (D-060),
-so this is not an open redirect (verified: foreign and look-alike hosts collapse to the canonical
-origin). The three duplicated inline logout forms (PortalHeader, applicant access-denied page, admin
-root layout) now call shared per-app `logoutAction` server actions, and `ApplicantShell` gains a
-Logout button in the sidebar user block. `/logged-out` is exempted from the admin auth middleware.
-No schema, data-model or capability change; the regression suite grew to **161 tests**, and the fix
-was verified end-to-end in a real browser (dashboard logout, admin tenant-subdomain logout, SSO
-termination on both, and the `/logged-out` allow-list).
+`v0.15.0` — LLM provider selection: **ZhipuAI GLM-4.5-air** via the `api.z.ai` coding endpoint. Chosen
+for its fast air-tier latency (~3–5 s), low cost, and strong code/instruction following. The integration
+(`apps/applicant/lib/ai.ts` → `callGLM`) uses 1024 max tokens, 0.7 temperature, 60 s timeout, and 1
+retry. A LiteLLM proxy path is planned for multi-model routing but not yet integrated. When the API key
+is absent or the call fails, a stub response preserves UX continuity.
 
 Status: Approved
 
 ## D-067
 
-`v0.15.0` delivers Mission Submission MVP-1, activating the `Submission` scaffolding laid down in
-`v0.14.0`. Decisions: (1) **Evidence is URLs + inline journal** — Git repository (host-allowlisted to
-github.com), deployed application (any http/https), Loom walkthrough (loom.com) and an inline
-Engineering Journal in Markdown, matching the Week 1 deliverables in `docs/curriculum.md`; PRD,
-README, user stories and acceptance criteria live inside the repository. File attachments are
-deferred. (2) **Staff-only review** — a new `reviewSubmissions` capability is granted to `ORG_ADMIN`
-and `TECH_LEAD` (SUPER_ADMIN bypasses); HR is read-only and applicants never review each other,
-per `docs/Graduate_Profile.md` ("graduates are not expected to review other engineers' code").
-(3) **Full SEM revision loop** — `DRAFT→SUBMITTED→ACCEPTED|NEEDS_REVISION`,
-`NEEDS_REVISION→SUBMITTED`; written feedback is mandatory when requesting changes (the coaching
-mechanism for building independent engineers); `ACCEPTED` is terminal because an accepted submission
-is portfolio/graduation evidence for the mission's `competencyTags` (kept queryable for a future
-competency-rollup/portfolio view). (4) **One submission row per applicant per mission**
-(unique `[missionId, applicantId]`) — the loop reuses the row. (5) **Schema hardening** — the model
-gains `tenantId` for direct tenant scoping (consistent with every other tenant-owned table) plus
-`reviewerFeedback`/`reviewedAt`/`reviewerUserId`. Applicants submit from the mission detail page in
-the dashboard (with per-mission status chips in the list); admins review from a new
-`/missions/[id]/submissions/[submissionId]` page; the applicant is notified (SUCCESS/WARNING with
-feedback) in the same transaction as the review. Writes are tenant-scoped, ownership-checked,
-status-machine-guarded and audited (`submission.created/updated/submitted/reviewed`). The regression
-suite covers the full loop, the role matrix and cross-tenant isolation.
+`v0.15.0` — Rule-Based System Engine (RBSE) as the first-line input classifier. The RBSE
+(`apps/applicant/lib/ai-rbse.ts`) classifies user input into `blocked`, `direct_answer`, or `allow_llm`
+actions against an `ALLOWED_TOPICS` list before any LLM call. This avoids unnecessary LLM costs for
+off-topic questions, provides deterministic safety guardrails, and keeps the mentor on-topic for
+software engineering and program guidance. The RBSE is intentionally simple (keyword matching) so it can
+be audited and extended without model retraining.
 
 Status: Approved
 
 ## D-068
 
-`v0.15.1` seeds the complete four-week mission arc so the demo tenant demonstrates the full
-AI-Native Software Engineering Apprenticeship out of the box (previously only the Week 1 mission
-existed). Decisions: (1) **One continuous product** — all four missions evolve TaskPilot, the
-fictional AI-assisted task planner from the Week 1 brief, embodying the SEM principle that the
-lifecycle stays constant while complexity increases (`docs/SEM.md`); every brief embeds the tailored
-10-step lifecycle. (2) **Difficulty ladder mirrors the curriculum themes** — BEGINNER "Build
-Something Real" → INTERMEDIATE "Build Like an Engineer" → ADVANCED "Build Like a Production Team" →
-EXPERT "Build Like a Production Engineer", with deliverables and acceptance criteria lifted from the
-weekly deliverable tables in `docs/curriculum.md`. (3) **Deployment progression follows the vision
-roadmap** — static hosting → full-stack hosting → Docker + CI/CD → VPS behind a reverse proxy with
-SSL (`docs/vision.md`). (4) **`competencyTags` use `docs/Competency_Framework.md` names verbatim**;
-`Production Readiness` first appears in Week 4, matching the maturity matrix (PRR reaches Mastery
-only in Week 4); no mission asks participants to review each other's code (`docs/Graduate_Profile.md`).
-(5) **Data-driven idempotent seed** — `seed.ts` refactored to a `missionSeeds` array upserted on
-stable ids; Week 1 content is unchanged. Also fixes the `v0.14.0` mojibake week/difficulty separator
-(`Â€¢` → `•`) on the three mission pages via an encoding-proof JSX escape. No schema, capability,
-route or workflow changes.
+`v0.15.0` — Knowledge base design: keyword-based retrieval from platform documentation. The knowledge
+base (`apps/applicant/lib/knowledge-base.ts`) scores snippets from SDLC, SEM, Mission Framework, and
+other docs by keyword overlap, returning the top 2 snippets. This keeps the context window small and
+response times fast. A future `KnowledgeBaseDocument` model will support tenant-owned content.
 
 Status: Approved
 
 ## D-069
 
-`v0.16.0` makes the mission loop the dashboard's source of truth and gives program content a real
-owner. Decisions: (1) **Mission-driven progress** — the applicant dashboard's Overall Progress and
-week bars are computed from published missions vs the applicant's ACCEPTED submissions
-(`getApplicantMissionProgress`); drafts and pending reviews do not move the bar, because acceptance
-is the SEM loop's terminal, portfolio-grade state. A **Current Mission** card surfaces the next
-mission (first non-accepted, by week/order) with its submission status. Weekly tasks remain a
-supplementary checklist with their own tile. (2) **`manageProgramContent` capability** — video
-resources, weekly tasks and calendar events (models shipped in `v0.12.0` but writable only by a dev
-seed script) become manageable from a new admin **Program Content** page
-(`/programs/[id]/content`); the capability is granted to `ORG_ADMIN` only (SUPER_ADMIN bypasses;
-HR/TECH_LEAD stay read-only), matching the ownership of programs and missions. (3) **Same
-security conventions as missions (D-064)** — server actions re-resolve the actor through the
-D-051 membership-backed tenant guard; db helpers are transactional, tenant-scoped
-(`updateMany`/`deleteMany` on `{ id, tenantId }`, program-chain check on create) and audited
-(`resource.created|updated|deleted`, `task.*`, `event.*`); admin-entered video URLs must be
-well-formed http(s). No schema change. The regression suite gains a full draft→submit→accept
-progress scenario and a content CRUD + role-denial scenario (unit suite: 202 tests).
+`v0.15.0` — Token limit and prompt strategy: 1024 max tokens (up from an initial 256 that caused
+response truncation), system prompt trimmed to essential persona + context + knowledge to keep latency
+under ~40 s. Per-conversation loading state and a "Still working..." timer (5 s threshold) provide UX
+feedback during LLM calls. Conversations persist to both `localStorage` (instant UI restore) and the
+database (`MentorConversation` / `MentorMessage`) for cross-device access.
 
 Status: Approved
 
 ## D-070
 
-`v0.16.2` (documentation-only patch) realigns the vision and framework docs with the shipped
-`v0.14.0`–`v0.16.1` scope, following an audit of `docs/vision.md` against committed code.
-Decisions: (1) **`docs/vision.md` reflects reality** — the Current State section now covers the
-delivered Mission Engine (`v0.14.0`), Submission & Review loop (`v0.15.0`), four-week seeded
-mission arc (`v0.15.1`) and mission-driven dashboard progress + program content management
-(`v0.16.0`); the Gap Analysis no longer claims "the core learning experience still needs to be
-built"; the 8-phase roadmap uses per-phase `Status:` lines with `[x] item — vX.Y.Z` version
-references (Phases 2–3 delivered, Phase 1 largely delivered, Phase 4 partial, Phases 5–8 not
-started). The audit confirmed `PortfolioArtifact`/`Certificate`/`KnowledgeBaseDocument`/
-`AIInteraction` remain unreferenced schema stubs and the AI Mentor endpoint is a stub, so
-Phases 5–8 stay open. (2) **Canonical 10-step SEM everywhere** — `docs/Mission_Framework.md`'s
-SEM Authoring Guidance listed 8 steps (missing Analyze and Production Readiness Review),
-conflicting with `docs/SEM.md`, `docs/curriculum.md`, `docs/vision.md` and the `v0.15.1` seeds;
-it now lists the canonical 10 steps. (3) **Backlog currency** — `docs/Product_Backlog.md` moves
-off its stale `v0.15.0` header and records the `v0.15.1` (D-068) and `v0.16.0` (D-069) slices as
-delivered. (4) **Accuracy over aspiration** — vision.md now states that TOTP/MFA is enforced only
-for the Ops Console (not the applicant/admin portals) and that competency tags / evaluation
-criteria are free text pending a controlled catalog and rubrics. No application code, schema,
-configuration or Docker change; the unit suite is unchanged at 202 tests.
+`v0.15.0` — Smart in-memory LLM response cache with context-signature-aware keys. The cache
+(`LLM_RESPONSE_CACHE` in `apps/applicant/lib/ai.ts`) is a `Map<string, { content, timestamp }>` with a
+5-minute TTL (`LLM_CACHE_TTL_MS = 300_000`) and a 200-entry cap (`LLM_CACHE_MAX_SIZE = 200`) with LRU
+eviction. Cache keys are built by `buildLLMCacheKey`, which distinguishes **dynamic** prompts (containing
+user-specific keywords like "my task", "my progress", "my timeline") from **static** knowledge prompts:
+
+- **Dynamic key** — `dynamic:{tenantId}:{userId}:{contextSignature}:{prompt}` — scoped per user + context
+  so a context change (task completed, progress updated) invalidates the entry and forces a fresh LLM
+  call. The context signature (`buildContextSignature` in `ai-context.ts`) is a stable pipe-separated
+  hash of program id, progress counts, task ids/status/dueDates, mission ids, submission ids/status, and
+  days remaining.
+- **Static key** — `static:{prompt}` — shared across all users/tenants for general knowledge questions
+  (e.g., "Explain SDLC"), maximising cache hit rate for non-personal content.
+
+Errors are **never cached** — a failed LLM call (500, 429, timeout, network error) returns a stub
+response but does not populate the cache, so the next identical request retries the LLM. RBSE
+`direct_answer` and `blocked` actions bypass the cache entirely (no LLM call, no cache read/write).
+Verified by 6 dedicated cache tests (`ai-cache.test.ts`): cache hit, cache miss on context change,
+static cache sharing across users, error non-caching, user isolation, and RBSE bypass.
 
 Status: Approved
 
@@ -769,5 +715,193 @@ enhancement only.
 
 Plan: `docs/plans/v0.18.3_Ops_Regression_Scenario_Visibility.md`; results:
 `docs/testing/v0.18.3_Ops_Regression_Scenario_Visibility_Test_Results.md`.
+
+Status: Approved
+
+## D-079
+
+`v0.18.4` enables SSE streaming for AI Mentor LLM calls and fixes the send button for fresh users.
+Decisions: (1) **Streaming enabled** — `callGLM` now sends `stream: true` to the GLM-4.5-air endpoint
+so the first token reaches the browser sooner, reducing perceived latency from ~30 s (full response
+wait) to <2 s (first token). The `GLMChatRequest` type was widened from `stream: false` to
+`stream: boolean` for type safety. (2) **SSE stream parser** — `parseSSEStream()` added to handle
+`text/event-stream` responses. Reads the response body as a stream, splits `data: {...}` lines,
+extracts `delta.content` fragments, and concatenates them into the full response. Handles `[DONE]`
+sentinel and malformed lines gracefully. Replaces the previous `response.json()` call which failed
+with `Unexpected token 'd', "data: {"id"... is not valid JSON`. (3) **Send button fix for fresh
+users** — `loadHistory()` now auto-creates a conversation when `activeConversationId` is null (fresh
+user with no DB history), and `handleSend()` has a safety net that creates a conversation on the fly
+if the ID is still null. This fixes the silent failure where the send button did nothing for users
+with no existing conversations. (4) **Test coverage** — 4 new SSE-specific tests (UT-SSE-01 through
+UT-SSE-04) covering multi-fragment concatenation, empty fragments, malformed lines, and `[DONE]`
+sentinel. Mock updated to simulate SSE stream. All 19 tests passing. (5) **Documentation** —
+`docs/AI_MENTOR_END_TO_END_DEMO_GUIDE.md` added as a comprehensive demo guide;
+`docs/Testing_Strategy.md` and `docs/plans/v0.15.0_AI_Mentor_Roadmap.md` updated. No schema change.
+The regression suite is unchanged.
+
+Status: Approved
+
+## D-080
+
+`v0.18.5` gives every `MissionAssignment` an explicit time-boxed lifecycle instead of an open-ended
+`ACTIVE` state. Decisions: (1) **Explicit accept, not assignment time, starts the clock** —
+`acceptMissionAssignment` is a new applicant-initiated transition (`NOT_STARTED → ACCEPTED`) that
+computes `deadlineAt`/`graceEndsAt` from the mission's own `deadlineHours`/`gracePeriodHours` at the
+moment of acceptance; an assignment the applicant never accepts never expires, so an applicant is
+never penalized for a mission sitting unopened. (2) **`MissionAssignmentStatus` is rebuilt** as
+`NOT_STARTED → ACCEPTED → IN_PROGRESS → PENDING_EVALUATION | LATE_SUBMITTED`, with `OVERDUE`
+(deadline passed, still inside grace) and terminal `FAILED` (grace expired) as deadline-driven side
+states alongside the existing `PASSED`/`REPEAT` review outcomes — replacing the `v0.18.0`
+`ACTIVE`/`SUBMITTED` two-state model. (3) **Deadline enforcement is an external, idempotent
+scheduled job, not a request-time check** — per explicit product direction ("I prefer keeping
+scheduled background tasks separate from the app process, especially for future scaling"),
+`sweepMissionDeadlines` (`packages/db/src/mission-deadlines.ts`) runs via a standalone script
+(`scripts/mission-deadlines/sweep.ts`, `npm run mission-deadlines:sweep`) intended for an external
+cron, not a Next.js route or middleware. Idempotency is structural, not flag-based: each of the two
+sweep phases (`ACCEPTED|IN_PROGRESS` past `deadlineAt` → `OVERDUE`; `OVERDUE` past `graceEndsAt` →
+`FAILED` + `Application.status = DISQUALIFIED`) is a status-scoped `updateMany`, so re-running the
+sweep any number of times can never double-transition or double-notify — a run that finds nothing
+in the source status is a pure no-op. (4) **A late submission inside the grace period still
+counts** — evidence submitted after `deadlineAt` but before `graceEndsAt` is accepted and recorded
+as `LATE_SUBMITTED` rather than rejected, since the grace period's whole purpose is to tolerate
+exactly this. (5) **Acceptance auto-advances the applicant, capped at the final week** — accepting
+a submission creates the next week's assignment automatically (`FINAL_PROGRAM_WEEK = 4`); accepting
+Week 4 creates no Week 5. (6) **Rejection reassigns, never resets to a stale mission** — a `REPEAT`
+decision creates a new assignment for a different published mission (this version: back at Week 1);
+if no alternate mission exists, no assignment is created, `Application.status` becomes
+`AWAITING_MISSION_ASSIGNMENT`, and every `ORG_ADMIN`/`TECH_LEAD` in the tenant is notified to assign
+one manually — the failed mission is never reassigned and the applicant is never removed. (7)
+**A missed deadline is terminal for now, by explicit product decision** — grace-period expiry sets
+`Application.status = DISQUALIFIED` with no rejoin path; "For now, we can leave it at that. Later we
+will see what happens if person wants to apply again. Maybe Back Office admin allows them to rejoin
+program from Week 1" is recorded as deferred future work, not a gap to silently fill. Migration:
+`20260714090000_mission_deadlines_and_lifecycle`. All new end-to-end scenarios (accept, sweep
+transitions, late-submission acceptance, auto-advance cap, reject-reassignment,
+FAILED-blocks-resubmission) are unit-tested but deferred at the scenario-regression level — recorded
+in `docs/Regression_Scenarios.md` Known Gaps rather than silently missing, per `D-076`.
+
+**Process note:** this baseline, `D-081` (`v0.19.0`) and `D-082` (`v0.19.1`) all ship from a single
+implementation commit instead of one commit per version — the same kind of accepted one-time
+exception already recorded for `v0.17.0`–`v0.18.0` under `D-073`, since all three versions were
+built in one continuous session before any of it was committed. See the process note in
+`docs/Version_Baseline.md`.
+
+Plan: `docs/plans/v0.18.5_Mission_Deadline_Lifecycle.md`; results:
+`docs/testing/v0.18.5_Mission_Deadline_Lifecycle_Test_Results.md`.
+
+Status: Approved
+
+## D-081
+
+`v0.19.0` replaces the applicant Tasks/Resources experience — previously driven by the legacy
+program-level `ProgramTask`/`VideoResource` content unrelated to the mission actually being worked
+— with a fixed, mission-derived 3-task template, and gives reviewers a cross-mission admin
+Submissions tab. Decisions: (1) **Tasks are a fixed template per mission assignment, not
+admin-authored** — every assignment gets exactly three tasks (Review the Mission Brief, Study the
+Tutorial, Build & Submit Evidence); only `MissionTaskCompletion` (task 1/2) is a real row per
+attempt, task 3 is derived implicitly from `Submission.status` moving beyond `DRAFT`/
+`NEEDS_REVISION` rather than getting its own completion row, since "submitted" already is that
+task's completion signal. (2) **Submission is gated on tasks 1 and 2** — `saveSubmissionDraft`/
+`submitSubmission` reject a submit attempt until `areRequiredMissionTasksComplete` is true, matching
+the product requirement that an applicant "can only submit mission for review after complete that
+week/mission tasks." (3) **YouTube watch-gate uses the IFrame Player API's `onStateChange` event,
+not a timer or a client-trusted flag** — Task 2's "Mark as complete" stays disabled until
+`YT.PlayerState.ENDED` fires, so a mission author's tutorial video must actually play through; a
+mission with no `tutorialUrl` has no gate at all — task 2 completes directly. (4) **Legacy tables
+are kept, not migrated or deleted** — by explicit product decision ("Yes, keep the tables, just
+leave them unused for now"), `ProgramTask`/`VideoResource`/`UserTaskCompletion` remain real tables
+with no application code reading or writing them; only the applicant Tasks/Resources UI and the
+admin Program Content authoring page (which now manages only Calendar Events) stop using them. (5)
+**The Submissions admin tab introduces no new authorization surface** — `/submissions` reuses the
+existing `reviewSubmissions` capability and the existing per-submission review page; it is purely a
+cross-mission list/filter view (`listTenantSubmissions`) so reviewers no longer have to open each
+mission individually to find what needs review. (6) **Security fix folded into this iteration**: an
+automated review flagged `mission.tutorialUrl` rendered as a raw `<a href>` with no scheme
+validation (a `javascript:` URI XSS vector); fixed on both the write side (`parseOptionalHttpUrl` in
+the admin mission form action, rejecting non-http/https schemes) and the read side (a defensive
+scheme re-check before rendering the link on the applicant task page). Migration:
+`20260714110000_mission_tasks`. As with `D-080`, the new end-to-end scenarios (submission gating,
+watch-gate, Submissions tab reachability) are unit- and manually-tested but deferred at the
+scenario-regression level — see `docs/Regression_Scenarios.md` Known Gaps.
+
+Plan: `docs/plans/v0.19.0_Mission_Driven_Tasks.md`; results:
+`docs/testing/v0.19.0_Mission_Driven_Tasks_Test_Results.md`.
+
+Status: Approved
+
+## D-082
+
+`v0.19.1` is a patch correcting two remaining gaps from `D-080`/`D-081` without any schema change.
+(1) **Dashboard/Program/Tasks/Missions now read the real mission-lifecycle data** those two
+versions introduced instead of program-level placeholders: the Dashboard "Days Remaining" stat and
+every "current mission" card derive from the actual assignment's `deadlineAt` (not
+`Program.endsAt`); My Program's Start/End dates derive from the Week 1 assignment's `acceptedAt` +
+4 weeks; the live `DeadlineCountdown` is confirmed to appear only next to the current,
+unsubmitted mission — never a not-yet-accepted or already-resolved one — matching the explicit
+placement instruction ("add this on the mission page not in mission brief and my programm weeks,
+this only shows in the current or unsubmitted missions"). (2) **Reject-reassignment is corrected
+from "reset to Week 1" to "repeat the same week"** — per explicit product direction ("Reviewer
+Rejects Work -> Repeat the same week with different mission"), `createRepeatFromWeekOneTx` is
+renamed `createRepeatMissionForSameWeekTx` and now takes the failed assignment's own `weekNumber`
+instead of assuming `1`; a Week 3 rejection now reassigns a different Week 3 mission, not a fresh
+Week 1 attempt. The no-alternate-mission fallback (`AWAITING_MISSION_ASSIGNMENT` + reviewer
+notification, `D-080`) is unchanged in behavior, only now correctly scoped to the failed week. This
+pairs with the earlier `D-080` decision to leave a missed-deadline `DISQUALIFIED` applicant with no
+rejoin path for now — that remains deferred; only the *reject* (reviewer-driven) path changes here,
+not the *missed-deadline* (system-driven) path. No product code beyond the wiring/rename above; no
+migration.
+
+Plan: `docs/plans/v0.19.1_Dashboard_Wiring_And_Same_Week_Repeat.md`; results:
+`docs/testing/v0.19.1_Dashboard_Wiring_And_Same_Week_Repeat_Test_Results.md`.
+
+Status: Approved
+
+## D-083
+
+`v0.19.2` is a patch bundling two small, unrelated fixes that predate the `v0.18.5`–`v0.19.1`
+mission-lifecycle work but were left uncommitted until now. (1) **Logout regression restored** —
+the `v0.14.3`/D-066 applicant dashboard sidebar Logout button had gone missing: the
+`feat/applicant-ai-mentor-skeleton` branch (merged via PR #45) reverted part of an earlier
+main-branch merge that had added it, silently trapping accepted applicants in the dashboard with no
+sign-out (the dashboard shell replaces `PortalHeader` entirely, so it must carry its own logout
+affordance). The fix restores the `<form action={logoutAction}>` button in `ApplicantShell.tsx`,
+reusing the existing OIDC RP-initiated logout action unchanged. A `vitest.config.ts` alias gap
+surfaced in the process: `apps/applicant/tsconfig.json`'s `"@/*" -> "./*"` path was never mirrored
+in the Vitest resolver, so `ApplicantShell.test.ts` (which now imports the logout action through
+`@/lib/logout-action`) could not resolve the module; a scoped `@/(.+)` → `apps/applicant/$1` alias
+fixes this, and the test mocks the logout action the same way
+`apps/applicant/lib/logout-action.test.ts` already does (the real chain pulls in `next-auth` →
+`next/server`, which needs the Next.js runtime and isn't resolvable under plain Vitest). (2) **A new
+`AGENTS.md` "Confirmation Gates" section** requires any agent working in this repo to stop and ask
+for explicit user confirmation before (a) starting the documentation-update process for a versioned
+iteration, or (b) pushing commits to a remote branch — closing a gap where the repo's process docs
+described *what* to do for versioning and pushing but never said to check in with the user first.
+No schema change; no migration; unit suite unchanged at 427 tests across 43 files.
+
+Plan: `docs/plans/v0.19.2_Logout_Regression_And_Confirmation_Gates.md`; results:
+`docs/testing/v0.19.2_Logout_Regression_And_Confirmation_Gates_Test_Results.md`.
+
+Status: Approved
+
+## D-084
+
+`v0.19.3` is a patch addressing three AI Mentor issues and a test infrastructure problem.
+(1) **RBSE personal-name blocking** — the Rule-Based System Engine allowed questions like
+"explain hitesh" to reach the GLM LLM because "explain" is an allowed topic. Regex patterns
+(`PERSONAL_NAME_PATTERNS`) now catch "explain \<Name\>", "who is \<Name\>", "tell me about
+\<Name\>", "describe \<Name\>", and "what do you know about \<Name\>" at the RBSE layer, with a
+`NAME_PATTERN_ALLOWLIST` ensuring technical terms (SDLC, testing, deployment, etc.) still pass.
+RBSE also now always runs regardless of conversation history — previously multi-turn conversations
+bypassed RBSE entirely via a `conversationHistory.length > 0` check. (2) **Token usage tracking**
+— the GLM streaming request was missing `stream_options.include_usage`, so the SSE stream never
+included token counts (logs showed `tokens=?`). Adding `stream_options: { include_usage: true }`
+fixes this. (3) **Test isolation** — the Vitest default `threads` pool caused cross-file mock
+contamination and slow `vi.resetModules()` under the full 43-file suite, leading to 6 spurious
+failures (timeouts + wrong mock state). Switching to `forks` pool with `testTimeout: 15_000`
+gives each test file its own process, eliminating the issue. No schema change; no migration;
+unit suite: 427 tests across 43 files, all pass.
+
+Plan: `docs/plans/v0.19.3_AI_Mentor_RBSE_Name_Blocking_And_Token_Tracking.md`; results:
+`docs/testing/v0.19.3_AI_Mentor_RBSE_Name_Blocking_And_Token_Tracking_Test_Results.md`.
 
 Status: Approved

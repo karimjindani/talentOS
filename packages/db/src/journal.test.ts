@@ -170,7 +170,7 @@ describe("engineering journal data access", () => {
       missionId: "mission-1",
       weekNumber: 2,
       attemptNumber: 1,
-      status: "ACTIVE",
+      status: "ACCEPTED",
       mission: { id: "mission-1", programId: "program-1", weekNumber: 2 }
     });
     prismaMock.txApplicationFindFirst.mockResolvedValue({ id: "app-1" });
@@ -616,7 +616,7 @@ describe("engineering journal data access", () => {
         tenantId: "tenant-1",
         applicantId: "user-1",
         missionId: "mission-1",
-        status: "ACTIVE",
+        status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] },
         mission: { status: "PUBLISHED" }
       },
       include: { mission: { select: { id: true, programId: true, weekNumber: true } } },

@@ -1,8 +1,8 @@
 # Testing Strategy
 
-Code version: `v0.18.3`
+Code version: `v0.19.2`
 
-Baseline commit: `6ef1ef7`
+Baseline commit: `c7df9d9`
 
 ## Goals
 
@@ -17,8 +17,8 @@ The regression suite has two layers:
 The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts plus
 individual scenario rows after each run.
 
-Current totals (as of `v0.18.2`): **243 unit tests across 34 files** (`npm test`) and **28 scenarios
-across 12 areas** (`scripts/regression/run.ts`), verified 27 passed / 0 failed / 1 pre-existing
+Current totals (as of `v0.19.1`): **427 unit tests across 43 files** (`npm test`) and **36 scenarios
+across 12 areas** (`scripts/regression/run.ts`), verified 35 passed / 0 failed / 1 pre-existing
 documented skip (storage upload/download) against a freshly migrated local database. CI
 (`.github/workflows/ci.yml`) runs the **unit suite only**; scenario regression is a local capability
 driven from npm scripts or the Ops Console against the running Docker stack.
@@ -145,6 +145,53 @@ driven from npm scripts or the Ops Console against the running Docker stack.
   `getAssignedProgramMission` and rejected by `saveSubmissionDraft`; and a scenario documenting the
   known backfill gap for applicants accepted before assignment existed (see
   `docs/Regression_Scenarios.md` Known Gaps).
+
+### Mission Deadline & Lifecycle Tests (v0.18.5)
+
+- `packages/db/src/mission-assignments.test.ts` (15 tests): explicit-accept gating (`NOT_STARTED`
+  only, double-accept rejected), `deadlineAt`/`graceEndsAt` computed from the mission's own
+  `deadlineHours`/`gracePeriodHours` at acceptance time, reject-reassignment to an alternate
+  published mission, and the no-alternate-mission `AWAITING_MISSION_ASSIGNMENT` + reviewer
+  notification path.
+- `packages/db/src/mission-deadlines.test.ts` (4 tests, new): the idempotent two-phase sweep —
+  `ACCEPTED`/`IN_PROGRESS` past deadline → `OVERDUE`; `OVERDUE` past grace → `FAILED` +
+  `DISQUALIFIED`; re-running either phase against already-transitioned rows is a no-op.
+- `packages/db/src/submissions.test.ts` (33 tests): late submission inside the grace period recorded
+  as `LATE_SUBMITTED`; week auto-advance on acceptance capped at `FINAL_PROGRAM_WEEK`; a `FAILED`
+  assignment rejects new submissions.
+- `packages/auth/src/workflow.ts` tests: `DISQUALIFIED`/`AWAITING_MISSION_ASSIGNMENT` have no
+  outgoing admin-initiated transitions.
+- No scenario-level regression coverage yet for the accept action, the sweep script, or the
+  reject-reassignment flow through the real applicant/admin actions — see
+  `docs/Regression_Scenarios.md` Known Gaps.
+
+### Mission-Driven Tasks & Submissions Admin Tab Tests (v0.19.0)
+
+- `packages/db/src/mission-tasks.test.ts` (15 tests, new): task listing per assignment, the
+  Task-1/2-required completion check gating submission, mark/unmark, and Task 3's derivation from
+  `Submission.status`.
+- `apps/applicant/lib/youtube.test.ts` (9 tests, new): `parseYouTubeVideoId` across watch/share/
+  embed URL forms and invalid input; the IFrame Player `onStateChange` watch-gate itself has no
+  automated (Playwright) coverage, only manual browser verification.
+- `apps/admin/components/SidebarNav.test.ts` (15 tests): new Submissions nav item, updated
+  standard-nav-items integrity assertion.
+- `packages/db/src/missions.test.ts`: fixture coverage for `tutorialUrl`.
+- No scenario-level regression coverage yet for the submission task-gate, the watch-gate, or the
+  admin Submissions tab's reachability/filtering — the `reviewSubmissions` capability boundary it
+  reuses is already covered by the existing `missions` role-matrix scenario. See
+  `docs/Regression_Scenarios.md` Known Gaps.
+
+### Dashboard Wiring & Same-Week Repeat Tests (v0.19.1)
+
+- `packages/db/src/mission-assignments.test.ts`: dedicated test asserting a Week 3 `REPEAT` decision
+  reassigns Week 3 (not Week 1); existing `missions`-area regression scenarios ("Repeat-week attempts
+  preserve journal history without duplicate or infinite loops", "Repeated-week history stays
+  separate across mission variants and attempt boundaries") already assert the replacement
+  assignment keeps the failed assignment's `weekNumber`, so this correction is scenario-covered as
+  well as unit-covered.
+- Dashboard/My Program/Tasks/Missions wiring to live deadline and task-completion data was verified
+  manually in a real browser session (`accepted@demo.talentos.local`); no automated scenario yet
+  asserts the dashboard stat's source field. See `docs/Regression_Scenarios.md` Known Gaps.
 
 ### User-Guide Screenshot Capture (v0.16.1, manual)
 
@@ -346,6 +393,8 @@ exactly one `MissionAssignment` row. The suite is **243 tests across 34 files**;
 `regression:all` is verified 21/22 passed, 1 pre-existing documented skip, 0 failed against a freshly
 migrated local database.
 
+From `v0.15.0`, the regression baseline also covers AI Mentor functionality: Rule-Based System Engine (RBSE) classification (`ai-rbse.test.ts`, 41 tests), knowledge base retrieval (`knowledge-base.test.ts`, 22 tests), applicant context building (`ai-context.test.ts`, 11 tests), LLM integration with smart caching and SSE stream parsing (`ai.test.ts`, 19 tests; `ai-cache.test.ts`, 6 tests), and mentor database operations (`mentor.test.ts`, 13 tests). The suite is **265 tests across 33 files**; AI Mentor scenarios include SSE stream parsing (multi-fragment concatenation, empty fragments, malformed lines, `[DONE]` sentinel), cache behavior (hit/miss, static/dynamic keys, error handling, user isolation, RBSE bypass), conversation persistence, and UI interactions (load, send, new chat, scroll, render).
+
 From `v0.18.1`, every implementation plan must use `docs/plans/TEMPLATE.md` and fill in a **Test
 Scenarios** section — end-to-end behavioral cases distinct from unit tests, written before or during
 implementation — and every scenario listed there must be added to this document (automated) or to its
@@ -367,3 +416,25 @@ From `v0.18.3`, the Ops Console regression result view shows individual scenario
 including each scenario name, status, duration and detail/error text. This closes the usability gap
 where operators could see area-level counts but had to search raw logs to identify exactly which
 scenario passed, failed or skipped.
+
+From `v0.18.5`, the regression baseline also covers the mission deadline/lifecycle state machine:
+explicit-accept gating and deadline/grace computation (`mission-assignments.test.ts`), the
+idempotent two-phase deadline sweep (`mission-deadlines.test.ts`, 4 tests), late-submission
+acceptance and the week auto-advance cap (`submissions.test.ts`), and the terminal
+`DISQUALIFIED`/`AWAITING_MISSION_ASSIGNMENT` application statuses having no outgoing transition. See
+`D-080`.
+
+From `v0.19.0`, the regression baseline also covers mission-driven tasks: the fixed 3-task
+completion model gating submission (`mission-tasks.test.ts`, 15 tests), YouTube video ID parsing for
+the tutorial watch-gate (`youtube.test.ts`, 9 tests), and the admin Submissions nav item
+(`SidebarNav.test.ts`). See `D-081`.
+
+From `v0.19.1`, the regression baseline also covers the same-week repeat correction: a dedicated
+unit test and the existing repeat-loop `missions`-area scenarios assert a `REPEAT` decision
+reassigns the same week that failed, not Week 1. The suite is **427 tests across 43 files**;
+`regression:all` is verified 35/36 passed, 1 pre-existing documented skip, 0 failed. See `D-082`.
+
+From `v0.19.2`, the regression baseline also covers the restored applicant dashboard Logout button
+(`ApplicantShell.test.ts`, 13 tests, now with the `@/lib/logout-action` mock so the file resolves)
+and the `vitest.config.ts` `@/(.+)` alias that makes `@/`-style imports resolvable for
+`apps/applicant` tests. No unit-test-count change (427 tests across 43 files). See `D-083`.

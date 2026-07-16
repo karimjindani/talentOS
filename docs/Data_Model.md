@@ -1,8 +1,8 @@
 # Data Model
 
-Code version: `v0.18.0`
+Code version: `v0.19.2`
 
-Baseline commit: `bf59ca4`
+Baseline commit: `c7df9d9`
 
 > Current weekly-task/submission-readiness work evolves the existing `ProgramTask`, `VideoResource`,
 > and `UserTaskCompletion` models instead of creating parallel models. Tasks remain scoped by
@@ -11,6 +11,41 @@ Baseline commit: `bf59ca4`
 > Markdown content, ordering, and optional duration. Task completions gain an authoritative
 > `tenantId` and are unique on `[tenantId, userId, taskId]`. Migration:
 > `20260716090000_weekly_tasks_submission_readiness`.
+>
+> `v0.19.2` (Logout Regression Fix & Confirmation Gates, D-083) makes no schema change — a restored
+> UI affordance, a Vitest alias fix and a governance-only `AGENTS.md` addition.
+>
+> `v0.19.1` (Dashboard Wiring & Same-Week Repeat, D-082) makes no schema change. It renames
+> `createRepeatFromWeekOneTx` to `createRepeatMissionForSameWeekTx` (now parameterized by the
+> failed assignment's own `weekNumber` instead of assuming `1`) and rewires several applicant pages
+> to already-shipped fields (`MissionAssignment.deadlineAt`, `acceptedAt`) — no new columns or
+> tables.
+>
+> `v0.19.0` (Mission-Driven Tasks & Submissions Admin Tab, D-081) adds `Mission.tutorialUrl`
+> (String?, optional YouTube tutorial link) and a new `MissionTaskCompletion` model (`id`,
+> `tenantId`, `missionAssignmentId` FK→mission_assignments Cascade, `taskIndex` (1 or 2),
+> `completedAt`), unique on `[missionAssignmentId, taskIndex]`. Task 3 ("Build & Submit Evidence")
+> has no completion row — it is derived from the linked `Submission.status` moving beyond `DRAFT`/
+> `NEEDS_REVISION`. The later weekly-task/readiness slice reuses `ProgramTask`, `VideoResource`, and
+> `UserTaskCompletion` as a separate program-week learning track; `MissionTaskCompletion` remains the
+> assignment-attempt workflow-step model. Migration: `20260714110000_mission_tasks`.
+>
+> `v0.18.5` (Mission Deadline & Lifecycle, D-080) adds `Mission.deadlineHours` (Int, default 168)
+> and `Mission.gracePeriodHours` (Int, default 24); adds `MissionAssignment.acceptedAt`/
+> `deadlineAt`/`graceEndsAt` (all nullable DateTime, set on explicit accept); changes the
+> `MissionAssignment` default status to `NOT_STARTED` and rebuilds `MissionAssignmentStatus` to
+> `NOT_STARTED, ACCEPTED, IN_PROGRESS, PENDING_EVALUATION, LATE_SUBMITTED, OVERDUE, FAILED, PASSED,
+> REPEAT` (replacing the `v0.18.0`-era `ACTIVE`/`SUBMITTED` two-state model); extends
+> `ApplicationStatus` with `DISQUALIFIED` (grace period expired with no submission — terminal) and
+> `AWAITING_MISSION_ASSIGNMENT` (a `REPEAT` decision had no alternate mission to reassign). Both new
+> `ApplicationStatus` values are terminal in `packages/auth/src/workflow.ts` — no admin-initiated
+> transition leaves them. Migration: `20260714090000_mission_deadlines_and_lifecycle`.
+>
+> `v0.15.0` (AI Mentor MVP, D-066) adds `MentorConversation` (`id`, `tenantId`, `userId`, `title`,
+> `createdAt`, `updatedAt`, index on `[tenantId, userId, updatedAt]`) and `MentorMessage`
+> (`id`, `conversationId` FK→`MentorConversation` Cascade, `role` (`"user"` | `"mentor"`), `content`,
+> `cardsJson` (String?, JSON-serialised `MentorCard[]`), `createdAt`, index on
+> `[conversationId, createdAt]`).
 >
 > Assignment-linked journal attempts add `MissionAssignment.attemptNumber/status`, nullable
 > `missionAssignmentId` links on `Submission` and `EngineeringJournalEntry`, and
@@ -155,6 +190,7 @@ erDiagram
     Mission ||--o{ MissionAssignment : "assigned via"
     User ||--o{ MissionAssignment : "is assigned"
     MissionAssignment ||--o| Submission : receives
+    MissionAssignment ||--o{ MissionTaskCompletion : "tracks tasks 1-2 for"
     MissionAssignment ||--o{ EngineeringJournalEntry : groups
     Tenant ||--o{ EngineeringJournalEntry : owns
     Program ||--o{ EngineeringJournalEntry : contains
@@ -172,6 +208,9 @@ erDiagram
     Program ||--o{ CalendarEvent : schedules
     Tenant ||--o{ Notification : owns
     User ||--o{ Notification : receives
+    Tenant ||--o{ MentorConversation : owns
+    User ||--o{ MentorConversation : holds
+    MentorConversation ||--o{ MentorMessage : contains
     Tenant ||--o{ StoredFile : owns
     User ||--o{ StoredFile : uploads
     Application |o--o| StoredFile : "CV"
@@ -194,10 +233,20 @@ erDiagram
 - `ApplicationAnswer`: structured answers inside an application.
 - `AuditLog`: security and business action history.
 - `Mission`: tenant/program-scoped SEM assignment managed by admins. Published missions are eligible
-  to be assigned to accepted applicants.
-- `MissionAssignment`: tenant/program/applicant/week attempt row. `attemptNumber` preserves repeat-week
-  history and `status` tracks `ACTIVE`, `SUBMITTED`, `PASSED` or `REPEAT`; uniqueness includes the
-  attempt number.
+  to be assigned to accepted applicants. `deadlineHours`/`gracePeriodHours` (`v0.18.5`) set the
+  per-mission deadline/grace window; `tutorialUrl` (`v0.19.0`) optionally powers the Task 2
+  YouTube watch-gate.
+- `MissionAssignment`: tenant/program/applicant/week attempt row. `attemptNumber` preserves
+  repeat-week history and `status` tracks the full lifecycle
+  `NOT_STARTED → ACCEPTED → IN_PROGRESS → PENDING_EVALUATION|LATE_SUBMITTED`, with `OVERDUE`/
+  `FAILED` as deadline-driven side states and `PASSED`/`REPEAT` as review outcomes (`v0.18.5`,
+  replacing the earlier `ACTIVE`/`SUBMITTED` model); uniqueness includes the attempt number.
+  `acceptedAt`/`deadlineAt`/`graceEndsAt` (`v0.18.5`) are set by the applicant's explicit Accept
+  Mission action, not by assignment time.
+- `MissionTaskCompletion`: per-assignment-attempt completion row for the fixed Task 1 (Review the
+  Mission Brief) and Task 2 (Study the Tutorial) template (`v0.19.0`); Task 3 (Build & Submit
+  Evidence) has no row of its own — it is derived from the linked `Submission.status`. Unique on
+  `[missionAssignmentId, taskIndex]`.
 - `Submission`: participant mission evidence (repository/deployment/Loom URLs + legacy inline journal
   markdown) moving through the SEM review loop; tenant-scoped, one row per assignment attempt,
   reviewed by staff (`reviewerUserId`, `reviewerFeedback`, `reviewedAt`); an `ACCEPTED` submission is
@@ -225,6 +274,9 @@ erDiagram
 - `StoredFile`: tenant-scoped metadata for an object stored in MinIO (bytes live in the object store).
 - `RegressionDataMarker`: local/dev marker rows identifying records created by regression workflows and
   safe to remove during regression cleanup.
+- `MentorConversation`: persistent AI mentor conversation scoped to a tenant and user (`v0.15.0`).
+- `MentorMessage`: single message within a mentor conversation (role `user` or `mentor`, optional
+  `cardsJson` for rich card payloads).
 
 ## Schema Stubs (migrated, not yet used by application code)
 

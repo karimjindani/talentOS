@@ -8,12 +8,17 @@ import {
   getApplicantMissionAssignmentForMission,
   getAssignedProgramMission,
   getMissionSubmissionReadiness,
+  getMissionTasksForAssignment,
   getTenantBySlug,
   getUserByEmail,
   listApplicantApplications,
+  type MissionAssignment,
+  type MissionTaskSummary,
   type Submission
 } from "@talentos/db";
+import { DeadlineCountdown } from "@/components/DeadlineCountdown";
 import { SubmissionForm } from "./SubmissionForm";
+import { AcceptMissionButton } from "./AcceptMissionButton";
 
 type MissionDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -42,6 +47,9 @@ export default async function ApplicantMissionDetailPage({ params }: MissionDeta
   const submission = assignment
     ? await getApplicantSubmissionForAssignment(assignment.id, user.id, tenant.id)
     : null;
+  const taskResult = assignment ? await getMissionTasksForAssignment(tenant.id, user.id, assignment.id) : null;
+  const requiredTasks = taskResult?.tasks.filter((task) => task.index === 1 || task.index === 2) ?? [];
+  const requiredTasksComplete = requiredTasks.every((task) => task.complete);
   const readiness = assignment && (!submission || isSubmissionEditable(submission.status))
     ? await getMissionSubmissionReadiness({
         tenantId: tenant.id,
@@ -56,9 +64,12 @@ export default async function ApplicantMissionDetailPage({ params }: MissionDeta
         â† Back to missions
       </Link>
       <div className="mt-4 rounded-3xl bg-brand-navy p-8 text-white shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-wide text-brand-mist">
-          Week {mission.weekNumber} {"\u2022"} {mission.difficulty}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-semibold uppercase tracking-wide text-brand-mist">
+            Week {mission.weekNumber} {"\u2022"} {mission.difficulty}
+          </p>
+          <MissionAssignmentStatusBadge status={assignment?.status ?? null} />
+        </div>
         <h1 className="mt-3 text-3xl font-bold">{mission.title}</h1>
         <p className="mt-3 max-w-3xl text-brand-mist">{mission.objective}</p>
       </div>
@@ -89,36 +100,94 @@ export default async function ApplicantMissionDetailPage({ params }: MissionDeta
             <SubmissionStatusBadge status={submission?.status ?? null} />
           </div>
 
-          {submission?.reviewerFeedback && submission.status !== "SUBMITTED" ? (
-            <div
-              className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
-                submission.status === "ACCEPTED"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : "border-amber-200 bg-amber-50 text-amber-800"
-              }`}
-            >
-              <p className="font-semibold">Reviewer feedback</p>
-              <p className="mt-1 whitespace-pre-wrap">{submission.reviewerFeedback}</p>
-            </div>
-          ) : null}
-
-          {!submission || isSubmissionEditable(submission.status) ? (
-            <SubmissionForm
-              missionId={mission.id}
-              isRevision={submission?.status === "NEEDS_REVISION"}
-              defaults={{
-                repositoryUrl: submission?.repositoryUrl ?? "",
-                deploymentUrl: submission?.deploymentUrl ?? "",
-                loomUrl: submission?.loomUrl ?? ""
-              }}
-              readiness={readiness ? { tasks: readiness.tasks, journals: readiness.journals } : null}
-            />
+          {!assignment || assignment.status === "NOT_STARTED" ? (
+            <AcceptMissionButton missionId={mission.id} />
+          ) : assignment.status === "FAILED" ? (
+            <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              This mission&apos;s deadline and grace period have both passed without a submission.
+            </p>
           ) : (
-            <SubmittedEvidence submission={submission} />
+            <>
+              {["ACCEPTED", "IN_PROGRESS", "OVERDUE"].includes(assignment.status) &&
+              assignment.deadlineAt &&
+              assignment.graceEndsAt ? (
+                <div className="mt-4">
+                  <DeadlineCountdown deadlineAt={assignment.deadlineAt} graceEndsAt={assignment.graceEndsAt} />
+                </div>
+              ) : null}
+
+              {submission?.reviewerFeedback && submission.status !== "SUBMITTED" ? (
+                <div
+                  className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+                    submission.status === "ACCEPTED"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border-amber-200 bg-amber-50 text-amber-800"
+                  }`}
+                >
+                  <p className="font-semibold">Reviewer feedback</p>
+                  <p className="mt-1 whitespace-pre-wrap">{submission.reviewerFeedback}</p>
+                </div>
+              ) : null}
+
+              {!submission || isSubmissionEditable(submission.status) ? (
+                <>
+                  <MissionTaskChecklist tasks={requiredTasks} assignmentId={assignment.id} />
+                  <SubmissionForm
+                    missionId={mission.id}
+                    isRevision={submission?.status === "NEEDS_REVISION"}
+                    canSubmit={requiredTasksComplete}
+                    readiness={readiness ? { tasks: readiness.tasks, journals: readiness.journals } : null}
+                    defaults={{
+                      repositoryUrl: submission?.repositoryUrl ?? "",
+                      deploymentUrl: submission?.deploymentUrl ?? "",
+                      loomUrl: submission?.loomUrl ?? ""
+                    }}
+                  />
+                </>
+              ) : (
+                <SubmittedEvidence submission={submission} />
+              )}
+            </>
           )}
         </section>
       </div>
     </article>
+  );
+}
+
+function MissionTaskChecklist({
+  tasks,
+  assignmentId
+}: {
+  tasks: MissionTaskSummary[];
+  assignmentId: string;
+}) {
+  if (tasks.length === 0) {
+    return null;
+  }
+  const allComplete = tasks.every((task) => task.complete);
+  return (
+    <div
+      className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+        allComplete ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"
+      }`}
+    >
+      <p className={`font-semibold ${allComplete ? "text-emerald-800" : "text-amber-800"}`}>
+        {allComplete ? "All required tasks complete — you can submit for review." : "Complete these tasks before you can submit for review:"}
+      </p>
+      <ul className="mt-2 space-y-1">
+        {tasks.map((task) => (
+          <li key={task.index}>
+            <Link
+              href={`/dashboard/tasks/${assignmentId}/${task.index}`}
+              className={`underline ${task.complete ? "text-emerald-700" : "text-amber-800"}`}
+            >
+              {task.complete ? "✓" : "○"} Task {task.index}: {task.title}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -141,6 +210,35 @@ function SubmissionStatusBadge({ status }: { status: Submission["status"] | null
   };
   if (!status) {
     return <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">Not started</span>;
+  }
+  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${styles[status]}`}>{labels[status]}</span>;
+}
+
+function MissionAssignmentStatusBadge({ status }: { status: MissionAssignment["status"] | null }) {
+  const styles: Record<MissionAssignment["status"], string> = {
+    NOT_STARTED: "bg-white/10 text-brand-mist",
+    ACCEPTED: "bg-white/20 text-white",
+    IN_PROGRESS: "bg-white/20 text-white",
+    PENDING_EVALUATION: "bg-blue-400/30 text-white",
+    LATE_SUBMITTED: "bg-amber-400/30 text-white",
+    OVERDUE: "bg-amber-400/30 text-white",
+    FAILED: "bg-rose-400/30 text-white",
+    PASSED: "bg-emerald-400/30 text-white",
+    REPEAT: "bg-rose-400/30 text-white"
+  };
+  const labels: Record<MissionAssignment["status"], string> = {
+    NOT_STARTED: "Not started",
+    ACCEPTED: "Accepted",
+    IN_PROGRESS: "In progress",
+    PENDING_EVALUATION: "Pending evaluation",
+    LATE_SUBMITTED: "Late submission — pending evaluation",
+    OVERDUE: "Overdue — grace period",
+    FAILED: "Failed",
+    PASSED: "Passed",
+    REPEAT: "Repeat assigned"
+  };
+  if (!status) {
+    return null;
   }
   return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${styles[status]}`}>{labels[status]}</span>;
 }

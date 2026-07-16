@@ -52,6 +52,7 @@ export type MissionInput = {
   deliverables: string;
   evaluationCriteria: string;
   competencyTags: string[];
+  tutorialUrl: string | null;
   actorUserId: string | null;
 };
 
@@ -73,7 +74,8 @@ export async function createMission(input: MissionInput) {
         acceptanceCriteria: input.acceptanceCriteria,
         deliverables: input.deliverables,
         evaluationCriteria: input.evaluationCriteria,
-        competencyTags: input.competencyTags
+        competencyTags: input.competencyTags,
+        tutorialUrl: input.tutorialUrl
       }
     });
 
@@ -113,7 +115,8 @@ export async function updateMission(input: UpdateMissionInput) {
         acceptanceCriteria: input.acceptanceCriteria,
         deliverables: input.deliverables,
         evaluationCriteria: input.evaluationCriteria,
-        competencyTags: input.competencyTags
+        competencyTags: input.competencyTags,
+        tutorialUrl: input.tutorialUrl
       }
     });
     if (result.count === 0) {

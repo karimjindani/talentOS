@@ -114,7 +114,11 @@ describe("dashboard helpers", () => {
       missionAssignmentId: "assignment-1"
     });
     expect(prismaMock.txAssignmentFindFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ tenantId: "tenant-1", applicantId: "user-1", status: "ACTIVE" })
+      where: expect.objectContaining({
+        tenantId: "tenant-1",
+        applicantId: "user-1",
+        status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] }
+      })
     }));
     expect(prismaMock.txTaskFindFirst).toHaveBeenCalledWith({
       where: {

@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -37,6 +38,10 @@ enum ApplicationStatus {
   ACCEPTED
   REJECTED
   WAITLISTED
+  // Deadline+grace expired with no submission on the active mission assignment.
+  DISQUALIFIED
+  // Reject loop found no alternate PUBLISHED week-1 mission; admin/tech lead must assign one manually.
+  AWAITING_MISSION_ASSIGNMENT
 }
 
 enum MissionDifficulty {
@@ -62,8 +67,13 @@ enum SubmissionStatus {
 }
 
 enum MissionAssignmentStatus {
-  ACTIVE
-  SUBMITTED
+  NOT_STARTED       // assigned, not yet explicitly accepted by the applicant
+  ACCEPTED          // applicant accepted; deadline/grace timers running
+  IN_PROGRESS       // a draft submission exists for this attempt
+  PENDING_EVALUATION // submitted before the deadline; awaiting reviewer
+  LATE_SUBMITTED    // submitted during the grace period after the deadline
+  OVERDUE           // deadline passed, no submission yet, grace period running
+  FAILED            // grace period passed with no submission
   PASSED
   REPEAT
 }
@@ -98,24 +108,26 @@ model Tenant {
   logoFileId String?     @unique
   logoFile   StoredFile? @relation("TenantLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
 
-  memberships        TenantMembership[]
-  programs           Program[]
-  applications       Application[]
-  auditLogs          AuditLog[]
-  missions           Mission[]
-  portfolioItems     PortfolioArtifact[]
-  certificates       Certificate[]
-  knowledgeDocs      KnowledgeBaseDocument[]
-  aiInteractions     AIInteraction[]
-  storedFiles        StoredFile[]
-  programTasks       ProgramTask[]
-  videoResources     VideoResource[]
-  taskCompletions    UserTaskCompletion[]
-  notifications      Notification[]
-  calendarEvents     CalendarEvent[]
-  submissions        Submission[]
-  journalEntries     EngineeringJournalEntry[]
-  missionAssignments MissionAssignment[]
+  memberships           TenantMembership[]
+  programs              Program[]
+  applications          Application[]
+  auditLogs             AuditLog[]
+  missions              Mission[]
+  portfolioItems        PortfolioArtifact[]
+  certificates          Certificate[]
+  knowledgeDocs         KnowledgeBaseDocument[]
+  aiInteractions        AIInteraction[]
+  storedFiles           StoredFile[]
+  programTasks          ProgramTask[]
+  videoResources        VideoResource[]
+  taskCompletions       UserTaskCompletion[]
+  notifications         Notification[]
+  calendarEvents        CalendarEvent[]
+  submissions           Submission[]
+  journalEntries        EngineeringJournalEntry[]
+  missionAssignments    MissionAssignment[]
+  missionTaskCompletions MissionTaskCompletion[]
+  mentorConversations   MentorConversation[]
 
   @@map("tenants")
 }
@@ -148,6 +160,7 @@ model User {
   storedFiles         StoredFile[]
   notifications       Notification[]
   taskCompletions     UserTaskCompletion[]
+  mentorConversations MentorConversation[]
 
   @@map("users")
 }
@@ -272,6 +285,13 @@ model Mission {
   deliverables       String            @default("")
   evaluationCriteria String            @default("")
   competencyTags     String[]          @default([])
+  // Applicant-facing timing (v0.18.5): deadline counts from MissionAssignment.acceptedAt, not
+  // assignment time — the countdown only starts once the applicant explicitly accepts the mission.
+  deadlineHours      Int               @default(168) // 7 days
+  gracePeriodHours   Int               @default(24)
+  // Applicant-facing tutorial link for the fixed Task 2 "Study the Tutorial" step (v0.19.0).
+  // Replaces the old program-wide VideoResource authoring flow with one link per mission.
+  tutorialUrl        String?
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
@@ -294,23 +314,46 @@ model MissionAssignment {
   missionId     String
   weekNumber    Int
   attemptNumber Int                     @default(1)
-  status        MissionAssignmentStatus @default(ACTIVE)
+  status        MissionAssignmentStatus @default(NOT_STARTED)
   assignedAt    DateTime                @default(now())
+  // Set only once the applicant explicitly accepts (v0.18.5) — deadline/grace are computed from
+  // this, not assignedAt, so an un-accepted assignment never silently expires.
+  acceptedAt    DateTime?
+  deadlineAt    DateTime?
+  graceEndsAt   DateTime?
   createdAt     DateTime                @default(now())
   updatedAt     DateTime                @updatedAt
 
-  tenant         Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant          Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   program        Program                   @relation(fields: [programId], references: [id], onDelete: Cascade)
   applicant      User                      @relation("MissionAssignmentApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
   mission        Mission                   @relation(fields: [missionId], references: [id], onDelete: Cascade)
   submissions    Submission[]
   journalEntries EngineeringJournalEntry[]
+  taskCompletions MissionTaskCompletion[]
 
   @@unique([tenantId, programId, applicantId, weekNumber, attemptNumber], map: "mission_assignment_attempt_key")
   @@index([tenantId, programId, weekNumber])
   @@index([applicantId])
   @@index([missionId])
   @@map("mission_assignments")
+}
+
+/// Applicant completion of a fixed mission task step (1 = Review Brief, 2 = Study Tutorial). Task 3
+/// "Build & Submit Evidence" has no row here — it's implied complete by the linked Submission
+/// existing beyond DRAFT/NEEDS_REVISION, so there's nothing separate to check off (v0.19.0).
+model MissionTaskCompletion {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  missionAssignmentId String
+  taskIndex           Int
+  completedAt         DateTime @default(now())
+
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  missionAssignment MissionAssignment  @relation(fields: [missionAssignmentId], references: [id], onDelete: Cascade)
+
+  @@unique([missionAssignmentId, taskIndex], map: "mission_task_completion_key")
+  @@map("mission_task_completions")
 }
 
 model Submission {
@@ -593,4 +636,36 @@ model UserTaskCompletion {
   @@index([tenantId, userId])
   @@index([tenantId, taskId])
   @@map("user_task_completions")
+}
+
+/// A persistent AI mentor conversation scoped to a tenant and user.
+model MentorConversation {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  title     String   @default("New Conversation")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  MentorMessage[]
+
+  @@index([tenantId, userId, updatedAt])
+  @@map("mentor_conversations")
+}
+
+/// A single message within a mentor conversation.
+model MentorMessage {
+  id              String   @id @default(cuid())
+  conversationId  String
+  role            String   // "user" | "mentor"
+  content         String
+  cardsJson       String?  // JSON-serialised MentorCard[]
+  createdAt       DateTime @default(now())
+
+  conversation    MentorConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("mentor_messages")
 }

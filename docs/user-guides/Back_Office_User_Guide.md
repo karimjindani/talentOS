@@ -1,12 +1,8 @@
 # Back Office User Guide
 
-Applies to version: `v0.16.0`
+Applies to version: `v0.18.4`
 
-Last verified: 2026-07-07
-
-Note (`v0.14.3`): signing out with the sidebar **Logout** button now works from tenant subdomains
-(for example `demo.lvh.me:3200`) as well as the canonical host; it ends the Keycloak single sign-on
-session and returns you to the tenant you were on.
+Last verified: 2026-07-14
 
 Audience: platform super admins, organization admins, HR reviewers, and tech leads.
 
@@ -72,9 +68,6 @@ Back Office access requires both:
 | Manage missions | Yes | Yes | No | No |
 | Review applications | Yes | Yes | Yes | No |
 | View missions | Yes | Yes | Yes | Yes |
-| Review mission submissions (`v0.15.0`) | Yes | Yes | No | Yes |
-| View mission submissions (`v0.15.0`) | Yes | Yes | Yes | Yes |
-| Manage program content (`v0.16.0`) | Yes | Yes | No | No |
 | Use local Operations page | Yes | Yes | No | No |
 
 ## Organizations
@@ -140,16 +133,10 @@ Organization Admins and Super Admins manage missions.
 
 1. Open **Missions**.
 2. Create a draft mission for a program.
-3. Add the mission objective, acceptance criteria, deliverables, evaluation criteria, and competency
-   tags.
+3. Add the mission objective, acceptance criteria, deliverables, evaluation criteria, competency
+   tags, tutorial URL, deadline hours, and grace-period hours.
 4. Publish the mission when it is ready for accepted applicants.
 5. Archive missions that should no longer be visible to applicants.
-
-The mission form includes SEM-aligned authoring guidance. Use the helper text to write objectives as
-learning outcomes, frame the real-world brief, list the evidence applicants must submit, define the
-minimum acceptance bar, and explain how staff should judge quality during review. Competency tags are
-comma-separated; accepted submissions become evidence for those competencies, so keep tag names
-consistent across missions.
 
 HR and Tech Lead users can view missions but cannot create, edit, publish, or archive them.
 
@@ -220,8 +207,8 @@ The Operations page must not be used as evidence that production monitoring exis
 
 - Full Back Office user/role management UI is not complete yet.
 - Production deployment operations, backups, alerting, and monitoring are not covered by this guide.
-- A dedicated engineering-journal module, public portfolios, and hiring intelligence are future
-  workflows (mission submission review shipped in `v0.15.0`).
+- Public recruiter portfolios, hiring intelligence, and automated Engineering Journal scoring remain
+  future workflows.
 - Screenshots are not part of this guide yet.
 
 ## Troubleshooting

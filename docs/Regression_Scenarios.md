@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.18.3`
+Code version: `v0.19.2`
 
 ## Purpose
 
@@ -11,6 +11,13 @@ a real applicant, admin, operator or tenant would experience.
 The suite can be run from the local Ops Console or from npm scripts. As of `v0.18.3`, the Ops Console
 shows individual scenario rows grouped by area after a run, so operators can see exactly which
 scenario passed, failed or skipped without searching the raw output.
+
+As of `v0.19.1`, `scripts/regression/run.ts` runs **36 scenario objects**, verified
+`regression:all` 35 passed, 1 pre-existing documented skip (storage), 0 failed. The mission
+deadline/lifecycle (`v0.18.5`, D-080), mission-driven tasks (`v0.19.0`, D-081) and dashboard wiring
+(`v0.19.1`, D-082) work is unit-tested (see `docs/Testing_Strategy.md`) but, per the honest
+accounting this document requires, most of its end-to-end behavior is **not yet** exercised by a
+dedicated scenario here — see Known Gaps below rather than assuming coverage that doesn't exist.
 
 ## Execution Areas
 
@@ -70,6 +77,7 @@ are one scenario).
 | Missions | Accepting an application creates exactly one `MissionAssignment` for the applicant, idempotently. | Automated | v0.18.0 (D-075): asserted as part of the submission fixture; the runner fails loudly if no assignment row is created. |
 | Missions | Applicant mission list/detail and submission drafting are limited to assigned missions (a published-but-unassigned mission is not visible/usable). | Automated | v0.18.0 (D-075), added `v0.18.2` (D-077): asserts `listAssignedProgramMissions`/`getAssignedProgramMission` exclude the unassigned mission and `saveSubmissionDraft` rejects it. |
 | Missions | An applicant already accepted before any mission assignment existed has no assigned missions and no automatic backfill. | Automated (documents a known gap) | v0.18.2 (D-077): asserts current behavior — no scenario/migration backfills a `MissionAssignment` for applications that were `ACCEPTED` directly (bypassing `applyStatusTransition`). See Known Gaps: a product decision is still needed on whether existing accepted applicants should be backfilled. |
+| Missions | A rejected (`REPEAT`) submission's replacement assignment keeps the same `weekNumber` as the failed attempt. | Automated | v0.19.1 (D-082): the "Repeat-week attempts preserve journal history without duplicate or infinite loops" and "Repeated-week history stays separate across mission variants and attempt boundaries" fixtures assert the alternate mission is created at `fixture.mission.weekNumber`, exercising the same-week correction (`createRepeatMissionForSameWeekTx`) rather than a reset to Week 1. |
 | Journal | Applicant creates and edits a daily Engineering Journal entry against their assigned mission; entries are listed and audited (`journal.created`/`journal.updated`). | Automated | v0.18.2 (D-077) closes the `v0.17.0` coverage gap. |
 | Journal | Applicant cannot create a journal entry against a published mission that is not assigned to them. | Automated | v0.18.2 (D-077). |
 | Journal | One journal entry per applicant per calendar date is enforced. | Automated | v0.18.2 (D-077) exercises the `v0.17.1` database-level unique constraint via `JournalEntryDateConflictError`. |
@@ -83,8 +91,13 @@ are one scenario).
 | Tenant isolation | Cross-tenant file and settings denial through admin browser routes. | Missing | Add Playwright/browser route coverage. |
 | Dashboard | Accepted applicant dashboard pages load. | Automated | Covers overview, program, tasks, resources, calendar, notifications and profile. |
 | Dashboard | Task completion persists. | Automated | Uses dashboard DB helpers. |
-| Dashboard | Accepted mission submission moves mission-driven dashboard progress. | Automated | v0.16.0 (D-069): full draft→submit→accept loop; only ACCEPTED moves the bar; current mission clears at 100%. |
 | Dashboard | Notification read state persists. | Automated | Uses dashboard DB helpers. |
+| AI Mentor | Cache hit: same dynamic prompt + same context returns cached response (no LLM call). | Automated | `ai-cache.test.ts` — verifies fetch call count stays at 1. |
+| AI Mentor | Cache miss: context changed (task completed) forces fresh LLM call. | Automated | `ai-cache.test.ts` — different context signature triggers new fetch. |
+| AI Mentor | Static cache: knowledge prompt shared across users. | Automated | `ai-cache.test.ts` — 1 fetch for 2 different users on same static prompt. |
+| AI Mentor | Errors are never cached: failed LLM retries on next call. | Automated | `ai-cache.test.ts` — error then success on same prompt. |
+| AI Mentor | User isolation: same dynamic prompt for different users → separate cache entries. | Automated | `ai-cache.test.ts` — 2 fetch calls for 2 users. |
+| AI Mentor | RBSE direct answers bypass cache entirely. | Automated | `ai-cache.test.ts` — no fetch call for direct_answer patterns. |
 | Storage | CV upload/download round-trip. | Missing | `storage` area currently reports a documented skip. |
 | Storage | Cross-tenant file denial. | Missing | Should cover both metadata lookup and download URL path. |
 | Ops | Run full regression from Ops UI and show counts. | Automated/API + manual UI check | Unit/server coverage plus local manual validation. |
@@ -92,6 +105,15 @@ are one scenario).
 | Ops | Regression results show individual scenario pass/fail/skipped rows. | Automated parser + manual UI check | v0.18.3: Ops stores `REGRESSION_RESULT_JSON.results` and renders scenario rows grouped by area. |
 | Ops | Cleanup is a safe no-op when no markers exist. | Automated via existing cleanup command behavior | Should gain a direct scenario assertion in a later hardening pass. |
 | Ops | Cleanup removes marked data only. | Automated by runner + cleanup validation | Scenario data uses `RegressionDataMarker`. |
+| AI Mentor | Mentor page loads for accepted applicant. | Manual | `/dashboard/mentor` renders chat UI with conversation list and input. |
+| AI Mentor | Send a message and receive a mentor response. | Manual | Validates API route, LLM/stub fallback, and message persistence. |
+| AI Mentor | New Chat creates an isolated conversation. | Manual | Previous conversation history is preserved; new conversation starts empty. |
+| AI Mentor | Conversation persists across page reloads. | Manual | localStorage + DB persistence; conversations reload on refresh. |
+| AI Mentor | Per-conversation loading state is independent. | Manual | Sending a message in one conversation does not show loading in another. |
+| AI Mentor | Auto-scroll to latest message on response. | Manual | Chat container scrolls to bottom when new message arrives. |
+| AI Mentor | RBSE blocks off-topic questions. | Manual | Questions outside allowed topics receive a blocked response. |
+| AI Mentor | Markdown and code blocks render correctly. | Manual | `react-markdown` + Prism syntax highlighting in MessageBubble. |
+| AI Mentor | LLM failure falls back to stub response. | Manual | API route returns stub when `GLM_Z_API_KEY` is absent or call fails. |
 
 ## Data Ownership and Cleanup
 
@@ -145,3 +167,30 @@ Cleanup rules:
   migration outright rather than silently corrupting data — but there's no tooling to detect or resolve
   that conflict ahead of time. See `docs/Deployment.md` for the operational note; not applicable to any
   environment today since this hasn't been deployed beyond local dev.
+- **Mission deadline & lifecycle (`v0.18.5`, D-080)** — the following are unit-tested
+  (`packages/db/src/mission-assignments.test.ts`, `packages/db/src/mission-deadlines.test.ts`,
+  `packages/db/src/submissions.test.ts`) but have **no dedicated `scripts/regression/run.ts`
+  scenario** driving them through the real applicant/admin action end-to-end: the explicit Accept
+  Mission action starting the deadline/grace clock; the idempotent deadline sweep transitioning
+  `OVERDUE`/`FAILED`+`DISQUALIFIED` and re-running as a no-op; a late submission inside the grace
+  period being accepted as `LATE_SUBMITTED`; the week auto-advance cap at `FINAL_PROGRAM_WEEK`; the
+  reject-reassignment / no-alternate-mission notification path; and a `FAILED` assignment rejecting
+  new submissions.
+- **Mission-driven tasks & Submissions admin tab (`v0.19.0`, D-081)** — unit-tested
+  (`packages/db/src/mission-tasks.test.ts`, `apps/applicant/lib/youtube.test.ts`) but with no
+  dedicated scenario: the submission gate on Tasks 1/2 completion; the YouTube watch-gate itself
+  (only `parseYouTubeVideoId` is automated — the IFrame Player `onStateChange` gate has no
+  Playwright coverage); the admin Submissions tab's reachability/filtering (the underlying
+  `reviewSubmissions` capability boundary it reuses is already covered by the existing `missions`
+  role-matrix scenario).
+- **Dashboard wiring (`v0.19.1`, D-082)** — the Dashboard/My Program/Tasks/Missions pages reading
+  live mission-lifecycle data (Days Remaining from the current assignment's `deadlineAt`; My
+  Program's start/end dates from the Week 1 `acceptedAt`; the countdown appearing only on the
+  current, unsubmitted mission) were verified manually in a real browser session but have no
+  automated scenario coverage.
+- **AI Mentor RBSE name blocking (`v0.19.3`, D-084)** — the personal-name regex patterns
+  (`PERSONAL_NAME_PATTERNS` in `ai-rbse.ts`) are unit-tested (`ai-rbse.test.ts`,
+  `ai.test.ts`) but have no dedicated `scripts/regression/run.ts` scenario: a real applicant
+  typing "explain hitesh" in the AI Mentor chat and receiving the blocked response without
+  a GLM API call. The token usage tracking (`stream_options.include_usage`) is also only
+  verified manually via Docker logs.
