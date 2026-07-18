@@ -1,10 +1,10 @@
 # Data Dictionary
 
-Code version: `v0.19.2`
+Code version: `v0.19.5`
 
-Baseline commit: `c7df9d9`
+Schema evidence commit: `2b3afce`
 
-> Current weekly-task/submission-readiness work adds `LearningResourceType` (`MARKDOWN`, `YOUTUBE`),
+> `v0.19.5` weekly-task/submission-readiness work adds `LearningResourceType` (`MARKDOWN`, `YOUTUBE`),
 > extends `program_tasks` with `required`/`published`, extends the legacy-named `video_resources` table
 > with task association and reusable resource content fields, and makes `user_task_completions`
 > tenant-scoped. Migration: `20260716090000_weekly_tasks_submission_readiness`.
@@ -324,7 +324,7 @@ field. Unique on `[tenantId, applicantId, entryDate]` — one entry per applican
 | `applicantId` | Participant who owns the submission. |
 | `status` | `DRAFT`, `SUBMITTED`, `NEEDS_REVISION`, `ACCEPTED` or `REPEAT` (`REVIEWED` reserved/unused). |
 | `repositoryUrl` | Git repository evidence link (host-allowlisted to github.com); PRD/README/user stories live in the repo. |
-| `deploymentUrl` | Deployed-application evidence link (any http/https). |
+| `deploymentUrl` | One or more public HTTP(S) deployed-application links stored as a normalized semicolon-separated string (maximum ten); historical single values remain compatible. |
 | `loomUrl` | Loom walkthrough evidence link (host-allowlisted to loom.com). |
 | `journalMarkdown` | Inline Engineering Journal (Markdown). |
 | `submittedAt` | Last submitted-for-review timestamp, set only after readiness and public URL checks pass; separate from journal `entryDate`. |
@@ -393,7 +393,8 @@ learning content and may be attached to a `ProgramTask`.
 
 ## UserTaskCompletion
 
-**Unused by application code as of `v0.19.0`** — see `ProgramTask`.
+Reactivated by `v0.19.5` for the separate program-week learning track. Mission workflow steps remain
+in `MissionTaskCompletion` and are not replaced by this model.
 
 | Field | Purpose |
 | --- | --- |

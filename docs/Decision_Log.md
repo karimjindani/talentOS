@@ -1,10 +1,13 @@
 # Decision Log
 
-Code version: `v0.19.2`
+Code version: `v0.19.5`
 
-Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+Architecture evidence commit: `2b3afce`
 
-Current documentation update: `v0.19.2`
+Current documentation update: `v0.19.5`
+
+Allocation note: `D-085` is reserved by active remote branch
+`origin/fix/v0.19.4-mission-task-checklist`; this branch therefore continues at `D-086`.
 
 ## D-001
 
@@ -636,12 +639,12 @@ auditing `v0.17.0`–`v0.18.0`: `D-073`'s Engineering Journal plan
 scenario-level test cases, so the feature shipped with strong unit coverage
 (`journal.test.ts`, 23 tests) and **zero scenario-level regression coverage** — a gap only surfaced
 later by manual audit, not by any process check. Decision: require every implementation plan to use a
-new required template, [`docs/plans/TEMPLATE.md`](../plans/TEMPLATE.md), whose **Test Scenarios**
+new required template, [`docs/plans/TEMPLATE.md`](plans/TEMPLATE.md), whose **Test Scenarios**
 section forces end-to-end/behavioral scenarios to be named before or during implementation — actor,
 preconditions, steps, expected result, and an explicit automation call (added this iteration, or
 deferred with a stated reason). Every scenario named there must be reflected in
 `docs/Regression_Scenarios.md` in the same iteration — automated or as an explicit Known Gap — and
-every test-results doc must use the new [`docs/testing/TEMPLATE.md`](../testing/TEMPLATE.md), which
+every test-results doc must use the new [`docs/testing/TEMPLATE.md`](testing/TEMPLATE.md), which
 requires one Scenario Results row per plan scenario so a plan can no longer ship without its scenarios
 being either verified or explicitly and visibly deferred. `docs/sdlc.md` (Version and Documentation
 Control, rule 7), `CONTRIBUTING.md` and `.github/pull_request_template.md` are updated to point at the
@@ -905,3 +908,108 @@ Plan: `docs/plans/v0.19.3_AI_Mentor_RBSE_Name_Blocking_And_Token_Tracking.md`; r
 `docs/testing/v0.19.3_AI_Mentor_RBSE_Name_Blocking_And_Token_Tracking_Test_Results.md`.
 
 Status: Approved
+
+## D-086
+
+**Decision:** Keep weekly learning tasks (`ProgramTask`/`UserTaskCompletion`) separate from the fixed
+mission workflow checklist (`MissionTaskCompletion`). Weekly completion is scoped to
+tenant/applicant/program/week and survives a same-week repeat; workflow steps remain scoped to one
+assignment attempt.
+
+**Rationale:** General learning/setup work does not become incomplete merely because a reviewer assigns
+a different mission variant, while mission-specific brief/tutorial steps genuinely belong to an
+attempt.
+
+**Alternatives considered:** Replace the mission checklist with weekly tasks; attach every weekly task
+to a mission; copy completion rows into each repeat attempt. These choices either erase the existing
+workflow gate or duplicate/restart reusable learning work.
+
+**Impact:** Final submission evaluates both gates. The migration reactivates and extends the existing
+weekly models rather than adding parallel task tables.
+
+Date: 2026-07-19
+
+Status: Implemented; pending baseline review
+
+## D-087
+
+**Decision:** Journal readiness is assignment-attempt scoped. At least four eligible current-attempt
+entries are required; previous-attempt and future-dated entries do not count. Existing one-entry-per-
+applicant-per-calendar-date behavior remains.
+
+**Rationale:** Review evidence must explain the work for the assignment being submitted, while allowing
+more than one reflection across the week and preserving immutable history from earlier attempts.
+
+**Alternatives considered:** Count every journal in the week; count exactly four; copy old journals to
+the new attempt; remove the calendar-date uniqueness rule. Each weakens attempt traceability or creates
+duplicate/ambiguous daily records.
+
+**Impact:** A repeat requires new attempt-linked reflections but does not delete or mix old records.
+`REQUIRED_JOURNAL_ENTRY_COUNT` is a minimum (`>= 4`).
+
+Date: 2026-07-19
+
+Status: Implemented; pending baseline review
+
+## D-088
+
+**Decision:** Parse and validate every evidence URL centrally, perform public reachability and SSRF
+checks before database mutation, then use a short transaction to recheck readiness/evidence/status and
+apply the final transition. Failed validation never locks journals or changes submission/assignment
+status.
+
+**Rationale:** Network requests are slow and untrusted and must not hold database locks. A second
+transactional check plus status-scoped update closes the time-of-check/time-of-use and concurrent-submit
+windows.
+
+**Alternatives considered:** Check URLs only in the browser; accept syntactically valid URLs without
+reachability; perform network requests inside the transaction; allow partial state and repair it later.
+These alternatives permit bypasses, SSRF or long transactions and inconsistent records.
+
+**Impact:** Public evidence can fail closed during remote outages/rate limits. DNS results are screened
+and pinned, redirects are revalidated, requests are bounded, and the exact failed URL is reported.
+
+Date: 2026-07-19
+
+Status: Implemented; pending baseline review
+
+## D-089
+
+**Decision:** Reuse the legacy-named `VideoResource` model for ordered `MARKDOWN` and `YOUTUBE` task
+resources. A pending video is stored as a YouTube resource with a null URL and shown explicitly as
+pending. Markdown renders through a constrained component with raw HTML disabled.
+
+**Rationale:** The existing resource ownership/audit paths already fit program content. Extending them
+is smaller and more compatible than adding another resource table or introducing runtime file-path
+dependencies.
+
+**Alternatives considered:** New Markdown and Video models; arbitrary runtime Markdown file references;
+placeholder video links. These add schema/runtime complexity or misrepresent unavailable content.
+
+**Impact:** Admins manage both resource types through the existing program-content permission boundary;
+the actual introduction video and final URL remain a content follow-up.
+
+Date: 2026-07-19
+
+Status: Implemented; pending baseline review
+
+## D-090
+
+**Decision:** Keep badges, real AI journal scoring, reviewer numeric scoring, recruiter/portfolio journal
+views and a new deployment-link model out of `v0.19.5`. Preserve `Submission.deploymentUrl` as a
+normalized semicolon-separated string and retain `Submission.journalMarkdown` only for compatibility.
+
+**Rationale:** The iteration is a focused readiness and safety improvement. The current string field can
+represent one or more deployments without a migration, and the dedicated Engineering Journal already
+owns reflection behavior.
+
+**Alternatives considered:** Expand into scoring/gamification/recruiter features; remove the legacy
+journal field; create a deployment relation immediately. All increase scope or risk historical-data
+compatibility without being required for the business outcome.
+
+**Impact:** Single-URL records still work, up to ten deployment URLs are parsed centrally, and deferred
+features need their own versioned plan and security/test review.
+
+Date: 2026-07-19
+
+Status: Implemented; pending baseline review

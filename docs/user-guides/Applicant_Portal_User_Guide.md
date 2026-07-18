@@ -1,8 +1,8 @@
 # Applicant Portal User Guide
 
-Applies to version: `v0.18.4`
+Applies to version: `v0.19.5`
 
-Last verified: 2026-07-14
+Last verified: 2026-07-19
 
 Audience: applicants and accepted program participants.
 
@@ -175,14 +175,17 @@ the Tasks page; both sets must be complete before submission.
 
 - **Git repository URL** — must be on `github.com`; your PRD, README, user stories and acceptance
   criteria live in the repository.
-- **Deployed application URL** — any reachable public `http(s)` link to your running application.
+- **Deployed application URL(s)** — one or more reachable public `http(s)` links. Keep one input and
+  separate multiple links with a semicolon, for example
+  `https://app.example.com; https://api.example.com` (maximum ten).
 - **Loom walkthrough URL** — must be a supported public `loom.com` share/watch link.
 
 1. Fill in your evidence and select **Save draft** as often as you like.
 2. Use the submission checklist to confirm mission steps and required week tasks are complete, at least
-   four journal entries belong to this assignment attempt, and all three evidence URLs are present.
-3. Select **Submit for review**. TalentOS checks that the GitHub repository, deployed page, and Loom
-   page are publicly reachable at that moment. Internal/private destinations are rejected.
+   four journal entries belong to this assignment attempt, and every required evidence group is present.
+3. Select **Submit for review**. TalentOS checks the GitHub repository, every deployed application URL,
+   and Loom page independently for public reachability. Internal/private destinations are rejected;
+   one failed deployment URL blocks the whole submission and identifies that URL.
 4. If any check fails, the submission stays a draft (or revision), journals stay unchanged, and the
    page shows an actionable error. Successful submission timestamps the submission, updates the
    deadline-aware assignment status, and locks only the journals for this attempt.

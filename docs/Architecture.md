@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.19.2`
+Code version: `v0.19.5`
 
-Architecture baseline commit: `c7df9d9`
+Architecture evidence commit: `2b3afce`
 
-Current documentation update: `v0.19.2`
+Current documentation update: `v0.19.5`
 
 ## Overview
 
@@ -45,7 +45,7 @@ for the assignment's program week. The dashboard's learning resources, weekly ta
 and calendar events are managed by admins from the Program Content page (`/programs/[id]/content`,
 `manageProgramContent` capability).
 
-### Weekly Tasks And Submission Readiness (current working slice)
+### Weekly Tasks And Submission Readiness (`v0.19.5`)
 
 `ProgramTask` remains the authoritative tenant/program/week model; it is not attached to a mission.
 `UserTaskCompletion` stores tenant + applicant + task once, so completing learning/setup work remains

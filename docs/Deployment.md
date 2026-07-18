@@ -1,13 +1,60 @@
 # Deployment
 
-Code version: `v0.19.2`
+Code version: `v0.19.5`
 
-Baseline commit: `c7df9d9`
+Deployment evidence commit: `2b3afce`
 
-Current deployment update: `v0.19.2` (the latest deployment-affecting baselines are `v0.18.5` and
-`v0.19.0` — both require a database migration; `v0.19.1`/`v0.19.2` are code-only with no migration;
-`v0.18.1`/`v0.18.2`/`v0.18.3`/`v0.18.4` were docs/tooling baselines with no deployment, infra or
-migration change)
+Current deployment update: `v0.19.5` (requires database migration
+`20260716090000_weekly_tasks_submission_readiness`, Prisma generation, Week 1 seed refresh and Applicant/
+Admin rebuild; no container-topology, Keycloak, permission or environment-variable change)
+
+## v0.19.5 Release And Deployment Notes
+
+### User-visible changes
+
+- Applicants see week-based learning tasks with ordered Markdown/YouTube resources and completion
+  progress alongside the separate mission workflow checklist.
+- Engineering Journal guidance is clearer; future entry dates are rejected; final submission requires
+  at least four eligible entries linked to the current assignment attempt.
+- GitHub, one or more deployment URLs, and Loom evidence are checked individually for safe public
+  reachability. Applicant and Admin pages render deployment URLs separately.
+- Admins can author weekly tasks/resources through existing program-content permissions.
+- Existing regression areas report the new readiness/safety scenarios in the Ops dashboard.
+
+### Deployment procedure
+
+1. Back up the target PostgreSQL database.
+2. Run `npm ci` when dependencies are not already installed.
+3. Run `npx prisma migrate deploy --schema packages/db/prisma/schema.prisma`.
+4. Run `npm run db:generate`.
+5. Run `npm run db:seed` to upsert the Week 1 task/resource demo content where desired.
+6. Rebuild the affected portals: `docker compose up -d --build applicant admin`.
+7. Run `npm run local:doctor` in local development and the relevant smoke/regression checks below.
+
+The migration adds `LearningResourceType`, extends `program_tasks` and `video_resources`, and adds/
+backfills authoritative `tenantId` on `user_task_completions` before applying its foreign key and
+unique/index rules. It does not add a deployment-link table; multi-URL evidence remains in
+`Submission.deploymentUrl` as a normalized semicolon-separated string.
+
+### Compatibility and rollback
+
+- Historical single deployment URLs remain readable and valid.
+- Existing `VideoResource` rows default to `YOUTUBE`; null task association keeps legacy rows valid.
+- `Submission.journalMarkdown` remains stored for backward compatibility but is not the dedicated
+  journal readiness source.
+- An application rollback can leave the additive database columns/table enum in place; old code should
+  not depend on them. Do not manually drop columns, enum values or backfilled tenant IDs without a
+  verified database backup and a separately reviewed rollback migration.
+- Seed is idempotent for its known demo records. Production content should be reviewed before running
+  demo seed commands.
+
+### Known limitations
+
+- The final TalentOS introduction YouTube URL is pending; the UI shows that state explicitly.
+- Public services can time out or rate-limit checks, causing a fail-closed submission blocker.
+- No asynchronous retry/cache or reviewer override exists for reachability checks.
+- Browser-level automation for every rendered deployment link is deferred; central parsing/link data is
+  unit-tested and Admin review data is exercised by regression.
 
 > `v0.19.2` (Logout Regression Fix & Confirmation Gates, D-083) **requires no database migration** —
 > rebuild the applicant container: `docker compose up -d --build applicant`. `AGENTS.md` is a
@@ -408,10 +455,12 @@ After deployment, verify:
   the assigned mission, submit an entry, and confirm it appears read-only on `/dashboard/journal`;
   a second entry for the same calendar date is rejected; after submitting the mission's evidence, the
   entry can no longer be edited.
-- Submission loop (`v0.15.0`): as `accepted@…`, open a mission, save a draft with a
-  `https://github.com/...` repository URL and a journal, submit it; as `orgadmin@…` (or
-  `techlead@…`), open the submission from the mission's submissions page and accept it or request
-  changes with feedback; the applicant sees the status chip and a notification.
+- Submission loop (`v0.15.0`, readiness expanded in `v0.19.5`): as `accepted@…`, complete both
+  assignment workflow tasks and every required weekly task, add at least four current-attempt journal
+  entries on distinct non-future dates, and save GitHub, semicolon-separated deployment and Loom
+  evidence. Submit only with real public URLs; as `orgadmin@…` (or `techlead@…`), open the submission
+  from the mission's submissions page and accept it or request changes with feedback. Confirm a failed
+  readiness/public-URL check leaves the draft status and journal locks unchanged.
 - Mission-driven dashboard progress (`v0.16.0`): after accepting a submission, the applicant
   dashboard's Overall Progress / Missions Accepted tile moves and the **Current Mission** card
   advances to the next mission.

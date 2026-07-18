@@ -1,10 +1,10 @@
 # Data Model
 
-Code version: `v0.19.2`
+Code version: `v0.19.5`
 
-Baseline commit: `c7df9d9`
+Schema evidence commit: `2b3afce`
 
-> Current weekly-task/submission-readiness work evolves the existing `ProgramTask`, `VideoResource`,
+> `v0.19.5` weekly-task/submission-readiness work evolves the existing `ProgramTask`, `VideoResource`,
 > and `UserTaskCompletion` models instead of creating parallel models. Tasks remain scoped by
 > tenant/program/week and gain `required` and `published` flags. The legacy-named `VideoResource`
 > becomes a reusable task resource with `MARKDOWN`/`YOUTUBE` type, optional `taskId`, optional URL,
@@ -252,7 +252,9 @@ erDiagram
   reviewed by staff (`reviewerUserId`, `reviewerFeedback`, `reviewedAt`); an `ACCEPTED` submission is
   terminal portfolio/graduation evidence for the mission's `competencyTags`. Final submission requires
   every required task for the assignment's program/week, at least four eligible current-attempt
-  journals, and publicly reachable GitHub/deployment/Loom evidence.
+  journals, and publicly reachable GitHub/deployment/Loom evidence. `deploymentUrl` remains a string
+  for compatibility and can contain up to ten normalized semicolon-separated URLs; application and
+  review displays parse it through the central URL helper rather than treating it as one link.
 - `EngineeringJournalEntry`: dedicated daily reflection entry for an accepted applicant, linked to a
   published mission and assignment attempt, distinct from the older `Submission.journalMarkdown`
   field. Unique on

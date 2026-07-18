@@ -1,8 +1,8 @@
 # Back Office User Guide
 
-Applies to version: `v0.18.4`
+Applies to version: `v0.19.5`
 
-Last verified: 2026-07-14
+Last verified: 2026-07-19
 
 Audience: platform super admins, organization admins, HR reviewers, and tech leads.
 
@@ -152,8 +152,8 @@ never review each other's work (Graduate Profile: graduates are not code reviewe
 
 1. Open **Missions** and select the mission.
 2. In **Submissions**, select **Review** on a submitted entry.
-3. Inspect the evidence: Git repository, deployed application, and Loom walkthrough (links open in a
-   new tab), plus all dedicated **Engineering Journal** entries for that applicant and mission
+3. Inspect the evidence: Git repository, each deployed application URL, and Loom walkthrough (every
+   link opens separately in a new tab), plus all dedicated **Engineering Journal** entries for that applicant and mission
    assignment attempt. Engineering Journal entries are read-only for reviewers. The legacy
    `Submission.journalMarkdown` field is retained for data compatibility but is not displayed.
 4. Either **Accept submission** — final; the submission becomes portfolio evidence for the mission's
@@ -165,7 +165,7 @@ never review each other's work (Graduate Profile: graduates are not code reviewe
 
 Before a submission can reach this review screen in **Submitted** state, the server requires every
 published required task for the assignment's program week, at least four journals linked to that exact
-attempt, and publicly reachable GitHub/deployment/Loom URLs. These checks do not grant reviewers any
+attempt, and publicly reachable GitHub/every deployment/Loom URL. These checks do not grant reviewers any
 new journal write permission; journal context remains read-only.
 
 A submission can be reviewed only while it is in **Submitted** status. A revision reuses the current

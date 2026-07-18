@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.19.2`
+Code version: `v0.19.5`
 
 ## Purpose
 
@@ -12,12 +12,29 @@ The suite can be run from the local Ops Console or from npm scripts. As of `v0.1
 shows individual scenario rows grouped by area after a run, so operators can see exactly which
 scenario passed, failed or skipped without searching the raw output.
 
-As of `v0.19.1`, `scripts/regression/run.ts` runs **36 scenario objects**, verified
-`regression:all` 35 passed, 1 pre-existing documented skip (storage), 0 failed. The mission
-deadline/lifecycle (`v0.18.5`, D-080), mission-driven tasks (`v0.19.0`, D-081) and dashboard wiring
-(`v0.19.1`, D-082) work is unit-tested (see `docs/Testing_Strategy.md`) but, per the honest
-accounting this document requires, most of its end-to-end behavior is **not yet** exercised by a
-dedicated scenario here — see Known Gaps below rather than assuming coverage that doesn't exist.
+As of `v0.19.5`, `scripts/regression/run.ts` defines **40 scenario objects**. Executed counts and
+environmental failures/skips are recorded in the versioned test-results artifact rather than assumed
+from source. Weekly-task/readiness scenarios use the existing result envelope and Ops dashboard.
+
+## v0.19.5 Plan Scenario Traceability
+
+These names match the plan one-for-one. A row can combine focused unit and scenario-runner evidence;
+"Deferred" means the exact browser DOM assertion was not added even when its parser/data path is tested.
+
+| Plan scenario | Coverage | Status |
+| --- | --- | --- |
+| S1: Weekly tasks and ordered resources are scoped to program week | Dashboard/program-content/SafeMarkdown unit tests; Applicant/Admin runner scenarios | Automated |
+| S2: Weekly task completion is idempotent and tenant scoped | Dashboard unit tests; Applicant/Tenant runner scenarios | Automated |
+| S3: Journal dates and structured fields are validated | Journal unit tests; Applicant runner scenario | Automated; physical-keyboard confidence interaction remains manual |
+| S4: Readiness counts four journals from only the current attempt | Readiness unit tests; Missions/Tenant repeat and isolation scenarios | Automated |
+| S5: Evidence parsing supports one or more deployment URLs | URL/readiness/submission unit tests; Missions readiness fixture | Automated |
+| S6: Unsafe or unreachable evidence is rejected per URL | URL/readiness unit tests; Missions failed-URL fixture | Automated with deterministic network stubs |
+| S7: Failed submission checks do not change durable state | Submission unit tests; Missions readiness scenario | Automated |
+| S8: Successful submission locks only current-attempt journals | Submission unit tests; Missions selective-lock scenario | Automated |
+| S9: Revision and repeat attempts remain separated | Submission unit tests; Missions repeat/history scenarios | Automated |
+| S10: Admin content management retains authorization and tenant scope | Program-content unit tests; Programs/Admin scenarios | Automated |
+| S11: Applicant and Admin render deployment URLs separately | Central link-builder unit test and multi-URL review data fixture | Partial; exact browser DOM assertion deferred |
+| S12: Existing Regression Run dashboard reports the new coverage | Existing runner categories and result envelope | Automated runner output; dashboard UI checked manually on 2026-07-16 |
 
 ## Execution Areas
 
@@ -39,7 +56,7 @@ dedicated scenario here — see Known Gaps below rather than assuming coverage t
 ## Scenario Matrix
 
 The matrix below is finer-grained than the runner: `scripts/regression/run.ts` currently contains
-**28 scenario objects**, and several matrix rows map onto a single combined runner scenario (for
+**40 scenario objects**, and several matrix rows map onto a single combined runner scenario (for
 example, applicant submit + duplicate block are one scenario, and the three Programs lifecycle rows
 are one scenario).
 
