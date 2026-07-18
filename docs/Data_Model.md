@@ -233,9 +233,10 @@ erDiagram
 - `ApplicationAnswer`: structured answers inside an application.
 - `AuditLog`: security and business action history.
 - `Mission`: tenant/program-scoped SEM assignment managed by admins. Published missions are eligible
-  to be assigned to accepted applicants. `deadlineHours`/`gracePeriodHours` (`v0.18.5`) set the
-  per-mission deadline/grace window; `tutorialUrl` (`v0.19.0`) optionally powers the Task 2
-  YouTube watch-gate.
+  to be assigned to accepted applicants. `gracePeriodHours` (`v0.18.5`) sets the per-mission grace
+  window; `deadlineHours` is retained but unused since `v0.19.4` (D-091) — the deadline is the
+  weekly Thursday cadence computed at acceptance (`packages/db/src/deadline-cadence.ts`);
+  `tutorialUrl` (`v0.19.0`) optionally powers the Task 2 YouTube watch-gate.
 - `MissionAssignment`: tenant/program/applicant/week attempt row. `attemptNumber` preserves
   repeat-week history and `status` tracks the full lifecycle
   `NOT_STARTED → ACCEPTED → IN_PROGRESS → PENDING_EVALUATION|LATE_SUBMITTED`, with `OVERDUE`/

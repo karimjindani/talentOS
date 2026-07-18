@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./client";
+import { computeWeeklyDeadline } from "./deadline-cadence";
 
 export const DEFAULT_ASSIGNMENT_WEEK = 1;
 
@@ -199,6 +200,10 @@ export function acceptMissionAssignment(input: {
 /**
  * The applicant's explicit "Accept Mission" action. Starts the deadline/grace countdown from this
  * moment, not from when the mission was assigned — an un-accepted assignment never expires.
+ *
+ * v0.19.4 (D-091): the deadline is no longer `acceptedAt + mission.deadlineHours`; it is the
+ * weekly Thursday cadence from computeWeeklyDeadline (earliest end-of-Thursday, server-local,
+ * with >= 4 inclusive calendar days). `mission.gracePeriodHours` still applies after that cutoff.
  */
 export async function acceptMissionAssignmentTx(
   tx: Prisma.TransactionClient,
@@ -206,7 +211,7 @@ export async function acceptMissionAssignmentTx(
 ) {
   const assignment = await tx.missionAssignment.findFirst({
     where: { id: missionAssignmentId, tenantId, applicantId },
-    include: { mission: { select: { deadlineHours: true, gracePeriodHours: true } } }
+    include: { mission: { select: { gracePeriodHours: true } } }
   });
   if (!assignment) {
     throw new Error("Mission assignment not found for this applicant.");
@@ -216,7 +221,7 @@ export async function acceptMissionAssignmentTx(
   }
 
   const acceptedAt = new Date();
-  const deadlineAt = new Date(acceptedAt.getTime() + assignment.mission.deadlineHours * 60 * 60 * 1000);
+  const deadlineAt = computeWeeklyDeadline(acceptedAt);
   const graceEndsAt = new Date(deadlineAt.getTime() + assignment.mission.gracePeriodHours * 60 * 60 * 1000);
 
   return tx.missionAssignment.update({

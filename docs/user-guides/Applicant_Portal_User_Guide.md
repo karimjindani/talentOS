@@ -169,6 +169,18 @@ assignment. The assigned mission is the one that appears in your dashboard.
 ### Mission acceptance, tasks, submission, and review
 
 Open an assigned mission and select **Accept Mission** to start its deadline and grace-period clock.
+
+**Mission deadlines follow a weekly cadence (`v0.19.4`).** Every mission is due at the **end of a
+Thursday** (midnight cutoff), and you always get at least 4 calendar days:
+
+- Accept on **Monday** → due that same Thursday (Mon–Thu, 4 days).
+- Accept on **Tuesday, Wednesday or Thursday** → due the **following** Thursday (never a 1–3 day
+  deadline).
+- Accept on **Friday, Saturday or Sunday** → due the coming Thursday (5–7 days).
+
+After the Thursday cutoff, a 24-hour grace period applies: you can still submit, but the submission
+is marked late. When the grace period ends without a submission, the mission fails. Missions accepted
+before this version keep the deadline they were originally given.
 Each assignment attempt has fixed mission steps for reviewing the brief, studying the mission tutorial,
 and building/submitting evidence. These are separate from the reusable weekly learning tasks shown on
 the Tasks page; both sets must be complete before submission.

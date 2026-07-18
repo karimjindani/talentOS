@@ -12,6 +12,7 @@ export * from "./regression";
 export * from "./dashboard";
 export * from "./missions";
 export * from "./mission-assignments";
+export * from "./deadline-cadence";
 export * from "./mission-deadlines";
 export * from "./mission-tasks";
 export * from "./submissions";

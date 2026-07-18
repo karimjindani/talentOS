@@ -1039,3 +1039,28 @@ features need their own versioned plan and security/test review.
 Date: 2026-07-19
 
 Status: Implemented; pending baseline review
+
+## D-091
+
+`v0.19.4` (second slice on PR #49, merging after `v0.19.5`) replaces the rolling mission
+deadline offset with a fixed weekly cadence. Previously `deadlineAt = acceptedAt +
+mission.deadlineHours` (default 168h), so every applicant's cutoff fell at a different weekday
+and hour. Now `deadlineAt = computeWeeklyDeadline(acceptedAt)` (new pure helper
+`packages/db/src/deadline-cadence.ts`): the earliest end-of-Thursday (Thursday 23:59:59.999,
+server-local time) whose inclusive calendar-day count from the acceptance date is at least 4.
+Monday acceptances keep that week's Thursday (Mon-Thu = 4 days); Tuesday-Thursday acceptances
+roll to the next week's Thursday; Friday-Sunday acceptances get the coming Thursday (7/6/5
+days). `mission.gracePeriodHours` (24h default) still applies after the cutoff, and the sweep,
+submission gating (`LATE_SUBMITTED`/blocked-past-grace) and countdown UI are unchanged - they
+read the stored timestamps. `Mission.deadlineHours` is retained in the schema but unused at
+runtime (comment updated; no migration). Applies to new acceptances only - in-flight
+assignments keep their stored deadlines by decision. The cadence anchors to the server's local
+timezone; `docs/Deployment.md` now requires pinning `TZ` consistently across app processes.
+Unit suite: +7 cadence tests, accept-path formula tests rewritten TZ-portably; new rule-based
+`missions` regression scenario asserts Thursday/end-of-day/>=4-days/+24h-grace on a real
+acceptance.
+
+Plan: `docs/plans/v0.19.4_Weekly_Mission_Deadline_Cadence.md`; results:
+`docs/testing/v0.19.4_Weekly_Mission_Deadline_Cadence_Test_Results.md`.
+
+Status: Approved

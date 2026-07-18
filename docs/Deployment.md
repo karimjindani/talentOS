@@ -56,6 +56,15 @@ unique/index rules. It does not add a deployment-link table; multi-URL evidence 
 - Browser-level automation for every rendered deployment link is deferred; central parsing/link data is
   unit-tested and Admin review data is exercised by regression.
 
+> `v0.19.4` (Mission Task Checklist Lifecycle Guard, D-085 + Weekly Mission Deadline Cadence,
+> D-091) **requires no database migration** — rebuild the applicant container:
+> `docker compose up -d --build applicant`. **New operational requirement (D-091):** the mission
+> deadline is now computed as end-of-Thursday in the **server's local timezone** at acceptance
+> time. Pin the `TZ` environment variable to the same value on every process that can accept a
+> mission (applicant container/app instances) so "Thursday" is identical across instances; the
+> deadline sweep itself compares stored timestamps and is timezone-immune. In-flight assignments
+> accepted before this baseline keep their previously stored deadlines.
+>
 > `v0.19.2` (Logout Regression Fix & Confirmation Gates, D-083) **requires no database migration** —
 > rebuild the applicant container: `docker compose up -d --build applicant`. `AGENTS.md` is a
 > repo-governance doc; it has no deployment effect.

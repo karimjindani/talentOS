@@ -56,8 +56,9 @@ These names match the plan one-for-one. A row can combine focused unit and scena
 ## Scenario Matrix
 
 The matrix below is finer-grained than the runner: `scripts/regression/run.ts` currently contains
-**41 scenario objects** (`v0.19.5`'s 40 plus the `v0.19.4` checklist-lifecycle scenario merged
-after it), and several matrix rows map onto a single combined runner scenario (for
+**42 scenario objects** (`v0.19.5`'s 40 plus the `v0.19.4` checklist-lifecycle and
+weekly-deadline-cadence scenarios merged after it), and several matrix rows map onto a single
+combined runner scenario (for
 example, applicant submit + duplicate block are one scenario, and the three Programs lifecycle rows
 are one scenario).
 
@@ -97,6 +98,7 @@ are one scenario).
 | Missions | An applicant already accepted before any mission assignment existed has no assigned missions and no automatic backfill. | Automated (documents a known gap) | v0.18.2 (D-077): asserts current behavior — no scenario/migration backfills a `MissionAssignment` for applications that were `ACCEPTED` directly (bypassing `applyStatusTransition`). See Known Gaps: a product decision is still needed on whether existing accepted applicants should be backfilled. |
 | Missions | A rejected (`REPEAT`) submission's replacement assignment keeps the same `weekNumber` as the failed attempt. | Automated | v0.19.1 (D-082): the "Repeat-week attempts preserve journal history without duplicate or infinite loops" and "Repeated-week history stays separate across mission variants and attempt boundaries" fixtures assert the alternate mission is created at `fixture.mission.weekNumber`, exercising the same-week correction (`createRepeatMissionForSameWeekTx`) rather than a reset to Week 1. |
 | Missions | Task checklist follows the assignment lifecycle: editable while `ACCEPTED`/`IN_PROGRESS`/`OVERDUE`; a `PASSED` assignment derives a fully complete, locked checklist (even without stored completion rows); a `NOT_STARTED` assignment is locked until accepted; cross-tenant mark/unmark is denied. | Automated | v0.19.4 (D-085): "Passed and unaccepted assignments lock the task checklist; active ones stay editable" — covers the plan's passed-mission, repeat-fresh-start (NOT_STARTED lock), active-editable and tenant-isolation scenarios via `markMissionTaskComplete`/`unmarkMissionTaskComplete`/`listAssignedMissionsWithTasks`/`missionChecklistLockReason`. |
+| Missions | Accepting a mission sets a weekly-cadence deadline: end-of-Thursday (server-local), at least 4 inclusive calendar days from acceptance, with `graceEndsAt` exactly 24h later. | Automated | v0.19.4 (D-091): "Accepted assignments follow the weekly Thursday deadline cadence with a 24h grace period" — rule-based assertions on the real clock; deterministic weekday coverage lives in `deadline-cadence.test.ts`/`mission-assignments.test.ts`. Late-submission-during-grace and in-flight-deadline-preserved cases are unit-covered / true by construction (only `acceptMissionAssignmentTx` writes the timestamps) — see the v0.19.4 cadence plan's Test Scenarios. |
 | Journal | Applicant creates and edits a daily Engineering Journal entry against their assigned mission; entries are listed and audited (`journal.created`/`journal.updated`). | Automated | v0.18.2 (D-077) closes the `v0.17.0` coverage gap. |
 | Journal | Applicant cannot create a journal entry against a published mission that is not assigned to them. | Automated | v0.18.2 (D-077). |
 | Journal | One journal entry per applicant per calendar date is enforced. | Automated | v0.18.2 (D-077) exercises the `v0.17.1` database-level unique constraint via `JournalEntryDateConflictError`. |

@@ -211,26 +211,56 @@ describe("acceptMissionAssignment", () => {
     prismaMock.txMissionAssignmentUpdate.mockImplementation(async ({ where, data }) => ({ id: where.id, ...data }));
   });
 
-  it("starts the deadline/grace countdown from acceptance time, computed from the mission's own hours", async () => {
-    const acceptedAt = new Date("2026-07-14T00:00:00.000Z");
+  // v0.19.4 (D-091): the deadline is the weekly Thursday cadence, not acceptedAt + deadlineHours.
+  // Fixtures use LOCAL-time constructors (week of Mon 2026-07-13) so both the fake clock and the
+  // expectations are built in the same timezone — never UTC ISO strings here.
+  it("gives a Monday acceptance this week's end-of-Thursday plus the mission's grace hours", async () => {
+    const acceptedAt = new Date(2026, 6, 13, 9, 30); // Monday
     vi.useFakeTimers();
     vi.setSystemTime(acceptedAt);
 
     prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({
       id: "assignment-1",
       status: "NOT_STARTED",
-      mission: { deadlineHours: 48, gracePeriodHours: 12 }
+      mission: { gracePeriodHours: 12 }
     });
 
     await acceptMissionAssignment({ tenantId: "tenant-1", applicantId: "applicant-1", missionAssignmentId: "assignment-1" });
 
+    const expectedDeadline = new Date(2026, 6, 16, 23, 59, 59, 999); // this Thursday, end of day
     expect(prismaMock.txMissionAssignmentUpdate).toHaveBeenCalledWith({
       where: { id: "assignment-1" },
       data: {
         status: "ACCEPTED",
         acceptedAt,
-        deadlineAt: new Date("2026-07-16T00:00:00.000Z"),
-        graceEndsAt: new Date("2026-07-16T12:00:00.000Z")
+        deadlineAt: expectedDeadline,
+        graceEndsAt: new Date(expectedDeadline.getTime() + 12 * 60 * 60 * 1000)
+      }
+    });
+    vi.useRealTimers();
+  });
+
+  it("rolls a mid-week (Thursday) acceptance to next week's Thursday", async () => {
+    const acceptedAt = new Date(2026, 6, 16, 12, 0); // Thursday noon
+    vi.useFakeTimers();
+    vi.setSystemTime(acceptedAt);
+
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({
+      id: "assignment-1",
+      status: "NOT_STARTED",
+      mission: { gracePeriodHours: 24 }
+    });
+
+    await acceptMissionAssignment({ tenantId: "tenant-1", applicantId: "applicant-1", missionAssignmentId: "assignment-1" });
+
+    const expectedDeadline = new Date(2026, 6, 23, 23, 59, 59, 999); // next Thursday, end of day
+    expect(prismaMock.txMissionAssignmentUpdate).toHaveBeenCalledWith({
+      where: { id: "assignment-1" },
+      data: {
+        status: "ACCEPTED",
+        acceptedAt,
+        deadlineAt: expectedDeadline,
+        graceEndsAt: new Date(expectedDeadline.getTime() + 24 * 60 * 60 * 1000)
       }
     });
     vi.useRealTimers();
@@ -240,7 +270,7 @@ describe("acceptMissionAssignment", () => {
     prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({
       id: "assignment-1",
       status: "ACCEPTED",
-      mission: { deadlineHours: 168, gracePeriodHours: 24 }
+      mission: { gracePeriodHours: 24 }
     });
 
     await expect(

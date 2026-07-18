@@ -240,7 +240,7 @@ Schema evidence commit: `2b3afce`
 | `deliverables` | Required artifacts such as PRD, repository, deployment URL and Loom video. |
 | `evaluationCriteria` | Completion level or grading rubric. |
 | `competencyTags` | Competency mapping labels. |
-| `deadlineHours` | Hours from acceptance until the submission deadline; default `168` (7 days) (`v0.18.5`). |
+| `deadlineHours` | Unused at runtime since `v0.19.4` (D-091) — retained for compatibility; the deadline is the weekly Thursday cadence (see `MissionAssignment.deadlineAt`). Previously hours from acceptance until the deadline, default `168` (`v0.18.5`). |
 | `gracePeriodHours` | Hours after the deadline during which a late submission is still accepted; default `24` (`v0.18.5`). |
 | `tutorialUrl` | Optional YouTube tutorial link for the fixed Task 2 "Study the Tutorial" step; when set, the task requires watching to the end before it can be marked complete (`v0.19.0`). |
 
@@ -257,7 +257,7 @@ Schema evidence commit: `2b3afce`
 | `status` | `NOT_STARTED`, `ACCEPTED`, `IN_PROGRESS`, `PENDING_EVALUATION`, `LATE_SUBMITTED`, `OVERDUE`, `FAILED`, `PASSED` or `REPEAT` (`v0.18.5`; replaces the earlier `ACTIVE`/`SUBMITTED` model). |
 | `assignedAt` | Timestamp for when the assignment was made. |
 | `acceptedAt` | Timestamp of the applicant's explicit Accept Mission action; null until accepted. Deadline/grace are computed from this, not `assignedAt` (`v0.18.5`). |
-| `deadlineAt` | `acceptedAt` + the mission's `deadlineHours`; null until accepted (`v0.18.5`). |
+| `deadlineAt` | The earliest end-of-Thursday (23:59:59.999 server-local) at least 4 inclusive calendar days after `acceptedAt` (`v0.19.4`, D-091; was `acceptedAt` + `deadlineHours` in `v0.18.5`); null until accepted. |
 | `graceEndsAt` | `deadlineAt` + the mission's `gracePeriodHours`; null until accepted (`v0.18.5`). |
 | `createdAt` | Row creation timestamp. |
 | `updatedAt` | Row update timestamp. |

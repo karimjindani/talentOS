@@ -1482,6 +1482,45 @@ const scenarios: Scenario[] = [
   },
   {
     area: "missions",
+    name: "Accepted assignments follow the weekly Thursday deadline cadence with a 24h grace period",
+    run: async (ctx) => {
+      // v0.19.4 (D-091): deadlineAt is the earliest end-of-Thursday (server-local) with >= 4
+      // inclusive calendar days from acceptance; graceEndsAt = deadlineAt + gracePeriodHours (24h
+      // default on all fixture missions). The suite runs on the real clock, so assertions are
+      // rule-based rather than fixed-date.
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const assignment = fixture.assignment;
+      if (!assignment.acceptedAt || !assignment.deadlineAt || !assignment.graceEndsAt) {
+        throw new Error("Accepting an assignment did not set acceptedAt/deadlineAt/graceEndsAt.");
+      }
+      const acceptedAt = new Date(assignment.acceptedAt);
+      const deadlineAt = new Date(assignment.deadlineAt);
+      const graceEndsAt = new Date(assignment.graceEndsAt);
+
+      if (deadlineAt.getDay() !== 4) {
+        throw new Error(`deadlineAt must land on a Thursday (local), got day ${deadlineAt.getDay()}.`);
+      }
+      if (
+        deadlineAt.getHours() !== 23 ||
+        deadlineAt.getMinutes() !== 59 ||
+        deadlineAt.getSeconds() !== 59 ||
+        deadlineAt.getMilliseconds() !== 999
+      ) {
+        throw new Error(`deadlineAt must be end-of-day (23:59:59.999 local), got ${deadlineAt.toISOString()}.`);
+      }
+      const acceptedMidnight = new Date(acceptedAt.getFullYear(), acceptedAt.getMonth(), acceptedAt.getDate());
+      const deadlineMidnight = new Date(deadlineAt.getFullYear(), deadlineAt.getMonth(), deadlineAt.getDate());
+      const inclusiveDays = Math.round((deadlineMidnight.getTime() - acceptedMidnight.getTime()) / 86_400_000) + 1;
+      if (inclusiveDays < 4) {
+        throw new Error(`Cadence must guarantee >= 4 inclusive days, got ${inclusiveDays}.`);
+      }
+      if (graceEndsAt.getTime() !== deadlineAt.getTime() + 24 * 60 * 60 * 1000) {
+        throw new Error("graceEndsAt must be exactly 24h after the Thursday cutoff for default-grace missions.");
+      }
+    }
+  },
+  {
+    area: "missions",
     name: "Passed and unaccepted assignments lock the task checklist; active ones stay editable",
     run: async (ctx) => {
       // v0.19.4: the fixed 3-step checklist follows the assignment lifecycle — editable only
@@ -1535,18 +1574,20 @@ const scenarios: Scenario[] = [
         }
       }
 
-      // Drive the assignment to PASSED through the real submit/review loop.
+      // Drive the assignment to PASSED through the real submit/review loop. v0.19.5's readiness
+      // gate needs full evidence URLs and four attempt journals — submitRegressionSubmission
+      // backfills those the same way the other submission scenarios do.
       const draft = await saveSubmissionDraft({
         tenantId: fixture.tenant.id,
         missionId: fixture.mission.id,
         applicantId: fixture.user.id,
         repositoryUrl: "https://github.com/regression/checklist-lifecycle",
-        deploymentUrl: null,
-        loomUrl: null,
+        deploymentUrl: "https://regression-checklist.example.com/",
+        loomUrl: "https://www.loom.com/share/regression-checklist",
         journalMarkdown: "Checklist lifecycle regression"
       });
       await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
-      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      await submitRegressionSubmission(ctx.runId, { id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
       await reviewSubmission({
         id: draft.id,
         tenantId: fixture.tenant.id,

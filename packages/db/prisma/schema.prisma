@@ -285,9 +285,12 @@ model Mission {
   deliverables       String            @default("")
   evaluationCriteria String            @default("")
   competencyTags     String[]          @default([])
-  // Applicant-facing timing (v0.18.5): deadline counts from MissionAssignment.acceptedAt, not
-  // assignment time — the countdown only starts once the applicant explicitly accepts the mission.
-  deadlineHours      Int               @default(168) // 7 days
+  // Applicant-facing timing: the countdown only starts once the applicant explicitly accepts the
+  // mission (v0.18.5). Since v0.19.4 (D-091) deadlineHours is retained but UNUSED at runtime —
+  // deadlineAt is the weekly Thursday cadence (earliest end-of-Thursday, server-local, with >= 4
+  // inclusive calendar days from acceptance; see src/deadline-cadence.ts). gracePeriodHours still
+  // applies after that cutoff.
+  deadlineHours      Int               @default(168) // unused since v0.19.4 — kept for compatibility
   gracePeriodHours   Int               @default(24)
   // Applicant-facing tutorial link for the fixed Task 2 "Study the Tutorial" step (v0.19.0).
   // Replaces the old program-wide VideoResource authoring flow with one link per mission.

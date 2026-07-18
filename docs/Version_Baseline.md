@@ -93,6 +93,14 @@ suite: 431 tests across 43 files, all pass; `regression:all` 36/37 passed, 0 fai
 pre-existing documented storage skip. Plan:
 `docs/plans/v0.19.4_Mission_Task_Checklist_Lifecycle_Guard.md`; results:
 `docs/testing/v0.19.4_Mission_Task_Checklist_Lifecycle_Guard_Test_Results.md`. See `D-085`.
+A second `v0.19.4` slice on the same branch (D-091) replaces the rolling
+`acceptedAt + deadlineHours` mission deadline with a fixed weekly cadence: the earliest
+end-of-Thursday (23:59:59.999 server-local) at least 4 inclusive calendar days from acceptance
+(Monday keeps that week's Thursday; Tuesday–Thursday roll to the next week; Friday–Sunday get
+the coming Thursday). `deadlineHours` is retained unused; the 24h grace, sweep, submission
+gating and countdown UI are unchanged; new acceptances only. Plan:
+`docs/plans/v0.19.4_Weekly_Mission_Deadline_Cadence.md`; results:
+`docs/testing/v0.19.4_Weekly_Mission_Deadline_Cadence_Test_Results.md`.
 
 `v0.19.3` is a patch that (1) adds regex-based personal-name pattern matching to the AI Mentor RBSE
 so questions like "explain hitesh" or "who is john" are blocked before any LLM call — previously

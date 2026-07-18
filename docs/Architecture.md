@@ -112,8 +112,12 @@ paths at runtime, only the imported database content.
 `v0.18.5` gives every `MissionAssignment` an explicit time-boxed lifecycle instead of the open-ended
 `v0.18.0` `ACTIVE` state. An applicant must explicitly **accept** a `NOT_STARTED` assignment
 (`acceptMissionAssignment`) before evidence can be drafted; accepting is what computes and starts
-`deadlineAt`/`graceEndsAt` from the mission's own `deadlineHours`/`gracePeriodHours` — an assignment
-that is never accepted never expires. Deadline enforcement is **not** a request-time check: a
+`deadlineAt`/`graceEndsAt` — an assignment that is never accepted never expires. Since `v0.19.4`
+(D-091) the deadline is a fixed weekly cadence, not `acceptedAt + deadlineHours`: `deadlineAt` is
+the earliest end-of-Thursday (23:59:59.999, server-local — pin `TZ` across app processes, see
+`Deployment.md`) at least 4 inclusive calendar days from acceptance
+(`packages/db/src/deadline-cadence.ts`); `Mission.deadlineHours` is retained but unused, while
+`gracePeriodHours` still sets the grace window after the cutoff. Deadline enforcement is **not** a request-time check: a
 standalone, idempotent sweep (`packages/db/src/mission-deadlines.ts`,
 `scripts/mission-deadlines/sweep.ts`, `npm run mission-deadlines:sweep`) is intended to run as an
 external scheduled job (cron), deliberately kept out of the app process for future scaling. Each of
