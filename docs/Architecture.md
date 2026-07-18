@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.19.2`
+Code version: `v0.19.5`
 
-Architecture baseline commit: `c7df9d9`
+Architecture evidence commit: `2b3afce`
 
-Current documentation update: `v0.19.2`
+Current documentation update: `v0.19.5`
 
 ## Overview
 
@@ -40,9 +40,30 @@ As of `v0.16.0` (D-069) the overview page's Overall Progress, Missions Accepted 
 Program Progress bars are **mission-driven**: they derive from the applicant's assigned missions and
 ACCEPTED mission submissions (`getApplicantMissionProgress` in `packages/db/src/submissions.ts`), not task
 checkboxes — a **Current Mission** card links to the next mission with its submission-status chip,
-and weekly tasks remain a supplementary checklist. The dashboard's video resources, weekly tasks
+and weekly tasks remain a separate progress surface. Required tasks now also block mission submission
+for the assignment's program week. The dashboard's learning resources, weekly tasks
 and calendar events are managed by admins from the Program Content page (`/programs/[id]/content`,
 `manageProgramContent` capability).
+
+### Weekly Tasks And Submission Readiness (`v0.19.5`)
+
+`ProgramTask` remains the authoritative tenant/program/week model; it is not attached to a mission.
+`UserTaskCompletion` stores tenant + applicant + task once, so completing learning/setup work remains
+valid when the same program week is repeated. `VideoResource` is retained as the database/API name for
+compatibility, but now supports ordered `MARKDOWN` and `YOUTUBE` resources attached to a task. Applicant
+pages render Markdown without raw HTML and show a clear pending state when a YouTube URL has not yet
+been supplied.
+
+`packages/db/src/submission-readiness.ts` is the central readiness service used by the mission page,
+final submit flow, and tests. It derives program/week/mission from the tenant-scoped
+`MissionAssignment`, checks every published required week task, counts at least four non-future
+`EngineeringJournalEntry` rows linked to that exact attempt, and validates all three evidence URL
+formats. `packages/db/src/url-safety.ts` performs the final public-reachability checks outside the
+database transaction. It resolves and pins public IP addresses, rejects credentials/internal hosts,
+private/loopback/link-local/metadata ranges, revalidates each redirect, limits redirects/time, and uses
+bounded HEAD with GET fallback. A short transaction then rechecks readiness and evidence before it
+atomically submits, timestamps, advances the assignment, locks only current-attempt journals, and
+writes the audit event. Failed checks leave draft/revision state and journal locks unchanged.
 
 ### Mission Engine MVP (`v0.14.0`)
 
@@ -449,6 +470,11 @@ area at a time: `auth`, `applicant`, `admin`, `programs`, `tenant`, `dashboard`,
 a machine-readable `REGRESSION_RESULT_JSON` payload containing total, passed, failed, skipped and
 duration counts; the Ops job runner parses that payload and renders the summary and raw logs.
 
+Weekly-task/readiness scenarios reuse this same runner and payload. Applicant covers task completion
+and future-date rejection; Missions covers readiness, locking, and repeat behavior; Programs/Admin
+cover task-resource configuration; Tenant covers completion/readiness isolation; Unit runs the mocked
+URL/SSRF, readiness, journal-date, task, resource, and safe-Markdown tests. No second dashboard exists.
+
 Scenario-generated records must be tagged through `RegressionDataMarker` before cleanup is allowed.
 The cleanup path deletes only marker-tagged records in dependency order and must not touch seeded demo
 data or user-created records.
@@ -497,13 +523,19 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
      `DRAFT ⇄ PUBLISHED ⇄ ARCHIVED` state machine, tenant scoping and `AuditLog` events
      (`program.created`, `program.updated`, `program.status_changed`). Published programs feed the
      applicant apply form.
+   - Program content (v0.16.0, D-069): learning resources, weekly tasks and calendar events are
+     managed from /programs/[id]/content behind the manageProgramContent capability
+     (ORG_ADMIN/SUPER_ADMIN) via audited tenant-scoped helpers (packages/db/src/program-content.ts,
+     actions resource.*/task.*/event.*).
+   - Current working slice: tasks support required/published state; each task can carry ordered
+     Markdown and YouTube resources, including an explicit pending-video state.
    - Next: cohorts and public per-program application entry points.
 
 5. Missions — mission engine delivered in `v0.14.0`, submissions in `v0.15.0`, full seed in `v0.15.1`
    - Done: admin create/edit/publish/archive missions; accepted applicants view published missions in
      their dashboard; mission submission + staff review loop (`v0.15.0`, D-067:
-     `DRAFT→SUBMITTED→ACCEPTED|NEEDS_REVISION`, evidence = GitHub/deployment/Loom URLs + inline
-     engineering journal, `reviewSubmissions` capability); demo seed provides the complete four-week
+     `DRAFT→SUBMITTED→ACCEPTED|NEEDS_REVISION`, evidence = GitHub/deployment/Loom URLs,
+     `reviewSubmissions` capability); demo seed provides the complete four-week
      TaskPilot SEM mission arc (`v0.15.1`, D-068).
    - Mission-driven dashboard progress (v0.16.0, D-069): the applicant dashboard's Overall
      Progress, Missions Accepted tile and per-week bars derive from ACCEPTED submissions
@@ -511,6 +543,9 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
    - Mission assignment MVP (v0.18.0): accepted applicants receive assigned published missions instead
      of seeing the whole published mission pool. Week 1 seed variants are authored in Markdown and
      imported into mission fields for future AI-review context.
+   - Current working slice: final submission requires all required tasks for the assigned program week,
+     at least four current-attempt journals, and publicly reachable GitHub/deployment/Loom URLs. Repeat
+     attempts retain week-task completion but require four journals linked to the new attempt.
    - Mission deadline & lifecycle (v0.18.5, D-080): explicit Accept Mission action starts a
      per-mission deadline/grace countdown; an idempotent external sweep script transitions
      `OVERDUE`/`FAILED`+`DISQUALIFIED`; accepting a submission auto-advances the applicant to the
@@ -520,7 +555,8 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
    - Mission-driven tasks & Submissions admin tab (v0.19.0, D-081): a fixed 3-task template per
      assignment (Review Brief / Study Tutorial with YouTube watch-gate / Build & Submit Evidence)
      gates submission; a new admin Submissions tab lists/filters submissions across all missions.
-     Replaces the legacy `ProgramTask`/`VideoResource` applicant-facing UI (tables kept, unused).
+     These assignment-attempt steps coexist with required `ProgramTask` learning tasks: mission steps
+     reset per attempt, while program-week task completion remains reusable across same-week repeats.
    - Dashboard wiring (v0.19.1, D-082): Dashboard/My Program/Tasks/Missions pages read the real
      mission-lifecycle deadline and task-completion data instead of program-level placeholders.
    - Next: competency rollup / portfolio view over accepted submissions; a Back Office "rejoin from

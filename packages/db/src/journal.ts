@@ -37,6 +37,7 @@ export type JournalCreateAvailability = {
 export type JournalEntryContentInput = {
   missionId: string;
   entryDate: Date;
+  calendarTimeZone?: string;
   language: string;
   workedOn: string;
   challenge: string;
@@ -85,8 +86,8 @@ export function validateConfidenceRating(value: number): number {
 }
 
 export function validateTimeSpentHours(value: number): number {
-  if (!Number.isFinite(value) || value <= 0 || value > 24) {
-    throw new Error("Time spent must be greater than 0 and no more than 24 hours.");
+  if (!Number.isFinite(value) || value < 0.25 || value > 24) {
+    throw new Error("Time spent must be at least 0.25 and no more than 24 hours.");
   }
   return value;
 }
@@ -445,7 +446,7 @@ export function getJournalCreateAvailabilityFromLatest(
 
 function normalizeJournalEntryContent(input: JournalEntryContentInput) {
   return {
-    entryDate: normalizeEntryDate(input.entryDate),
+    entryDate: normalizeJournalEntryDate(input.entryDate, new Date(), input.calendarTimeZone),
     language: normalizeJournalLanguage(input.language),
     workedOn: requiredText(input.workedOn, "What you worked on today"),
     challenge: requiredText(input.challenge, "Challenge faced"),
@@ -458,11 +459,33 @@ function normalizeJournalEntryContent(input: JournalEntryContentInput) {
   };
 }
 
-function normalizeEntryDate(value: Date): Date {
+export function normalizeJournalEntryDate(value: Date, now = new Date(), timeZone = "UTC"): Date {
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
     throw new Error("Entry date is required.");
   }
-  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+  const normalized = new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+  const today = calendarDateInTimeZone(now, timeZone);
+  if (normalized > today) {
+    throw new Error("Journal entry date cannot be in the future.");
+  }
+  return normalized;
+}
+
+function calendarDateInTimeZone(value: Date, timeZone: string): Date {
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).formatToParts(value);
+  } catch {
+    throw new Error("Journal calendar time zone is invalid.");
+  }
+
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return new Date(Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day)));
 }
 
 function requiredText(value: string, label: string): string {
@@ -488,6 +511,9 @@ function validateEvidenceLinks(links: string[]): string[] {
     }
     if (url.protocol !== "https:" && url.protocol !== "http:") {
       throw new Error("Evidence links must be valid URLs including https:// or http://.");
+    }
+    if (url.username || url.password) {
+      throw new Error("Evidence links cannot contain a username or password.");
     }
     normalized.push(url.toString());
   }

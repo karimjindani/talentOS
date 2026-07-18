@@ -133,7 +133,7 @@ export async function buildApplicantContext(
     // 2. Gather tasks, completions, missions, and progress in parallel
     const [tasks, completedTaskIds, missions, weekProgress, submissions] = await Promise.all([
       listProgramTasks(tenantId, program.id),
-      listCompletedTaskIds(userId, program.id),
+      listCompletedTaskIds(tenantId, userId, program.id),
       listPublishedProgramMissions(tenantId, program.id),
       getApplicantProgramProgress(userId, tenantId, program.id),
       // Fetch submissions for this applicant's missions

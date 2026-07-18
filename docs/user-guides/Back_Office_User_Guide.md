@@ -1,8 +1,8 @@
 # Back Office User Guide
 
-Applies to version: `v0.18.4`
+Applies to version: `v0.19.5`
 
-Last verified: 2026-07-14
+Last verified: 2026-07-19
 
 Audience: platform super admins, organization admins, HR reviewers, and tech leads.
 
@@ -104,14 +104,37 @@ Organization Admins and Super Admins manage programs.
 
 Only published programs are visible to applicants.
 
+### Program content (`v0.16.0`)
+
+Organization Admins and Super Admins manage the applicant dashboard's curriculum content per
+program from **Programs → [program] → Manage content** (`/programs/[id]/content`):
+
+- **Learning resources** — associate a resource with a weekly task, choose **Markdown** or
+  **YouTube**, and set title, description, order, and optional duration. Markdown content is stored
+  directly; YouTube URLs must be public YouTube links and may remain blank while production is pending.
+- **Weekly tasks** — title, description, program week, order, optional due date, required state, and
+  published state. Published tasks appear on the applicant Tasks page. Required tasks block mission
+  submission for that program week until the applicant marks them complete.
+- **Calendar events** — title, description, start/end time, location. Shown on the applicant
+  Calendar page.
+
+Each entry can be edited inline or deleted. All changes are audited. HR and Tech Lead see a
+read-only notice on this page. The page also flags published required tasks that are missing either a
+Markdown or YouTube resource.
+
+The demo seed configures three ordered required Week 1 tasks: **Environment Setup**, **Git and GitHub
+Basics**, and **Introduction to AI-Assisted Coding**. Each has Markdown content and a YouTube resource
+record. The final introductory YouTube video is not supplied yet, so its URL is intentionally pending;
+the repository includes a short production outline and does not seed a fake link.
+
 ## Missions
 
 Organization Admins and Super Admins manage missions.
 
 1. Open **Missions**.
 2. Create a draft mission for a program.
-3. Add the mission objective, acceptance criteria, deliverables, evaluation criteria, and competency
-   tags.
+3. Add the mission objective, acceptance criteria, deliverables, evaluation criteria, competency
+   tags, tutorial URL, deadline hours, and grace-period hours.
 4. Publish the mission when it is ready for accepted applicants.
 5. Archive missions that should no longer be visible to applicants.
 
@@ -129,8 +152,8 @@ never review each other's work (Graduate Profile: graduates are not code reviewe
 
 1. Open **Missions** and select the mission.
 2. In **Submissions**, select **Review** on a submitted entry.
-3. Inspect the evidence: Git repository, deployed application, and Loom walkthrough (links open in a
-   new tab), plus all dedicated **Engineering Journal** entries for that applicant and mission
+3. Inspect the evidence: Git repository, each deployed application URL, and Loom walkthrough (every
+   link opens separately in a new tab), plus all dedicated **Engineering Journal** entries for that applicant and mission
    assignment attempt. Engineering Journal entries are read-only for reviewers. The legacy
    `Submission.journalMarkdown` field is retained for data compatibility but is not displayed.
 4. Either **Accept submission** — final; the submission becomes portfolio evidence for the mission's
@@ -139,6 +162,11 @@ never review each other's work (Graduate Profile: graduates are not code reviewe
    or a repeat requires written feedback.
 5. The applicant is notified automatically (acceptance or revision request with your feedback), and
    the review is recorded in the audit log.
+
+Before a submission can reach this review screen in **Submitted** state, the server requires every
+published required task for the assignment's program week, at least four journals linked to that exact
+attempt, and publicly reachable GitHub/every deployment/Loom URL. These checks do not grant reviewers any
+new journal write permission; journal context remains read-only.
 
 A submission can be reviewed only while it is in **Submitted** status. A revision reuses the current
 attempt. A repeat keeps the old submission and its locked Engineering Journal entries as read-only
@@ -179,8 +207,8 @@ The Operations page must not be used as evidence that production monitoring exis
 
 - Full Back Office user/role management UI is not complete yet.
 - Production deployment operations, backups, alerting, and monitoring are not covered by this guide.
-- Mission submissions, engineering journal review, public portfolios, and hiring intelligence are future
-  workflows.
+- Public recruiter portfolios, hiring intelligence, and automated Engineering Journal scoring remain
+  future workflows.
 - Screenshots are not part of this guide yet.
 
 ## Troubleshooting

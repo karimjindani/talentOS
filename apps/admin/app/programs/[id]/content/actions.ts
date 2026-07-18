@@ -1,7 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createCalendarEvent, deleteCalendarEvent, updateCalendarEvent } from "@talentos/db";
+import {
+  createCalendarEvent,
+  createProgramTask,
+  createVideoResource,
+  deleteCalendarEvent,
+  deleteProgramTask,
+  deleteVideoResource,
+  updateCalendarEvent,
+  updateProgramTask,
+  updateVideoResource,
+  LearningResourceType
+} from "@talentos/db";
 import { requireTenantAccess } from "@/lib/tenant-guard";
 
 // Program-content management (v0.16.0, D-069). Every action re-resolves the acting admin and
@@ -27,6 +38,22 @@ function optionalText(formData: FormData, name: string): string | null {
   return text(formData, name) || null;
 }
 
+function optionalWeek(formData: FormData): number | null {
+  const raw = text(formData, "weekNumber");
+  if (!raw) {
+    return null;
+  }
+  return requiredWeek(formData);
+}
+
+function requiredWeek(formData: FormData): number {
+  const week = Number.parseInt(text(formData, "weekNumber"), 10);
+  if (!Number.isInteger(week) || week < 1 || week > 4) {
+    throw new Error("Week must be between 1 and 4.");
+  }
+  return week;
+}
+
 function optionalDate(formData: FormData, name: string): Date | null {
   const raw = text(formData, name);
   if (!raw) {
@@ -47,8 +74,156 @@ function requiredDate(formData: FormData, name: string, label: string): Date {
   return date;
 }
 
+/** The externally-hosted video URL must be a well-formed http(s) link (no javascript: etc.). */
+function requiredHttpUrl(formData: FormData, name: string): string {
+  const raw = requiredText(formData, name, "URL");
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error("Enter a valid URL (including https://).");
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error("Enter a valid URL (including https://).");
+  }
+  return url.toString();
+}
+
+function optionalHttpUrl(formData: FormData, name: string): string | null {
+  return text(formData, name) ? requiredHttpUrl(formData, name) : null;
+}
+
+function resourceType(formData: FormData): LearningResourceType {
+  const value = text(formData, "type");
+  if (value !== LearningResourceType.MARKDOWN && value !== LearningResourceType.YOUTUBE) {
+    throw new Error("Choose Markdown or YouTube as the resource type.");
+  }
+  return value;
+}
+
+function optionalPositiveInteger(formData: FormData, name: string): number | null {
+  const value = text(formData, name);
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error("Duration must be a positive number of seconds.");
+  }
+  return parsed;
+}
 function contentPath(programId: string): string {
   return `/programs/${programId}/content`;
+}
+
+// ---------------------------------------------------------------------------
+// Weekly learning resources
+// ---------------------------------------------------------------------------
+
+export async function createVideoResourceAction(formData: FormData) {
+  const { tenant, actorUserId } = await requireContentManager();
+  const programId = requiredText(formData, "programId", "Program");
+
+  await createVideoResource({
+    tenantId: tenant.id,
+    programId,
+    taskId: optionalText(formData, "taskId"),
+    type: resourceType(formData),
+    title: requiredText(formData, "title", "Title"),
+    url: optionalHttpUrl(formData, "url"),
+    markdownContent: optionalText(formData, "markdownContent"),
+    description: optionalText(formData, "description"),
+    weekNumber: optionalWeek(formData),
+    order: Number.parseInt(text(formData, "order"), 10) || 0,
+    durationSeconds: optionalPositiveInteger(formData, "durationSeconds"),
+    actorUserId
+  });
+
+  revalidatePath(contentPath(programId));
+}
+
+export async function updateVideoResourceAction(formData: FormData) {
+  const { tenant, actorUserId } = await requireContentManager();
+  const programId = requiredText(formData, "programId", "Program");
+
+  await updateVideoResource({
+    id: requiredText(formData, "id", "Resource"),
+    tenantId: tenant.id,
+    programId,
+    taskId: optionalText(formData, "taskId"),
+    type: resourceType(formData),
+    title: requiredText(formData, "title", "Title"),
+    url: optionalHttpUrl(formData, "url"),
+    markdownContent: optionalText(formData, "markdownContent"),
+    description: optionalText(formData, "description"),
+    weekNumber: optionalWeek(formData),
+    order: Number.parseInt(text(formData, "order"), 10) || 0,
+    durationSeconds: optionalPositiveInteger(formData, "durationSeconds"),
+    actorUserId
+  });
+
+  revalidatePath(contentPath(programId));
+}
+
+export async function deleteVideoResourceAction(formData: FormData) {
+  const { tenant, actorUserId } = await requireContentManager();
+  const programId = requiredText(formData, "programId", "Program");
+
+  await deleteVideoResource({ id: requiredText(formData, "id", "Resource"), tenantId: tenant.id, actorUserId });
+
+  revalidatePath(contentPath(programId));
+}
+
+// ---------------------------------------------------------------------------
+// Weekly tasks
+// ---------------------------------------------------------------------------
+
+export async function createProgramTaskAction(formData: FormData) {
+  const { tenant, actorUserId } = await requireContentManager();
+  const programId = requiredText(formData, "programId", "Program");
+
+  await createProgramTask({
+    tenantId: tenant.id,
+    programId,
+    title: requiredText(formData, "title", "Title"),
+    description: optionalText(formData, "description"),
+    weekNumber: requiredWeek(formData),
+    order: Number.parseInt(text(formData, "order"), 10) || 0,
+    dueAt: optionalDate(formData, "dueAt"),
+    required: formData.get("required") === "on",
+    published: formData.get("published") === "on",
+    actorUserId
+  });
+
+  revalidatePath(contentPath(programId));
+}
+
+export async function updateProgramTaskAction(formData: FormData) {
+  const { tenant, actorUserId } = await requireContentManager();
+  const programId = requiredText(formData, "programId", "Program");
+
+  await updateProgramTask({
+    id: requiredText(formData, "id", "Task"),
+    tenantId: tenant.id,
+    programId,
+    title: requiredText(formData, "title", "Title"),
+    description: optionalText(formData, "description"),
+    weekNumber: requiredWeek(formData),
+    order: Number.parseInt(text(formData, "order"), 10) || 0,
+    dueAt: optionalDate(formData, "dueAt"),
+    required: formData.get("required") === "on",
+    published: formData.get("published") === "on",
+    actorUserId
+  });
+
+  revalidatePath(contentPath(programId));
+}
+
+export async function deleteProgramTaskAction(formData: FormData) {
+  const { tenant, actorUserId } = await requireContentManager();
+  const programId = requiredText(formData, "programId", "Program");
+
+  await deleteProgramTask({ id: requiredText(formData, "id", "Task"), tenantId: tenant.id, actorUserId });
+
+  revalidatePath(contentPath(programId));
 }
 
 // ---------------------------------------------------------------------------

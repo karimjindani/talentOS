@@ -5,7 +5,23 @@
  * Creates ProgramTasks, VideoResources, CalendarEvents, and Notifications
  * for the first PUBLISHED program and its ACCEPTED applicants.
  */
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { prisma } from "../packages/db/src/client";
+
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const weekOneTaskContentDir = join(
+  scriptDir,
+  "..",
+  "packages",
+  "db",
+  "prisma",
+  "seed-data",
+  "tasks",
+  "ai-native-engineering",
+  "week-1"
+);
 
 async function main() {
   // Find the first published program with an accepted application
@@ -23,55 +39,122 @@ async function main() {
   console.log(`Seeding dashboard data for program: ${program.name} (${program.id})`);
   console.log(`Tenant: ${tenant.name} | Applicant: ${applicant.email}`);
 
-  // --- Program Tasks (4 weeks, 2-3 tasks each) ---
+  // --- Required Week 1 tasks ---
   const taskDefs = [
-    // Week 1
-    { weekNumber: 1, order: 0, title: "Environment Setup", description: "Set up your development environment with Node.js, Docker, and VS Code.", dueAt: addDays(program.startsAt, 3) },
-    { weekNumber: 1, order: 1, title: "Git & GitHub Basics", description: "Complete the Git fundamentals tutorial and push your first repository.", dueAt: addDays(program.startsAt, 5) },
-    { weekNumber: 1, order: 2, title: "Intro to AI-Assisted Coding", description: "Watch the intro video and submit a reflection on AI coding tools.", dueAt: addDays(program.startsAt, 7) },
-    // Week 2
-    { weekNumber: 2, order: 0, title: "Build a REST API", description: "Create a simple REST API with Express and CRUD operations.", dueAt: addDays(program.startsAt, 10) },
-    { weekNumber: 2, order: 1, title: "Database Integration", description: "Connect your API to PostgreSQL and implement data persistence.", dueAt: addDays(program.startsAt, 14) },
-    // Week 3
-    { weekNumber: 3, order: 0, title: "Frontend Integration", description: "Build a React frontend that consumes your REST API.", dueAt: addDays(program.startsAt, 17) },
-    { weekNumber: 3, order: 1, title: "Authentication & Authorization", description: "Implement JWT-based auth in your application.", dueAt: addDays(program.startsAt, 21) },
-    // Week 4
-    { weekNumber: 4, order: 0, title: "Deployment to Cloud", description: "Deploy your full-stack app to a cloud provider.", dueAt: addDays(program.startsAt, 24) },
-    { weekNumber: 4, order: 1, title: "Final Presentation", description: "Prepare and deliver a 10-minute presentation of your project.", dueAt: addDays(program.startsAt, 28) },
+    {
+      aliases: ["Environment Setup"],
+      weekNumber: 1,
+      order: 1,
+      title: "Environment Setup",
+      description: "Install the required tools, clone TalentOS, run it locally, and confirm the Applicant Portal works.",
+      dueAt: addDays(program.startsAt, 3)
+    },
+    {
+      aliases: ["Git & GitHub Basics", "Git and GitHub Basics"],
+      weekNumber: 1,
+      order: 2,
+      title: "Git and GitHub Basics",
+      description: "Practice safe branching, status, staging, commits, pulling, pushing, and pull-request collaboration.",
+      dueAt: addDays(program.startsAt, 5)
+    },
+    {
+      aliases: ["Intro to AI-Assisted Coding", "Introduction to AI-Assisted Coding"],
+      weekNumber: 1,
+      order: 3,
+      title: "Introduction to AI-Assisted Coding",
+      description: "Use AI for planning, implementation, testing, debugging, and documentation while reviewing its output.",
+      dueAt: addDays(program.startsAt, 7)
+    }
   ];
 
+  const seededTasks = new Map<string, { id: string; weekNumber: number }>();
   for (const task of taskDefs) {
     const existing = await prisma.programTask.findFirst({
-      where: { tenantId: tenant.id, programId: program.id, weekNumber: task.weekNumber, title: task.title },
+      where: {
+        tenantId: tenant.id,
+        programId: program.id,
+        weekNumber: task.weekNumber,
+        title: { in: task.aliases }
+      }
     });
-    if (existing) {
-      await prisma.programTask.update({ where: { id: existing.id }, data: task });
-    } else {
-      await prisma.programTask.create({ data: { tenantId: tenant.id, programId: program.id, ...task } });
-    }
+    const { aliases: _aliases, ...taskData } = task;
+    const saved = existing
+      ? await prisma.programTask.update({
+          where: { id: existing.id },
+          data: { ...taskData, required: true, published: true }
+        })
+      : await prisma.programTask.create({
+          data: {
+            tenantId: tenant.id,
+            programId: program.id,
+            ...taskData,
+            required: true,
+            published: true
+          }
+        });
+    seededTasks.set(task.title, { id: saved.id, weekNumber: saved.weekNumber });
   }
   console.log(`Upserted ${taskDefs.length} program tasks`);
 
-  // --- Video Resources ---
-  const videoDefs = [
-    { weekNumber: 1, title: "Welcome & Program Overview", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", description: "Welcome message from your program lead." },
-    { weekNumber: 1, title: "Dev Environment Setup Guide", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", description: "Step-by-step environment setup." },
-    { weekNumber: 2, title: "REST API Best Practices", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", description: "Learn REST API design principles." },
-    { weekNumber: 3, title: "React + API Integration", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", description: "Connecting React to your backend." },
-    { weekNumber: 4, title: "Cloud Deployment Walkthrough", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", description: "Deploy your app step by step." },
-  ];
+  // Previous dashboard demo data used a fake YouTube URL. Remove only those known placeholders.
+  await prisma.videoResource.deleteMany({
+    where: { tenantId: tenant.id, programId: program.id, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }
+  });
 
-  for (const video of videoDefs) {
+  // --- Task-linked Markdown and YouTube resources ---
+  const resourceDefs = [
+    resourcePair(
+      "Environment Setup",
+      "Introduction to TalentOS",
+      "introduction-to-talentos.md",
+      "A three-minute TalentOS introduction. Final YouTube URL pending."
+    ),
+    resourcePair(
+      "Git and GitHub Basics",
+      "Git and GitHub Basics",
+      "git-and-github-basics.md",
+      "A short Git collaboration walkthrough. Final YouTube URL pending."
+    ),
+    resourcePair(
+      "Introduction to AI-Assisted Coding",
+      "Introduction to AI-Assisted Coding",
+      "ai-assisted-coding.md",
+      "A short responsible AI-assisted engineering walkthrough. Final YouTube URL pending."
+    )
+  ].flat();
+
+  for (const resource of resourceDefs) {
+    const task = seededTasks.get(resource.taskTitle);
+    if (!task) throw new Error(`Seeded task was not found: ${resource.taskTitle}`);
     const existing = await prisma.videoResource.findFirst({
-      where: { tenantId: tenant.id, programId: program.id, title: video.title, url: video.url },
+      where: {
+        tenantId: tenant.id,
+        programId: program.id,
+        taskId: task.id,
+        type: resource.type,
+        title: resource.title
+      }
     });
+    const data = {
+      tenantId: tenant.id,
+      programId: program.id,
+      taskId: task.id,
+      weekNumber: task.weekNumber,
+      type: resource.type,
+      title: resource.title,
+      url: resource.url,
+      markdownContent: resource.markdownContent,
+      description: resource.description,
+      order: resource.order,
+      durationSeconds: resource.durationSeconds
+    };
     if (existing) {
-      await prisma.videoResource.update({ where: { id: existing.id }, data: video });
+      await prisma.videoResource.update({ where: { id: existing.id }, data });
     } else {
-      await prisma.videoResource.create({ data: { tenantId: tenant.id, programId: program.id, ...video } });
+      await prisma.videoResource.create({ data });
     }
   }
-  console.log(`Upserted ${videoDefs.length} video resources`);
+  console.log(`Upserted ${resourceDefs.length} task learning resources`);
 
   // --- Calendar Events ---
   const eventDefs = [
@@ -114,6 +197,31 @@ async function main() {
   console.log(`Upserted ${notifDefs.length} notifications`);
 
   console.log("\n✅ Seed complete!");
+}
+
+function resourcePair(taskTitle: string, title: string, markdownFile: string, videoDescription: string) {
+  return [
+    {
+      taskTitle,
+      type: "MARKDOWN" as const,
+      title,
+      url: null,
+      markdownContent: readFileSync(join(weekOneTaskContentDir, markdownFile), "utf8"),
+      description: `Required reading for ${taskTitle}.`,
+      order: 1,
+      durationSeconds: null
+    },
+    {
+      taskTitle,
+      type: "YOUTUBE" as const,
+      title,
+      url: null,
+      markdownContent: null,
+      description: videoDescription,
+      order: 2,
+      durationSeconds: 180
+    }
+  ];
 }
 
 function addDays(base: Date | null, days: number, minutes = 0): Date {
