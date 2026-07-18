@@ -1,8 +1,8 @@
 # Principles of Software Development
 
-Current code version: `v0.18.1`
+Current allocated iteration version: `v0.19.5`
 
-Baseline commit: _set on merge_ (previous: `v0.18.0` @ `bf59ca4`)
+Documentation evidence commit: `2b3afce` (baseline commit to be set on merge; latest `origin/main` baseline: `v0.19.3`)
 
 0. Do what is documented. Always document what you do. Documents should be updated in docs folder in markdown format.
 1. Every iteration of development must ensure that previously committed and tested work remains functional.

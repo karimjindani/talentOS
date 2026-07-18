@@ -1,11 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { saveJournalEntryAction, type JournalFormState } from "./actions";
 
 const INITIAL_STATE: JournalFormState = { ok: false, error: null, existingEntryId: null };
 const LANGUAGE_PRESETS = ["English", "Roman Urdu", "Roman Hindi"] as const;
+const CONFIDENCE_HELP = [
+  "I need significant help",
+  "I understand a small part",
+  "I can continue with some guidance",
+  "I can work mostly independently",
+  "I could explain this to someone else"
+] as const;
 
 type MissionOption = {
   id: string;
@@ -54,6 +61,19 @@ export function JournalEntryForm({
     ? defaults.language
     : "Other";
   const [languagePreset, setLanguagePreset] = useState(defaultPreset);
+  const [confidenceRating, setConfidenceRating] = useState(defaults.confidenceRating);
+  const [entryDate, setEntryDate] = useState(defaults.entryDate);
+  const [maxEntryDate, setMaxEntryDate] = useState(defaults.entryDate);
+  const [calendarTimeZone, setCalendarTimeZone] = useState("UTC");
+
+  useEffect(() => {
+    const localToday = toLocalDateInput(new Date());
+    setMaxEntryDate(localToday);
+    setCalendarTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+    if (!entryId) {
+      setEntryDate(localToday);
+    }
+  }, [entryId]);
 
   return (
     <form action={formAction} className="mt-6 grid max-w-4xl gap-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -72,6 +92,8 @@ export function JournalEntryForm({
           Journal entry saved.
         </p>
       ) : null}
+
+      <input type="hidden" name="calendarTimeZone" value={calendarTimeZone} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         {lockedMission ? (
@@ -102,7 +124,16 @@ export function JournalEntryForm({
 
         <label className="grid gap-1.5 text-sm font-medium text-slate-700">
           Entry date
-          <input type="date" name="entryDate" defaultValue={defaults.entryDate} required className={inputClass} />
+          <input
+            type="date"
+            name="entryDate"
+            value={entryDate}
+            onChange={(event) => setEntryDate(event.target.value)}
+            max={maxEntryDate}
+            required
+            className={inputClass}
+          />
+          <span className="text-xs font-normal text-slate-500">Today or an earlier date.</span>
         </label>
       </div>
 
@@ -140,13 +171,13 @@ export function JournalEntryForm({
         name="workedOn"
         label="What did you work on today?"
         defaultValue={defaults.workedOn}
-        placeholder="Describe the feature, bug, test, design, deployment, or document you worked on."
+        placeholder="Example: Set up the project locally, explored the Applicant Portal, and completed the login flow."
       />
       <TextArea
         name="challenge"
         label="What challenge did you face?"
         defaultValue={defaults.challenge}
-        placeholder="Explain the blocker, confusion, bug, trade-off, or decision you ran into."
+        placeholder="Example: Docker could not connect to PostgreSQL, and I had to inspect the container logs."
       />
       <TextArea
         name="solution"
@@ -164,20 +195,45 @@ export function JournalEntryForm({
         name="aiUsage"
         label="AI usage"
         defaultValue={defaults.aiUsage}
-        placeholder="Mention if and how you used AI. If you did not use AI, write 'No AI used today.'"
+        placeholder="Example: Used Codex to explain an error, propose a fix, and generate tests. I reviewed and adjusted the solution."
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="grid gap-1.5 text-sm font-medium text-slate-700">
-          Confidence rating
-          <select name="confidenceRating" defaultValue={defaults.confidenceRating} className={inputClass}>
-            {[1, 2, 3, 4, 5].map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
+        <fieldset className="grid gap-2">
+          <legend className="text-sm font-medium text-slate-700">Confidence rating</legend>
+          <div className="flex h-11 items-center gap-1" role="radiogroup" aria-describedby="confidence-help">
+            {CONFIDENCE_HELP.map((description, index) => {
+              const value = index + 1;
+              return (
+                <label
+                  key={value}
+                  className="relative flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg focus-within:ring-2 focus-within:ring-brand-blue focus-within:ring-offset-2"
+                  title={`${value} - ${description}`}
+                >
+                  <input
+                    className="sr-only"
+                    type="radio"
+                    name="confidenceRating"
+                    value={value}
+                    checked={confidenceRating === value}
+                    onChange={() => setConfidenceRating(value)}
+                    required
+                  />
+                  <span
+                    aria-hidden="true"
+                    className={`text-3xl ${value <= confidenceRating ? "text-amber-500" : "text-slate-300"}`}
+                  >
+                    {"\u2605"}
+                  </span>
+                  <span className="sr-only">{value} out of 5: {description}</span>
+                </label>
+              );
+            })}
+          </div>
+          <p id="confidence-help" className="min-h-5 text-xs text-slate-500">
+            {confidenceRating} - {CONFIDENCE_HELP[confidenceRating - 1]}
+          </p>
+        </fieldset>
 
         <label className="grid gap-1.5 text-sm font-medium text-slate-700">
           Time spent (hours)
@@ -187,6 +243,7 @@ export function JournalEntryForm({
             min="0.25"
             max="24"
             step="0.25"
+            required
             defaultValue={defaults.timeSpentHours}
             className={inputClass}
           />
@@ -199,7 +256,7 @@ export function JournalEntryForm({
           name="evidenceLinks"
           defaultValue={defaults.evidenceLinks.join("\n")}
           rows={4}
-          placeholder={"https://github.com/your/repo/pull/1\nhttps://your-demo.example.com"}
+          placeholder="Example: GitHub commit, pull request, screenshot, documentation, or deployed page URL."
           className={inputClass}
         />
         <span className="text-xs font-normal text-slate-500">One URL per line. GitHub, PR, deployment, video, or other evidence links are fine.</span>
@@ -216,6 +273,13 @@ export function JournalEntryForm({
       </div>
     </form>
   );
+}
+
+function toLocalDateInput(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function TextArea({

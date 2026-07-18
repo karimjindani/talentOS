@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.19.2`
+Code version: `v0.19.5`
 
 ## Purpose
 
@@ -12,12 +12,29 @@ The suite can be run from the local Ops Console or from npm scripts. As of `v0.1
 shows individual scenario rows grouped by area after a run, so operators can see exactly which
 scenario passed, failed or skipped without searching the raw output.
 
-As of `v0.19.1`, `scripts/regression/run.ts` runs **36 scenario objects**, verified
-`regression:all` 35 passed, 1 pre-existing documented skip (storage), 0 failed. The mission
-deadline/lifecycle (`v0.18.5`, D-080), mission-driven tasks (`v0.19.0`, D-081) and dashboard wiring
-(`v0.19.1`, D-082) work is unit-tested (see `docs/Testing_Strategy.md`) but, per the honest
-accounting this document requires, most of its end-to-end behavior is **not yet** exercised by a
-dedicated scenario here — see Known Gaps below rather than assuming coverage that doesn't exist.
+As of `v0.19.5`, `scripts/regression/run.ts` defines **40 scenario objects**. Executed counts and
+environmental failures/skips are recorded in the versioned test-results artifact rather than assumed
+from source. Weekly-task/readiness scenarios use the existing result envelope and Ops dashboard.
+
+## v0.19.5 Plan Scenario Traceability
+
+These names match the plan one-for-one. A row can combine focused unit and scenario-runner evidence;
+"Deferred" means the exact browser DOM assertion was not added even when its parser/data path is tested.
+
+| Plan scenario | Coverage | Status |
+| --- | --- | --- |
+| S1: Weekly tasks and ordered resources are scoped to program week | Dashboard/program-content/SafeMarkdown unit tests; Applicant/Admin runner scenarios | Automated |
+| S2: Weekly task completion is idempotent and tenant scoped | Dashboard unit tests; Applicant/Tenant runner scenarios | Automated |
+| S3: Journal dates and structured fields are validated | Journal unit tests; Applicant runner scenario | Automated; physical-keyboard confidence interaction remains manual |
+| S4: Readiness counts four journals from only the current attempt | Readiness unit tests; Missions/Tenant repeat and isolation scenarios | Automated |
+| S5: Evidence parsing supports one or more deployment URLs | URL/readiness/submission unit tests; Missions readiness fixture | Automated |
+| S6: Unsafe or unreachable evidence is rejected per URL | URL/readiness unit tests; Missions failed-URL fixture | Automated with deterministic network stubs |
+| S7: Failed submission checks do not change durable state | Submission unit tests; Missions readiness scenario | Automated |
+| S8: Successful submission locks only current-attempt journals | Submission unit tests; Missions selective-lock scenario | Automated |
+| S9: Revision and repeat attempts remain separated | Submission unit tests; Missions repeat/history scenarios | Automated |
+| S10: Admin content management retains authorization and tenant scope | Program-content unit tests; Programs/Admin scenarios | Automated |
+| S11: Applicant and Admin render deployment URLs separately | Central link-builder unit test and multi-URL review data fixture | Partial; exact browser DOM assertion deferred |
+| S12: Existing Regression Run dashboard reports the new coverage | Existing runner categories and result envelope | Automated runner output; dashboard UI checked manually on 2026-07-16 |
 
 ## Execution Areas
 
@@ -39,7 +56,7 @@ dedicated scenario here — see Known Gaps below rather than assuming coverage t
 ## Scenario Matrix
 
 The matrix below is finer-grained than the runner: `scripts/regression/run.ts` currently contains
-**28 scenario objects**, and several matrix rows map onto a single combined runner scenario (for
+**40 scenario objects**, and several matrix rows map onto a single combined runner scenario (for
 example, applicant submit + duplicate block are one scenario, and the three Programs lifecycle rows
 are one scenario).
 
@@ -54,17 +71,25 @@ are one scenario).
 | Ops | Ops session endpoint returns the local session envelope. | Automated | Complements the full Ops login scenario. |
 | Applicant | Applicant submits an application and sees submitted status. | Automated | Uses marked regression data. |
 | Applicant | Duplicate active application is blocked. | Automated | Uses `DUPLICATE_APPLICATION_ERROR_MESSAGE`. |
+| Applicant | Applicant completes an assigned-week task and future journal dates are rejected. | Automated | Validates current-week visibility, tenant-safe completion progress, and the server-side future-date guard. |
+| Applicant | Submitted assignment journals are read-only and remain preserved. | Automated | Verifies exact-attempt locking and update rejection after submission. |
 | Admin | Org Admin reviews an application and changes status. | Automated | Current automated status path accepts an application. |
 | Admin | Status change writes an audit log. | Automated | Validates `application.status_changed`. |
+| Admin | Admin content path exposes ordered Markdown and YouTube resources for a weekly task. | Automated | Uses the existing audited program-content helpers; accepts an explicit pending YouTube URL. |
+| Admin | Reviewer loads assignment-linked journals and completes submission review. | Automated | Confirms read-only current-attempt journal context remains available after the readiness changes. |
 | Admin | Reviewer-specific rejected/waitlisted transitions. | Missing | Add browser/server-action coverage for all reviewer status paths. |
 | Admin | Role-specific UI/route denial for HR, Tech Lead and Applicant. | Manual | Unit/RBAC coverage exists; scenario coverage should be expanded. |
 | Programs | Org Admin creates a draft program. | Automated | Data-level scenario through DB helpers. |
 | Programs | Published program appears in applicant-visible list. | Automated | Validates `listPublishedPrograms`. |
 | Programs | Archived program is removed from applicant-visible list. | Automated | Validates lifecycle visibility. |
+| Programs | Org Admin manages program content (resources/tasks/events); roles without `manageProgramContent` are denied. | Automated | v0.16.0 (D-069): CRUD round-trip, audit entries, capability matrix, cross-tenant delete rejection. |
+| Programs | Ordered program-week task returns attached Markdown and YouTube resources. | Automated | Confirms task week is authoritative even when a conflicting resource week is supplied. |
 | Missions | Org Admin creates a draft mission, publishes it, and accepted applicants can see it. | Automated | Validates mission lifecycle visibility. |
 | Missions | Archived mission is removed from applicant-visible mission list. | Automated | Validates published-only visibility. |
 | Missions | HR, Tech Lead and Applicant cannot manage missions. | Automated | Validates `manageMissions` capability. |
 | Missions | Submission loop: draft, submit, request changes, resubmit, accept — with notifications and audit. | Automated | v0.15.0 (D-067): full SEM review loop; acceptance is terminal and notifies the applicant. |
+| Missions | Submission readiness requires weekly tasks, four current-attempt journals, and all evidence URLs. | Automated | Proves incomplete readiness cannot submit/lock and a complete assignment locks exactly its four attempt journals. Network checks use a deterministic stub. |
+| Missions | Repeat-week attempts preserve journal history without duplicate or infinite loops. | Automated | Also proves week-level task completion carries forward while new-attempt journal progress starts at zero. |
 | Missions | Only Org Admin and Tech Lead can review submissions. | Automated | v0.15.0 (D-067): validates the `reviewSubmissions` capability (HR read-only, applicants denied). |
 | Missions | Accepting an application creates exactly one `MissionAssignment` for the applicant, idempotently. | Automated | v0.18.0 (D-075): asserted as part of the submission fixture; the runner fails loudly if no assignment row is created. |
 | Missions | Applicant mission list/detail and submission drafting are limited to assigned missions (a published-but-unassigned mission is not visible/usable). | Automated | v0.18.0 (D-075), added `v0.18.2` (D-077): asserts `listAssignedProgramMissions`/`getAssignedProgramMission` exclude the unassigned mission and `saveSubmissionDraft` rejects it. |
@@ -76,6 +101,8 @@ are one scenario).
 | Journal | Journal entries lock once the mission's assignment is submitted. | Automated | v0.18.2 (D-077) exercises `isJournalMissionLockedForApplicant`/`assertJournalMissionNotLocked`. |
 | Tenant isolation | Tenant-scoped program read rejects another tenant. | Partially automated | Skips when only one local tenant exists. Needs a second marked tenant fixture. |
 | Tenant isolation | Tenant-scoped submission read rejects another tenant. | Automated | v0.15.0 (D-067): cross-tenant submission access is denied. |
+| Tenant isolation | Submission readiness ignores task completions from another tenant, applicant, or week. | Automated | Only tenant + applicant + target week-task completion is counted. |
+| Tenant isolation | Engineering Journal review lookup remains tenant-scoped. | Automated | Current-attempt journal review cannot leak records from another tenant. |
 | Tenant isolation | Realm role alone does not grant authority without `TenantMembership`. | Automated | Validates the D-051 authorization principle. |
 | Tenant isolation | Applicant portal denies a non-member of the Host-resolved tenant (`/dashboard`, `/application` → `/access-denied`; SUPER_ADMIN bypass). | Automated | Unit-covered by `apps/applicant/lib/tenant-guard.test.ts`; also validated end-to-end via browser. Ports the D-051 guard to the applicant portal. |
 | Tenant isolation | Cross-tenant file and settings denial through admin browser routes. | Missing | Add Playwright/browser route coverage. |

@@ -1,5 +1,5 @@
-import { prisma } from "./client";
 import type { NotificationType } from "@prisma/client";
+import { prisma } from "./client";
 
 // ---------------------------------------------------------------------------
 // ProgramTask helpers
@@ -9,15 +9,41 @@ import type { NotificationType } from "@prisma/client";
 export function listProgramTasks(tenantId: string, programId: string) {
   return prisma.programTask.findMany({
     where: { tenantId, programId },
-    orderBy: [{ weekNumber: "asc" }, { order: "asc" }],
+    include: {
+      resources: {
+        where: { tenantId },
+        orderBy: [{ order: "asc" }, { createdAt: "asc" }]
+      }
+    },
+    orderBy: [{ weekNumber: "asc" }, { order: "asc" }, { createdAt: "asc" }],
   });
 }
 
-/** List tasks for a specific week of a program. */
+/** List all applicant-visible tasks for a program. */
+export function listPublishedProgramTasks(tenantId: string, programId: string) {
+  return prisma.programTask.findMany({
+    where: { tenantId, programId, published: true },
+    include: {
+      resources: {
+        where: { tenantId },
+        orderBy: [{ order: "asc" }, { createdAt: "asc" }]
+      }
+    },
+    orderBy: [{ weekNumber: "asc" }, { order: "asc" }, { createdAt: "asc" }]
+  });
+}
+
+/** List applicant-visible tasks and their resources for a program week. */
 export function listTasksByWeek(tenantId: string, programId: string, weekNumber: number) {
   return prisma.programTask.findMany({
-    where: { tenantId, programId, weekNumber },
-    orderBy: [{ order: "asc" }],
+    where: { tenantId, programId, weekNumber, published: true },
+    include: {
+      resources: {
+        where: { tenantId },
+        orderBy: [{ order: "asc" }, { createdAt: "asc" }]
+      }
+    },
+    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
   });
 }
 
@@ -29,7 +55,8 @@ export function listTasksByWeek(tenantId: string, programId: string, weekNumber:
 export function listVideoResources(tenantId: string, programId: string, weekNumber?: number) {
   return prisma.videoResource.findMany({
     where: { tenantId, programId, ...(weekNumber != null ? { weekNumber } : {}) },
-    orderBy: [{ weekNumber: "asc" }, { createdAt: "asc" }],
+    include: { task: { select: { id: true, title: true, weekNumber: true } } },
+    orderBy: [{ weekNumber: "asc" }, { order: "asc" }, { createdAt: "asc" }],
   });
 }
 
@@ -91,21 +118,107 @@ export function createNotification(input: {
 // UserTaskCompletion helpers
 // ---------------------------------------------------------------------------
 
-/** List task IDs that the user has completed for a program. */
-export async function listCompletedTaskIds(userId: string, programId: string) {
+/** List tenant-scoped task IDs that an applicant completed for a program or one program week. */
+export async function listCompletedTaskIds(
+  tenantId: string,
+  userId: string,
+  programId: string,
+  weekNumber?: number
+) {
   const completions = await prisma.userTaskCompletion.findMany({
-    where: { userId, task: { programId } },
+    where: {
+      tenantId,
+      userId,
+      task: {
+        tenantId,
+        programId,
+        ...(weekNumber == null ? {} : { weekNumber })
+      }
+    },
     select: { taskId: true },
   });
   return completions.map((c) => c.taskId);
 }
 
-/** Mark a task as completed for a user. */
-export function markTaskCompleted(taskId: string, userId: string) {
-  return prisma.userTaskCompletion.upsert({
-    where: { taskId_userId: { taskId, userId } },
-    update: { completedAt: new Date() },
-    create: { taskId, userId },
+export type CompleteApplicantTaskInput = {
+  tenantId: string;
+  applicantId: string;
+  taskId: string;
+  missionAssignmentId: string;
+};
+
+/** Complete one published task in the applicant's current accepted-program assignment week. */
+export function markApplicantTaskCompleted(input: CompleteApplicantTaskInput) {
+  return prisma.$transaction(async (tx) => {
+    const assignment = await tx.missionAssignment.findFirst({
+      where: {
+        id: input.missionAssignmentId,
+        tenantId: input.tenantId,
+        applicantId: input.applicantId,
+        status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] }
+      },
+      select: { id: true, programId: true, weekNumber: true }
+    });
+    if (!assignment) {
+      throw new Error("An open assignment was not found for this applicant.");
+    }
+
+    const acceptedApplication = await tx.application.findFirst({
+      where: {
+        tenantId: input.tenantId,
+        applicantId: input.applicantId,
+        programId: assignment.programId,
+        status: "ACCEPTED"
+      },
+      select: { id: true }
+    });
+    if (!acceptedApplication) {
+      throw new Error("Tasks are available only for the applicant's accepted program.");
+    }
+
+    const task = await tx.programTask.findFirst({
+      where: {
+        id: input.taskId,
+        tenantId: input.tenantId,
+        programId: assignment.programId,
+        weekNumber: assignment.weekNumber,
+        published: true
+      },
+      select: { id: true }
+    });
+    if (!task) {
+      throw new Error("Task was not found for this program week.");
+    }
+
+    const completion = await tx.userTaskCompletion.upsert({
+      where: {
+        tenantId_userId_taskId: {
+          tenantId: input.tenantId,
+          userId: input.applicantId,
+          taskId: task.id
+        }
+      },
+      update: {},
+      create: { tenantId: input.tenantId, taskId: task.id, userId: input.applicantId }
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId: input.tenantId,
+        actorUserId: input.applicantId,
+        action: "task.completed",
+        entityType: "UserTaskCompletion",
+        entityId: completion.id,
+        metadata: {
+          taskId: task.id,
+          missionAssignmentId: assignment.id,
+          programId: assignment.programId,
+          weekNumber: assignment.weekNumber
+        }
+      }
+    });
+
+    return completion;
   });
 }
 
@@ -126,8 +239,8 @@ export async function getApplicantProgramProgress(
   tenantId: string,
   programId: string
 ): Promise<WeekProgress[]> {
-  const tasks = await listProgramTasks(tenantId, programId);
-  const completedTaskIds = await listCompletedTaskIds(userId, programId);
+  const tasks = await listPublishedProgramTasks(tenantId, programId);
+  const completedTaskIds = await listCompletedTaskIds(tenantId, userId, programId);
 
   const weekMap = new Map<number, { total: number; completed: number }>();
 

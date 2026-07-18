@@ -4,9 +4,11 @@ import { auth } from "@/auth";
 import { getTenantContext } from "@talentos/ui";
 import { isSubmissionEditable } from "@talentos/auth";
 import {
-  getApplicantSubmission,
+  buildSubmissionEvidenceLinks,
+  getApplicantSubmissionForAssignment,
+  getApplicantMissionAssignmentForMission,
   getAssignedProgramMission,
-  getLatestMissionAssignmentForMission,
+  getMissionSubmissionReadiness,
   getMissionTasksForAssignment,
   getTenantBySlug,
   getUserByEmail,
@@ -42,11 +44,20 @@ export default async function ApplicantMissionDetailPage({ params }: MissionDeta
     notFound();
   }
 
-  const submission = await getApplicantSubmission(mission.id, user.id, tenant.id);
-  const assignment = await getLatestMissionAssignmentForMission(tenant.id, user.id, mission.id);
+  const assignment = await getApplicantMissionAssignmentForMission(tenant.id, user.id, mission.id);
+  const submission = assignment
+    ? await getApplicantSubmissionForAssignment(assignment.id, user.id, tenant.id)
+    : null;
   const taskResult = assignment ? await getMissionTasksForAssignment(tenant.id, user.id, assignment.id) : null;
   const requiredTasks = taskResult?.tasks.filter((task) => task.index === 1 || task.index === 2) ?? [];
   const requiredTasksComplete = requiredTasks.every((task) => task.complete);
+  const readiness = assignment && (!submission || isSubmissionEditable(submission.status))
+    ? await getMissionSubmissionReadiness({
+        tenantId: tenant.id,
+        applicantId: user.id,
+        missionAssignmentId: submission?.missionAssignmentId ?? assignment.id
+      })
+    : null;
 
   return (
     <article className="max-w-4xl">
@@ -126,6 +137,7 @@ export default async function ApplicantMissionDetailPage({ params }: MissionDeta
                     missionId={mission.id}
                     isRevision={submission?.status === "NEEDS_REVISION"}
                     canSubmit={requiredTasksComplete}
+                    readiness={readiness ? { tasks: readiness.tasks, journals: readiness.journals } : null}
                     defaults={{
                       repositoryUrl: submission?.repositoryUrl ?? "",
                       deploymentUrl: submission?.deploymentUrl ?? "",
@@ -233,11 +245,7 @@ function MissionAssignmentStatusBadge({ status }: { status: MissionAssignment["s
 }
 
 function SubmittedEvidence({ submission }: { submission: Submission }) {
-  const links = [
-    { label: "Git repository", href: submission.repositoryUrl },
-    { label: "Deployed application", href: submission.deploymentUrl },
-    { label: "Loom walkthrough", href: submission.loomUrl }
-  ].filter((link): link is { label: string; href: string } => Boolean(link.href));
+  const links = buildSubmissionEvidenceLinks(submission);
 
   return (
     <div className="mt-4 grid gap-4 text-sm">

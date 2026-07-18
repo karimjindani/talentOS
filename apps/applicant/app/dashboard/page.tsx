@@ -5,10 +5,12 @@ import {
   getTenantBySlug,
   getUserByEmail,
   listApplicantApplications,
+  listPublishedProgramTasks,
   listAssignedMissionsWithTasks,
   listCalendarEvents,
   listUserNotifications,
   getApplicantMissionProgress,
+  listCompletedTaskIds,
   type SubmissionStatus,
 } from "@talentos/db";
 import { DeadlineCountdown } from "@/components/DeadlineCountdown";
@@ -37,6 +39,8 @@ export default async function DashboardPage() {
   }
 
   const program = acceptedApp.program;
+  const weeklyTasks = await listPublishedProgramTasks(tenant.id, program.id);
+  const completedTaskIds = await listCompletedTaskIds(tenant.id, user.id, program.id);
   const events = await listCalendarEvents(tenant.id, program.id);
   const notifications = await listUserNotifications(user.id, tenant.id);
   // Mission-driven progress (v0.16.0, D-069): the SEM learning loop is the source of truth — only
@@ -45,11 +49,13 @@ export default async function DashboardPage() {
   // Tasks are mission-derived (v0.19.0): the same fixed 3-step checklist per assigned mission.
   const missionsWithTasks = await listAssignedMissionsWithTasks(tenant.id, user.id, program.id);
 
-  const totalTasks = missionsWithTasks.length * 3;
-  const completedTasks = missionsWithTasks.reduce(
+  const totalMissionSteps = missionsWithTasks.length * 3;
+  const completedMissionSteps = missionsWithTasks.reduce(
     (sum, { tasks }) => sum + tasks.filter((task) => task.complete).length,
     0
   );
+  const requiredWeeklyTasks = weeklyTasks.filter((task) => task.required);
+  const completedWeeklyTasks = requiredWeeklyTasks.filter((task) => completedTaskIds.includes(task.id)).length;
   const overallPercentage = missionProgress.overall.percentage;
 
   const recentNotifications = notifications.slice(0, 3);
@@ -99,9 +105,11 @@ export default async function DashboardPage() {
           <p className="mt-1 text-xs text-slate-500">of {missionProgress.overall.total} total</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">Tasks Completed</p>
-          <p className="mt-2 text-2xl font-bold text-amber-600">{completedTasks}</p>
-          <p className="mt-1 text-xs text-slate-500">of {totalTasks} total</p>
+          <p className="text-sm font-medium text-slate-500">Weekly Tasks</p>
+          <p className="mt-2 text-2xl font-bold text-amber-600">{completedWeeklyTasks}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            of {requiredWeeklyTasks.length} required · {completedMissionSteps}/{totalMissionSteps} mission steps
+          </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Days Remaining</p>

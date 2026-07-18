@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { can, nextSubmissionStatuses } from "@talentos/auth";
 import { getTenantContext, StatusBadge } from "@talentos/ui";
 import {
+  buildSubmissionEvidenceLinks,
   getTenantBySlug,
   getTenantSubmission,
   listEngineeringJournalEntriesForSubmissionReview,
@@ -43,11 +44,7 @@ export default async function SubmissionReviewPage({ params }: SubmissionReviewP
       })
     : [];
 
-  const evidence = [
-    { label: "Git repository", href: submission.repositoryUrl },
-    { label: "Deployed application", href: submission.deploymentUrl },
-    { label: "Loom walkthrough", href: submission.loomUrl }
-  ].filter((link): link is { label: string; href: string } => Boolean(link.href));
+  const evidence = buildSubmissionEvidenceLinks(submission);
 
   const reviewable = canReview && nextSubmissionStatuses(submission.status).length > 0;
 

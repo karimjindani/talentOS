@@ -1,20 +1,83 @@
 # Version Baseline
 
-## Current Baseline
+## Current Allocated Iteration (Review Pending)
 
-Version: `v0.19.3`
+Version: `v0.19.5`
 
-Baseline name: `AI Mentor RBSE Name Blocking & Token Tracking`
+Baseline name: `Weekly Tasks And Submission Readiness`
 
-Baseline code commit: `83fa5b9`
+Base branch and commit: `origin/main` at `e5c10b5`
 
-Baseline date: `2026-07-16`
+Feature branch and code commit: `engineering-journal-mvp` at `2b3afce`
 
-Previous baseline: `v0.19.2`
+Documentation date: `2026-07-19`
 
-Previous baseline commit: `c7df9d9`
+Latest released baseline: `v0.19.3` at `83fa5b9`
+
+Reserved active-branch version: `v0.19.4` on
+`origin/fix/v0.19.4-mission-task-checklist`
+
+Migration: `20260716090000_weekly_tasks_submission_readiness`
+
+Repository state: feature code committed and synchronized with its remote; `v0.19.5` documentation
+changes are uncommitted and review pending. No application code was changed by the documentation pass.
+
+Upstream state: `git rev-list --left-right --count origin/main...HEAD` returned `0 4` after
+`git fetch origin --prune`, so the feature branch contains the latest `origin/main` and four
+feature-side commits. No merge, rebase or push was performed during this documentation update.
 
 ## Baseline Summary
+
+`v0.19.5` is allocated after checking `origin/main` and every active unmerged remote branch. The latest
+released version is `v0.19.3`; active branch `origin/fix/v0.19.4-mission-task-checklist` already owns
+`v0.19.4`, so reuse is prohibited and `v0.19.5` is the next available patch.
+
+The iteration delivers a separate program-week learning track using the existing `ProgramTask`,
+`VideoResource` and `UserTaskCompletion` models; ordered Markdown/YouTube resources; Week 1 seed
+content; structured journal guidance and future-date blocking; a centralized final-submission gate for
+required weekly tasks, four exact-attempt journals and GitHub/deployment/Loom evidence; public URL
+reachability with SSRF/redirect/DNS-rebinding controls; multi-deployment URL compatibility; and a short
+status-guarded transaction that locks only current-attempt journals after every check passes. Existing
+mission workflow tasks, assignment selection, review transitions, authentication and permissions are
+preserved. See `D-086` through `D-090`.
+
+## v0.19.5 Documentation Index
+
+| Artifact | Location |
+| --- | --- |
+| Iteration plan and requirement traceability | `docs/plans/v0.19.5_Weekly_Tasks_And_Submission_Readiness.md` |
+| Executed test results | `docs/testing/v0.19.5_Weekly_Tasks_And_Submission_Readiness_Test_Results.md` |
+| Security/risk review | `docs/audits/v0.19.5_Weekly_Tasks_Submission_Readiness_Security_Review.md` |
+| Architecture/design | `docs/Architecture.md` |
+| Data model | `docs/Data_Model.md` |
+| Data dictionary | `docs/Data_Dictionary.md` |
+| Decision record | `docs/Decision_Log.md` (`D-086` through `D-090`) |
+| Testing strategy and scenario catalog | `docs/Testing_Strategy.md`, `docs/Regression_Scenarios.md` |
+| Deployment/release/rollback notes | `docs/Deployment.md` |
+| Applicant guidance | `docs/user-guides/Applicant_Portal_User_Guide.md` |
+| Back Office guidance | `docs/user-guides/Back_Office_User_Guide.md` |
+| Supporting implementation evidence | `docs/developer-notes/2026-07-16_Weekly_Tasks_Journal_Readiness_Full_Report.md` |
+
+The plan and test-results artifacts are the formal SSDLC record. Developer notes are supporting evidence
+and do not replace the required versioned artifacts.
+
+## v0.19.5 SSDLC Checklist Coverage
+
+| `docs/sdlc.md` control | Evidence | Coverage |
+| --- | --- | --- |
+| Document every iteration | Versioned plan/results, this baseline and documentation index | Complete |
+| Preserve committed/tested behavior | 473 unit tests plus affected/full regression evidence | Complete; full run has two documented Ops environment failures and one storage skip |
+| Update architecture/design | `docs/Architecture.md`; `D-086` through `D-090` | Complete |
+| Update testing and regression | `docs/Testing_Strategy.md`; `docs/Regression_Scenarios.md`; versioned results | Complete with explicit deferred browser checks |
+| Keep Docker/deployment guidance current | `docs/Deployment.md` release, deploy, compatibility and rollback notes | Complete; no topology change |
+| Update data model/dictionary | `docs/Data_Model.md`; `docs/Data_Dictionary.md` | Complete |
+| Shift-left security | Versioned security/risk review; URL/tenant/Markdown/concurrency tests | Complete with residual risks recorded |
+| Plan uses repository template expectations | Scope, out-of-scope, scenarios, security, tests and verification sections | Complete |
+| Plan scenarios map to results and regression catalog | S1-S12 appear one-for-one in plan, results and `Regression_Scenarios.md` | Complete; S11/S12 limitations explicit |
+| User guidance updated | Applicant and Back Office user guides | Complete |
+
+The baseline remains review pending because this documentation has not been committed or approved for
+merge.
 
 `v0.19.3` is a patch that (1) adds regex-based personal-name pattern matching to the AI Mentor RBSE
 so questions like "explain hitesh" or "who is john" are blocked before any LLM call — previously

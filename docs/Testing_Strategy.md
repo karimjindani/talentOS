@@ -1,8 +1,8 @@
 # Testing Strategy
 
-Code version: `v0.19.2`
+Code version: `v0.19.5`
 
-Baseline commit: `c7df9d9`
+Test evidence commit: `2b3afce`
 
 ## Goals
 
@@ -17,9 +17,9 @@ The regression suite has two layers:
 The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts plus
 individual scenario rows after each run.
 
-Current totals (as of `v0.19.1`): **427 unit tests across 43 files** (`npm test`) and **36 scenarios
-across 12 areas** (`scripts/regression/run.ts`), verified 35 passed / 0 failed / 1 pre-existing
-documented skip (storage upload/download) against a freshly migrated local database. CI
+The `v0.19.5` runner defines **40 scenarios across 11 concrete areas plus the `all` orchestrator**.
+The current unit and executed-regression totals are recorded in the versioned test-results artifact,
+not inferred here. CI
 (`.github/workflows/ci.yml`) runs the **unit suite only**; scenario regression is a local capability
 driven from npm scripts or the Ops Console against the running Docker stack.
 
@@ -438,3 +438,12 @@ From `v0.19.2`, the regression baseline also covers the restored applicant dashb
 (`ApplicantShell.test.ts`, 13 tests, now with the `@/lib/logout-action` mock so the file resolves)
 and the `vitest.config.ts` `@/(.+)` alias that makes `@/`-style imports resolvable for
 `apps/applicant` tests. No unit-test-count change (427 tests across 43 files). See `D-083`.
+
+From `v0.19.5`, focused unit coverage protects the separate weekly-task track, Markdown/YouTube
+resources, task-completion idempotency and scope, journal date/attempt eligibility, centralized
+submission readiness, semicolon-delimited deployment parsing, public URL reachability/SSRF controls,
+concurrent submission guards and safe Markdown rendering. Scenario coverage remains in the existing
+runner: Applicant covers completion/future dates/locked journals; Admin and Programs cover weekly
+content and review context; Missions covers readiness, failed-URL atomicity, selective locking and
+repeat separation; Tenant covers completion/journal boundaries; Unit executes the full Vitest suite.
+See `D-086` through `D-090` and the `v0.19.5` plan/test-results pair.

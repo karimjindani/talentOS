@@ -5,6 +5,9 @@ import {
   getTenantBySlug,
   getUserByEmail,
   listApplicantApplications,
+  listPublishedProgramTasks,
+  listVideoResources,
+  listCompletedTaskIds,
   listAssignedMissionsWithTasks,
   getApplicantMissionProgress
 } from "@talentos/db";
@@ -32,8 +35,11 @@ export default async function ProgramPage() {
   }
 
   const program = acceptedApp.program;
-  // Mission-driven progress (v0.19.1): the SEM loop is the single source of truth for both
-  // per-week completion and the task checklist, replacing the old ProgramTask/VideoResource system.
+  const tasks = await listPublishedProgramTasks(tenant.id, program.id);
+  const videos = await listVideoResources(tenant.id, program.id);
+  const completedTaskIds = await listCompletedTaskIds(tenant.id, user.id, program.id);
+  // Accepted mission submissions remain the source of truth for advancement. ProgramTask resources
+  // remain a separate required weekly-learning track used by submission readiness.
   const missionProgress = await getApplicantMissionProgress(tenant.id, user.id, program.id);
   const missionsWithTasks = await listAssignedMissionsWithTasks(tenant.id, user.id, program.id);
   const missionsByWeek = new Map(missionsWithTasks.map((entry) => [entry.mission.weekNumber, entry]));
@@ -74,6 +80,11 @@ export default async function ProgramPage() {
       <div className="mt-6 space-y-4">
         {missionProgress.weeks.map((week) => {
           const entry = missionsByWeek.get(week.weekNumber);
+          const weeklyTasks = tasks.filter((task) => task.weekNumber === week.weekNumber);
+          const requiredWeeklyTasks = weeklyTasks.filter((task) => task.required);
+          const completedWeeklyTasks = requiredWeeklyTasks.filter((task) => completedTaskIds.includes(task.id)).length;
+          const weeklyTaskIds = new Set(weeklyTasks.map((task) => task.id));
+          const weeklyResources = videos.filter((resource) => resource.taskId && weeklyTaskIds.has(resource.taskId));
           const allDone = week.totalMissions > 0 && week.acceptedMissions === week.totalMissions;
           const isCurrent = missionProgress.currentMission?.weekNumber === week.weekNumber;
 
@@ -115,7 +126,7 @@ export default async function ProgramPage() {
 
               {entry ? (
                 <div className="mt-4">
-                  <p className="text-sm font-medium text-slate-500">Tasks</p>
+                  <p className="text-sm font-medium text-slate-500">Mission steps</p>
                   <div className="mt-2 grid gap-2 sm:grid-cols-3">
                     {entry.tasks.map((task) => {
                       const href =
@@ -138,6 +149,19 @@ export default async function ProgramPage() {
               ) : (
                 <p className="mt-4 text-xs text-slate-400">No mission assigned for this week yet.</p>
               )}
+
+              <div className="mt-4 border-t border-slate-100 pt-4 text-sm text-slate-600">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p>
+                    Weekly learning: <span className="font-semibold text-slate-800">{completedWeeklyTasks} of {requiredWeeklyTasks.length}</span>
+                    {" "}required tasks · {weeklyResources.length} resources
+                  </p>
+                  <div className="flex gap-3">
+                    <Link href="/dashboard/tasks" className="font-medium text-brand-blue hover:underline">Tasks</Link>
+                    <Link href="/dashboard/resources" className="font-medium text-brand-blue hover:underline">Resources</Link>
+                  </div>
+                </div>
+              </div>
             </div>
           );
         })}
