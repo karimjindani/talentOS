@@ -2,7 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { getTenantContext } from "@talentos/ui";
-import { getMissionTasksForAssignment, getTenantBySlug, getUserByEmail, type MissionTaskIndex } from "@talentos/db";
+import {
+  getMissionTasksForAssignment,
+  getTenantBySlug,
+  getUserByEmail,
+  missionChecklistLockReason,
+  type MissionTaskIndex
+} from "@talentos/db";
 import { parseYouTubeVideoId } from "@/lib/youtube";
 import { ToggleTaskComplete } from "./ToggleTaskComplete";
 import { TutorialTaskGate } from "./TutorialTaskGate";
@@ -32,11 +38,12 @@ export default async function TaskResourcePage({ params }: TaskResourcePageProps
   if (!result) {
     notFound();
   }
-  const { mission, tasks } = result;
+  const { assignment, mission, tasks } = result;
   const task = tasks.find((t) => t.index === (taskIndex as MissionTaskIndex));
   if (!task) {
     notFound();
   }
+  const lockedReason = missionChecklistLockReason(assignment.status);
 
   // Defense in depth: the write side (admin action) already rejects non-http(s) schemes, but this
   // URL is rendered/embedded for applicants, so re-check here too.
@@ -87,6 +94,7 @@ export default async function TaskResourcePage({ params }: TaskResourcePageProps
                     assignmentId={assignmentId}
                     taskIndex={taskIndex as MissionTaskIndex}
                     complete={task.complete}
+                    lockedReason={lockedReason}
                   />
                 </div>
               ) : tutorialUrl ? (
@@ -109,7 +117,12 @@ export default async function TaskResourcePage({ params }: TaskResourcePageProps
 
       {taskIndex === 1 || !youtubeVideoId ? (
         <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <ToggleTaskComplete assignmentId={assignmentId} taskIndex={taskIndex as MissionTaskIndex} complete={task.complete} />
+          <ToggleTaskComplete
+            assignmentId={assignmentId}
+            taskIndex={taskIndex as MissionTaskIndex}
+            complete={task.complete}
+            lockedReason={lockedReason}
+          />
         </div>
       ) : null}
     </article>

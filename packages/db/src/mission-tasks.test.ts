@@ -23,10 +23,12 @@ vi.mock("./client", () => ({
 }));
 
 import {
+  MARKABLE_ASSIGNMENT_STATUSES,
   areRequiredMissionTasksComplete,
   getMissionTasksForAssignment,
   listAssignedMissionsWithTasks,
   markMissionTaskComplete,
+  missionChecklistLockReason,
   missionTaskTitle,
   unmarkMissionTaskComplete
 } from "./mission-tasks";
@@ -96,6 +98,21 @@ describe("mission-tasks", () => {
       const result = await getMissionTasksForAssignment("tenant-1", "user-1", "assignment-1");
       expect(result?.tasks.find((t) => t.index === 3)?.complete).toBe(false);
     });
+
+    it("derives a fully complete checklist for a PASSED assignment even without stored rows", async () => {
+      // v0.19.4: a mission can't pass through the normal flow without tasks 1–2 checked, so a
+      // PASSED assignment reports 3/3 even when the rows were never written (seeded data).
+      prismaMock.missionAssignmentFindFirst.mockResolvedValue({
+        id: "assignment-1",
+        status: "PASSED",
+        mission: { id: "mission-1", title: "Mission" },
+        submissions: []
+      });
+      prismaMock.missionTaskCompletionFindMany.mockResolvedValue([]);
+
+      const result = await getMissionTasksForAssignment("tenant-1", "user-1", "assignment-1");
+      expect(result?.tasks.map((t) => t.complete)).toEqual([true, true, true]);
+    });
   });
 
   describe("listAssignedMissionsWithTasks", () => {
@@ -139,6 +156,36 @@ describe("mission-tasks", () => {
       expect(a1.tasks.find((t) => t.index === 2)?.complete).toBe(false);
       expect(a2.tasks.find((t) => t.index === 1)?.complete).toBe(false);
       expect(a2.tasks.find((t) => t.index === 2)?.complete).toBe(true);
+    });
+
+    it("derives PASSED assignments as fully complete while other statuses keep stored rows", async () => {
+      prismaMock.missionAssignmentFindMany.mockResolvedValue([
+        { id: "a-passed", weekNumber: 1, attemptNumber: 1, status: "PASSED", mission: { id: "m1", order: 0 }, submissions: [] },
+        { id: "a-active", weekNumber: 2, attemptNumber: 1, status: "ACCEPTED", mission: { id: "m2", order: 0 }, submissions: [] }
+      ]);
+      prismaMock.missionTaskCompletionFindMany.mockResolvedValue([]);
+
+      const result = await listAssignedMissionsWithTasks("tenant-1", "user-1", "program-1");
+
+      const passed = result.find((r) => r.assignment.id === "a-passed")!;
+      const active = result.find((r) => r.assignment.id === "a-active")!;
+      expect(passed.tasks.map((t) => t.complete)).toEqual([true, true, true]);
+      expect(active.tasks.map((t) => t.complete)).toEqual([false, false, false]);
+    });
+  });
+
+  describe("missionChecklistLockReason", () => {
+    it("is null for every markable status", () => {
+      expect(MARKABLE_ASSIGNMENT_STATUSES).toEqual(["ACCEPTED", "IN_PROGRESS", "OVERDUE"]);
+      for (const status of MARKABLE_ASSIGNMENT_STATUSES) {
+        expect(missionChecklistLockReason(status)).toBeNull();
+      }
+    });
+
+    it("explains the lock for every non-markable status", () => {
+      for (const status of ["NOT_STARTED", "PENDING_EVALUATION", "LATE_SUBMITTED", "PASSED", "FAILED", "REPEAT"] as const) {
+        expect(missionChecklistLockReason(status)).toEqual(expect.any(String));
+      }
     });
   });
 
@@ -194,17 +241,28 @@ describe("mission-tasks", () => {
   });
 
   describe("unmarkMissionTaskComplete", () => {
-    it("rejects when the assignment doesn't belong to this applicant/tenant", async () => {
+    it("rejects when the assignment isn't accepted/active for this applicant/tenant", async () => {
+      // v0.19.4: unmark carries the same lifecycle guard as mark — a submitted/finished
+      // attempt's checklist is immutable in both directions.
       prismaMock.missionAssignmentFindFirst.mockResolvedValue(null);
       await expect(
         unmarkMissionTaskComplete({ tenantId: "tenant-1", applicantId: "user-1", missionAssignmentId: "assignment-1", taskIndex: 1 })
-      ).rejects.toThrow("not found");
+      ).rejects.toThrow("not accepted/active");
       expect(prismaMock.missionTaskCompletionDeleteMany).not.toHaveBeenCalled();
     });
 
-    it("deletes the completion row for that assignment/task", async () => {
+    it("deletes the completion row for that assignment/task on an active assignment", async () => {
       prismaMock.missionAssignmentFindFirst.mockResolvedValue({ id: "assignment-1" });
       await unmarkMissionTaskComplete({ tenantId: "tenant-1", applicantId: "user-1", missionAssignmentId: "assignment-1", taskIndex: 1 });
+      expect(prismaMock.missionAssignmentFindFirst).toHaveBeenCalledWith({
+        where: {
+          id: "assignment-1",
+          tenantId: "tenant-1",
+          applicantId: "user-1",
+          status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] }
+        },
+        select: { id: true }
+      });
       expect(prismaMock.missionTaskCompletionDeleteMany).toHaveBeenCalledWith({
         where: { missionAssignmentId: "assignment-1", taskIndex: 1 }
       });

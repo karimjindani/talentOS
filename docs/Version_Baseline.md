@@ -2,19 +2,35 @@
 
 ## Current Baseline
 
-Version: `v0.19.3`
+Version: `v0.19.4`
 
-Baseline name: `AI Mentor RBSE Name Blocking & Token Tracking`
+Baseline name: `Mission Task Checklist Lifecycle Guard`
 
-Baseline code commit: `83fa5b9`
+Baseline code commit: _set on merge_
 
-Baseline date: `2026-07-16`
+Baseline date: `2026-07-18`
 
-Previous baseline: `v0.19.2`
+Previous baseline: `v0.19.3`
 
-Previous baseline commit: `c7df9d9`
+Previous baseline commit: `83fa5b9`
 
 ## Baseline Summary
+
+`v0.19.4` is a patch making the mission task checklist follow the assignment lifecycle
+(D-085). A `PASSED` assignment now derives a fully complete, locked checklist even when its
+completion rows were never written (data seeded outside the normal submit flow); the applicant
+task pages render a contextual lock message instead of an enabled toggle for every
+non-markable status (`NOT_STARTED`, `PENDING_EVALUATION`, `LATE_SUBMITTED`, `PASSED`,
+`FAILED`, `REPEAT`), so the raw "Mission assignment is not accepted/active" error can no
+longer be triggered from the UI; and `unmarkMissionTaskComplete` enforces the same
+markable-status guard as marking, making a locked checklist immutable in both directions.
+Shared exports `MARKABLE_ASSIGNMENT_STATUSES` and `missionChecklistLockReason` keep the
+db guard and the UI in sync. Carry-forward into repeat attempts was rejected by design (the
+repeat assigns a different mission for the same week, v0.19.1/D-082). No schema change; no
+migration. Unit suite: 431 tests across 43 files, all pass; `regression:all` 36/37 passed,
+0 failed, 1 pre-existing documented storage skip. Plan:
+`docs/plans/v0.19.4_Mission_Task_Checklist_Lifecycle_Guard.md`; results:
+`docs/testing/v0.19.4_Mission_Task_Checklist_Lifecycle_Guard_Test_Results.md`. See `D-085`.
 
 `v0.19.3` is a patch that (1) adds regex-based personal-name pattern matching to the AI Mentor RBSE
 so questions like "explain hitesh" or "who is john" are blocked before any LLM call — previously

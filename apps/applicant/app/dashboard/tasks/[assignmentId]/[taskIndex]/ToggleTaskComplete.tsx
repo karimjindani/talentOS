@@ -11,7 +11,8 @@ export function ToggleTaskComplete({
   taskIndex,
   complete,
   disabled = false,
-  disabledReason
+  disabledReason,
+  lockedReason = null
 }: {
   assignmentId: string;
   taskIndex: MissionTaskIndex;
@@ -19,10 +20,20 @@ export function ToggleTaskComplete({
   /** Blocks only the "mark as complete" direction (e.g. video not watched yet) — un-completing is never blocked. */
   disabled?: boolean;
   disabledReason?: string;
+  /** Set when the assignment's lifecycle status freezes the checklist (v0.19.4) — replaces the toggle entirely. */
+  lockedReason?: string | null;
 }) {
   const action = setTaskCompletionAction.bind(null, assignmentId, taskIndex, !complete);
   const [state, formAction, pending] = useActionState(action, INITIAL_STATE);
   const blocked = !complete && disabled;
+
+  if (lockedReason) {
+    return (
+      <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+        {lockedReason}
+      </p>
+    );
+  }
 
   return (
     <form action={formAction} className="mt-4">

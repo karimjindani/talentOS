@@ -905,3 +905,29 @@ Plan: `docs/plans/v0.19.3_AI_Mentor_RBSE_Name_Blocking_And_Token_Tracking.md`; r
 `docs/testing/v0.19.3_AI_Mentor_RBSE_Name_Blocking_And_Token_Tracking_Test_Results.md`.
 
 Status: Approved
+
+## D-085
+
+`v0.19.4` is a patch making the mission task checklist follow the assignment lifecycle.
+Previously the applicant task pages rendered an enabled "Mark as complete" toggle regardless of
+assignment status, so clicking it on a `PASSED` (or not-yet-accepted `NOT_STARTED`) assignment
+surfaced the raw server error "Mission assignment is not accepted/active for this applicant.";
+and a `PASSED` assignment with missing completion rows (data seeded outside the normal flow)
+displayed tasks 1-2 as incomplete - reading as lost progress on a finished mission. Changes:
+(1) `buildTaskSummaries` is status-aware - a `PASSED` assignment derives a fully complete
+checklist, since the normal flow cannot pass without tasks 1-2 (they gate "Submit for Review");
+(2) new shared exports `MARKABLE_ASSIGNMENT_STATUSES` (`ACCEPTED`/`IN_PROGRESS`/`OVERDUE`) and
+`missionChecklistLockReason(status)`; (3) `unmarkMissionTaskComplete` now enforces the same
+markable-status guard as marking - a locked checklist is immutable in both directions; (4) the
+task resource page renders the lock reason instead of the toggle for every non-markable status.
+Carrying completion rows forward into repeat attempts was considered and rejected: the repeat
+decision assigns a *different* mission for the same week (v0.19.1, D-082), so its brief/tutorial
+tasks genuinely restart - the lock messaging now makes that visible instead of erroring. No
+schema change; no migration. Unit suite: 431 tests across 43 files (was 427), all pass; new
+`missions` regression scenario "Passed and unaccepted assignments lock the task checklist;
+active ones stay editable".
+
+Plan: `docs/plans/v0.19.4_Mission_Task_Checklist_Lifecycle_Guard.md`; results:
+`docs/testing/v0.19.4_Mission_Task_Checklist_Lifecycle_Guard_Test_Results.md`.
+
+Status: Approved

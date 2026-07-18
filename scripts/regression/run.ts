@@ -27,6 +27,7 @@ import {
   JournalEntryDateConflictError,
   listApplicantApplications,
   listApplicantJournalEntries,
+  listAssignedMissionsWithTasks,
   listAssignedProgramMissions,
   listCompletedTaskIds,
   listEngineeringJournalEntriesForSubmissionReview,
@@ -37,12 +38,14 @@ import {
   markNotificationRead,
   markRegressionData,
   markTaskCompleted,
+  missionChecklistLockReason,
   prisma,
   reviewSubmission,
   saveSubmissionDraft,
   setMissionStatus,
   setProgramStatus,
   submitSubmission,
+  unmarkMissionTaskComplete,
   updateJournalEntry,
   updateVideoResource
 } from "@talentos/db";
@@ -1073,6 +1076,167 @@ const scenarios: Scenario[] = [
           "Known-gap scenario changed behavior: a pre-existing accepted applicant now has an assigned " +
             "mission. If a backfill was intentionally added, update this scenario and Regression_Scenarios.md."
         );
+      }
+    }
+  },
+  {
+    area: "missions",
+    name: "Passed and unaccepted assignments lock the task checklist; active ones stay editable",
+    run: async (ctx) => {
+      // v0.19.4: the fixed 3-step checklist follows the assignment lifecycle — editable only
+      // while ACCEPTED/IN_PROGRESS/OVERDUE, derived fully complete once PASSED, and locked
+      // (both directions) everywhere else.
+      const fixture = await createSubmissionFixture(ctx.runId);
+
+      // Active (ACCEPTED) assignment: unmark and re-mark both succeed.
+      if (missionChecklistLockReason(fixture.assignment.status) !== null) {
+        throw new Error("An ACCEPTED assignment must not report a checklist lock reason.");
+      }
+      await unmarkMissionTaskComplete({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        missionAssignmentId: fixture.assignment.id,
+        taskIndex: 2
+      });
+      await markMissionTaskComplete({
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id,
+        missionAssignmentId: fixture.assignment.id,
+        taskIndex: 2
+      });
+
+      // Tenant isolation: another tenant's context cannot mark or unmark these tasks.
+      const otherTenant = await prisma.tenant.create({
+        data: { name: "Regression Checklist Boundary", slug: `checklist-boundary-${randomUUID().slice(0, 8)}` }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Tenant", entityId: otherTenant.id });
+      for (const attempt of [
+        () =>
+          markMissionTaskComplete({
+            tenantId: otherTenant.id,
+            applicantId: fixture.user.id,
+            missionAssignmentId: fixture.assignment.id,
+            taskIndex: 1
+          }),
+        () =>
+          unmarkMissionTaskComplete({
+            tenantId: otherTenant.id,
+            applicantId: fixture.user.id,
+            missionAssignmentId: fixture.assignment.id,
+            taskIndex: 1
+          })
+      ]) {
+        try {
+          await attempt();
+          throw new Error("Cross-tenant task completion write was allowed.");
+        } catch (error) {
+          if (!(error instanceof Error) || !error.message.includes("not accepted/active")) throw error;
+        }
+      }
+
+      // Drive the assignment to PASSED through the real submit/review loop.
+      const draft = await saveSubmissionDraft({
+        tenantId: fixture.tenant.id,
+        missionId: fixture.mission.id,
+        applicantId: fixture.user.id,
+        repositoryUrl: "https://github.com/regression/checklist-lifecycle",
+        deploymentUrl: null,
+        loomUrl: null,
+        journalMarkdown: "Checklist lifecycle regression"
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
+      await submitSubmission({ id: draft.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+      await reviewSubmission({
+        id: draft.id,
+        tenantId: fixture.tenant.id,
+        status: "ACCEPTED",
+        reviewerFeedback: "Accepted for checklist lifecycle regression",
+        reviewerUserId: fixture.actor.id
+      });
+
+      // Simulate seeded/migrated data whose completion rows were never written: even then a
+      // PASSED assignment must derive a fully complete checklist.
+      await prisma.missionTaskCompletion.deleteMany({ where: { missionAssignmentId: fixture.assignment.id } });
+      const listed = await listAssignedMissionsWithTasks(fixture.tenant.id, fixture.user.id, fixture.program.id);
+      const passedEntry = listed.find((entry) => entry.assignment.id === fixture.assignment.id);
+      if (!passedEntry || passedEntry.assignment.status !== "PASSED") {
+        throw new Error("Accepted review did not surface the assignment as PASSED.");
+      }
+      if (!passedEntry.tasks.every((task) => task.complete)) {
+        throw new Error("A PASSED assignment must derive a fully complete checklist.");
+      }
+      if (missionChecklistLockReason(passedEntry.assignment.status) === null) {
+        throw new Error("A PASSED assignment must report a checklist lock reason.");
+      }
+
+      // The PASSED checklist is immutable in both directions.
+      for (const attempt of [
+        () =>
+          markMissionTaskComplete({
+            tenantId: fixture.tenant.id,
+            applicantId: fixture.user.id,
+            missionAssignmentId: fixture.assignment.id,
+            taskIndex: 1
+          }),
+        () =>
+          unmarkMissionTaskComplete({
+            tenantId: fixture.tenant.id,
+            applicantId: fixture.user.id,
+            missionAssignmentId: fixture.assignment.id,
+            taskIndex: 1
+          })
+      ]) {
+        try {
+          await attempt();
+          throw new Error("A PASSED assignment's checklist accepted a write.");
+        } catch (error) {
+          if (!(error instanceof Error) || !error.message.includes("not accepted/active")) throw error;
+        }
+      }
+
+      // A NOT_STARTED (not yet accepted) assignment is locked until the applicant accepts it.
+      const weekTwoMission = await createMission({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Regression Checklist Week 2 Mission ${ctx.runId}`,
+        difficulty: "BEGINNER",
+        status: "PUBLISHED",
+        weekNumber: 2,
+        order: 0,
+        brief: "Week 2 mission for the checklist lifecycle regression",
+        objective: "Exercise the NOT_STARTED checklist lock",
+        acceptanceCriteria: "- n/a",
+        deliverables: "- n/a",
+        evaluationCriteria: "n/a",
+        competencyTags: ["AI-Assisted Development"],
+        actorUserId: fixture.actor.id
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Mission", entityId: weekTwoMission.id });
+      const notStarted = await prisma.missionAssignment.create({
+        data: {
+          tenantId: fixture.tenant.id,
+          programId: fixture.program.id,
+          applicantId: fixture.user.id,
+          missionId: weekTwoMission.id,
+          weekNumber: 2,
+          attemptNumber: 1,
+          status: "NOT_STARTED"
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: notStarted.id });
+      if (missionChecklistLockReason(notStarted.status) === null) {
+        throw new Error("A NOT_STARTED assignment must report a checklist lock reason.");
+      }
+      try {
+        await markMissionTaskComplete({
+          tenantId: fixture.tenant.id,
+          applicantId: fixture.user.id,
+          missionAssignmentId: notStarted.id,
+          taskIndex: 1
+        });
+        throw new Error("A NOT_STARTED assignment's checklist accepted a write before accept.");
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("not accepted/active")) throw error;
       }
     }
   },

@@ -134,6 +134,31 @@ assignment. The assigned mission is the one that appears in your dashboard.
 | 3 | Containerize, Automate and Load-Test TaskPilot | Advanced |
 | 4 | Take TaskPilot to Production | Expert |
 
+## Tasks
+
+Every mission breaks into the same fixed 3-step checklist (`v0.19.0`):
+
+1. **Review the Mission Brief** — read the objective and brief, then mark the task complete.
+2. **Study the Tutorial** — when the tutorial is a YouTube video, "Mark as complete" unlocks only
+   after watching it to the end.
+3. **Build & Submit Evidence** — has no checkbox of its own; it completes automatically when you
+   submit the mission for review.
+
+Tasks 1 and 2 must both be complete before **Submit for Review** is available on the mission.
+
+As of `v0.19.4`, the checklist follows your mission's lifecycle:
+
+- The checklist is editable only while the mission is actually in progress (accepted and not yet
+  submitted, including the overdue grace period).
+- Before you **Accept** a mission, its tasks are locked — the task page explains that tasks unlock
+  once you start the mission.
+- After you submit, the checklist locks while the submission is reviewed.
+- A **passed** mission always shows all three tasks completed, and its checklist is locked — your
+  finished work can no longer be unchecked.
+- When a reviewer sends you a **repeat** (a new mission for the same week), the new mission starts
+  with a fresh checklist: it is a different mission, so its brief and tutorial must be reviewed
+  again. The closed attempt's page explains this instead of showing an error.
+
 ## AI Mentor
 
 The AI Mentor is a conversational assistant available to accepted applicants at

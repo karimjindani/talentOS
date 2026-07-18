@@ -1,5 +1,5 @@
 import { prisma } from "./client";
-import type { Submission } from "@prisma/client";
+import type { MissionAssignmentStatus, Submission } from "@prisma/client";
 
 // Mission-driven tasks (v0.19.0): every mission breaks into the same fixed 3-step checklist rather
 // than admin-authored ProgramTask rows. Task 3 has no completion row of its own — it's implied
@@ -7,6 +7,29 @@ import type { Submission } from "@prisma/client";
 // that step.
 export type MissionTaskIndex = 1 | 2 | 3;
 export const REQUIRED_TASK_INDEXES: readonly MissionTaskIndex[] = [1, 2];
+
+// The checklist is editable only while the applicant is actually working the mission:
+// NOT_STARTED requires an explicit accept first, and every post-submission/terminal status
+// freezes the checklist (v0.19.4). Shared by the write guards below and the applicant UI.
+export const MARKABLE_ASSIGNMENT_STATUSES: readonly MissionAssignmentStatus[] = [
+  "ACCEPTED",
+  "IN_PROGRESS",
+  "OVERDUE"
+];
+
+const CHECKLIST_LOCK_REASONS: Partial<Record<MissionAssignmentStatus, string>> = {
+  NOT_STARTED: "Accept this mission first — tasks unlock once you start it.",
+  PENDING_EVALUATION: "You've submitted this mission. The checklist is locked while it's being reviewed.",
+  LATE_SUBMITTED: "You've submitted this mission. The checklist is locked while it's being reviewed.",
+  PASSED: "This mission is passed — its checklist is complete and locked.",
+  FAILED: "This mission has failed and can no longer be worked on.",
+  REPEAT: "This attempt was closed with a repeat decision — work on your new mission instead."
+};
+
+/** Why the checklist can't be edited for this status, or null when it's editable. */
+export function missionChecklistLockReason(status: MissionAssignmentStatus): string | null {
+  return CHECKLIST_LOCK_REASONS[status] ?? null;
+}
 
 const TASK_TITLES: Record<MissionTaskIndex, string> = {
   1: "Review the Mission Brief",
@@ -28,11 +51,19 @@ function isTask3Complete(submission: Pick<Submission, "status"> | null | undefin
   return Boolean(submission && submission.status !== "DRAFT" && submission.status !== "NEEDS_REVISION");
 }
 
-function buildTaskSummaries(completedIndexes: Set<number>, task3Complete: boolean): MissionTaskSummary[] {
+function buildTaskSummaries(
+  status: MissionAssignmentStatus,
+  completedIndexes: Set<number>,
+  task3Complete: boolean
+): MissionTaskSummary[] {
+  // A mission can't pass through the normal flow without tasks 1–2 checked (they gate "Submit
+  // for Review"), so a PASSED assignment always reports a complete checklist even when the
+  // rows are absent (data seeded or migrated outside that flow).
+  const passed = status === "PASSED";
   return ([1, 2, 3] as MissionTaskIndex[]).map((index) => ({
     index,
     title: TASK_TITLES[index],
-    complete: index === 3 ? task3Complete : completedIndexes.has(index)
+    complete: passed || (index === 3 ? task3Complete : completedIndexes.has(index))
   }));
 }
 
@@ -54,7 +85,7 @@ export async function getMissionTasksForAssignment(tenantId: string, applicantId
     select: { taskIndex: true }
   });
   const completedIndexes = new Set(completions.map((completion) => completion.taskIndex));
-  const tasks = buildTaskSummaries(completedIndexes, isTask3Complete(assignment.submissions[0]));
+  const tasks = buildTaskSummaries(assignment.status, completedIndexes, isTask3Complete(assignment.submissions[0]));
 
   return { assignment, mission: assignment.mission, tasks };
 }
@@ -95,6 +126,7 @@ export async function listAssignedMissionsWithTasks(tenantId: string, applicantI
     assignment,
     mission: assignment.mission,
     tasks: buildTaskSummaries(
+      assignment.status,
       completedByAssignment.get(assignment.id) ?? new Set<number>(),
       isTask3Complete(assignment.submissions[0])
     )
@@ -127,7 +159,7 @@ export async function markMissionTaskComplete({ tenantId, applicantId, missionAs
       id: missionAssignmentId,
       tenantId,
       applicantId,
-      status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] }
+      status: { in: [...MARKABLE_ASSIGNMENT_STATUSES] }
     },
     select: { id: true }
   });
@@ -142,12 +174,19 @@ export async function markMissionTaskComplete({ tenantId, applicantId, missionAs
 }
 
 export async function unmarkMissionTaskComplete({ tenantId, applicantId, missionAssignmentId, taskIndex }: MissionTaskActionInput) {
+  // Same lifecycle guard as marking (v0.19.4): a locked checklist is immutable in both
+  // directions — un-checking a task on a submitted/finished attempt would corrupt its record.
   const assignment = await prisma.missionAssignment.findFirst({
-    where: { id: missionAssignmentId, tenantId, applicantId },
+    where: {
+      id: missionAssignmentId,
+      tenantId,
+      applicantId,
+      status: { in: [...MARKABLE_ASSIGNMENT_STATUSES] }
+    },
     select: { id: true }
   });
   if (!assignment) {
-    throw new Error("Mission assignment not found for this applicant.");
+    throw new Error("Mission assignment is not accepted/active for this applicant.");
   }
   await prisma.missionTaskCompletion.deleteMany({
     where: { missionAssignmentId, taskIndex }

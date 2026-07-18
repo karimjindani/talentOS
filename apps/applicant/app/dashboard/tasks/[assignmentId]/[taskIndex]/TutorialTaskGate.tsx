@@ -12,13 +12,16 @@ export function TutorialTaskGate({
   tutorialUrl,
   assignmentId,
   taskIndex,
-  complete
+  complete,
+  lockedReason = null
 }: {
   videoId: string;
   tutorialUrl: string | null;
   assignmentId: string;
   taskIndex: MissionTaskIndex;
   complete: boolean;
+  /** Set when the assignment's lifecycle status freezes the checklist (v0.19.4). */
+  lockedReason?: string | null;
 }) {
   // Already-completed tasks don't need to be re-watched to keep their checked state.
   const [watched, setWatched] = useState(complete);
@@ -31,7 +34,7 @@ export function TutorialTaskGate({
           Open on YouTube
         </a>
       ) : null}
-      {!watched ? (
+      {!watched && !lockedReason ? (
         <p className="text-sm text-amber-700">Watch the full video to unlock &quot;Mark as complete&quot;.</p>
       ) : null}
       <ToggleTaskComplete
@@ -40,6 +43,7 @@ export function TutorialTaskGate({
         complete={complete}
         disabled={!watched}
         disabledReason="Watch the video above to the end to unlock this."
+        lockedReason={lockedReason}
       />
     </div>
   );
