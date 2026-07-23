@@ -2,7 +2,7 @@
 
 Code version: `v0.19.6`
 
-Test evidence commit: `pending`
+Test evidence commit: `08cea25`
 
 ## Goals
 

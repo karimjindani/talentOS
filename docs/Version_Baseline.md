@@ -8,7 +8,7 @@ Baseline name: `Mission Workspace LMS, Curriculum Tooling And Thursday Schedulin
 
 Base branch and commit: `origin/main` at `a43118c`
 
-Feature branch and code commit: `refactor/mission-workspace-lms-ui` at `pending`
+Feature branch and code commit: `refactor/mission-workspace-lms-ui` at `08cea25`
 
 Documentation date: `2026-07-23`
 

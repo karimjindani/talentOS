@@ -2,7 +2,7 @@
 
 Code version: `v0.19.6`
 
-Architecture evidence commit: `pending`
+Architecture evidence commit: `08cea25`
 
 Current documentation update: `v0.19.6`
 
