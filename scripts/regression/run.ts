@@ -545,6 +545,67 @@ const scenarios: Scenario[] = [
   },
   {
     area: "missions",
+    name: "Accepting a mission sets a Thursday deadline with at least four working days (v0.20.0)",
+    run: async (ctx) => {
+      const { assignment } = await createSubmissionFixture(ctx.runId);
+      const { acceptedAt, deadlineAt, graceEndsAt } = assignment;
+      if (!acceptedAt || !deadlineAt || !graceEndsAt) {
+        throw new Error("Accepted assignment is missing acceptedAt/deadlineAt/graceEndsAt.");
+      }
+      if (deadlineAt.getUTCDay() !== 4) {
+        throw new Error(`Deadline must fall on a Thursday (UTC); got weekday ${deadlineAt.getUTCDay()}.`);
+      }
+      // Count Mon–Thu working days from acceptance date to the deadline (inclusive).
+      let workingDays = 0;
+      const cursor = new Date(Date.UTC(acceptedAt.getUTCFullYear(), acceptedAt.getUTCMonth(), acceptedAt.getUTCDate()));
+      const lastDay = new Date(Date.UTC(deadlineAt.getUTCFullYear(), deadlineAt.getUTCMonth(), deadlineAt.getUTCDate()));
+      while (cursor.getTime() <= lastDay.getTime()) {
+        const weekday = cursor.getUTCDay();
+        if (weekday >= 1 && weekday <= 4) workingDays += 1;
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+      if (workingDays < 4) {
+        throw new Error(`Deadline provides only ${workingDays} working days; expected at least four.`);
+      }
+      if (graceEndsAt.getTime() <= deadlineAt.getTime()) {
+        throw new Error("Grace window must end after the deadline.");
+      }
+      return `Thursday deadline ${deadlineAt.toISOString()} with ${workingDays} working days; grace to ${graceEndsAt.toISOString()}.`;
+    }
+  },
+  {
+    area: "missions",
+    name: "Prerequisite weekly tasks are stored and surfaced to applicants (v0.20.0)",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+      const prereq = await createProgramTask({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        title: `Prerequisite setup ${ctx.runId}`,
+        description: "Must be completed before the mission can start.",
+        weekNumber: fixture.assignment.weekNumber,
+        order: 0,
+        dueAt: null,
+        required: true,
+        published: true,
+        isPrerequisite: true,
+        actorUserId: fixture.actor.id
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "ProgramTask", entityId: prereq.id });
+
+      const weekTasks = await listTasksByWeek(fixture.tenant.id, fixture.program.id, fixture.assignment.weekNumber);
+      const stored = weekTasks.find((task) => task.id === prereq.id);
+      if (!stored) {
+        throw new Error("Prerequisite task was not returned by listTasksByWeek.");
+      }
+      if (!stored.isPrerequisite) {
+        throw new Error("Stored task did not persist isPrerequisite=true.");
+      }
+      return `Prerequisite task ${prereq.id} stored and visible for Week ${fixture.assignment.weekNumber}.`;
+    }
+  },
+  {
+    area: "missions",
     name: "Only Org Admin and Super Admin can manage missions",
     run: async () => {
       if (!tenantRolesGrant("manageMissions", ["ORG_ADMIN"])) throw new Error("ORG_ADMIN did not grant manageMissions.");

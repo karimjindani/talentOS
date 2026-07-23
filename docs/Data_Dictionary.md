@@ -1,9 +1,16 @@
 # Data Dictionary
 
-Code version: `v0.19.5`
+Code version: `v0.19.6`
 
-Schema evidence commit: `2b3afce`
+Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
 
+> `v0.19.6` (Mission Workspace LMS, Curriculum Tooling & Thursday Scheduling, D-091–D-093) adds the
+> `DOCUMENT` value to `LearningResourceType`, a nullable `video_resources.fileId` FK→`stored_files`
+> (`ON DELETE SET NULL`) for uploaded document resources, and a `program_tasks.isPrerequisite` boolean
+> (default `false`) that gates the mission's own steps. Migrations:
+> `20260723120000_learning_resource_document`, `20260723140000_program_task_prerequisite`. No other
+> table shape changed.
+>
 > `v0.19.5` weekly-task/submission-readiness work adds `LearningResourceType` (`MARKDOWN`, `YOUTUBE`),
 > extends `program_tasks` with `required`/`published`, extends the legacy-named `video_resources` table
 > with task association and reusable resource content fields, and makes `user_task_completions`
@@ -348,6 +355,7 @@ This is separate from assignment-attempt workflow steps stored in `MissionTaskCo
 | `order` | Sort order within the week (default 0). |
 | `required` | Whether completion blocks submission for missions assigned in this program week (default `true`). |
 | `published` | Whether applicants may see and complete the task (default `true`). |
+| `isPrerequisite` | (`v0.19.6`) Whether the mission's own steps stay locked for the applicant until this task is complete (default `false`). |
 
 ## VideoResource
 
@@ -359,7 +367,7 @@ learning content and may be attached to a `ProgramTask`.
 | `tenantId` | Owning tenant. |
 | `programId` | Program the resource belongs to. |
 | `taskId` | Optional `ProgramTask` association. When present, the task supplies the authoritative week. |
-| `type` | `LearningResourceType`: `MARKDOWN` or `YOUTUBE` (default `YOUTUBE` for legacy rows). |
+| `type` | `LearningResourceType`: `MARKDOWN`, `YOUTUBE`, or `DOCUMENT` (`v0.19.6`; default `YOUTUBE` for legacy rows). |
 | `weekNumber` | Optional program week; derived from the associated task when `taskId` is present. |
 | `title` | Resource title. |
 | `url` | Optional validated public YouTube URL for `YOUTUBE` resources. `null` means the final video is pending. |
@@ -367,6 +375,7 @@ learning content and may be attached to a `ProgramTask`.
 | `description` | Optional description. |
 | `order` | Stable display order within a task/week. |
 | `durationSeconds` | Optional video/resource duration. |
+| `fileId` | (`v0.19.6`) Optional FK→`stored_files` for a `DOCUMENT` resource; the uploaded file applicants download. `null` for Markdown/YouTube. `ON DELETE SET NULL`. |
 
 ## Notification
 

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { auth } from "@/auth";
 import { DeadlineCountdown } from "@/components/DeadlineCountdown";
-import { SafeMarkdown } from "@/components/SafeMarkdown";
-import { getTenantContext } from "@talentos/ui";
+import { LearningResourceList } from "@/components/LearningResourceList";
+import { getTenantContext, ProgressBar } from "@talentos/ui";
 import {
   getApplicantMissionProgress,
   getCurrentMissionAssignmentForApplicantProgram,
@@ -125,14 +125,13 @@ export default async function TasksPage() {
                   {requiredWeeklyCompleted === requiredWeeklyTasks.length ? "Ready" : "Blocking submission"}
                 </span>
               </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
-                <div
-                  className="h-full bg-emerald-500"
-                  style={{
-                    width: `${requiredWeeklyTasks.length === 0 ? 100 : Math.round((requiredWeeklyCompleted / requiredWeeklyTasks.length) * 100)}%`
-                  }}
-                />
-              </div>
+              <ProgressBar
+                className="mt-3"
+                tone="emerald"
+                value={requiredWeeklyTasks.length === 0 ? 1 : requiredWeeklyCompleted}
+                max={requiredWeeklyTasks.length === 0 ? 1 : requiredWeeklyTasks.length}
+                aria-label="Weekly required task progress"
+              />
             </div>
 
             <div className="divide-y divide-slate-200">
@@ -160,31 +159,8 @@ export default async function TasksPage() {
                       ) : null}
                     </div>
 
-                    <div className="mt-5 grid gap-5 border-l-2 border-slate-200 pl-4 sm:grid-cols-2">
-                      {task.resources.map((resource) => (
-                        <div key={resource.id}>
-                          <p className="text-xs font-semibold uppercase text-slate-500">
-                            {resource.type === "MARKDOWN" ? "Reading" : "Video"}
-                          </p>
-                          <h4 className="mt-1 font-semibold text-slate-900">{resource.title}</h4>
-                          {resource.description ? <p className="mt-1 text-sm text-slate-600">{resource.description}</p> : null}
-                          {resource.type === "MARKDOWN" && resource.markdownContent ? (
-                            <details className="mt-3">
-                              <summary className="cursor-pointer text-sm font-semibold text-brand-blue">Open learning resource</summary>
-                              <div className="mt-3"><SafeMarkdown markdown={resource.markdownContent} /></div>
-                            </details>
-                          ) : resource.type === "YOUTUBE" && isSafeYouTubeUrl(resource.url) ? (
-                            <a href={resource.url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex text-sm font-semibold text-brand-blue underline">
-                              Open YouTube video
-                            </a>
-                          ) : (
-                            <p className="mt-3 text-sm font-medium text-amber-700">Video URL pending.</p>
-                          )}
-                        </div>
-                      ))}
-                      {task.resources.length === 0 ? (
-                        <p className="text-sm font-medium text-amber-700">Learning resources have not been attached yet.</p>
-                      ) : null}
+                    <div className="mt-5 border-l-2 border-slate-200 pl-4">
+                      <LearningResourceList resources={task.resources} />
                     </div>
                   </section>
                 );
@@ -232,13 +208,3 @@ function TaskCard({
   );
 }
 
-function isSafeYouTubeUrl(value: string | null): value is string {
-  if (!value) return false;
-  try {
-    const url = new URL(value);
-    const host = url.hostname.toLowerCase();
-    return url.protocol === "https:" && (host === "youtube.com" || host === "www.youtube.com" || host === "youtu.be");
-  } catch {
-    return false;
-  }
-}

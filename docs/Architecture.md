@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.19.5`
+Code version: `v0.19.6`
 
-Architecture evidence commit: `2b3afce`
+Architecture evidence commit: `pending`
 
-Current documentation update: `v0.19.5`
+Current documentation update: `v0.19.6`
 
 ## Overview
 
@@ -64,6 +64,42 @@ private/loopback/link-local/metadata ranges, revalidates each redirect, limits r
 bounded HEAD with GET fallback. A short transaction then rechecks readiness and evidence before it
 atomically submits, timestamps, advances the assignment, locks only current-attempt journals, and
 writes the audit event. Failed checks leave draft/revision state and journal locks unchanged.
+
+### Mission Workspace LMS, Curriculum Tooling And Thursday Scheduling (`v0.19.6`)
+
+The applicant mission page (`apps/applicant/app/dashboard/missions/[id]`) is rebuilt as a tabbed,
+LMS-style **Mission Workspace**. A pure `view-model.ts` derives, from the existing tenant-scoped
+`MissionAssignment` read, the step statuses (complete/current/upcoming), header progress
+(completed/total), the Continue target, countdown visibility, and the submission mode
+(accept/failed/editable/locked) — so the presentation layer (`WorkspaceTabs.tsx`) holds no business
+rules and is unit-tested through the model (`view-model.test.ts`). A compact navy header, an in-tab
+`d h m s` `CountdownTimer`, weekly learning-task tabs, and a `YouTubeProgressPlayer` that gates
+"Mark complete" until every video is ≥90% watched sit on top of the unchanged completion/submission
+actions. Learning tasks unlock sequentially; `LearningTaskPanel`/`LearningResourceList` render the
+task's resources.
+
+Curriculum tooling extends `@talentos/db` program content without new write authority. The
+`LearningResourceType` enum gains `DOCUMENT`: an admin uploads a file through the existing
+presign→storage→confirm flow and the resource row links a `StoredFile` (`VideoResource.fileId`)
+validated to belong to the tenant; a `DOCUMENT` with no file, or a file from another tenant, is
+rejected. `ProgramTask.isPrerequisite` marks a week's task as a gate: while any published
+prerequisite is incomplete, the mission's own steps stay locked for that applicant (data + workspace
+model; the applicant-side step-lock UI is a recorded Known Gap). A new admin top-level **Tasks** page
+(`apps/admin/app/tasks`) offers a searchable `ProgramPicker`, `CollapsibleTask` cards and inline
+`ResourceForm` add/edit for Markdown/YouTube/Document, all through the existing
+`manageProgramContent`-guarded content actions, revalidating both `/tasks` and the program Content
+page. Applications/Programs/Missions/Submissions gain in-memory pagination (10/20 rows) + filters via
+`apps/admin/lib/pagination.ts`, and the admin Overview renders live tenant KPI counts from the
+already-tested `listTenant*` reads.
+
+Mission scheduling changes shape only deadlines and repeat selection. `computeMissionDeadline`
+(`packages/db/src/mission-assignments.ts`) sets every acceptance to a **Thursday** deadline (UTC)
+with at least four Mon–Thu working days, and `graceEndsAt` = deadline + grace hours. A `REPEAT` now
+excludes **every** mission the applicant already had that week (`id: { notIn: [...all prior] }`), not
+only the failed one; when none remain the application moves to `AWAITING_MISSION_ASSIGNMENT` and
+reviewers are notified. Shared `@talentos/ui` primitives (`Card`, `ProgressBar`, `Button`,
+`MissionStatusBadge`, `SubmissionStatusBadge`) replace duplicated inline markup and status maps. See
+`D-091` through `D-093`.
 
 ### Mission Engine MVP (`v0.14.0`)
 

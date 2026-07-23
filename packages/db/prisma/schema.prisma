@@ -93,6 +93,7 @@ enum NotificationType {
 enum LearningResourceType {
   MARKDOWN
   YOUTUBE
+  DOCUMENT
 }
 
 model Tenant {
@@ -508,10 +509,11 @@ model StoredFile {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  owner            User?        @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
-  cvForApplication Application? @relation("ApplicationCv")
-  logoForTenant    Tenant?      @relation("TenantLogo")
+  tenant           Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner            User?           @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  cvForApplication Application?    @relation("ApplicationCv")
+  logoForTenant    Tenant?         @relation("TenantLogo")
+  videoResources   VideoResource[]
 
   @@index([tenantId, category])
   @@index([ownerUserId])
@@ -540,11 +542,13 @@ model ProgramTask {
   title       String
   description String?
   dueAt       DateTime?
-  order       Int       @default(0)
-  required    Boolean   @default(true)
-  published   Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  order          Int       @default(0)
+  required       Boolean   @default(true)
+  published      Boolean   @default(true)
+  // Blocks the mission's own steps (Review Brief / Study Tutorial / Submission) until complete.
+  isPrerequisite Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   program     Program              @relation(fields: [programId], references: [id], onDelete: Cascade)
@@ -569,12 +573,14 @@ model VideoResource {
   description     String?
   order           Int                  @default(0)
   durationSeconds Int?
+  fileId          String?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
   tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   program Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
   task    ProgramTask? @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  file    StoredFile?  @relation(fields: [fileId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, programId, weekNumber])
   @@index([tenantId, taskId, order])

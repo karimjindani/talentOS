@@ -12,6 +12,7 @@ export function listProgramTasks(tenantId: string, programId: string) {
     include: {
       resources: {
         where: { tenantId },
+        include: { file: { select: { id: true, originalName: true, contentType: true } } },
         orderBy: [{ order: "asc" }, { createdAt: "asc" }]
       }
     },
@@ -40,6 +41,7 @@ export function listTasksByWeek(tenantId: string, programId: string, weekNumber:
     include: {
       resources: {
         where: { tenantId },
+        include: { file: { select: { id: true, originalName: true, contentType: true } } },
         orderBy: [{ order: "asc" }, { createdAt: "asc" }]
       }
     },
@@ -55,7 +57,10 @@ export function listTasksByWeek(tenantId: string, programId: string, weekNumber:
 export function listVideoResources(tenantId: string, programId: string, weekNumber?: number) {
   return prisma.videoResource.findMany({
     where: { tenantId, programId, ...(weekNumber != null ? { weekNumber } : {}) },
-    include: { task: { select: { id: true, title: true, weekNumber: true } } },
+    include: {
+      task: { select: { id: true, title: true, weekNumber: true } },
+      file: { select: { id: true, originalName: true, contentType: true } }
+    },
     orderBy: [{ weekNumber: "asc" }, { order: "asc" }, { createdAt: "asc" }],
   });
 }

@@ -29,6 +29,8 @@ export async function completeTaskAction(
     revalidatePath("/dashboard/tasks");
     revalidatePath("/dashboard/program");
     revalidatePath("/dashboard/missions");
+    // The Mission Workspace (v0.20.0) shows these learning tasks inline, so refresh it too.
+    revalidatePath("/dashboard/missions/[id]", "page");
     return { ok: true, error: null };
   } catch (error) {
     return {

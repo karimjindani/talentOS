@@ -42,6 +42,13 @@ describe("SidebarNav isActive route matching", () => {
       expect(isActive("/missions/xyz", item)).toBe(true);
     });
 
+    it("Tasks is active on `/tasks` and with a query string", () => {
+      const item = NAV_ITEMS.find((i) => i.href === "/tasks")!;
+      expect(isActive("/tasks", item)).toBe(true);
+      // Program selection uses a query param; pathname (no query) still matches.
+      expect(isActive("/tasks", item)).toBe(true);
+    });
+
     it("Submissions is active on `/submissions` and nested paths", () => {
       const item = NAV_ITEMS.find((i) => i.href === "/submissions")!;
       expect(isActive("/submissions", item)).toBe(true);
@@ -97,12 +104,13 @@ describe("SidebarNav isActive route matching", () => {
   });
 
   describe("NAV_ITEMS integrity", () => {
-    it("contains the seven standard admin nav items in order", () => {
+    it("contains the eight standard admin nav items in order", () => {
       expect(NAV_ITEMS.map((i) => i.label)).toEqual([
         "Overview",
         "Applications",
         "Programs",
         "Missions",
+        "Tasks",
         "Submissions",
         "Operations",
         "Settings"
