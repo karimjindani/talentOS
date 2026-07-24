@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.19.5`
+Code version: `v0.19.6`
 
 ## Purpose
 
@@ -12,9 +12,10 @@ The suite can be run from the local Ops Console or from npm scripts. As of `v0.1
 shows individual scenario rows grouped by area after a run, so operators can see exactly which
 scenario passed, failed or skipped without searching the raw output.
 
-As of `v0.19.5`, `scripts/regression/run.ts` defines **40 scenario objects**. Executed counts and
+As of `v0.19.6`, `scripts/regression/run.ts` defines **42 scenario objects** (v0.19.6 adds two Missions
+scenarios: the Thursday deadline cadence and prerequisite-task persistence). Executed counts and
 environmental failures/skips are recorded in the versioned test-results artifact rather than assumed
-from source. Weekly-task/readiness scenarios use the existing result envelope and Ops dashboard.
+from source. New scenarios use the existing result envelope and Ops dashboard.
 
 ## v0.19.5 Plan Scenario Traceability
 
@@ -35,6 +36,25 @@ These names match the plan one-for-one. A row can combine focused unit and scena
 | S10: Admin content management retains authorization and tenant scope | Program-content unit tests; Programs/Admin scenarios | Automated |
 | S11: Applicant and Admin render deployment URLs separately | Central link-builder unit test and multi-URL review data fixture | Partial; exact browser DOM assertion deferred |
 | S12: Existing Regression Run dashboard reports the new coverage | Existing runner categories and result envelope | Automated runner output; dashboard UI checked manually on 2026-07-16 |
+
+## v0.19.6 Plan Scenario Traceability
+
+Names match `docs/plans/v0.19.6_Mission_Workspace_LMS_And_Scheduling.md` one-for-one. "Deferred" means
+the behavior is exercised by unit/data tests but its browser DOM assertion (client-only components in a
+node/Vitest environment) is recorded as a Known Gap below.
+
+| Plan scenario | Coverage | Status |
+| --- | --- | --- |
+| S1: Mission Workspace derives steps, progress and submission mode | `view-model.test.ts` (13 cases) | Automated |
+| S2: Accepting a mission sets a Thursday deadline with ≥4 working days | `mission-assignments.test.ts` (`computeMissionDeadline` + accept); Missions runner scenario | Automated |
+| S3: A repeat never re-serves a previously-assigned mission | `mission-assignments.test.ts` repeat test; Missions repeat scenarios | Automated |
+| S4: Prerequisite tasks lock the mission's steps until complete | `program-content.test.ts`; Missions "Prerequisite weekly tasks…" scenario | Automated (data); step-lock UI Deferred |
+| S5: Document learning resources upload and download safely | `program-content.test.ts` DOCUMENT test | Automated (data); download route + uploader Deferred |
+| S6: YouTube learning resource gates completion at 90% watched | Manual verification | Deferred (client-only) |
+| S7: Weekly learning tasks unlock sequentially in the workspace | Manual verification; underlying completion via task tests | Deferred (client-only) |
+| S8: Admin Tasks page manages weekly tasks + resources per program | `program-content.test.ts`; Programs/Admin scenarios | Automated (data/actions); collapsible UI Deferred |
+| S9: Admin list pages paginate and filter | `apps/admin/lib/pagination.test.ts` (10 cases) | Automated (logic); page rendering Deferred |
+| S10: Admin Overview reports live tenant counts | Manual verification over already-tested list functions | Deferred (read-only aggregation) |
 
 ## Execution Areas
 

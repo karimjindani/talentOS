@@ -8,6 +8,10 @@ Audience: platform super admins, organization admins, HR reviewers, and tech lea
 
 Required access: Keycloak account with a Back Office role and matching tenant membership where applicable.
 
+> **Screenshots** live in [`screenshots/`](screenshots/) and were captured against the local demo
+> deployment. Regenerate them after seeding the stack (`npm run local:bootstrap`) with
+> `npx tsx scripts/user-guide/capture-screenshots.ts` (see [`scripts/user-guide/capture-screenshots.ts`](../../scripts/user-guide/capture-screenshots.ts)).
+
 ## Purpose
 
 The Back Office/Admin Portal is the operating console for TalentOS. It is used to manage organizations,
@@ -57,6 +61,11 @@ Back Office access requires both:
 - a valid Keycloak realm role, and
 - a matching TalentOS `TenantMembership` for tenant-scoped actions.
 
+Signing in lands on the Back Office overview — a live snapshot of applications, programs and mission
+submissions:
+
+![Back Office overview](screenshots/15-admin-overview.png)
+
 ## Role and Capability Matrix
 
 | Capability | SUPER_ADMIN | ORG_ADMIN | HR | TECH_LEAD |
@@ -90,7 +99,11 @@ Tenant slugs become local subdomains, for example `{slug}.lvh.me`.
 4. Change the status to the appropriate review outcome.
 
 Supported review outcomes include accepted, rejected, waitlisted, and under review. Status changes are
-audited.
+audited. The queue supports search, status/program filters and pagination.
+
+![Applications queue](screenshots/16-admin-applications.png)
+
+![Application review and decision](screenshots/17-admin-application-detail.png)
 
 ## Programs
 
@@ -103,6 +116,10 @@ Organization Admins and Super Admins manage programs.
 5. Archive programs that should no longer appear in the applicant apply flow.
 
 Only published programs are visible to applicants.
+
+![Programs](screenshots/18-admin-programs.png)
+
+![Program detail and publishing](screenshots/19-admin-program-detail.png)
 
 ### Program content (`v0.16.0`)
 
@@ -122,10 +139,23 @@ Each entry can be edited inline or deleted. All changes are audited. HR and Tech
 read-only notice on this page. The page also flags published required tasks that are missing either a
 Markdown or YouTube resource.
 
+![Program content management](screenshots/20-admin-program-content.png)
+
 The demo seed configures three ordered required Week 1 tasks: **Environment Setup**, **Git and GitHub
 Basics**, and **Introduction to AI-Assisted Coding**. Each has Markdown content and a YouTube resource
 record. The final introductory YouTube video is not supplied yet, so its URL is intentionally pending;
 the repository includes a short production outline and does not seed a fake link.
+
+### Tasks (`v0.20.0`)
+
+The top-level **Tasks** sidebar page manages weekly learning tasks and their resources for a chosen
+program without opening the full Program Content page. Search or pick a program, then add or edit
+tasks (each collapses to a `Task N — title` header) and, inline under each task, add multiple learning
+resources — Markdown reading, YouTube video, or an uploaded **Document** (PDF/DOC/DOCX/TXT/image).
+Required tasks gate mission submission; tasks marked **Prerequisite** must be completed before the
+applicant can start the mission's own steps.
+
+![Tasks workspace](screenshots/27-admin-tasks.png)
 
 ## Missions
 
@@ -143,6 +173,10 @@ HR and Tech Lead users can view missions but cannot create, edit, publish, or ar
 The demo program seeds the full four-week mission arc (`v0.15.1`) — Week 1 **Build a Public Product
 Landing Page** (Beginner) through Week 4 **Take TaskPilot to Production** (Expert) — all published
 and visible to accepted applicants.
+
+![Missions authoring list](screenshots/21-admin-missions.png)
+
+![Mission detail and submissions](screenshots/22-admin-mission-detail.png)
 
 ### Reviewing mission submissions (`v0.15.0`)
 
@@ -189,6 +223,8 @@ Tenant settings control white-label presentation.
 
 Branding changes apply to both Applicant and Admin portals for that tenant.
 
+![Tenant settings and branding](screenshots/24-admin-settings.png)
+
 ## Operations
 
 The Operations page is a local-development tool. It is not a production operations console.
@@ -203,13 +239,19 @@ Use it to:
 
 The Operations page must not be used as evidence that production monitoring exists.
 
+![Admin operations health](screenshots/25-admin-operations.png)
+
+The standalone **Local Ops Console** (`http://127.0.0.1:3300`) provides out-of-band health checks,
+regression-suite execution and local reset controls, protected by the same Keycloak session:
+
+![Local Ops Console](screenshots/26-ops-console.png)
+
 ## Known Limitations
 
 - Full Back Office user/role management UI is not complete yet.
 - Production deployment operations, backups, alerting, and monitoring are not covered by this guide.
 - Public recruiter portfolios, hiring intelligence, and automated Engineering Journal scoring remain
   future workflows.
-- Screenshots are not part of this guide yet.
 
 ## Troubleshooting
 

@@ -9,6 +9,10 @@ Audience: applicants and accepted program participants.
 Required access: Keycloak applicant account with the `APPLICANT` role. Dashboard and mission pages require
 an accepted application for the tenant program.
 
+> **Screenshots** live in [`screenshots/`](screenshots/) and were captured against the local demo
+> deployment. Regenerate them after seeding the stack (`npm run local:bootstrap`) with
+> `npx tsx scripts/user-guide/capture-screenshots.ts` (see [`scripts/user-guide/capture-screenshots.ts`](../../scripts/user-guide/capture-screenshots.ts)).
+
 ## Purpose
 
 The Applicant Portal is the participant-facing side of TalentOS. Applicants use it to discover a tenant
@@ -56,6 +60,18 @@ Signing in on a tenant subdomain (`http://<tenant>.lvh.me:3100`) determines whic
 acting in. You may hold an account under more than one tenant; each subdomain shows only that tenant's
 programs and application.
 
+Each tenant has a branded landing page on its own subdomain:
+
+![Tenant landing page](screenshots/01-applicant-home.png)
+
+The portal delegates authentication to Keycloak; new applicants use **Create account**:
+
+![Portal login](screenshots/02-applicant-login.png)
+
+![Keycloak sign-in](screenshots/03-keycloak-signin.png)
+
+![Keycloak self-registration](screenshots/03b-keycloak-register.png)
+
 ## Apply to a Program
 
 1. Open `http://demo.lvh.me:3100/apply`.
@@ -68,6 +84,8 @@ programs and application.
 
 After submission, TalentOS records the application as `SUBMITTED`. Duplicate active applications for the
 same program are blocked.
+
+![Application form](screenshots/04-applicant-apply.png)
 
 ## View Application Status
 
@@ -82,6 +100,8 @@ Common statuses are:
 - `ACCEPTED`
 - `REJECTED`
 - `WAITLISTED`
+
+![Application status](screenshots/05-applicant-application-status.png)
 
 ## Accepted Applicant Dashboard
 
@@ -98,6 +118,18 @@ The dashboard contains:
 - Calendar
 - Notifications
 - Profile
+
+![Dashboard overview](screenshots/06-dashboard-overview.png)
+
+Other dashboard pages — My Program, Calendar, Notifications and Profile:
+
+![My Program](screenshots/14-dashboard-program.png)
+
+![Calendar](screenshots/11-dashboard-calendar.png)
+
+![Notifications](screenshots/12-dashboard-notifications.png)
+
+![Profile](screenshots/13-dashboard-profile.png)
 
 Applicants without an accepted application are redirected back to their application/status flow.
 
@@ -141,6 +173,10 @@ AI-Assisted Coding**. The first guide is **Introduction to TalentOS**. The intro
 pending, so the portal shows that state instead of linking to a fake video. The **Resources** page also
 collects the current program's task-linked material in one read-only view.
 
+![Weekly tasks](screenshots/09-dashboard-tasks.png)
+
+![Learning resources](screenshots/10-dashboard-resources.png)
+
 ## Missions
 
 Missions are the learning-by-building assignments in TalentOS. As of `v0.18.0`, accepted applicants can
@@ -158,6 +194,13 @@ The seeded Week 1 mission is **Build a Public Product Landing Page**.
 
 In `v0.18.0`, Week 1 has multiple seeded variants so interns do not all start with the exact same
 assignment. The assigned mission is the one that appears in your dashboard.
+
+![Missions list](screenshots/07-dashboard-missions.png)
+
+Opening a mission shows the mission workspace — brief, deliverables, the mission steps and the
+submission panel:
+
+![Mission workspace](screenshots/08-dashboard-mission-detail.png)
 
 | Week | Mission | Difficulty |
 | --- | --- | --- |
@@ -294,4 +337,3 @@ not active in this version.
 
 - Real AI journal scoring, weekly AI summaries and portfolio publishing are not implemented yet.
 - Evidence file attachments are not supported yet; journal and mission evidence use URL links.
-- Screenshots are not part of this guide yet.

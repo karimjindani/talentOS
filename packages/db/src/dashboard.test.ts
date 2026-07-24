@@ -69,7 +69,13 @@ describe("dashboard helpers", () => {
     await listProgramTasks("tenant-1", "program-1");
     expect(prismaMock.programTaskFindMany).toHaveBeenCalledWith({
       where: { tenantId: "tenant-1", programId: "program-1" },
-      include: { resources: { where: { tenantId: "tenant-1" }, orderBy: [{ order: "asc" }, { createdAt: "asc" }] } },
+      include: {
+        resources: {
+          where: { tenantId: "tenant-1" },
+          include: { file: { select: { id: true, originalName: true, contentType: true } } },
+          orderBy: [{ order: "asc" }, { createdAt: "asc" }]
+        }
+      },
       orderBy: [{ weekNumber: "asc" }, { order: "asc" }, { createdAt: "asc" }]
     });
   });
@@ -88,7 +94,10 @@ describe("dashboard helpers", () => {
     await listVideoResources("tenant-1", "program-1", 1);
     expect(prismaMock.videoResourceFindMany).toHaveBeenCalledWith({
       where: { tenantId: "tenant-1", programId: "program-1", weekNumber: 1 },
-      include: { task: { select: { id: true, title: true, weekNumber: true } } },
+      include: {
+        task: { select: { id: true, title: true, weekNumber: true } },
+        file: { select: { id: true, originalName: true, contentType: true } }
+      },
       orderBy: [{ weekNumber: "asc" }, { order: "asc" }, { createdAt: "asc" }]
     });
   });

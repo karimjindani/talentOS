@@ -9,6 +9,7 @@ const prismaMock = vi.hoisted(() => ({
   txMissionFindFirst: vi.fn(),
   txMissionFindMany: vi.fn(),
   txMissionAssignmentFindFirst: vi.fn(),
+  txMissionAssignmentFindMany: vi.fn(),
   txMissionAssignmentUpdateMany: vi.fn(),
   txMissionAssignmentCreate: vi.fn(),
   txApplicationFindFirst: vi.fn(),
@@ -104,6 +105,7 @@ describe("submission data access", () => {
         mission: { findFirst: prismaMock.txMissionFindFirst, findMany: prismaMock.txMissionFindMany },
         missionAssignment: {
           findFirst: prismaMock.txMissionAssignmentFindFirst,
+          findMany: prismaMock.txMissionAssignmentFindMany,
           updateMany: prismaMock.txMissionAssignmentUpdateMany,
           create: prismaMock.txMissionAssignmentCreate,
           groupBy: prismaMock.txMissionAssignmentGroupBy
@@ -123,6 +125,7 @@ describe("submission data access", () => {
         missionTaskCompletion: { findMany: prismaMock.txMissionTaskCompletionFindMany }
       })
     );
+    prismaMock.txMissionAssignmentFindMany.mockResolvedValue([]);
     // Tasks 1 & 2 complete by default so existing submit-flow tests are unaffected by the gate;
     // tests for the gate itself override this.
     prismaMock.txMissionTaskCompletionFindMany.mockResolvedValue([{ taskIndex: 1 }, { taskIndex: 2 }]);
@@ -135,8 +138,10 @@ describe("submission data access", () => {
       weekNumber: 1,
       attemptNumber: 1,
       status: "ACCEPTED",
-      deadlineAt: new Date("2026-07-21T00:00:00.000Z"),
-      graceEndsAt: new Date("2026-07-22T00:00:00.000Z"),
+      // Relative to "now" so submit-flow tests that don't pin the clock stay within the live window
+      // regardless of the current date (tests exercising the deadline/grace edges set their own clock).
+      deadlineAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      graceEndsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
       mission: { id: "mission-1", programId: "program-1", weekNumber: 1 }
     });
     prismaMock.txSubmissionCreate.mockResolvedValue({ id: "sub-1" });

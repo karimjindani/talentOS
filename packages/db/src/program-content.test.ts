@@ -16,6 +16,7 @@ const prismaMock = vi.hoisted(() => ({
   txEventUpdateMany: vi.fn(),
   txEventDeleteMany: vi.fn(),
   txEventFindFirstOrThrow: vi.fn(),
+  txStoredFileFindFirst: vi.fn(),
   txAuditLogCreate: vi.fn()
 }));
 
@@ -65,6 +66,7 @@ describe("program content data access", () => {
           deleteMany: prismaMock.txEventDeleteMany,
           findFirstOrThrow: prismaMock.txEventFindFirstOrThrow
         },
+        storedFile: { findFirst: prismaMock.txStoredFileFindFirst },
         auditLog: { create: prismaMock.txAuditLogCreate }
       })
     );
@@ -82,6 +84,7 @@ describe("program content data access", () => {
     prismaMock.txEventUpdateMany.mockResolvedValue({ count: 1 });
     prismaMock.txEventDeleteMany.mockResolvedValue({ count: 1 });
     prismaMock.txEventFindFirstOrThrow.mockResolvedValue({ id: "event-1" });
+    prismaMock.txStoredFileFindFirst.mockResolvedValue({ id: "file-1" });
     prismaMock.txAuditLogCreate.mockResolvedValue({ id: "audit-1" });
   });
 
@@ -149,6 +152,45 @@ describe("program content data access", () => {
     expect(prismaMock.txAuditLogCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: "event.created", entityType: "CalendarEvent" })
     });
+  });
+
+  it("persists the prerequisite flag, defaulting to false when omitted (v0.20.0)", async () => {
+    await createProgramTask({ ...taskInput(), isPrerequisite: true });
+    expect(prismaMock.txTaskCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ isPrerequisite: true, required: true, published: true })
+    });
+
+    await createProgramTask(taskInput());
+    expect(prismaMock.txTaskCreate).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({ isPrerequisite: false })
+    });
+
+    await updateProgramTask({ ...taskInput(), id: "task-1", isPrerequisite: true });
+    expect(prismaMock.txTaskUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isPrerequisite: true }) })
+    );
+  });
+
+  it("stores a document resource with its uploaded file, validating the file belongs to the tenant (v0.20.0)", async () => {
+    await createVideoResource({ ...resourceInput(), type: "DOCUMENT", url: null, markdownContent: null, fileId: "file-1" });
+    expect(prismaMock.txStoredFileFindFirst).toHaveBeenCalledWith({
+      where: { id: "file-1", tenantId: "tenant-1" },
+      select: { id: true }
+    });
+    expect(prismaMock.txResourceCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ type: "DOCUMENT", fileId: "file-1", url: null, markdownContent: null })
+    });
+
+    // A document resource without a file id is rejected.
+    await expect(
+      createVideoResource({ ...resourceInput(), type: "DOCUMENT", url: null, markdownContent: null, fileId: null })
+    ).rejects.toThrow("Upload a document");
+
+    // A file id that doesn't belong to the tenant is rejected.
+    prismaMock.txStoredFileFindFirst.mockResolvedValue(null);
+    await expect(
+      createVideoResource({ ...resourceInput(), type: "DOCUMENT", url: null, markdownContent: null, fileId: "file-x" })
+    ).rejects.toThrow("Uploaded document was not found");
   });
 
   it("stores Markdown content without a URL and rejects unsafe YouTube hosts", async () => {

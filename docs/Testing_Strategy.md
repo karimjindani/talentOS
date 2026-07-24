@@ -1,8 +1,8 @@
 # Testing Strategy
 
-Code version: `v0.19.5`
+Code version: `v0.19.6`
 
-Test evidence commit: `2b3afce`
+Test evidence commit: `08cea25`
 
 ## Goals
 
@@ -447,3 +447,19 @@ runner: Applicant covers completion/future dates/locked journals; Admin and Prog
 content and review context; Missions covers readiness, failed-URL atomicity, selective locking and
 repeat separation; Tenant covers completion/journal boundaries; Unit executes the full Vitest suite.
 See `D-086` through `D-090` and the `v0.19.5` plan/test-results pair.
+
+From `v0.19.6`, the Mission Workspace LMS and curriculum/scheduling changes are protected by pure-logic
+unit tests where a DOM is not required, with client-only UI behavior recorded as explicit Known Gaps.
+New coverage: `apps/applicant/app/dashboard/missions/[id]/view-model.test.ts` (13 cases — step statuses,
+progress, continue target, countdown visibility, submission mode, canSubmit, reviewer feedback);
+`mission-assignments.test.ts` (`computeMissionDeadline` seven-weekday Thursday/≥4-working-day cases, the
+accept path, and repeat exclusion of every prior mission); `program-content.test.ts` (prerequisite-task
+persistence and the `DOCUMENT` resource with in-tenant/foreign `fileId` validation); and
+`apps/admin/lib/pagination.test.ts` (10 cases — page-size clamping, slicing, page-window ellipsis, empty
+list). `submissions.test.ts` was made date-independent by defaulting the assignment deadline relative to
+`now` (previously a hardcoded `2026-07-21/22` date that expired and produced three spurious failures).
+The full Vitest suite is **507 tests across 49 files**. Client-only scenarios — the ≥90% YouTube gate,
+sequential learning-task unlock, applicant step-lock UI, admin collapsible/auto-collapse and page
+rendering, and the Overview aggregation — are deferred to a future jsdom/browser harness and listed as
+Known Gaps in `Regression_Scenarios.md`. See `D-091` through `D-093` and the `v0.19.6` plan/test-results
+pair.

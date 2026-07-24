@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
-import { getTenantContext } from "@talentos/ui";
+import { Card, ProseText, SectionCard, getTenantContext } from "@talentos/ui";
 import { getMissionTasksForAssignment, getTenantBySlug, getUserByEmail, type MissionTaskIndex } from "@talentos/db";
 import { parseYouTubeVideoId } from "@/lib/youtube";
 import { ToggleTaskComplete } from "./ToggleTaskComplete";
@@ -60,67 +60,60 @@ export default async function TaskResourcePage({ params }: TaskResourcePageProps
       <div className="mt-6 grid gap-5">
         {taskIndex === 1 ? (
           <>
-            <Section title="Objective" body={mission.objective} />
-            <Section title="Mission Brief" body={mission.brief} />
+            <SectionCard title="Objective">
+              <ProseText>{mission.objective}</ProseText>
+            </SectionCard>
+            <SectionCard title="Mission Brief">
+              <ProseText>{mission.brief}</ProseText>
+            </SectionCard>
             {mission.competencyTags.length > 0 ? (
-              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-brand-navy">Competencies</h2>
-                <div className="mt-3 flex flex-wrap gap-2">
+              <SectionCard title="Competencies">
+                <div className="flex flex-wrap gap-2">
                   {mission.competencyTags.map((tag) => (
                     <span key={tag} className="rounded-full bg-brand-mist px-3 py-1 text-xs font-semibold text-brand-blue">
                       {tag}
                     </span>
                   ))}
                 </div>
-              </section>
+              </SectionCard>
             ) : null}
           </>
         ) : (
           <>
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-brand-navy">Tutorial</h2>
+            <SectionCard title="Tutorial">
               {youtubeVideoId ? (
-                <div className="mt-3">
-                  <TutorialTaskGate
-                    videoId={youtubeVideoId}
-                    tutorialUrl={tutorialUrl}
-                    assignmentId={assignmentId}
-                    taskIndex={taskIndex as MissionTaskIndex}
-                    complete={task.complete}
-                  />
-                </div>
+                <TutorialTaskGate
+                  videoId={youtubeVideoId}
+                  tutorialUrl={tutorialUrl}
+                  assignmentId={assignmentId}
+                  taskIndex={taskIndex as MissionTaskIndex}
+                  complete={task.complete}
+                />
               ) : tutorialUrl ? (
                 <a
                   href={tutorialUrl}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="mt-3 inline-block break-all text-brand-blue underline"
+                  className="inline-block break-all text-brand-blue underline"
                 >
                   {tutorialUrl}
                 </a>
               ) : (
-                <p className="mt-3 text-sm text-slate-500">No tutorial link has been added for this mission yet.</p>
+                <p className="text-sm text-slate-500">No tutorial link has been added for this mission yet.</p>
               )}
-            </section>
-            <Section title="Required Deliverables" body={mission.deliverables} />
+            </SectionCard>
+            <SectionCard title="Required Deliverables">
+              <ProseText>{mission.deliverables}</ProseText>
+            </SectionCard>
           </>
         )}
       </div>
 
       {taskIndex === 1 || !youtubeVideoId ? (
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <Card className="mt-6">
           <ToggleTaskComplete assignmentId={assignmentId} taskIndex={taskIndex as MissionTaskIndex} complete={task.complete} />
-        </div>
+        </Card>
       ) : null}
     </article>
-  );
-}
-
-function Section({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-brand-navy">{title}</h2>
-      <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{body || "Not specified."}</p>
-    </section>
   );
 }

@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { auth } from "@/auth";
-import { getTenantContext } from "@talentos/ui";
+import { getTenantContext, MissionStatusBadge } from "@talentos/ui";
 import {
   getApplicantMissionProgress,
   getTenantBySlug,
   getUserByEmail,
   listAssignedMissionsWithTasks,
-  listApplicantApplications,
-  type MissionAssignmentStatus
+  listApplicantApplications
 } from "@talentos/db";
 import { DeadlineCountdown } from "@/components/DeadlineCountdown";
 
@@ -62,7 +61,7 @@ export default async function ApplicantMissionsPage() {
                     </p>
                     <h2 className="mt-2 text-xl font-semibold text-brand-navy">{mission.title}</h2>
                   </div>
-                  <MissionSubmissionChip status={assignment.status} />
+                  <MissionStatusBadge status={assignment.status} />
                 </div>
                 <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">{mission.objective || mission.brief}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -84,35 +83,4 @@ export default async function ApplicantMissionsPage() {
       )}
     </div>
   );
-}
-
-function MissionSubmissionChip({ status }: { status: MissionAssignmentStatus | null }) {
-  if (!status) {
-    return (
-      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">Not started</span>
-    );
-  }
-  const styles: Record<MissionAssignmentStatus, string> = {
-    NOT_STARTED: "bg-slate-100 text-slate-700",
-    ACCEPTED: "bg-blue-100 text-blue-700",
-    IN_PROGRESS: "bg-blue-100 text-blue-700",
-    PENDING_EVALUATION: "bg-indigo-100 text-indigo-700",
-    LATE_SUBMITTED: "bg-amber-100 text-amber-800",
-    OVERDUE: "bg-amber-100 text-amber-800",
-    FAILED: "bg-rose-100 text-rose-700",
-    PASSED: "bg-emerald-100 text-emerald-700",
-    REPEAT: "bg-rose-100 text-rose-700"
-  };
-  const labels: Record<MissionAssignmentStatus, string> = {
-    NOT_STARTED: "Not started",
-    ACCEPTED: "Accepted",
-    IN_PROGRESS: "In progress",
-    PENDING_EVALUATION: "Submitted",
-    LATE_SUBMITTED: "Submitted (late)",
-    OVERDUE: "Overdue — grace period",
-    FAILED: "Failed",
-    PASSED: "Accepted",
-    REPEAT: "Repeat assigned"
-  };
-  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${styles[status]}`}>{labels[status]}</span>;
 }

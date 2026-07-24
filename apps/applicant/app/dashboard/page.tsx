@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/auth";
-import { getTenantContext } from "@talentos/ui";
+import { getTenantContext, ProgressBar, SubmissionStatusBadge } from "@talentos/ui";
 import {
   getTenantBySlug,
   getUserByEmail,
@@ -11,9 +11,9 @@ import {
   listUserNotifications,
   getApplicantMissionProgress,
   listCompletedTaskIds,
-  type SubmissionStatus,
 } from "@talentos/db";
 import { DeadlineCountdown } from "@/components/DeadlineCountdown";
+import { CountdownTimer } from "@/components/CountdownTimer";
 
 function formatDate(value: Date | null | undefined) {
   if (!value) return "—";
@@ -69,12 +69,8 @@ export default async function DashboardPage() {
   const currentDeadlineIsLive =
     currentAssignment && ["ACCEPTED", "IN_PROGRESS", "OVERDUE"].includes(currentAssignment.status) && currentAssignment.deadlineAt;
 
-  // Days Remaining is wired to the current mission's own deadline (v0.19.1), not a static program
-  // end date — it only exists once that mission has been accepted.
-  const now = new Date();
-  const daysRemaining = currentAssignment?.deadlineAt
-    ? Math.max(0, Math.ceil((new Date(currentAssignment.deadlineAt).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-    : null;
+  // Time Remaining is wired to the current mission's own deadline (v0.19.1), not a static program
+  // end date — it only ticks once that mission has been accepted (see the live countdown below).
 
   return (
     <div>
@@ -94,9 +90,7 @@ export default async function DashboardPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Overall Progress</p>
           <p className="mt-2 text-2xl font-bold text-brand-blue">{overallPercentage}%</p>
-          <div className="mt-2 h-2 rounded-full bg-slate-100">
-            <div className="h-2 rounded-full bg-brand-blue" style={{ width: `${overallPercentage}%` }} />
-          </div>
+          <ProgressBar className="mt-2" value={overallPercentage} aria-label="Overall progress" />
           <p className="mt-1 text-xs text-slate-500">accepted missions</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -112,8 +106,18 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">Days Remaining</p>
-          <p className="mt-2 text-2xl font-bold text-brand-navy">{daysRemaining ?? "—"}</p>
+          <p className="text-sm font-medium text-slate-500">Time Remaining</p>
+          <p className="mt-2 text-xl font-bold text-brand-navy">
+            {currentDeadlineIsLive && currentAssignment?.deadlineAt ? (
+              <CountdownTimer
+                deadlineAt={currentAssignment.deadlineAt}
+                graceEndsAt={currentAssignment.graceEndsAt}
+                variant="plain"
+              />
+            ) : (
+              "—"
+            )}
+          </p>
           <p className="mt-1 text-xs text-slate-500">
             {currentAssignment?.status === "NOT_STARTED" || !currentAssignment
               ? "accept your current mission to start the clock"
@@ -133,17 +137,13 @@ export default async function DashboardPage() {
           </div>
           <div className="space-y-3">
             {missionProgress.weeks.map((week) => (
-              <div key={week.weekNumber}>
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className="font-medium text-slate-700">Week {week.weekNumber}</span>
-                  <span className="text-slate-500">
-                    {week.acceptedMissions}/{week.totalMissions} missions · {week.percentage}%
-                  </span>
-                </div>
-                <div className="h-2 rounded-full bg-slate-100">
-                  <div className="h-2 rounded-full bg-brand-blue" style={{ width: `${week.percentage}%` }} />
-                </div>
-              </div>
+              <ProgressBar
+                key={week.weekNumber}
+                value={week.percentage}
+                label={`Week ${week.weekNumber}`}
+                valueText={`${week.acceptedMissions}/${week.totalMissions} missions · ${week.percentage}%`}
+                aria-label={`Week ${week.weekNumber} progress`}
+              />
             ))}
           </div>
         </div>
@@ -166,7 +166,7 @@ export default async function DashboardPage() {
               </p>
               <p className="mt-1 text-base font-semibold text-slate-800">{missionProgress.currentMission.title}</p>
               <div className="mt-3">
-                <SubmissionStatusChip status={missionProgress.currentMission.submissionStatus} />
+                <SubmissionStatusBadge status={missionProgress.currentMission.submissionStatus} />
               </div>
               {currentDeadlineIsLive && currentAssignment?.deadlineAt && currentAssignment.graceEndsAt ? (
                 <div className="mt-3">
@@ -271,29 +271,4 @@ export default async function DashboardPage() {
       </div>
     </div>
   );
-}
-
-function SubmissionStatusChip({ status }: { status: SubmissionStatus | null }) {
-  if (!status) {
-    return (
-      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">Not started</span>
-    );
-  }
-  const styles: Record<SubmissionStatus, string> = {
-    DRAFT: "bg-slate-100 text-slate-700",
-    SUBMITTED: "bg-blue-100 text-blue-700",
-    REVIEWED: "bg-slate-100 text-slate-700",
-    NEEDS_REVISION: "bg-amber-100 text-amber-800",
-    ACCEPTED: "bg-emerald-100 text-emerald-700",
-    REPEAT: "bg-rose-100 text-rose-700"
-  };
-  const labels: Record<SubmissionStatus, string> = {
-    DRAFT: "Draft saved",
-    SUBMITTED: "Submitted — awaiting review",
-    REVIEWED: "Reviewed",
-    NEEDS_REVISION: "Revision requested",
-    ACCEPTED: "Accepted",
-    REPEAT: "Repeat assigned"
-  };
-  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${styles[status]}`}>{labels[status]}</span>;
 }

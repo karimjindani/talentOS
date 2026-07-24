@@ -34,6 +34,8 @@ export type VideoResourceInput = {
   weekNumber: number | null;
   order: number;
   durationSeconds: number | null;
+  /** Set for DOCUMENT resources — the uploaded StoredFile id. Ignored for other types. */
+  fileId?: string | null;
   actorUserId: string | null;
 };
 
@@ -50,18 +52,33 @@ async function normalizeLearningResourceInput(tx: Prisma.TransactionClient, inpu
     weekNumber = task.weekNumber;
   }
 
+  if (input.type === LearningResourceType.DOCUMENT) {
+    if (!input.fileId) {
+      throw new Error("Upload a document for a document resource.");
+    }
+    // Confirm the file exists and belongs to this tenant before linking it.
+    const file = await tx.storedFile.findFirst({
+      where: { id: input.fileId, tenantId: input.tenantId },
+      select: { id: true }
+    });
+    if (!file) {
+      throw new Error("Uploaded document was not found for this tenant.");
+    }
+    return { weekNumber, url: null, markdownContent: null, fileId: input.fileId };
+  }
+
   if (input.type === LearningResourceType.MARKDOWN) {
     const markdownContent = input.markdownContent?.trim();
     if (!markdownContent) {
       throw new Error("Markdown content is required for a Markdown resource.");
     }
-    return { weekNumber, url: null, markdownContent };
+    return { weekNumber, url: null, markdownContent, fileId: null };
   }
 
   if (input.url) {
     validateYouTubeUrl(input.url);
   }
-  return { weekNumber, url: input.url, markdownContent: null };
+  return { weekNumber, url: input.url, markdownContent: null, fileId: null };
 }
 
 function validateYouTubeUrl(value: string): void {
@@ -98,7 +115,8 @@ export function createVideoResource(input: VideoResourceInput) {
         description: input.description,
         weekNumber: normalized.weekNumber,
         order: input.order,
-        durationSeconds: input.durationSeconds
+        durationSeconds: input.durationSeconds,
+        fileId: normalized.fileId
       }
     });
 
@@ -133,7 +151,8 @@ export function updateVideoResource(input: UpdateVideoResourceInput) {
         description: input.description,
         weekNumber: normalized.weekNumber,
         order: input.order,
-        durationSeconds: input.durationSeconds
+        durationSeconds: input.durationSeconds,
+        fileId: normalized.fileId
       }
     });
     if (result.count === 0) {
@@ -195,6 +214,8 @@ export type ProgramTaskInput = {
   dueAt: Date | null;
   required: boolean;
   published: boolean;
+  /** When true, the mission's steps stay locked until the applicant completes this task. */
+  isPrerequisite?: boolean;
   actorUserId: string | null;
 };
 
@@ -212,7 +233,8 @@ export function createProgramTask(input: ProgramTaskInput) {
         order: input.order,
         dueAt: input.dueAt,
         required: input.required,
-        published: input.published
+        published: input.published,
+        isPrerequisite: input.isPrerequisite ?? false
       }
     });
 
@@ -244,7 +266,8 @@ export function updateProgramTask(input: UpdateProgramTaskInput) {
         order: input.order,
         dueAt: input.dueAt,
         required: input.required,
-        published: input.published
+        published: input.published,
+        isPrerequisite: input.isPrerequisite ?? false
       }
     });
     if (result.count === 0) {

@@ -1,9 +1,18 @@
 # Data Model
 
-Code version: `v0.19.5`
+Code version: `v0.19.6`
 
-Schema evidence commit: `2b3afce`
+Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
 
+> `v0.19.6` (Mission Workspace LMS, Curriculum Tooling & Thursday Scheduling, D-091–D-093) evolves the
+> same models rather than adding new ones: `LearningResourceType` gains `DOCUMENT`; `VideoResource`
+> gains a nullable `fileId` relation to `StoredFile` (`onDelete: SetNull`) so a document resource links
+> the uploaded file applicants download; `ProgramTask` gains `isPrerequisite` (default `false`) which
+> locks the mission's own steps until complete. Mission deadlines are computed on a Thursday /
+> ≥4-working-day cadence at acceptance rather than from raw `deadlineHours` (no schema change), and a
+> repeat excludes every mission the applicant already had. Migrations:
+> `20260723120000_learning_resource_document`, `20260723140000_program_task_prerequisite`.
+>
 > `v0.19.5` weekly-task/submission-readiness work evolves the existing `ProgramTask`, `VideoResource`,
 > and `UserTaskCompletion` models instead of creating parallel models. Tasks remain scoped by
 > tenant/program/week and gain `required` and `published` flags. The legacy-named `VideoResource`
@@ -215,6 +224,7 @@ erDiagram
     User ||--o{ StoredFile : uploads
     Application |o--o| StoredFile : "CV"
     Tenant |o--o| StoredFile : "logo"
+    StoredFile ||--o{ VideoResource : "document for (v0.19.6)"
     Tenant ||--o{ PortfolioArtifact : owns
     Tenant ||--o{ Certificate : owns
     Tenant ||--o{ KnowledgeBaseDocument : owns

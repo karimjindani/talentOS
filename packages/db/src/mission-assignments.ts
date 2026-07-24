@@ -3,6 +3,39 @@ import { prisma } from "./client";
 
 export const DEFAULT_ASSIGNMENT_WEEK = 1;
 
+const REQUIRED_WORKING_DAYS = 4; // Monday–Thursday
+const THURSDAY = 4; // Date.getUTCDay(): Sunday = 0 … Thursday = 4
+
+function isWorkingDay(day: number): boolean {
+  return day >= 1 && day <= THURSDAY; // Mon(1)–Thu(4)
+}
+
+/**
+ * Mission deadline that always lands on a Thursday (a consistent submission cadence) while
+ * guaranteeing the applicant at least four working days (Mon–Thu) from acceptance. Counting Mon–Thu
+ * days from the acceptance date forward, we advance to the first Thursday by which ≥4 working days
+ * have elapsed:
+ *   • Accepted Mon → that same-week Thursday (Mon–Thu = 4 working days).
+ *   • Accepted Tue/Wed/Thu → the following Thursday (this week would give < 4).
+ *   • Accepted Fri/Sat/Sun → the next Thursday (the upcoming Mon–Thu = 4 working days).
+ * Computed in UTC; the deadline is the end of that Thursday (23:59:59.999 UTC).
+ */
+export function computeMissionDeadline(acceptedAt: Date): Date {
+  const cursor = new Date(Date.UTC(acceptedAt.getUTCFullYear(), acceptedAt.getUTCMonth(), acceptedAt.getUTCDate()));
+  let workingDays = 0;
+  for (let i = 0; i < 21; i += 1) {
+    const day = cursor.getUTCDay();
+    if (isWorkingDay(day)) workingDays += 1;
+    if (day === THURSDAY && workingDays >= REQUIRED_WORKING_DAYS) {
+      cursor.setUTCHours(23, 59, 59, 999);
+      return cursor;
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  cursor.setUTCHours(23, 59, 59, 999);
+  return cursor;
+}
+
 export type MissionAssignmentInput = {
   tenantId: string;
   programId: string;
@@ -216,7 +249,9 @@ export async function acceptMissionAssignmentTx(
   }
 
   const acceptedAt = new Date();
-  const deadlineAt = new Date(acceptedAt.getTime() + assignment.mission.deadlineHours * 60 * 60 * 1000);
+  // Deadline follows the Thursday / four-working-days cadence rather than the mission's raw
+  // deadlineHours, so every applicant gets ≥4 working days regardless of when they accept.
+  const deadlineAt = computeMissionDeadline(acceptedAt);
   const graceEndsAt = new Date(deadlineAt.getTime() + assignment.mission.gracePeriodHours * 60 * 60 * 1000);
 
   return tx.missionAssignment.update({
@@ -290,13 +325,26 @@ export async function createRepeatMissionForSameWeekTx(
     throw new Error("Only the applicant's latest assignment attempt can be repeated.");
   }
 
+  // A mission is assigned to an applicant at most once: exclude every mission they've already been
+  // assigned for this week (not only the one just failed), so a repeat never re-serves an old mission.
+  const priorAssignments = await tx.missionAssignment.findMany({
+    where: {
+      tenantId: assignment.tenantId,
+      programId: assignment.programId,
+      applicantId: assignment.applicantId,
+      weekNumber: assignment.weekNumber
+    },
+    select: { missionId: true }
+  });
+  const assignedMissionIds = [...new Set(priorAssignments.map((prior) => prior.missionId))];
+
   const alternateMissions = await tx.mission.findMany({
     where: {
       tenantId: assignment.tenantId,
       programId: assignment.programId,
       weekNumber: assignment.weekNumber,
       status: "PUBLISHED",
-      id: { not: assignment.missionId }
+      id: { notIn: assignedMissionIds }
     },
     select: { id: true, title: true, order: true },
     orderBy: [{ order: "asc" }, { title: "asc" }]

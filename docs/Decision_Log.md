@@ -1013,3 +1013,103 @@ features need their own versioned plan and security/test review.
 Date: 2026-07-19
 
 Status: Implemented; pending baseline review
+
+## D-091
+
+**Decision:** Rebuild the applicant mission page as a tabbed Mission Workspace whose presentation is
+driven by a pure `view-model.ts`, unit-tested through `view-model.test.ts`, rather than embedding step,
+progress, countdown and submission-mode logic in the React components. Client-only behavior (the ≥90%
+YouTube gate, sequential learning-task unlock, tab switching) is verified through extracted logic and
+manual container checks, with DOM assertions recorded as Known Gaps.
+
+**Rationale:** The prior page mixed business rules into markup, making the LMS redesign risky to test.
+Concentrating all derivable state in one pure module keeps every existing mission/assignment/submission
+rule intact and unit-testable in the node/Vitest environment, which renders no DOM.
+
+**Alternatives considered:** Add a jsdom/browser harness this iteration to assert the client components
+directly; keep the logic inline and rely only on regression scenarios. The first expands scope beyond
+the redesign; the second leaves the new gating logic uncovered.
+
+**Impact:** The workspace reuses all `@talentos/db` reads/actions and gating; a future jsdom/browser
+harness is the tracked follow-up for the deferred client-only scenarios.
+
+Date: 2026-07-23
+
+Status: Implemented; pending baseline review
+
+## D-092
+
+**Decision:** Extend program curriculum with a `DOCUMENT` `LearningResourceType` and an
+`isPrerequisite` `ProgramTask` flag rather than new tables. A `DOCUMENT` resource links a `StoredFile`
+via `VideoResource.fileId` validated to belong to the tenant (missing or foreign files rejected) through
+the existing presign→storage→confirm flow; prerequisite tasks lock the mission's own steps until
+complete. Admin curriculum management moves to a top-level **Tasks** page reusing the existing
+`manageProgramContent`-guarded content actions.
+
+**Rationale:** The `VideoResource`/`ProgramTask` ownership and audit paths already fit program content
+and tenant scoping, so extending them is smaller and lower-risk than new resource/file relations. No new
+write authority is introduced.
+
+**Alternatives considered:** A dedicated document/resource table and a separate prerequisite-relation
+model; a bespoke upload path outside the presign/confirm flow. Both add schema/runtime complexity
+without a business need at current volumes.
+
+**Impact:** Admins manage Markdown/YouTube/Document resources and prerequisites through the existing
+permission boundary; the applicant download route and step-lock UI are recorded Known Gaps for a
+follow-up iteration.
+
+Date: 2026-07-23
+
+Status: Implemented; pending baseline review
+
+## D-093
+
+**Decision:** Change mission deadlines to a Thursday cadence with at least four Mon–Thu working days
+(computed in UTC via `computeMissionDeadline`) instead of raw `deadlineHours`, and make a `REPEAT`
+exclude every mission the applicant already had that week (`id: { notIn: [...all prior] }`), not only
+the failed one; when none remain the application moves to `AWAITING_MISSION_ASSIGNMENT` and reviewers
+are notified.
+
+**Rationale:** A predictable weekly deadline and a repeat that never re-serves a previously-seen mission
+match the intended program rhythm and fairness, without touching the mission engine, assignment
+selection or submission state machine.
+
+**Alternatives considered:** Keep raw `deadlineHours`; exclude only the failed mission on repeat; add a
+per-tenant timezone for the cadence now. The first two reproduce the current behavior; per-tenant
+timezone is deferred as future work (the cadence is UTC for now).
+
+**Impact:** Every acceptance lands on a Thursday with grace after it; repeats draw only from unseen
+week-N missions and escalate cleanly when exhausted.
+
+Date: 2026-07-23
+
+Status: Implemented; pending baseline review
+
+## D-094
+
+**Decision:** Refresh `docs/Product_Backlog.md` to reflect delivery through `v0.19.6`. Advance the
+backlog's declared code version from `v0.18.2` to `v0.19.6`; record the `v0.18.5`–`v0.19.6` mission
+lifecycle, mission-driven tasks, dashboard wiring, weekly learning tasks + submission readiness, and
+the mission-workspace / LMS curriculum tooling / Thursday-scheduling arc under the Missions module;
+and reclassify **AI Mentor** from an open "boundary" slice to delivered (`v0.19.3`, D-084). This is a
+documentation-only sync folded into the `v0.19.6` iteration, mirroring the earlier backlog refreshes
+recorded as D-070 (`v0.16.2`) and D-077 (`v0.18.2`); no plan/test-results pair is created because no
+code, schema, or test scenario changes.
+
+**Rationale:** The backlog had drifted four iterations behind the shipped code and still listed
+already-delivered capabilities (most visibly AI Mentor) as remaining, which misrepresents the true
+remaining MVP scope. Every reconciled line is traceable to an existing Decision_Log entry
+(D-080..D-093), so the refresh records only what was actually delivered.
+
+**Alternatives considered:** Allocate a new patch version (`v0.19.7`) for the doc-only change; leave
+the backlog stale until the next feature iteration. The first over-weights a routine documentation
+sync that has precedent for folding into the current iteration; the second perpetuates a backlog that
+contradicts the delivered code.
+
+**Impact:** The backlog now declares `v0.19.6` and accurately separates delivered work from the
+genuinely remaining slices (IAM Admin Users/Roles UI, standalone Knowledge Base, GitHub Integration,
+Portfolio, Certificates, Leaderboard, Hiring Recommendations, and the V2/V3 items).
+
+Date: 2026-07-24
+
+Status: Implemented; pending baseline review

@@ -35,6 +35,9 @@ export async function setTaskCompletionAction(
     revalidatePath(`/dashboard/tasks/${assignmentId}/${taskIndex}`);
     revalidatePath("/dashboard/tasks");
     revalidatePath("/dashboard");
+    // The Mission Workspace (v0.20.0) renders these same step toggles inline, so keep every
+    // instance of the mission detail route fresh after a step is (un)completed.
+    revalidatePath("/dashboard/missions/[id]", "page");
     return { ok: true, error: null };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Something went wrong. Try again." };
