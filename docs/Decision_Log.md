@@ -1084,3 +1084,32 @@ week-N missions and escalate cleanly when exhausted.
 Date: 2026-07-23
 
 Status: Implemented; pending baseline review
+
+## D-094
+
+**Decision:** Refresh `docs/Product_Backlog.md` to reflect delivery through `v0.19.6`. Advance the
+backlog's declared code version from `v0.18.2` to `v0.19.6`; record the `v0.18.5`–`v0.19.6` mission
+lifecycle, mission-driven tasks, dashboard wiring, weekly learning tasks + submission readiness, and
+the mission-workspace / LMS curriculum tooling / Thursday-scheduling arc under the Missions module;
+and reclassify **AI Mentor** from an open "boundary" slice to delivered (`v0.19.3`, D-084). This is a
+documentation-only sync folded into the `v0.19.6` iteration, mirroring the earlier backlog refreshes
+recorded as D-070 (`v0.16.2`) and D-077 (`v0.18.2`); no plan/test-results pair is created because no
+code, schema, or test scenario changes.
+
+**Rationale:** The backlog had drifted four iterations behind the shipped code and still listed
+already-delivered capabilities (most visibly AI Mentor) as remaining, which misrepresents the true
+remaining MVP scope. Every reconciled line is traceable to an existing Decision_Log entry
+(D-080..D-093), so the refresh records only what was actually delivered.
+
+**Alternatives considered:** Allocate a new patch version (`v0.19.7`) for the doc-only change; leave
+the backlog stale until the next feature iteration. The first over-weights a routine documentation
+sync that has precedent for folding into the current iteration; the second perpetuates a backlog that
+contradicts the delivered code.
+
+**Impact:** The backlog now declares `v0.19.6` and accurately separates delivered work from the
+genuinely remaining slices (IAM Admin Users/Roles UI, standalone Knowledge Base, GitHub Integration,
+Portfolio, Certificates, Leaderboard, Hiring Recommendations, and the V2/V3 items).
+
+Date: 2026-07-24
+
+Status: Implemented; pending baseline review
