@@ -1,10 +1,13 @@
 # Decision Log
 
-Code version: `v0.18.4`
+Code version: `v0.19.5`
 
-Architecture baseline commit: `4e2390ce270ef1e049652495885d792a0cbed959`
+Architecture evidence commit: `2b3afce`
 
-Current documentation update: `v0.18.4`
+Current documentation update: `v0.19.5`
+
+Allocation note: `D-085` is reserved by active remote branch
+`origin/fix/v0.19.4-mission-task-checklist`; this branch therefore continues at `D-086`.
 
 ## D-001
 
@@ -636,12 +639,12 @@ auditing `v0.17.0`–`v0.18.0`: `D-073`'s Engineering Journal plan
 scenario-level test cases, so the feature shipped with strong unit coverage
 (`journal.test.ts`, 23 tests) and **zero scenario-level regression coverage** — a gap only surfaced
 later by manual audit, not by any process check. Decision: require every implementation plan to use a
-new required template, [`docs/plans/TEMPLATE.md`](../plans/TEMPLATE.md), whose **Test Scenarios**
+new required template, [`docs/plans/TEMPLATE.md`](plans/TEMPLATE.md), whose **Test Scenarios**
 section forces end-to-end/behavioral scenarios to be named before or during implementation — actor,
 preconditions, steps, expected result, and an explicit automation call (added this iteration, or
 deferred with a stated reason). Every scenario named there must be reflected in
 `docs/Regression_Scenarios.md` in the same iteration — automated or as an explicit Known Gap — and
-every test-results doc must use the new [`docs/testing/TEMPLATE.md`](../testing/TEMPLATE.md), which
+every test-results doc must use the new [`docs/testing/TEMPLATE.md`](testing/TEMPLATE.md), which
 requires one Scenario Results row per plan scenario so a plan can no longer ship without its scenarios
 being either verified or explicitly and visibly deferred. `docs/sdlc.md` (Version and Documentation
 Control, rule 7), `CONTRIBUTING.md` and `.github/pull_request_template.md` are updated to point at the
@@ -740,3 +743,419 @@ sentinel. Mock updated to simulate SSE stream. All 19 tests passing. (5) **Docum
 The regression suite is unchanged.
 
 Status: Approved
+
+## D-080
+
+`v0.18.5` gives every `MissionAssignment` an explicit time-boxed lifecycle instead of an open-ended
+`ACTIVE` state. Decisions: (1) **Explicit accept, not assignment time, starts the clock** —
+`acceptMissionAssignment` is a new applicant-initiated transition (`NOT_STARTED → ACCEPTED`) that
+computes `deadlineAt`/`graceEndsAt` from the mission's own `deadlineHours`/`gracePeriodHours` at the
+moment of acceptance; an assignment the applicant never accepts never expires, so an applicant is
+never penalized for a mission sitting unopened. (2) **`MissionAssignmentStatus` is rebuilt** as
+`NOT_STARTED → ACCEPTED → IN_PROGRESS → PENDING_EVALUATION | LATE_SUBMITTED`, with `OVERDUE`
+(deadline passed, still inside grace) and terminal `FAILED` (grace expired) as deadline-driven side
+states alongside the existing `PASSED`/`REPEAT` review outcomes — replacing the `v0.18.0`
+`ACTIVE`/`SUBMITTED` two-state model. (3) **Deadline enforcement is an external, idempotent
+scheduled job, not a request-time check** — per explicit product direction ("I prefer keeping
+scheduled background tasks separate from the app process, especially for future scaling"),
+`sweepMissionDeadlines` (`packages/db/src/mission-deadlines.ts`) runs via a standalone script
+(`scripts/mission-deadlines/sweep.ts`, `npm run mission-deadlines:sweep`) intended for an external
+cron, not a Next.js route or middleware. Idempotency is structural, not flag-based: each of the two
+sweep phases (`ACCEPTED|IN_PROGRESS` past `deadlineAt` → `OVERDUE`; `OVERDUE` past `graceEndsAt` →
+`FAILED` + `Application.status = DISQUALIFIED`) is a status-scoped `updateMany`, so re-running the
+sweep any number of times can never double-transition or double-notify — a run that finds nothing
+in the source status is a pure no-op. (4) **A late submission inside the grace period still
+counts** — evidence submitted after `deadlineAt` but before `graceEndsAt` is accepted and recorded
+as `LATE_SUBMITTED` rather than rejected, since the grace period's whole purpose is to tolerate
+exactly this. (5) **Acceptance auto-advances the applicant, capped at the final week** — accepting
+a submission creates the next week's assignment automatically (`FINAL_PROGRAM_WEEK = 4`); accepting
+Week 4 creates no Week 5. (6) **Rejection reassigns, never resets to a stale mission** — a `REPEAT`
+decision creates a new assignment for a different published mission (this version: back at Week 1);
+if no alternate mission exists, no assignment is created, `Application.status` becomes
+`AWAITING_MISSION_ASSIGNMENT`, and every `ORG_ADMIN`/`TECH_LEAD` in the tenant is notified to assign
+one manually — the failed mission is never reassigned and the applicant is never removed. (7)
+**A missed deadline is terminal for now, by explicit product decision** — grace-period expiry sets
+`Application.status = DISQUALIFIED` with no rejoin path; "For now, we can leave it at that. Later we
+will see what happens if person wants to apply again. Maybe Back Office admin allows them to rejoin
+program from Week 1" is recorded as deferred future work, not a gap to silently fill. Migration:
+`20260714090000_mission_deadlines_and_lifecycle`. All new end-to-end scenarios (accept, sweep
+transitions, late-submission acceptance, auto-advance cap, reject-reassignment,
+FAILED-blocks-resubmission) are unit-tested but deferred at the scenario-regression level — recorded
+in `docs/Regression_Scenarios.md` Known Gaps rather than silently missing, per `D-076`.
+
+**Process note:** this baseline, `D-081` (`v0.19.0`) and `D-082` (`v0.19.1`) all ship from a single
+implementation commit instead of one commit per version — the same kind of accepted one-time
+exception already recorded for `v0.17.0`–`v0.18.0` under `D-073`, since all three versions were
+built in one continuous session before any of it was committed. See the process note in
+`docs/Version_Baseline.md`.
+
+Plan: `docs/plans/v0.18.5_Mission_Deadline_Lifecycle.md`; results:
+`docs/testing/v0.18.5_Mission_Deadline_Lifecycle_Test_Results.md`.
+
+Status: Approved
+
+## D-081
+
+`v0.19.0` replaces the applicant Tasks/Resources experience — previously driven by the legacy
+program-level `ProgramTask`/`VideoResource` content unrelated to the mission actually being worked
+— with a fixed, mission-derived 3-task template, and gives reviewers a cross-mission admin
+Submissions tab. Decisions: (1) **Tasks are a fixed template per mission assignment, not
+admin-authored** — every assignment gets exactly three tasks (Review the Mission Brief, Study the
+Tutorial, Build & Submit Evidence); only `MissionTaskCompletion` (task 1/2) is a real row per
+attempt, task 3 is derived implicitly from `Submission.status` moving beyond `DRAFT`/
+`NEEDS_REVISION` rather than getting its own completion row, since "submitted" already is that
+task's completion signal. (2) **Submission is gated on tasks 1 and 2** — `saveSubmissionDraft`/
+`submitSubmission` reject a submit attempt until `areRequiredMissionTasksComplete` is true, matching
+the product requirement that an applicant "can only submit mission for review after complete that
+week/mission tasks." (3) **YouTube watch-gate uses the IFrame Player API's `onStateChange` event,
+not a timer or a client-trusted flag** — Task 2's "Mark as complete" stays disabled until
+`YT.PlayerState.ENDED` fires, so a mission author's tutorial video must actually play through; a
+mission with no `tutorialUrl` has no gate at all — task 2 completes directly. (4) **Legacy tables
+are kept, not migrated or deleted** — by explicit product decision ("Yes, keep the tables, just
+leave them unused for now"), `ProgramTask`/`VideoResource`/`UserTaskCompletion` remain real tables
+with no application code reading or writing them; only the applicant Tasks/Resources UI and the
+admin Program Content authoring page (which now manages only Calendar Events) stop using them. (5)
+**The Submissions admin tab introduces no new authorization surface** — `/submissions` reuses the
+existing `reviewSubmissions` capability and the existing per-submission review page; it is purely a
+cross-mission list/filter view (`listTenantSubmissions`) so reviewers no longer have to open each
+mission individually to find what needs review. (6) **Security fix folded into this iteration**: an
+automated review flagged `mission.tutorialUrl` rendered as a raw `<a href>` with no scheme
+validation (a `javascript:` URI XSS vector); fixed on both the write side (`parseOptionalHttpUrl` in
+the admin mission form action, rejecting non-http/https schemes) and the read side (a defensive
+scheme re-check before rendering the link on the applicant task page). Migration:
+`20260714110000_mission_tasks`. As with `D-080`, the new end-to-end scenarios (submission gating,
+watch-gate, Submissions tab reachability) are unit- and manually-tested but deferred at the
+scenario-regression level — see `docs/Regression_Scenarios.md` Known Gaps.
+
+Plan: `docs/plans/v0.19.0_Mission_Driven_Tasks.md`; results:
+`docs/testing/v0.19.0_Mission_Driven_Tasks_Test_Results.md`.
+
+Status: Approved
+
+## D-082
+
+`v0.19.1` is a patch correcting two remaining gaps from `D-080`/`D-081` without any schema change.
+(1) **Dashboard/Program/Tasks/Missions now read the real mission-lifecycle data** those two
+versions introduced instead of program-level placeholders: the Dashboard "Days Remaining" stat and
+every "current mission" card derive from the actual assignment's `deadlineAt` (not
+`Program.endsAt`); My Program's Start/End dates derive from the Week 1 assignment's `acceptedAt` +
+4 weeks; the live `DeadlineCountdown` is confirmed to appear only next to the current,
+unsubmitted mission — never a not-yet-accepted or already-resolved one — matching the explicit
+placement instruction ("add this on the mission page not in mission brief and my programm weeks,
+this only shows in the current or unsubmitted missions"). (2) **Reject-reassignment is corrected
+from "reset to Week 1" to "repeat the same week"** — per explicit product direction ("Reviewer
+Rejects Work -> Repeat the same week with different mission"), `createRepeatFromWeekOneTx` is
+renamed `createRepeatMissionForSameWeekTx` and now takes the failed assignment's own `weekNumber`
+instead of assuming `1`; a Week 3 rejection now reassigns a different Week 3 mission, not a fresh
+Week 1 attempt. The no-alternate-mission fallback (`AWAITING_MISSION_ASSIGNMENT` + reviewer
+notification, `D-080`) is unchanged in behavior, only now correctly scoped to the failed week. This
+pairs with the earlier `D-080` decision to leave a missed-deadline `DISQUALIFIED` applicant with no
+rejoin path for now — that remains deferred; only the *reject* (reviewer-driven) path changes here,
+not the *missed-deadline* (system-driven) path. No product code beyond the wiring/rename above; no
+migration.
+
+Plan: `docs/plans/v0.19.1_Dashboard_Wiring_And_Same_Week_Repeat.md`; results:
+`docs/testing/v0.19.1_Dashboard_Wiring_And_Same_Week_Repeat_Test_Results.md`.
+
+Status: Approved
+
+## D-083
+
+`v0.19.2` is a patch bundling two small, unrelated fixes that predate the `v0.18.5`–`v0.19.1`
+mission-lifecycle work but were left uncommitted until now. (1) **Logout regression restored** —
+the `v0.14.3`/D-066 applicant dashboard sidebar Logout button had gone missing: the
+`feat/applicant-ai-mentor-skeleton` branch (merged via PR #45) reverted part of an earlier
+main-branch merge that had added it, silently trapping accepted applicants in the dashboard with no
+sign-out (the dashboard shell replaces `PortalHeader` entirely, so it must carry its own logout
+affordance). The fix restores the `<form action={logoutAction}>` button in `ApplicantShell.tsx`,
+reusing the existing OIDC RP-initiated logout action unchanged. A `vitest.config.ts` alias gap
+surfaced in the process: `apps/applicant/tsconfig.json`'s `"@/*" -> "./*"` path was never mirrored
+in the Vitest resolver, so `ApplicantShell.test.ts` (which now imports the logout action through
+`@/lib/logout-action`) could not resolve the module; a scoped `@/(.+)` → `apps/applicant/$1` alias
+fixes this, and the test mocks the logout action the same way
+`apps/applicant/lib/logout-action.test.ts` already does (the real chain pulls in `next-auth` →
+`next/server`, which needs the Next.js runtime and isn't resolvable under plain Vitest). (2) **A new
+`AGENTS.md` "Confirmation Gates" section** requires any agent working in this repo to stop and ask
+for explicit user confirmation before (a) starting the documentation-update process for a versioned
+iteration, or (b) pushing commits to a remote branch — closing a gap where the repo's process docs
+described *what* to do for versioning and pushing but never said to check in with the user first.
+No schema change; no migration; unit suite unchanged at 427 tests across 43 files.
+
+Plan: `docs/plans/v0.19.2_Logout_Regression_And_Confirmation_Gates.md`; results:
+`docs/testing/v0.19.2_Logout_Regression_And_Confirmation_Gates_Test_Results.md`.
+
+Status: Approved
+
+## D-084
+
+`v0.19.3` is a patch addressing three AI Mentor issues and a test infrastructure problem.
+(1) **RBSE personal-name blocking** — the Rule-Based System Engine allowed questions like
+"explain hitesh" to reach the GLM LLM because "explain" is an allowed topic. Regex patterns
+(`PERSONAL_NAME_PATTERNS`) now catch "explain \<Name\>", "who is \<Name\>", "tell me about
+\<Name\>", "describe \<Name\>", and "what do you know about \<Name\>" at the RBSE layer, with a
+`NAME_PATTERN_ALLOWLIST` ensuring technical terms (SDLC, testing, deployment, etc.) still pass.
+RBSE also now always runs regardless of conversation history — previously multi-turn conversations
+bypassed RBSE entirely via a `conversationHistory.length > 0` check. (2) **Token usage tracking**
+— the GLM streaming request was missing `stream_options.include_usage`, so the SSE stream never
+included token counts (logs showed `tokens=?`). Adding `stream_options: { include_usage: true }`
+fixes this. (3) **Test isolation** — the Vitest default `threads` pool caused cross-file mock
+contamination and slow `vi.resetModules()` under the full 43-file suite, leading to 6 spurious
+failures (timeouts + wrong mock state). Switching to `forks` pool with `testTimeout: 15_000`
+gives each test file its own process, eliminating the issue. No schema change; no migration;
+unit suite: 427 tests across 43 files, all pass.
+
+Plan: `docs/plans/v0.19.3_AI_Mentor_RBSE_Name_Blocking_And_Token_Tracking.md`; results:
+`docs/testing/v0.19.3_AI_Mentor_RBSE_Name_Blocking_And_Token_Tracking_Test_Results.md`.
+
+Status: Approved
+
+## D-086
+
+**Decision:** Keep weekly learning tasks (`ProgramTask`/`UserTaskCompletion`) separate from the fixed
+mission workflow checklist (`MissionTaskCompletion`). Weekly completion is scoped to
+tenant/applicant/program/week and survives a same-week repeat; workflow steps remain scoped to one
+assignment attempt.
+
+**Rationale:** General learning/setup work does not become incomplete merely because a reviewer assigns
+a different mission variant, while mission-specific brief/tutorial steps genuinely belong to an
+attempt.
+
+**Alternatives considered:** Replace the mission checklist with weekly tasks; attach every weekly task
+to a mission; copy completion rows into each repeat attempt. These choices either erase the existing
+workflow gate or duplicate/restart reusable learning work.
+
+**Impact:** Final submission evaluates both gates. The migration reactivates and extends the existing
+weekly models rather than adding parallel task tables.
+
+Date: 2026-07-19
+
+Status: Implemented; pending baseline review
+
+## D-087
+
+**Decision:** Journal readiness is assignment-attempt scoped. At least four eligible current-attempt
+entries are required; previous-attempt and future-dated entries do not count. Existing one-entry-per-
+applicant-per-calendar-date behavior remains.
+
+**Rationale:** Review evidence must explain the work for the assignment being submitted, while allowing
+more than one reflection across the week and preserving immutable history from earlier attempts.
+
+**Alternatives considered:** Count every journal in the week; count exactly four; copy old journals to
+the new attempt; remove the calendar-date uniqueness rule. Each weakens attempt traceability or creates
+duplicate/ambiguous daily records.
+
+**Impact:** A repeat requires new attempt-linked reflections but does not delete or mix old records.
+`REQUIRED_JOURNAL_ENTRY_COUNT` is a minimum (`>= 4`).
+
+Date: 2026-07-19
+
+Status: Implemented; pending baseline review
+
+## D-088
+
+**Decision:** Parse and validate every evidence URL centrally, perform public reachability and SSRF
+checks before database mutation, then use a short transaction to recheck readiness/evidence/status and
+apply the final transition. Failed validation never locks journals or changes submission/assignment
+status.
+
+**Rationale:** Network requests are slow and untrusted and must not hold database locks. A second
+transactional check plus status-scoped update closes the time-of-check/time-of-use and concurrent-submit
+windows.
+
+**Alternatives considered:** Check URLs only in the browser; accept syntactically valid URLs without
+reachability; perform network requests inside the transaction; allow partial state and repair it later.
+These alternatives permit bypasses, SSRF or long transactions and inconsistent records.
+
+**Impact:** Public evidence can fail closed during remote outages/rate limits. DNS results are screened
+and pinned, redirects are revalidated, requests are bounded, and the exact failed URL is reported.
+
+Date: 2026-07-19
+
+Status: Implemented; pending baseline review
+
+## D-089
+
+**Decision:** Reuse the legacy-named `VideoResource` model for ordered `MARKDOWN` and `YOUTUBE` task
+resources. A pending video is stored as a YouTube resource with a null URL and shown explicitly as
+pending. Markdown renders through a constrained component with raw HTML disabled.
+
+**Rationale:** The existing resource ownership/audit paths already fit program content. Extending them
+is smaller and more compatible than adding another resource table or introducing runtime file-path
+dependencies.
+
+**Alternatives considered:** New Markdown and Video models; arbitrary runtime Markdown file references;
+placeholder video links. These add schema/runtime complexity or misrepresent unavailable content.
+
+**Impact:** Admins manage both resource types through the existing program-content permission boundary;
+the actual introduction video and final URL remain a content follow-up.
+
+Date: 2026-07-19
+
+Status: Implemented; pending baseline review
+
+## D-090
+
+**Decision:** Keep badges, real AI journal scoring, reviewer numeric scoring, recruiter/portfolio journal
+views and a new deployment-link model out of `v0.19.5`. Preserve `Submission.deploymentUrl` as a
+normalized semicolon-separated string and retain `Submission.journalMarkdown` only for compatibility.
+
+**Rationale:** The iteration is a focused readiness and safety improvement. The current string field can
+represent one or more deployments without a migration, and the dedicated Engineering Journal already
+owns reflection behavior.
+
+**Alternatives considered:** Expand into scoring/gamification/recruiter features; remove the legacy
+journal field; create a deployment relation immediately. All increase scope or risk historical-data
+compatibility without being required for the business outcome.
+
+**Impact:** Single-URL records still work, up to ten deployment URLs are parsed centrally, and deferred
+features need their own versioned plan and security/test review.
+
+Date: 2026-07-19
+
+Status: Implemented; pending baseline review
+
+## D-091
+
+**Decision:** Rebuild the applicant mission page as a tabbed Mission Workspace whose presentation is
+driven by a pure `view-model.ts`, unit-tested through `view-model.test.ts`, rather than embedding step,
+progress, countdown and submission-mode logic in the React components. Client-only behavior (the ≥90%
+YouTube gate, sequential learning-task unlock, tab switching) is verified through extracted logic and
+manual container checks, with DOM assertions recorded as Known Gaps.
+
+**Rationale:** The prior page mixed business rules into markup, making the LMS redesign risky to test.
+Concentrating all derivable state in one pure module keeps every existing mission/assignment/submission
+rule intact and unit-testable in the node/Vitest environment, which renders no DOM.
+
+**Alternatives considered:** Add a jsdom/browser harness this iteration to assert the client components
+directly; keep the logic inline and rely only on regression scenarios. The first expands scope beyond
+the redesign; the second leaves the new gating logic uncovered.
+
+**Impact:** The workspace reuses all `@talentos/db` reads/actions and gating; a future jsdom/browser
+harness is the tracked follow-up for the deferred client-only scenarios.
+
+Date: 2026-07-23
+
+Status: Implemented; pending baseline review
+
+## D-092
+
+**Decision:** Extend program curriculum with a `DOCUMENT` `LearningResourceType` and an
+`isPrerequisite` `ProgramTask` flag rather than new tables. A `DOCUMENT` resource links a `StoredFile`
+via `VideoResource.fileId` validated to belong to the tenant (missing or foreign files rejected) through
+the existing presign→storage→confirm flow; prerequisite tasks lock the mission's own steps until
+complete. Admin curriculum management moves to a top-level **Tasks** page reusing the existing
+`manageProgramContent`-guarded content actions.
+
+**Rationale:** The `VideoResource`/`ProgramTask` ownership and audit paths already fit program content
+and tenant scoping, so extending them is smaller and lower-risk than new resource/file relations. No new
+write authority is introduced.
+
+**Alternatives considered:** A dedicated document/resource table and a separate prerequisite-relation
+model; a bespoke upload path outside the presign/confirm flow. Both add schema/runtime complexity
+without a business need at current volumes.
+
+**Impact:** Admins manage Markdown/YouTube/Document resources and prerequisites through the existing
+permission boundary; the applicant download route and step-lock UI are recorded Known Gaps for a
+follow-up iteration.
+
+Date: 2026-07-23
+
+Status: Implemented; pending baseline review
+
+## D-093
+
+**Decision:** Change mission deadlines to a Thursday cadence with at least four Mon–Thu working days
+(computed in UTC via `computeMissionDeadline`) instead of raw `deadlineHours`, and make a `REPEAT`
+exclude every mission the applicant already had that week (`id: { notIn: [...all prior] }`), not only
+the failed one; when none remain the application moves to `AWAITING_MISSION_ASSIGNMENT` and reviewers
+are notified.
+
+**Rationale:** A predictable weekly deadline and a repeat that never re-serves a previously-seen mission
+match the intended program rhythm and fairness, without touching the mission engine, assignment
+selection or submission state machine.
+
+**Alternatives considered:** Keep raw `deadlineHours`; exclude only the failed mission on repeat; add a
+per-tenant timezone for the cadence now. The first two reproduce the current behavior; per-tenant
+timezone is deferred as future work (the cadence is UTC for now).
+
+**Impact:** Every acceptance lands on a Thursday with grace after it; repeats draw only from unseen
+week-N missions and escalate cleanly when exhausted.
+
+Date: 2026-07-23
+
+Status: Implemented; pending baseline review
+
+## D-094
+
+**Decision:** Refresh `docs/Product_Backlog.md` to reflect delivery through `v0.19.6`. Advance the
+backlog's declared code version from `v0.18.2` to `v0.19.6`; record the `v0.18.5`–`v0.19.6` mission
+lifecycle, mission-driven tasks, dashboard wiring, weekly learning tasks + submission readiness, and
+the mission-workspace / LMS curriculum tooling / Thursday-scheduling arc under the Missions module;
+and reclassify **AI Mentor** from an open "boundary" slice to delivered (`v0.19.3`, D-084). This is a
+documentation-only sync folded into the `v0.19.6` iteration, mirroring the earlier backlog refreshes
+recorded as D-070 (`v0.16.2`) and D-077 (`v0.18.2`); no plan/test-results pair is created because no
+code, schema, or test scenario changes.
+
+**Rationale:** The backlog had drifted four iterations behind the shipped code and still listed
+already-delivered capabilities (most visibly AI Mentor) as remaining, which misrepresents the true
+remaining MVP scope. Every reconciled line is traceable to an existing Decision_Log entry
+(D-080..D-093), so the refresh records only what was actually delivered.
+
+**Alternatives considered:** Allocate a new patch version (`v0.19.7`) for the doc-only change; leave
+the backlog stale until the next feature iteration. The first over-weights a routine documentation
+sync that has precedent for folding into the current iteration; the second perpetuates a backlog that
+contradicts the delivered code.
+
+**Impact:** The backlog now declares `v0.19.6` and accurately separates delivered work from the
+genuinely remaining slices (IAM Admin Users/Roles UI, standalone Knowledge Base, GitHub Integration,
+Portfolio, Certificates, Leaderboard, Hiring Recommendations, and the V2/V3 items).
+
+Date: 2026-07-24
+
+Status: Implemented; pending baseline review
+
+---
+
+## D-095: Applicant Onboarding E2E QA Bug Fixes (v0.19.6)
+
+**Context:** End-to-end QA analysis of the new applicant onboarding flow on
+`http://paysyslabs.lvh.me:3100` found four bugs spanning the middleware redirect,
+logout, hydration, and admin filter surfaces.
+
+**Decision:** Fix all four bugs within the `v0.19.6` iteration (no new version
+allocation — these are bug fixes, not new features):
+
+- **BUG-1 (HIGH):** Tenant subdomain lost on middleware redirect. Both applicant
+  and admin middleware used `nextUrl.origin` to build redirect URLs, which inside
+  Docker resolved to the canonical `AUTH_URL` host instead of the tenant
+  subdomain, causing cross-origin RSC fetch failures. Fix: `requestOrigin()`
+  helper using the request `Host` header.
+
+- **BUG-2 (MEDIUM):** Logout "Invalid redirect uri". Verified the code
+  (`buildTenantLogoutUrl` uses canonical `AUTH_URL` origin) and Keycloak
+  `post.logout.redirect.uris` config are correct. No code change needed.
+
+- **BUG-3 (LOW):** React hydration error #418 on Missions page.
+  `DeadlineCountdown` used `useState(() => Date.now())` causing server/client
+  time mismatch. Fix: `useState<number | null>(null)` with `Date.now()` only in
+  `useEffect`.
+
+- **BUG-4 (LOW):** Duplicate "Regression Program" entries in admin Missions
+  filter. 197 duplicate DB rows cleaned + deduplication by name in
+  `missions/page.tsx`.
+
+**Rationale:** All four bugs are quality regressions or data issues within
+shipped v0.19.6 surfaces, not new capabilities. Folding them into v0.19.6
+follows the precedent set by D-094 for iteration-scoped fixes.
+
+**Alternatives considered:** Allocate `v0.19.7` for the QA fixes. Rejected —
+these are bug fixes on already-shipped surfaces, not new features or schema
+changes requiring a versioned plan/test-results pair.
+
+**Impact:** 17 regression tests added (40 total in `middleware-redirect.test.ts`).
+All CI steps pass: typecheck, lint (0 warnings), 671 tests, build (both apps).
+Full QA report at `docs/audits/v0.19.6_Applicant_Onboarding_QA_Report.md`.
+
+Date: 2026-08-07
+
+Status: Implemented; committed on `fix/applicant-journal-tenant-redirect`

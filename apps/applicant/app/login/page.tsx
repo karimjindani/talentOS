@@ -3,25 +3,33 @@
 import { Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
+import { resolveCallbackUrl } from "@/lib/login-callback";
 
 function KeycloakAuthButtons() {
   const params = useSearchParams();
   // Default callbackUrl is /application; middleware/dashboard layout will redirect to /dashboard
   // if the user has an accepted application.
-  const callbackUrl = params.get("callbackUrl") ?? "/application";
+  const rawCallbackUrl = params.get("callbackUrl") ?? "/application";
+
+  // Build an absolute callback URL using the current (tenant) host so the post-login redirect
+  // returns the user to their own tenant subdomain rather than the canonical AUTH_URL host.
+  // When the callbackUrl is already absolute (e.g. set by middleware), use it as-is.
+  // window is only available in the browser, so this is computed at click time.
+  const handleClick = () => signIn("keycloak", { callbackUrl: resolveCallbackUrl(rawCallbackUrl) });
+  const handleCreate = () => signIn("keycloak", { callbackUrl: resolveCallbackUrl(rawCallbackUrl) }, { prompt: "create" });
 
   return (
     <div className="space-y-3">
       <button
         type="button"
-        onClick={() => signIn("keycloak", { callbackUrl })}
+        onClick={handleClick}
         className="w-full rounded-xl bg-brand-blue px-5 py-3 font-semibold text-white"
       >
         Sign in with Keycloak
       </button>
       <button
         type="button"
-        onClick={() => signIn("keycloak", { callbackUrl }, { prompt: "create" })}
+        onClick={handleCreate}
         className="w-full rounded-xl border border-brand-blue px-5 py-3 font-semibold text-brand-blue"
       >
         Create account

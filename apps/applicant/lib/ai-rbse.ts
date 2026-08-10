@@ -116,6 +116,14 @@ const ALLOWED_TOPICS = [
   "skill",
   "competency",
   "learning",
+  "journey",
+  "milestone",
+  "roadmap",
+  "overview",
+  "summary",
+  "review",
+  "reflect",
+  "feedback",
 ];
 
 /**
@@ -224,6 +232,52 @@ const BLOCKED_TOPICS = [
   "funny",
   "riddle",
   "puzzle",
+
+  // Personal identity / name questions
+  "who is ",
+  "who am i",
+  "who are you",
+  "tell me about ",
+  "explain about",
+  "my name",
+  "your name",
+  "what is your name",
+  "what is my name",
+];
+
+/**
+ * Patterns that ask about a person by name (e.g. "explain hitesh", "who is john").
+ * These should be blocked at RBSE level — the LLM must never be called for them.
+ * A "name" is a single capitalized word or a common Indian/Western first name
+ * that is NOT an internship term.
+ */
+const PERSONAL_NAME_PATTERNS: RegExp[] = [
+  // "explain <name>", "explain about <name>"
+  /^explain\s+(about\s+)?[A-Z][a-z]{2,20}(\s+[A-Z][a-z]{2,20})?\s*$/i,
+  // "who is <name>", "who was <name>"
+  /^who\s+(is|was|are)\s+[A-Z][a-z]{2,20}(\s+[A-Z][a-z]{2,20})?\s*$/i,
+  // "tell me about <name>"
+  /^tell\s+me\s+about\s+[A-Z][a-z]{2,20}(\s+[A-Z][a-z]{2,20})?\s*$/i,
+  // "what do you know about <name>"
+  /^what\s+do\s+you\s+know\s+about\s+[A-Z][a-z]{2,20}(\s+[A-Z][a-z]{2,20})?\s*$/i,
+  // "describe <name>"
+  /^describe\s+[A-Z][a-z]{2,20}(\s+[A-Z][a-z]{2,20})?\s*$/i,
+];
+
+/**
+ * Internship/technical terms that look like names but are actually allowed.
+ * If a prompt matches a name pattern but also contains one of these terms,
+ * it is NOT blocked.
+ */
+const NAME_PATTERN_ALLOWLIST = [
+  "internship", "program", "talentos", "mission", "task", "assignment",
+  "project", "sdlc", "sem", "prd", "testing", "deployment", "ci/cd",
+  "pipeline", "docker", "engineering", "software", "development", "code",
+  "coding", "vitest", "tdd", "quality", "review", "feedback", "submission",
+  "progress", "timeline", "schedule", "deadline", "calendar", "knowledge",
+  "documentation", "guide", "tutorial", "career", "mentor", "skill",
+  "competency", "learning", "roadmap", "spiral", "agile", "scrum",
+  "frontend", "backend", "database", "api", "fullstack", "devops",
 ];
 
 /**
@@ -249,6 +303,9 @@ const DIRECT_ANSWER_PATTERNS = [
   { pattern: /what('s| is) my schedule/i, type: "timeline" as const },
   { pattern: /upcoming weeks/i, type: "timeline" as const },
   { pattern: /what('s| is) next week/i, type: "timeline" as const },
+  { pattern: /my missions/i, type: "timeline" as const },
+  { pattern: /what missions do i have/i, type: "timeline" as const },
+  { pattern: /list my missions/i, type: "timeline" as const },
   
   // Submission queries
   { pattern: /submission status/i, type: "submission" as const },
@@ -272,9 +329,21 @@ function isQuestionAllowed(prompt: string): boolean {
   const hasBlockedTopic = BLOCKED_TOPICS.some(topic => 
     lowerPrompt.includes(topic.toLowerCase())
   );
-  
+
+  // Check if prompt matches a personal-name pattern (e.g. "explain hitesh")
+  // but doesn't contain any internship/technical allowlist term
+  const hasNameAllowlistTerm = NAME_PATTERN_ALLOWLIST.some(term =>
+    lowerPrompt.includes(term.toLowerCase())
+  );
+  const matchesPersonalName = !hasNameAllowlistTerm && PERSONAL_NAME_PATTERNS.some(re => re.test(prompt.trim()));
+
   // Special case: if prompt is very short and doesn't contain allowed topics, block it
   if (prompt.trim().split(/\s+/).length < 3 && !hasAllowedTopic) {
+    return false;
+  }
+
+  // Block personal-name questions even if they contain an allowed topic like "explain"
+  if (matchesPersonalName) {
     return false;
   }
   
@@ -361,10 +430,31 @@ function generateDirectAnswer(
       };
 
     case "timeline":
+      const assignments = context?.assignments ?? [];
       const missionItems = missions.length
-        ? missions
+        ? [...missions]
             .sort((a, b) => a.weekNumber - b.weekNumber)
-            .map((m) => `Week ${m.weekNumber}: ${m.title} (${m.difficulty})`)
+            .map((m) => {
+              const assignment = assignments.find((a) => a.missionId === m.id);
+              const submission = submissions.find((s) => s.missionId === m.id);
+              const label = !assignment
+                ? "🔒 Not assigned"
+                : assignment.status === "PASSED"
+                  ? "✅ Completed & Accepted"
+                  : assignment.status === "OVERDUE"
+                    ? "⚠️ Overdue — submit now"
+                    : assignment.status === "REJECTED"
+                      ? "❌ Rejected — retry"
+                      : submission?.status === "SUBMITTED"
+                        ? "📝 Submitted — pending review"
+                        : assignment.status === "IN_PROGRESS"
+                          ? "🔧 In progress"
+                          : "📋 Assigned";
+              const deadline = assignment?.deadlineAt
+                ? ` (due ${new Date(assignment.deadlineAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })})`
+                : "";
+              return `Week ${m.weekNumber}: ${m.title} — ${label}${deadline}`;
+            })
         : [
             "Week 1–2: Onboarding & setup",
             "Week 3–4: Mission 1 — Frontend fundamentals",

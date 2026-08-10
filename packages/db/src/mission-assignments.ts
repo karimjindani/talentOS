@@ -3,6 +3,39 @@ import { prisma } from "./client";
 
 export const DEFAULT_ASSIGNMENT_WEEK = 1;
 
+const REQUIRED_WORKING_DAYS = 4; // Monday–Thursday
+const THURSDAY = 4; // Date.getUTCDay(): Sunday = 0 … Thursday = 4
+
+function isWorkingDay(day: number): boolean {
+  return day >= 1 && day <= THURSDAY; // Mon(1)–Thu(4)
+}
+
+/**
+ * Mission deadline that always lands on a Thursday (a consistent submission cadence) while
+ * guaranteeing the applicant at least four working days (Mon–Thu) from acceptance. Counting Mon–Thu
+ * days from the acceptance date forward, we advance to the first Thursday by which ≥4 working days
+ * have elapsed:
+ *   • Accepted Mon → that same-week Thursday (Mon–Thu = 4 working days).
+ *   • Accepted Tue/Wed/Thu → the following Thursday (this week would give < 4).
+ *   • Accepted Fri/Sat/Sun → the next Thursday (the upcoming Mon–Thu = 4 working days).
+ * Computed in UTC; the deadline is the end of that Thursday (23:59:59.999 UTC).
+ */
+export function computeMissionDeadline(acceptedAt: Date): Date {
+  const cursor = new Date(Date.UTC(acceptedAt.getUTCFullYear(), acceptedAt.getUTCMonth(), acceptedAt.getUTCDate()));
+  let workingDays = 0;
+  for (let i = 0; i < 21; i += 1) {
+    const day = cursor.getUTCDay();
+    if (isWorkingDay(day)) workingDays += 1;
+    if (day === THURSDAY && workingDays >= REQUIRED_WORKING_DAYS) {
+      cursor.setUTCHours(23, 59, 59, 999);
+      return cursor;
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  cursor.setUTCHours(23, 59, 59, 999);
+  return cursor;
+}
+
 export type MissionAssignmentInput = {
   tenantId: string;
   programId: string;
@@ -37,6 +70,35 @@ export function listAssignedProgramMissions(tenantId: string, applicantId: strin
     });
 }
 
+/** The applicant's latest-attempt assignment status per mission, for list-view status chips. */
+export async function listApplicantMissionAssignmentStatuses(tenantId: string, applicantId: string, programId: string) {
+  const assignments = await prisma.missionAssignment.findMany({
+    where: { tenantId, applicantId, programId },
+    select: { missionId: true, status: true, attemptNumber: true, deadlineAt: true },
+    orderBy: { attemptNumber: "desc" }
+  });
+  const latestByMission = new Map<string, (typeof assignments)[number]>();
+  for (const assignment of assignments) {
+    if (!latestByMission.has(assignment.missionId)) {
+      latestByMission.set(assignment.missionId, assignment);
+    }
+  }
+  return new Map(
+    [...latestByMission.entries()].map(([missionId, assignment]) => [
+      missionId,
+      { status: assignment.status, deadlineAt: assignment.deadlineAt },
+    ])
+  );
+}
+
+/** The applicant's latest attempt (any status) for a mission — used to render accept/countdown UI. */
+export function getLatestMissionAssignmentForMission(tenantId: string, applicantId: string, missionId: string) {
+  return prisma.missionAssignment.findFirst({
+    where: { tenantId, applicantId, missionId },
+    orderBy: { attemptNumber: "desc" }
+  });
+}
+
 export function getAssignedProgramMission(
   missionId: string,
   tenantId: string,
@@ -51,6 +113,53 @@ export function getAssignedProgramMission(
       status: "PUBLISHED",
       assignments: { some: { tenantId, programId, applicantId } }
     }
+  });
+}
+
+export function getCurrentMissionAssignmentForApplicantProgram(
+  tenantId: string,
+  applicantId: string,
+  programId: string
+) {
+  return prisma.missionAssignment.findFirst({
+    where: {
+      tenantId,
+      applicantId,
+      programId,
+      status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] },
+      mission: { status: "PUBLISHED" }
+    },
+    include: { mission: true },
+    orderBy: [{ weekNumber: "asc" }, { attemptNumber: "desc" }]
+  });
+}
+
+export function getLatestMissionAssignmentForApplicantProgram(
+  tenantId: string,
+  applicantId: string,
+  programId: string
+) {
+  return prisma.missionAssignment.findFirst({
+    where: { tenantId, applicantId, programId, mission: { status: "PUBLISHED" } },
+    include: { mission: true },
+    orderBy: [{ weekNumber: "desc" }, { attemptNumber: "desc" }]
+  });
+}
+
+export function getApplicantMissionAssignmentForMission(
+  tenantId: string,
+  applicantId: string,
+  missionId: string
+) {
+  return prisma.missionAssignment.findFirst({
+    where: {
+      tenantId,
+      applicantId,
+      missionId,
+      mission: { status: "PUBLISHED" }
+    },
+    include: { mission: true },
+    orderBy: { attemptNumber: "desc" }
   });
 }
 
@@ -112,8 +221,77 @@ export async function assignWeekMissionToAcceptedApplicantTx(
       missionId: mission.id,
       weekNumber,
       attemptNumber: 1,
-      status: "ACTIVE"
+      status: "NOT_STARTED"
     }
+  });
+}
+
+/**
+ * Backfill: when a mission is published (at creation or via status change), any already-accepted
+ * applicants for that program who don't yet have a Week 1 assignment need one created. This closes
+ * the gap where an application is accepted before any PUBLISHED mission exists — the acceptance-time
+ * assignment returned null because no missions were found, and nothing retroactively created the
+ * assignment when a mission was later published.
+ *
+ * Safe to call multiple times: `assignWeekMissionToAcceptedApplicantTx` is idempotent (returns the
+ * existing assignment if one already exists for the week/attempt).
+ */
+export async function backfillAssignmentsForAcceptedApplicantsTx(
+  tx: Prisma.TransactionClient,
+  { tenantId, programId }: { tenantId: string; programId: string }
+) {
+  const acceptedApplications = await tx.application.findMany({
+    where: { tenantId, programId, status: "ACCEPTED" },
+    select: { applicantId: true }
+  });
+
+  for (const app of acceptedApplications) {
+    await assignWeekMissionToAcceptedApplicantTx(tx, {
+      tenantId,
+      programId,
+      applicantId: app.applicantId
+    });
+  }
+
+  return acceptedApplications.length;
+}
+
+export function acceptMissionAssignment(input: {
+  tenantId: string;
+  applicantId: string;
+  missionAssignmentId: string;
+}) {
+  return prisma.$transaction((tx) => acceptMissionAssignmentTx(tx, input));
+}
+
+/**
+ * The applicant's explicit "Accept Mission" action. Starts the deadline/grace countdown from this
+ * moment, not from when the mission was assigned — an un-accepted assignment never expires.
+ */
+export async function acceptMissionAssignmentTx(
+  tx: Prisma.TransactionClient,
+  { tenantId, applicantId, missionAssignmentId }: { tenantId: string; applicantId: string; missionAssignmentId: string }
+) {
+  const assignment = await tx.missionAssignment.findFirst({
+    where: { id: missionAssignmentId, tenantId, applicantId },
+    include: { mission: { select: { deadlineHours: true, gracePeriodHours: true } } }
+  });
+  if (!assignment) {
+    throw new Error("Mission assignment not found for this applicant.");
+  }
+  if (assignment.status !== "NOT_STARTED") {
+    throw new Error(`Only a NOT_STARTED assignment can be accepted (current status: ${assignment.status}).`);
+  }
+
+  const acceptedAt = new Date();
+  // Deadline follows the Thursday / four-working-days cadence rather than the mission's raw
+  // deadlineHours, so every applicant gets ≥4 working days regardless of when they accept.
+  const deadlineAt = computeMissionDeadline(acceptedAt);
+  const graceEndsAt = new Date(deadlineAt.getTime() + assignment.mission.gracePeriodHours * 60 * 60 * 1000);
+
+  return tx.missionAssignment.update({
+    where: { id: assignment.id },
+    data: { status: "ACCEPTED", acceptedAt, deadlineAt, graceEndsAt }
   });
 }
 
@@ -134,7 +312,9 @@ export function getActiveMissionAssignmentForMissionTx(
       tenantId,
       applicantId,
       missionId,
-      status: "ACTIVE",
+      // NOT_STARTED is excluded — the applicant must explicitly accept before evidence is editable.
+      // OVERDUE stays editable through the grace period (a late submission is still allowed).
+      status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] },
       mission: { status: "PUBLISHED" }
     },
     include: { mission: { select: { id: true, programId: true, weekNumber: true } } },
@@ -142,7 +322,21 @@ export function getActiveMissionAssignmentForMissionTx(
   });
 }
 
-export async function createRepeatMissionAssignmentTx(
+const PROGRAM_REVIEWER_ROLES = ["ORG_ADMIN", "TECH_LEAD"] as const;
+
+/**
+ * On a REPEAT review decision, the applicant repeats the *same week* with a different mission than
+ * the one they just failed (not a retry of the same mission, and not a reset back to week one).
+ * If no alternate PUBLISHED mission exists for that week, no assignment is created — the
+ * applicant's program status moves to AWAITING_MISSION_ASSIGNMENT and every Org Admin / Tech Lead
+ * in the tenant is notified to assign one manually. The rejected mission is never reassigned, and
+ * the applicant is never removed.
+ *
+ * A missed deadline (grace period expired with no submission) is a separate, terminal outcome —
+ * see sweepMissionDeadlines, which marks the assignment FAILED and the application DISQUALIFIED
+ * instead of going through this repeat path.
+ */
+export async function createRepeatMissionForSameWeekTx(
   tx: Prisma.TransactionClient,
   assignment: {
     id: string;
@@ -151,32 +345,97 @@ export async function createRepeatMissionAssignmentTx(
     applicantId: string;
     missionId: string;
     weekNumber: number;
-    attemptNumber: number;
   }
 ) {
   const latest = await tx.missionAssignment.findFirst({
     where: {
       tenantId: assignment.tenantId,
       programId: assignment.programId,
+      applicantId: assignment.applicantId
+    },
+    select: { id: true },
+    orderBy: [{ weekNumber: "desc" }, { attemptNumber: "desc" }]
+  });
+  if (!latest || latest.id !== assignment.id) {
+    throw new Error("Only the applicant's latest assignment attempt can be repeated.");
+  }
+
+  // A mission is assigned to an applicant at most once: exclude every mission they've already been
+  // assigned for this week (not only the one just failed), so a repeat never re-serves an old mission.
+  const priorAssignments = await tx.missionAssignment.findMany({
+    where: {
+      tenantId: assignment.tenantId,
+      programId: assignment.programId,
       applicantId: assignment.applicantId,
       weekNumber: assignment.weekNumber
     },
-    select: { id: true, attemptNumber: true },
+    select: { missionId: true }
+  });
+  const assignedMissionIds = [...new Set(priorAssignments.map((prior) => prior.missionId))];
+
+  const alternateMissions = await tx.mission.findMany({
+    where: {
+      tenantId: assignment.tenantId,
+      programId: assignment.programId,
+      weekNumber: assignment.weekNumber,
+      status: "PUBLISHED",
+      id: { notIn: assignedMissionIds }
+    },
+    select: { id: true, title: true, order: true },
+    orderBy: [{ order: "asc" }, { title: "asc" }]
+  });
+
+  if (alternateMissions.length === 0) {
+    await tx.application.updateMany({
+      where: {
+        tenantId: assignment.tenantId,
+        programId: assignment.programId,
+        applicantId: assignment.applicantId,
+        status: "ACCEPTED"
+      },
+      data: { status: "AWAITING_MISSION_ASSIGNMENT" }
+    });
+
+    const reviewers = await tx.tenantMembership.findMany({
+      where: { tenantId: assignment.tenantId, role: { in: [...PROGRAM_REVIEWER_ROLES] } },
+      select: { userId: true }
+    });
+    if (reviewers.length > 0) {
+      await tx.notification.createMany({
+        data: reviewers.map((reviewer) => ({
+          tenantId: assignment.tenantId,
+          userId: reviewer.userId,
+          type: "WARNING" as const,
+          title: `Applicant needs a new Week ${assignment.weekNumber} mission assignment`,
+          body: `A rejected applicant has no alternate Week ${assignment.weekNumber} mission available. Assign one manually.`
+        }))
+      });
+    }
+    return null;
+  }
+
+  const latestSameWeek = await tx.missionAssignment.findFirst({
+    where: {
+      tenantId: assignment.tenantId,
+      programId: assignment.programId,
+      applicantId: assignment.applicantId,
+      weekNumber: assignment.weekNumber
+    },
+    select: { attemptNumber: true },
     orderBy: { attemptNumber: "desc" }
   });
-  if (!latest || latest.id !== assignment.id) {
-    throw new Error("Only the latest assignment attempt can be repeated.");
-  }
+  const nextAttemptNumber = (latestSameWeek?.attemptNumber ?? 0) + 1;
+  const mission = pickMissionCandidate(alternateMissions, randomAssignmentIndex);
 
   return tx.missionAssignment.create({
     data: {
       tenantId: assignment.tenantId,
       programId: assignment.programId,
       applicantId: assignment.applicantId,
-      missionId: assignment.missionId,
+      missionId: mission.id,
       weekNumber: assignment.weekNumber,
-      attemptNumber: assignment.attemptNumber + 1,
-      status: "ACTIVE"
+      attemptNumber: nextAttemptNumber,
+      status: "NOT_STARTED"
     }
   });
 }

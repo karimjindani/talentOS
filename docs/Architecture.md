@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.18.4`
+Code version: `v0.19.6`
 
-Architecture baseline commit: `6ef1ef7`
+Architecture evidence commit: `08cea25`
 
-Current documentation update: `v0.18.4`
+Current documentation update: `v0.19.6`
 
 ## Overview
 
@@ -40,9 +40,66 @@ As of `v0.16.0` (D-069) the overview page's Overall Progress, Missions Accepted 
 Program Progress bars are **mission-driven**: they derive from the applicant's assigned missions and
 ACCEPTED mission submissions (`getApplicantMissionProgress` in `packages/db/src/submissions.ts`), not task
 checkboxes — a **Current Mission** card links to the next mission with its submission-status chip,
-and weekly tasks remain a supplementary checklist. The dashboard's video resources, weekly tasks
+and weekly tasks remain a separate progress surface. Required tasks now also block mission submission
+for the assignment's program week. The dashboard's learning resources, weekly tasks
 and calendar events are managed by admins from the Program Content page (`/programs/[id]/content`,
 `manageProgramContent` capability).
+
+### Weekly Tasks And Submission Readiness (`v0.19.5`)
+
+`ProgramTask` remains the authoritative tenant/program/week model; it is not attached to a mission.
+`UserTaskCompletion` stores tenant + applicant + task once, so completing learning/setup work remains
+valid when the same program week is repeated. `VideoResource` is retained as the database/API name for
+compatibility, but now supports ordered `MARKDOWN` and `YOUTUBE` resources attached to a task. Applicant
+pages render Markdown without raw HTML and show a clear pending state when a YouTube URL has not yet
+been supplied.
+
+`packages/db/src/submission-readiness.ts` is the central readiness service used by the mission page,
+final submit flow, and tests. It derives program/week/mission from the tenant-scoped
+`MissionAssignment`, checks every published required week task, counts at least four non-future
+`EngineeringJournalEntry` rows linked to that exact attempt, and validates all three evidence URL
+formats. `packages/db/src/url-safety.ts` performs the final public-reachability checks outside the
+database transaction. It resolves and pins public IP addresses, rejects credentials/internal hosts,
+private/loopback/link-local/metadata ranges, revalidates each redirect, limits redirects/time, and uses
+bounded HEAD with GET fallback. A short transaction then rechecks readiness and evidence before it
+atomically submits, timestamps, advances the assignment, locks only current-attempt journals, and
+writes the audit event. Failed checks leave draft/revision state and journal locks unchanged.
+
+### Mission Workspace LMS, Curriculum Tooling And Thursday Scheduling (`v0.19.6`)
+
+The applicant mission page (`apps/applicant/app/dashboard/missions/[id]`) is rebuilt as a tabbed,
+LMS-style **Mission Workspace**. A pure `view-model.ts` derives, from the existing tenant-scoped
+`MissionAssignment` read, the step statuses (complete/current/upcoming), header progress
+(completed/total), the Continue target, countdown visibility, and the submission mode
+(accept/failed/editable/locked) — so the presentation layer (`WorkspaceTabs.tsx`) holds no business
+rules and is unit-tested through the model (`view-model.test.ts`). A compact navy header, an in-tab
+`d h m s` `CountdownTimer`, weekly learning-task tabs, and a `YouTubeProgressPlayer` that gates
+"Mark complete" until every video is ≥90% watched sit on top of the unchanged completion/submission
+actions. Learning tasks unlock sequentially; `LearningTaskPanel`/`LearningResourceList` render the
+task's resources.
+
+Curriculum tooling extends `@talentos/db` program content without new write authority. The
+`LearningResourceType` enum gains `DOCUMENT`: an admin uploads a file through the existing
+presign→storage→confirm flow and the resource row links a `StoredFile` (`VideoResource.fileId`)
+validated to belong to the tenant; a `DOCUMENT` with no file, or a file from another tenant, is
+rejected. `ProgramTask.isPrerequisite` marks a week's task as a gate: while any published
+prerequisite is incomplete, the mission's own steps stay locked for that applicant (data + workspace
+model; the applicant-side step-lock UI is a recorded Known Gap). A new admin top-level **Tasks** page
+(`apps/admin/app/tasks`) offers a searchable `ProgramPicker`, `CollapsibleTask` cards and inline
+`ResourceForm` add/edit for Markdown/YouTube/Document, all through the existing
+`manageProgramContent`-guarded content actions, revalidating both `/tasks` and the program Content
+page. Applications/Programs/Missions/Submissions gain in-memory pagination (10/20 rows) + filters via
+`apps/admin/lib/pagination.ts`, and the admin Overview renders live tenant KPI counts from the
+already-tested `listTenant*` reads.
+
+Mission scheduling changes shape only deadlines and repeat selection. `computeMissionDeadline`
+(`packages/db/src/mission-assignments.ts`) sets every acceptance to a **Thursday** deadline (UTC)
+with at least four Mon–Thu working days, and `graceEndsAt` = deadline + grace hours. A `REPEAT` now
+excludes **every** mission the applicant already had that week (`id: { notIn: [...all prior] }`), not
+only the failed one; when none remain the application moves to `AWAITING_MISSION_ASSIGNMENT` and
+reviewers are notified. Shared `@talentos/ui` primitives (`Card`, `ProgressBar`, `Button`,
+`MissionStatusBadge`, `SubmissionStatusBadge`) replace duplicated inline markup and status maps. See
+`D-091` through `D-093`.
 
 ### Mission Engine MVP (`v0.14.0`)
 
@@ -86,6 +143,63 @@ Markdown source under `packages/db/prisma/seed-data/missions/ai-native-engineeri
 imported into standard `Mission` fields by the seed script; the app never reads the Markdown file
 paths at runtime, only the imported database content.
 
+### Mission Deadline & Lifecycle (`v0.18.5`)
+
+`v0.18.5` gives every `MissionAssignment` an explicit time-boxed lifecycle instead of the open-ended
+`v0.18.0` `ACTIVE` state. An applicant must explicitly **accept** a `NOT_STARTED` assignment
+(`acceptMissionAssignment`) before evidence can be drafted; accepting is what computes and starts
+`deadlineAt`/`graceEndsAt` from the mission's own `deadlineHours`/`gracePeriodHours` — an assignment
+that is never accepted never expires. Deadline enforcement is **not** a request-time check: a
+standalone, idempotent sweep (`packages/db/src/mission-deadlines.ts`,
+`scripts/mission-deadlines/sweep.ts`, `npm run mission-deadlines:sweep`) is intended to run as an
+external scheduled job (cron), deliberately kept out of the app process for future scaling. Each of
+its two phases is a status-scoped `updateMany` — `ACCEPTED|IN_PROGRESS` past `deadlineAt` →
+`OVERDUE`; `OVERDUE` past `graceEndsAt` with no submission → `FAILED` + `Application.status =
+DISQUALIFIED` — so re-running the sweep any number of times cannot double-transition or
+double-notify. A submission made after the deadline but before grace expiry is still accepted
+(`LATE_SUBMITTED`). Accepting a submission auto-advances the applicant to the next week's mission,
+capped at `FINAL_PROGRAM_WEEK = 4`. A `REPEAT` review decision reassigns a different published
+mission for the same week that failed (`v0.19.1`; this version shipped it as a reset to Week 1); no
+alternate mission moves `Application.status` to `AWAITING_MISSION_ASSIGNMENT` and notifies every
+`ORG_ADMIN`/`TECH_LEAD` in the tenant. A missed deadline (`DISQUALIFIED`) is a deliberately terminal
+outcome for now — a future Back Office "rejoin from Week 1" workflow is explicitly deferred.
+
+### Mission-Driven Tasks & Submissions Admin Tab (`v0.19.0`)
+
+`v0.19.0` replaces the applicant Tasks/Resources experience with a fixed 3-task template derived
+directly from each mission assignment — Task 1 "Review the Mission Brief", Task 2 "Study the
+Tutorial" (an optional `Mission.tutorialUrl`, YouTube-watch-gated via the IFrame Player API's
+`onStateChange`/`YT.PlayerState.ENDED`), Task 3 "Build & Submit Evidence" (no completion row of its
+own — implied complete once `Submission.status` moves beyond `DRAFT`/`NEEDS_REVISION`) — instead of
+the legacy program-level `ProgramTask`/`VideoResource` content. `packages/db/src/mission-tasks.ts`
+gates `saveSubmissionDraft`/`submitSubmission` on Tasks 1 and 2 being complete
+(`areRequiredMissionTasksComplete`). Each task links to a per-task resource page
+(`/dashboard/tasks/[assignmentId]/[taskIndex]`). The legacy tables remain in the schema, unused, by
+explicit product decision; only the applicant UI and the admin Program Content authoring page (now
+Calendar Events only) stop reading/writing them. A new admin **Submissions** tab (`/submissions`)
+lists and filters submissions across every mission for reviewers — reusing the existing
+`reviewSubmissions` capability and the existing per-submission review page, introducing no new
+authorization surface.
+
+### Dashboard Wiring & Same-Week Repeat (`v0.19.1`)
+
+`v0.19.1` wires the Dashboard, My Program, Tasks and Missions pages to the mission-lifecycle data
+`v0.18.5`/`v0.19.0` introduced: "Days Remaining" and every "current mission" countdown derive from
+the applicant's actual assignment `deadlineAt` (not `Program.endsAt`); My Program's Start/End dates
+derive from the Week 1 assignment's `acceptedAt` + 4 weeks; the `DeadlineCountdown` component
+renders only next to the current, unsubmitted mission. It also corrects the `v0.18.5`
+reject-reassignment behavior: `createRepeatFromWeekOneTx` is renamed
+`createRepeatMissionForSameWeekTx` and now repeats the **same week that failed** with a different
+mission, rather than always resetting to Week 1.
+
+### Logout Regression Fix & Confirmation Gates (`v0.19.2`)
+
+`v0.19.2` restores the applicant dashboard sidebar Logout button (`ApplicantShell.tsx`) that had
+been silently reverted by the `feat/applicant-ai-mentor-skeleton` merge (PR #45) — the `v0.14.3`/
+D-066 centralized-logout architecture itself is unchanged, only the shell's own affordance was
+missing. No new architectural surface; a `vitest.config.ts` alias fix and a governance-only
+`AGENTS.md` addition (Confirmation Gates) accompany it.
+
 ## Container Topology
 
 | Module | App | Container | Host port | Internal port |
@@ -97,6 +211,7 @@ paths at runtime, only the imported database content.
 | Keycloak database | — | `talentos-keycloak-postgres` | — (internal) | `5432` |
 | Object storage | `minio/minio` | `talentos-minio` | `9000`/`9001` (`S3_PORT`/`S3_CONSOLE_PORT`) | `9000`/`9001` |
 | Ops Console | `apps/ops` | — (host-run, not containerized) | `3300` (`OPS_PORT`, loopback only) | — |
+| Mission deadline sweep | `scripts/mission-deadlines/sweep.ts` | — (external cron, not a service) | — | — |
 
 ## Technology Stack
 
@@ -391,6 +506,11 @@ area at a time: `auth`, `applicant`, `admin`, `programs`, `tenant`, `dashboard`,
 a machine-readable `REGRESSION_RESULT_JSON` payload containing total, passed, failed, skipped and
 duration counts; the Ops job runner parses that payload and renders the summary and raw logs.
 
+Weekly-task/readiness scenarios reuse this same runner and payload. Applicant covers task completion
+and future-date rejection; Missions covers readiness, locking, and repeat behavior; Programs/Admin
+cover task-resource configuration; Tenant covers completion/readiness isolation; Unit runs the mocked
+URL/SSRF, readiness, journal-date, task, resource, and safe-Markdown tests. No second dashboard exists.
+
 Scenario-generated records must be tagged through `RegressionDataMarker` before cleanup is allowed.
 The cleanup path deletes only marker-tagged records in dependency order and must not touch seeded demo
 data or user-created records.
@@ -439,13 +559,19 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
      `DRAFT ⇄ PUBLISHED ⇄ ARCHIVED` state machine, tenant scoping and `AuditLog` events
      (`program.created`, `program.updated`, `program.status_changed`). Published programs feed the
      applicant apply form.
+   - Program content (v0.16.0, D-069): learning resources, weekly tasks and calendar events are
+     managed from /programs/[id]/content behind the manageProgramContent capability
+     (ORG_ADMIN/SUPER_ADMIN) via audited tenant-scoped helpers (packages/db/src/program-content.ts,
+     actions resource.*/task.*/event.*).
+   - Current working slice: tasks support required/published state; each task can carry ordered
+     Markdown and YouTube resources, including an explicit pending-video state.
    - Next: cohorts and public per-program application entry points.
 
 5. Missions — mission engine delivered in `v0.14.0`, submissions in `v0.15.0`, full seed in `v0.15.1`
    - Done: admin create/edit/publish/archive missions; accepted applicants view published missions in
      their dashboard; mission submission + staff review loop (`v0.15.0`, D-067:
-     `DRAFT→SUBMITTED→ACCEPTED|NEEDS_REVISION`, evidence = GitHub/deployment/Loom URLs + inline
-     engineering journal, `reviewSubmissions` capability); demo seed provides the complete four-week
+     `DRAFT→SUBMITTED→ACCEPTED|NEEDS_REVISION`, evidence = GitHub/deployment/Loom URLs,
+     `reviewSubmissions` capability); demo seed provides the complete four-week
      TaskPilot SEM mission arc (`v0.15.1`, D-068).
    - Mission-driven dashboard progress (v0.16.0, D-069): the applicant dashboard's Overall
      Progress, Missions Accepted tile and per-week bars derive from ACCEPTED submissions
@@ -453,7 +579,24 @@ The engineering backlog below maps the Product Backlog into near-term deliverabl
    - Mission assignment MVP (v0.18.0): accepted applicants receive assigned published missions instead
      of seeing the whole published mission pool. Week 1 seed variants are authored in Markdown and
      imported into mission fields for future AI-review context.
-   - Next: competency rollup / portfolio view over accepted submissions.
+   - Current working slice: final submission requires all required tasks for the assigned program week,
+     at least four current-attempt journals, and publicly reachable GitHub/deployment/Loom URLs. Repeat
+     attempts retain week-task completion but require four journals linked to the new attempt.
+   - Mission deadline & lifecycle (v0.18.5, D-080): explicit Accept Mission action starts a
+     per-mission deadline/grace countdown; an idempotent external sweep script transitions
+     `OVERDUE`/`FAILED`+`DISQUALIFIED`; accepting a submission auto-advances the applicant to the
+     next week (capped at week 4); a `REPEAT` decision reassigns an alternate mission for the same
+     week that failed (corrected from a Week 1 reset at `v0.19.1`, D-082), notifying reviewers when
+     no alternate mission exists.
+   - Mission-driven tasks & Submissions admin tab (v0.19.0, D-081): a fixed 3-task template per
+     assignment (Review Brief / Study Tutorial with YouTube watch-gate / Build & Submit Evidence)
+     gates submission; a new admin Submissions tab lists/filters submissions across all missions.
+     These assignment-attempt steps coexist with required `ProgramTask` learning tasks: mission steps
+     reset per attempt, while program-week task completion remains reusable across same-week repeats.
+   - Dashboard wiring (v0.19.1, D-082): Dashboard/My Program/Tasks/Missions pages read the real
+     mission-lifecycle deadline and task-completion data instead of program-level placeholders.
+   - Next: competency rollup / portfolio view over accepted submissions; a Back Office "rejoin from
+     Week 1" workflow for disqualified applicants (explicitly deferred, not yet designed).
 
 6. Engineering Journal — delivered in `v0.17.0`, date-uniqueness hardened in `v0.17.1`
    - Done: dedicated daily structured-reflection module (`EngineeringJournalEntry`) at

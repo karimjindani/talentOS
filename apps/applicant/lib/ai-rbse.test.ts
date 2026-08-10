@@ -10,6 +10,7 @@ const emptyContext: ApplicantContext = {
   progress: null,
   upcomingTasks: [],
   missions: [],
+  assignments: [],
   submissions: [],
   daysRemaining: null,
 };
@@ -29,7 +30,14 @@ const fullContext: ApplicantContext = {
   upcomingTasks: [
     { id: "task-1", title: "Build REST API", weekNumber: 3, dueAt: "2026-07-15T00:00:00Z", completed: false, overdue: false },
   ],
-  missions: [{ id: "m1", title: "API Development", weekNumber: 3, difficulty: "Intermediate" }],
+  missions: [
+    { id: "m1", title: "API Development", weekNumber: 3, difficulty: "Intermediate" },
+    { id: "m2", title: "Database Design", weekNumber: 2, difficulty: "Beginner" },
+  ],
+  assignments: [
+    { missionId: "m1", status: "IN_PROGRESS", deadlineAt: "2026-07-20T23:59:59Z" },
+    { missionId: "m2", status: "PASSED", deadlineAt: "2026-07-10T23:59:59Z" },
+  ],
   submissions: [],
   daysRemaining: 30,
 };
@@ -106,6 +114,99 @@ describe("RBSE classifyQuestion", () => {
 
     it("returns direct answer for 'show my timeline'", () => {
       const result = classifyQuestion("Show my timeline", fullContext);
+      expect(result.type).toBe("direct_answer");
+      if (result.type === "direct_answer") {
+        expect(result.response.cards).toBeDefined();
+        expect(result.response.cards!.some((c) => c.kind === "timeline")).toBe(true);
+      }
+    });
+
+    it("timeline shows IN_PROGRESS label with 🔧 for assigned mission", () => {
+      const result = classifyQuestion("Show my timeline", fullContext);
+      expect(result.type).toBe("direct_answer");
+      if (result.type === "direct_answer") {
+        const timelineCard = result.response.cards?.find((c) => c.kind === "timeline");
+        expect(timelineCard).toBeDefined();
+        if (timelineCard && timelineCard.kind === "timeline") {
+          expect(timelineCard.items.some((i) => i.includes("🔧 In progress"))).toBe(true);
+        }
+      }
+    });
+
+    it("timeline shows PASSED label with ✅ for completed mission", () => {
+      const result = classifyQuestion("Show my timeline", fullContext);
+      expect(result.type).toBe("direct_answer");
+      if (result.type === "direct_answer") {
+        const timelineCard = result.response.cards?.find((c) => c.kind === "timeline");
+        expect(timelineCard).toBeDefined();
+        if (timelineCard && timelineCard.kind === "timeline") {
+          expect(timelineCard.items.some((i) => i.includes("✅ Completed & Accepted"))).toBe(true);
+        }
+      }
+    });
+
+    it("timeline shows OVERDUE label with ⚠️ for overdue mission", () => {
+      const ctx: ApplicantContext = {
+        ...fullContext,
+        assignments: [{ missionId: "m1", status: "OVERDUE", deadlineAt: "2026-07-01T23:59:59Z" }],
+      };
+      const result = classifyQuestion("Show my timeline", ctx);
+      expect(result.type).toBe("direct_answer");
+      if (result.type === "direct_answer") {
+        const timelineCard = result.response.cards?.find((c) => c.kind === "timeline");
+        expect(timelineCard).toBeDefined();
+        if (timelineCard && timelineCard.kind === "timeline") {
+          expect(timelineCard.items.some((i) => i.includes("⚠️ Overdue — submit now"))).toBe(true);
+        }
+      }
+    });
+
+    it("timeline shows REJECTED label with ❌ for rejected mission", () => {
+      const ctx: ApplicantContext = {
+        ...fullContext,
+        assignments: [{ missionId: "m1", status: "REJECTED", deadlineAt: "2026-07-01T23:59:59Z" }],
+      };
+      const result = classifyQuestion("Show my timeline", ctx);
+      expect(result.type).toBe("direct_answer");
+      if (result.type === "direct_answer") {
+        const timelineCard = result.response.cards?.find((c) => c.kind === "timeline");
+        expect(timelineCard).toBeDefined();
+        if (timelineCard && timelineCard.kind === "timeline") {
+          expect(timelineCard.items.some((i) => i.includes("❌ Rejected — retry"))).toBe(true);
+        }
+      }
+    });
+
+    it("timeline shows 🔒 Not assigned for unassigned mission", () => {
+      const ctx: ApplicantContext = {
+        ...fullContext,
+        assignments: [],
+      };
+      const result = classifyQuestion("Show my timeline", ctx);
+      expect(result.type).toBe("direct_answer");
+      if (result.type === "direct_answer") {
+        const timelineCard = result.response.cards?.find((c) => c.kind === "timeline");
+        expect(timelineCard).toBeDefined();
+        if (timelineCard && timelineCard.kind === "timeline") {
+          expect(timelineCard.items.some((i) => i.includes("🔒 Not assigned"))).toBe(true);
+        }
+      }
+    });
+
+    it("timeline includes deadline date for assigned missions", () => {
+      const result = classifyQuestion("Show my timeline", fullContext);
+      expect(result.type).toBe("direct_answer");
+      if (result.type === "direct_answer") {
+        const timelineCard = result.response.cards?.find((c) => c.kind === "timeline");
+        expect(timelineCard).toBeDefined();
+        if (timelineCard && timelineCard.kind === "timeline") {
+          expect(timelineCard.items.some((i) => i.includes("due"))).toBe(true);
+        }
+      }
+    });
+
+    it("returns direct answer for 'my missions'", () => {
+      const result = classifyQuestion("my missions", fullContext);
       expect(result.type).toBe("direct_answer");
       if (result.type === "direct_answer") {
         expect(result.response.cards).toBeDefined();

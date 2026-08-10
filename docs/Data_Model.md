@@ -1,9 +1,55 @@
 # Data Model
 
-Code version: `v0.18.4`
+Code version: `v0.19.6`
 
-Baseline commit: `bf59ca4`
+Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
 
+> `v0.19.6` (Mission Workspace LMS, Curriculum Tooling & Thursday Scheduling, D-091–D-093) evolves the
+> same models rather than adding new ones: `LearningResourceType` gains `DOCUMENT`; `VideoResource`
+> gains a nullable `fileId` relation to `StoredFile` (`onDelete: SetNull`) so a document resource links
+> the uploaded file applicants download; `ProgramTask` gains `isPrerequisite` (default `false`) which
+> locks the mission's own steps until complete. Mission deadlines are computed on a Thursday /
+> ≥4-working-day cadence at acceptance rather than from raw `deadlineHours` (no schema change), and a
+> repeat excludes every mission the applicant already had. Migrations:
+> `20260723120000_learning_resource_document`, `20260723140000_program_task_prerequisite`.
+>
+> `v0.19.5` weekly-task/submission-readiness work evolves the existing `ProgramTask`, `VideoResource`,
+> and `UserTaskCompletion` models instead of creating parallel models. Tasks remain scoped by
+> tenant/program/week and gain `required` and `published` flags. The legacy-named `VideoResource`
+> becomes a reusable task resource with `MARKDOWN`/`YOUTUBE` type, optional `taskId`, optional URL,
+> Markdown content, ordering, and optional duration. Task completions gain an authoritative
+> `tenantId` and are unique on `[tenantId, userId, taskId]`. Migration:
+> `20260716090000_weekly_tasks_submission_readiness`.
+>
+> `v0.19.2` (Logout Regression Fix & Confirmation Gates, D-083) makes no schema change — a restored
+> UI affordance, a Vitest alias fix and a governance-only `AGENTS.md` addition.
+>
+> `v0.19.1` (Dashboard Wiring & Same-Week Repeat, D-082) makes no schema change. It renames
+> `createRepeatFromWeekOneTx` to `createRepeatMissionForSameWeekTx` (now parameterized by the
+> failed assignment's own `weekNumber` instead of assuming `1`) and rewires several applicant pages
+> to already-shipped fields (`MissionAssignment.deadlineAt`, `acceptedAt`) — no new columns or
+> tables.
+>
+> `v0.19.0` (Mission-Driven Tasks & Submissions Admin Tab, D-081) adds `Mission.tutorialUrl`
+> (String?, optional YouTube tutorial link) and a new `MissionTaskCompletion` model (`id`,
+> `tenantId`, `missionAssignmentId` FK→mission_assignments Cascade, `taskIndex` (1 or 2),
+> `completedAt`), unique on `[missionAssignmentId, taskIndex]`. Task 3 ("Build & Submit Evidence")
+> has no completion row — it is derived from the linked `Submission.status` moving beyond `DRAFT`/
+> `NEEDS_REVISION`. The later weekly-task/readiness slice reuses `ProgramTask`, `VideoResource`, and
+> `UserTaskCompletion` as a separate program-week learning track; `MissionTaskCompletion` remains the
+> assignment-attempt workflow-step model. Migration: `20260714110000_mission_tasks`.
+>
+> `v0.18.5` (Mission Deadline & Lifecycle, D-080) adds `Mission.deadlineHours` (Int, default 168)
+> and `Mission.gracePeriodHours` (Int, default 24); adds `MissionAssignment.acceptedAt`/
+> `deadlineAt`/`graceEndsAt` (all nullable DateTime, set on explicit accept); changes the
+> `MissionAssignment` default status to `NOT_STARTED` and rebuilds `MissionAssignmentStatus` to
+> `NOT_STARTED, ACCEPTED, IN_PROGRESS, PENDING_EVALUATION, LATE_SUBMITTED, OVERDUE, FAILED, PASSED,
+> REPEAT` (replacing the `v0.18.0`-era `ACTIVE`/`SUBMITTED` two-state model); extends
+> `ApplicationStatus` with `DISQUALIFIED` (grace period expired with no submission — terminal) and
+> `AWAITING_MISSION_ASSIGNMENT` (a `REPEAT` decision had no alternate mission to reassign). Both new
+> `ApplicationStatus` values are terminal in `packages/auth/src/workflow.ts` — no admin-initiated
+> transition leaves them. Migration: `20260714090000_mission_deadlines_and_lifecycle`.
+>
 > `v0.15.0` (AI Mentor MVP, D-066) adds `MentorConversation` (`id`, `tenantId`, `userId`, `title`,
 > `createdAt`, `updatedAt`, index on `[tenantId, userId, updatedAt]`) and `MentorMessage`
 > (`id`, `conversationId` FK→`MentorConversation` Cascade, `role` (`"user"` | `"mentor"`), `content`,
@@ -153,6 +199,7 @@ erDiagram
     Mission ||--o{ MissionAssignment : "assigned via"
     User ||--o{ MissionAssignment : "is assigned"
     MissionAssignment ||--o| Submission : receives
+    MissionAssignment ||--o{ MissionTaskCompletion : "tracks tasks 1-2 for"
     MissionAssignment ||--o{ EngineeringJournalEntry : groups
     Tenant ||--o{ EngineeringJournalEntry : owns
     Program ||--o{ EngineeringJournalEntry : contains
@@ -160,8 +207,10 @@ erDiagram
     User ||--o{ EngineeringJournalEntry : writes
     Tenant ||--o{ ProgramTask : owns
     Program ||--o{ ProgramTask : schedules
+    ProgramTask ||--o{ VideoResource : provides
     ProgramTask ||--o{ UserTaskCompletion : "completed via"
     User ||--o{ UserTaskCompletion : completes
+    Tenant ||--o{ UserTaskCompletion : owns
     Tenant ||--o{ VideoResource : owns
     Program ||--o{ VideoResource : curates
     Tenant ||--o{ CalendarEvent : owns
@@ -175,6 +224,7 @@ erDiagram
     User ||--o{ StoredFile : uploads
     Application |o--o| StoredFile : "CV"
     Tenant |o--o| StoredFile : "logo"
+    StoredFile ||--o{ VideoResource : "document for (v0.19.6)"
     Tenant ||--o{ PortfolioArtifact : owns
     Tenant ||--o{ Certificate : owns
     Tenant ||--o{ KnowledgeBaseDocument : owns
@@ -193,28 +243,46 @@ erDiagram
 - `ApplicationAnswer`: structured answers inside an application.
 - `AuditLog`: security and business action history.
 - `Mission`: tenant/program-scoped SEM assignment managed by admins. Published missions are eligible
-  to be assigned to accepted applicants.
-- `MissionAssignment`: tenant/program/applicant/week attempt row. `attemptNumber` preserves repeat-week
-  history and `status` tracks `ACTIVE`, `SUBMITTED`, `PASSED` or `REPEAT`; uniqueness includes the
-  attempt number.
+  to be assigned to accepted applicants. `deadlineHours`/`gracePeriodHours` (`v0.18.5`) set the
+  per-mission deadline/grace window; `tutorialUrl` (`v0.19.0`) optionally powers the Task 2
+  YouTube watch-gate.
+- `MissionAssignment`: tenant/program/applicant/week attempt row. `attemptNumber` preserves
+  repeat-week history and `status` tracks the full lifecycle
+  `NOT_STARTED → ACCEPTED → IN_PROGRESS → PENDING_EVALUATION|LATE_SUBMITTED`, with `OVERDUE`/
+  `FAILED` as deadline-driven side states and `PASSED`/`REPEAT` as review outcomes (`v0.18.5`,
+  replacing the earlier `ACTIVE`/`SUBMITTED` model); uniqueness includes the attempt number.
+  `acceptedAt`/`deadlineAt`/`graceEndsAt` (`v0.18.5`) are set by the applicant's explicit Accept
+  Mission action, not by assignment time.
+- `MissionTaskCompletion`: per-assignment-attempt completion row for the fixed Task 1 (Review the
+  Mission Brief) and Task 2 (Study the Tutorial) template (`v0.19.0`); Task 3 (Build & Submit
+  Evidence) has no row of its own — it is derived from the linked `Submission.status`. Unique on
+  `[missionAssignmentId, taskIndex]`.
 - `Submission`: participant mission evidence (repository/deployment/Loom URLs + legacy inline journal
   markdown) moving through the SEM review loop; tenant-scoped, one row per assignment attempt,
   reviewed by staff (`reviewerUserId`, `reviewerFeedback`, `reviewedAt`); an `ACCEPTED` submission is
-  terminal portfolio/graduation evidence for the mission's `competencyTags`.
+  terminal portfolio/graduation evidence for the mission's `competencyTags`. Final submission requires
+  every required task for the assignment's program/week, at least four eligible current-attempt
+  journals, and publicly reachable GitHub/deployment/Loom evidence. `deploymentUrl` remains a string
+  for compatibility and can contain up to ten normalized semicolon-separated URLs; application and
+  review displays parse it through the central URL helper rather than treating it as one link.
 - `EngineeringJournalEntry`: dedicated daily reflection entry for an accepted applicant, linked to a
   published mission and assignment attempt, distinct from the older `Submission.journalMarkdown`
   field. Unique on
   `[tenantId, applicantId, entryDate]` (one entry per applicant per calendar date); carries nullable
-  AI-review/scoring fields as schema placeholders only. `lockedAt` is set when its attempt is submitted.
-- `ProgramTask`: weekly task/assignment (week 1-4) within a program, shown on the applicant
-  dashboard; completion tracked per user via `UserTaskCompletion`.
-- `VideoResource`: external video resource (YouTube/Loom URL) curated per program and optionally
-  per week.
+  AI-review/scoring fields as schema placeholders only. `entryDate` is an applicant-selected calendar
+  date, separate from `createdAt`, `updatedAt`, and `Submission.submittedAt`; future dates are rejected.
+  `lockedAt` is set when its exact assignment attempt is submitted.
+- `ProgramTask`: ordered required/optional, published/unpublished learning task within a tenant-owned
+  program week. It is not linked to a mission or assignment attempt; completion therefore remains
+  valid when the applicant repeats the same week.
+- `VideoResource`: legacy table/model name for a program/task learning resource. A resource can be
+  `MARKDOWN` (safe-rendered `markdownContent`) or `YOUTUBE` (optional public YouTube `url`), is ordered,
+  and may carry an optional duration. A null YouTube URL represents an explicit pending-video state.
 - `CalendarEvent`: scheduled event for a program (dashboard calendar).
 - `Notification`: in-app notification for a specific user (`NotificationType`: INFO, WARNING,
   SUCCESS, TASK_DUE) with read tracking (`readAt`).
-- `UserTaskCompletion`: join table recording which user completed which `ProgramTask`
-  (unique `[taskId, userId]`).
+- `UserTaskCompletion`: tenant-scoped join table recording which applicant completed which
+  `ProgramTask` (unique `[tenantId, userId, taskId]`). It deliberately has no `missionAssignmentId`.
 - `StoredFile`: tenant-scoped metadata for an object stored in MinIO (bytes live in the object store).
 - `RegressionDataMarker`: local/dev marker rows identifying records created by regression workflows and
   safe to remove during regression cleanup.

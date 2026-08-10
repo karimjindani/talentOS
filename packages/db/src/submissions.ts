@@ -1,9 +1,32 @@
 import { type SubmissionStatus } from "@prisma/client";
 import { prisma } from "./client";
 import {
-  createRepeatMissionAssignmentTx,
+  assignWeekMissionToAcceptedApplicantTx,
+  createRepeatMissionForSameWeekTx,
   getActiveMissionAssignmentForMissionTx
 } from "./mission-assignments";
+import {
+  assertMissionSubmissionReady,
+  checkMissionSubmissionUrlReachability,
+  getMissionSubmissionReadiness,
+  getMissionSubmissionReadinessWithClient,
+  SubmissionReadinessError
+} from "./submission-readiness";
+import {
+  checkPublicEvidenceUrl,
+  normalizeDeploymentUrls,
+  parseEvidenceUrl,
+  type EvidenceUrlKind,
+  type PublicUrlCheckResult
+} from "./url-safety";
+
+export { normalizeDeploymentUrls, parseDeploymentUrls, parseEvidenceUrl } from "./url-safety";
+import { REQUIRED_TASK_INDEXES } from "./mission-tasks";
+
+// Programs run a fixed four-week arc; accepting the week-4 submission completes the program
+// instead of assigning a week 5 (assignWeekMissionToAcceptedApplicantTx already no-ops when no
+// PUBLISHED mission exists for a week, but the explicit cap keeps that intent obvious here).
+const FINAL_PROGRAM_WEEK = 4;
 
 // Mission-submission workflow helpers (v0.15.0, D-067). All reads/writes are tenant-scoped via the
 // Submission.tenantId column; writes additionally verify the mission chain and the applicant owner.
@@ -12,46 +35,27 @@ import {
 // defense in depth.
 
 /** Evidence-URL kinds and their allowed hosts. Deployment URLs may live anywhere (any http/https). */
-const EVIDENCE_HOST_SUFFIX: Record<"repository" | "loom", string> = {
-  repository: "github.com",
-  loom: "loom.com"
-};
-
 /**
  * Validate an optional evidence URL (empty → null). Repository and Loom links are host-allowlisted
  * (mirrors the apply flow's profile-link rule) so stored links can't be used for phishing;
  * deployment links only need to be well-formed http(s).
  */
-export function parseEvidenceUrl(raw: string, kind: "repository" | "deployment" | "loom"): string | null {
-  const value = raw.trim();
-  if (!value) {
-    return null;
-  }
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error(`Enter a valid ${kind} URL (including https://).`);
-  }
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new Error(`Enter a valid ${kind} URL (including https://).`);
-  }
-  if (kind === "deployment") {
-    return url.toString();
-  }
-  const host = url.hostname.toLowerCase();
-  const suffix = EVIDENCE_HOST_SUFFIX[kind];
-  if (host !== suffix && !host.endsWith(`.${suffix}`)) {
-    throw new Error(`The ${kind} URL must be on ${suffix}.`);
-  }
-  return url.toString();
-}
-
 /** The applicant's own submission for a mission (or null before their first draft). */
 export function getApplicantSubmission(missionId: string, applicantId: string, tenantId: string) {
   return prisma.submission.findFirst({
     where: { missionId, applicantId, tenantId },
     orderBy: { createdAt: "desc" }
+  });
+}
+
+/** The applicant's submission for one exact assignment attempt. */
+export function getApplicantSubmissionForAssignment(
+  missionAssignmentId: string,
+  applicantId: string,
+  tenantId: string
+) {
+  return prisma.submission.findFirst({
+    where: { missionAssignmentId, applicantId, tenantId }
   });
 }
 
@@ -69,6 +73,27 @@ export function listMissionSubmissions(tenantId: string, missionId: string) {
   return prisma.submission.findMany({
     where: { tenantId, missionId },
     include: { applicant: { select: { id: true, name: true, email: true } } },
+    orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }]
+  });
+}
+
+export type TenantSubmissionFilters = {
+  status?: SubmissionStatus;
+  programId?: string;
+};
+
+/** All submissions across every mission in the tenant (the top-level Submissions admin page). */
+export function listTenantSubmissions(tenantId: string, filters: TenantSubmissionFilters = {}) {
+  return prisma.submission.findMany({
+    where: {
+      tenantId,
+      ...(filters.status ? { status: filters.status } : {}),
+      ...(filters.programId ? { mission: { programId: filters.programId } } : {})
+    },
+    include: {
+      applicant: { select: { id: true, name: true, email: true } },
+      mission: { select: { id: true, title: true, weekNumber: true, programId: true, program: { select: { name: true } } } }
+    },
     orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }]
   });
 }
@@ -147,7 +172,7 @@ export async function saveSubmissionDraft(input: SubmissionEvidenceInput) {
       journalMarkdown?: string | null;
     } = {
       repositoryUrl: input.repositoryUrl,
-      deploymentUrl: input.deploymentUrl,
+      deploymentUrl: normalizeDeploymentUrls(input.deploymentUrl),
       loomUrl: input.loomUrl
     };
     if (Object.prototype.hasOwnProperty.call(input, "journalMarkdown")) {
@@ -164,6 +189,12 @@ export async function saveSubmissionDraft(input: SubmissionEvidenceInput) {
           status: "DRAFT",
           ...evidence
         }
+      });
+      // First draft moves the assignment from ACCEPTED to IN_PROGRESS; no-op if it's already
+      // IN_PROGRESS or OVERDUE (drafting during the grace period doesn't change its status).
+      await tx.missionAssignment.updateMany({
+        where: { id: assignment.id, tenantId: input.tenantId, applicantId: input.applicantId, status: "ACCEPTED" },
+        data: { status: "IN_PROGRESS" }
       });
       await tx.auditLog.create({
         data: {
@@ -212,51 +243,134 @@ export type SubmitSubmissionInput = {
   applicantId: string;
 };
 
-/**
- * Move the applicant's own DRAFT / NEEDS_REVISION submission to SUBMITTED. Requires at least one
- * evidence URL so reviewers always have something to open.
- */
-export async function submitSubmission({ id, tenantId, applicantId }: SubmitSubmissionInput) {
+export type SubmitSubmissionDependencies = {
+  checkEvidenceUrl?: (url: string, kind: EvidenceUrlKind) => Promise<PublicUrlCheckResult>;
+};
+
+/** Validate readiness and public evidence before atomically submitting and locking this attempt. */
+export async function submitSubmission(
+  { id, tenantId, applicantId }: SubmitSubmissionInput,
+  dependencies: SubmitSubmissionDependencies = {}
+) {
+  const submission = await prisma.submission.findFirst({
+    where: { id, tenantId, applicantId }
+  });
+  if (!submission) {
+    throw new Error("Submission not found for this tenant.");
+  }
+  if (submission.status !== "DRAFT" && submission.status !== "NEEDS_REVISION") {
+    throw new Error(`Invalid submission status transition from ${submission.status} to SUBMITTED.`);
+  }
+  if (!submission.missionAssignmentId) {
+    throw new Error("This submission is not linked to an assignment attempt.");
+  }
+  const missionAssignmentId = submission.missionAssignmentId;
+
+  const preflight = await getMissionSubmissionReadiness({
+    tenantId,
+    applicantId,
+    missionAssignmentId
+  });
+  if (preflight.submission?.id !== submission.id) {
+    throw new Error("Submission does not belong to the current assignment attempt.");
+  }
+  assertMissionSubmissionReady(preflight);
+
+  const checkedPreflight = await checkMissionSubmissionUrlReachability(
+    preflight,
+    dependencies.checkEvidenceUrl ?? checkPublicEvidenceUrl
+  );
+  assertMissionSubmissionReady(checkedPreflight);
+
+  const checkedUrls = {
+    repositoryUrl: checkedPreflight.urls.repository.value,
+    deploymentUrl: checkedPreflight.urls.deployment.value,
+    loomUrl: checkedPreflight.urls.loom.value
+  };
+
   return prisma.$transaction(async (tx) => {
-    const submission = await tx.submission.findFirst({
-      where: { id, tenantId, applicantId }
+    const current = await getMissionSubmissionReadinessWithClient(tx, {
+      tenantId,
+      applicantId,
+      missionAssignmentId
     });
-    if (!submission) {
-      throw new Error("Submission not found for this tenant.");
+    assertMissionSubmissionReady(current);
+    if (current.submission?.id !== submission.id) {
+      throw new Error("Submission does not belong to the current assignment attempt.");
     }
-    if (submission.status !== "DRAFT" && submission.status !== "NEEDS_REVISION") {
-      throw new Error(`Invalid submission status transition from ${submission.status} to SUBMITTED.`);
+    if (
+      current.urls.repository.value !== checkedUrls.repositoryUrl ||
+      current.urls.deployment.value !== checkedUrls.deploymentUrl ||
+      current.urls.loom.value !== checkedUrls.loomUrl
+    ) {
+      throw new Error("Submission evidence changed during validation. Please submit again.");
     }
-    if (!submission.repositoryUrl && !submission.deploymentUrl && !submission.loomUrl) {
-      throw new Error("Add at least one evidence link (repository, deployment or Loom) before submitting.");
+
+    const assignment = await tx.missionAssignment.findFirst({
+      where: { id: missionAssignmentId, tenantId, applicantId }
+    });
+    if (!assignment) {
+      throw new Error("This submission's assignment attempt was not found.");
     }
-    if (!submission.missionAssignmentId) {
-      throw new Error("This submission is not linked to an assignment attempt.");
+    if (assignment.status === "FAILED") {
+      throw new Error("The deadline and grace period for this mission have passed.");
+    }
+
+    // Tasks 1 & 2 (Review Brief, Study Tutorial) must be checked off before Task 3 (this submit
+    // action) is allowed — Task 3 itself has no completion row; it's this transition.
+    const requiredCompletions = await tx.missionTaskCompletion.findMany({
+      where: { missionAssignmentId: assignment.id, taskIndex: { in: [...REQUIRED_TASK_INDEXES] } },
+      select: { taskIndex: true }
+    });
+    const completedTaskIndexes = new Set(requiredCompletions.map((completion) => completion.taskIndex));
+    if (!REQUIRED_TASK_INDEXES.every((index) => completedTaskIndexes.has(index))) {
+      throw new Error("Complete the mission tasks (Review Brief, Study Tutorial) before submitting for review.");
     }
 
     const submittedAt = new Date();
-    const updated = await tx.submission.update({
-      where: { id: submission.id },
+    // Deadline timestamps remain authoritative even when the external sweep has not run yet.
+    // Trust the clock over the (possibly stale, externally-swept) assignment status — the sweep may
+    // not have run yet, so lateness is judged directly against the stored deadline/grace timestamps.
+    if (assignment.graceEndsAt && submittedAt.getTime() > assignment.graceEndsAt.getTime()) {
+      throw new Error("The deadline and grace period for this mission have passed.");
+    }
+    const isLate = Boolean(assignment.deadlineAt && submittedAt.getTime() > assignment.deadlineAt.getTime());
+
+    // Status-scoped updateMany prevents concurrent submit attempts from processing twice.
+    const update = await tx.submission.updateMany({
+      where: {
+        id: submission.id,
+        tenantId,
+        applicantId,
+        status: { in: ["DRAFT", "NEEDS_REVISION"] }
+      },
       data: { status: "SUBMITTED", submittedAt }
     });
+    if (update.count !== 1) {
+      throw new Error("This submission was already processed. Refresh the page to see its current status.");
+    }
+
+    const assignmentUpdate = await tx.missionAssignment.updateMany({
+      where: {
+        id: missionAssignmentId,
+        tenantId,
+        applicantId,
+        status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] }
+      },
+      data: { status: isLate ? "LATE_SUBMITTED" : "PENDING_EVALUATION" }
+    });
+    if (assignmentUpdate.count !== 1) {
+      throw new Error("The assignment attempt is no longer open for submission.");
+    }
 
     await tx.engineeringJournalEntry.updateMany({
       where: {
         tenantId,
         applicantId,
-        missionAssignmentId: submission.missionAssignmentId,
+        missionAssignmentId,
         lockedAt: null
       },
       data: { lockedAt: submittedAt }
-    });
-    await tx.missionAssignment.updateMany({
-      where: {
-        id: submission.missionAssignmentId,
-        tenantId,
-        applicantId,
-        status: "ACTIVE"
-      },
-      data: { status: "SUBMITTED" }
     });
 
     await tx.auditLog.create({
@@ -268,13 +382,13 @@ export async function submitSubmission({ id, tenantId, applicantId }: SubmitSubm
         entityId: submission.id,
         metadata: {
           missionId: submission.missionId,
-          missionAssignmentId: submission.missionAssignmentId,
+          missionAssignmentId,
           resubmission: submission.status === "NEEDS_REVISION"
         }
       }
     });
 
-    return updated;
+    return tx.submission.findFirstOrThrow({ where: { id: submission.id, tenantId, applicantId } });
   });
 }
 
@@ -333,8 +447,10 @@ export async function reviewSubmission({
     });
 
     if (submission.missionAssignment) {
+      // NEEDS_REVISION returns to IN_PROGRESS (not NOT_STARTED/ACCEPTED) since a draft already
+      // exists for the applicant to revise.
       const assignmentStatus =
-        status === "ACCEPTED" ? "PASSED" : status === "REPEAT" ? "REPEAT" : "ACTIVE";
+        status === "ACCEPTED" ? "PASSED" : status === "REPEAT" ? "REPEAT" : "IN_PROGRESS";
       await tx.missionAssignment.updateMany({
         where: {
           id: submission.missionAssignment.id,
@@ -345,7 +461,14 @@ export async function reviewSubmission({
       });
 
       if (status === "REPEAT") {
-        await createRepeatMissionAssignmentTx(tx, submission.missionAssignment);
+        await createRepeatMissionForSameWeekTx(tx, submission.missionAssignment);
+      } else if (status === "ACCEPTED" && submission.missionAssignment.weekNumber < FINAL_PROGRAM_WEEK) {
+        await assignWeekMissionToAcceptedApplicantTx(tx, {
+          tenantId,
+          programId: submission.missionAssignment.programId,
+          applicantId: submission.applicantId,
+          weekNumber: submission.missionAssignment.weekNumber + 1
+        });
       }
     } else if (status === "REPEAT") {
       throw new Error("A repeat decision requires a linked assignment attempt.");

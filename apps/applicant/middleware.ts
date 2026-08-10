@@ -15,7 +15,14 @@ export default auth((req) => {
   );
 
   if (isProtected && !req.auth) {
-    const loginUrl = new URL("/login", nextUrl.origin);
+    // Build the login URL from the *request host* (not nextUrl.origin, which resolves to the
+    // canonical AUTH_URL host inside Docker) so the login page loads on the same tenant subdomain
+    // the user is browsing. This avoids cross-origin RSC fetch failures when the browser is on
+    // paysyslabs.lvh.me but the redirect sends it to lvh.me (v0.19.6, BUG-1).
+    const loginUrl = new URL(
+      "/login",
+      requestOrigin(req.headers.get("host"), req.headers.get("x-forwarded-proto"), nextUrl)
+    );
     const callbackUrl = tenantCallbackUrl(req.headers.get("host"), nextUrl);
     // Absolute callback (host + path): login runs through the canonical AUTH_URL host, so the
     // post-login redirect must carry the tenant subdomain to return the applicant to their tenant.
@@ -36,4 +43,17 @@ export const config = {
 function tenantCallbackUrl(host: string | null, nextUrl: URL) {
   const requestHost = host ?? nextUrl.host;
   return `${nextUrl.protocol}//${requestHost}${nextUrl.pathname}${nextUrl.search}`;
+}
+
+/**
+ * Resolve the request origin from the Host header, falling back to nextUrl.origin.
+ * Inside Docker, nextUrl.origin can resolve to the canonical AUTH_URL host (e.g. lvh.me:3100)
+ * instead of the actual tenant subdomain (e.g. paysyslabs.lvh.me:3100), causing cross-origin
+ * RSC fetch failures. Using the Host header preserves the tenant subdomain (v0.19.6, BUG-1).
+ */
+function requestOrigin(host: string | null, proto: string | null, nextUrl?: URL): string {
+  if (host) {
+    return `${proto ?? "http"}://${host}`;
+  }
+  return nextUrl?.origin ?? "http://localhost:3100";
 }

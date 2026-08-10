@@ -16,8 +16,16 @@ export default auth((req) => {
   const isLoggedOut = pathname === "/logged-out";
 
   if (!isAuthRoute && !isForbidden && !isLoggedOut) {
+    // Build redirect URLs from the *request host* (not nextUrl.origin, which resolves to the
+    // canonical AUTH_URL host inside Docker) so pages load on the same tenant subdomain the user
+    // is browsing. This avoids cross-origin RSC fetch failures (v0.19.6, BUG-1).
+    const origin = requestOrigin(
+      req.headers.get("host"),
+      req.headers.get("x-forwarded-proto"),
+      nextUrl
+    );
     if (!req.auth) {
-      const signInUrl = new URL("/api/auth/signin", nextUrl.origin);
+      const signInUrl = new URL("/api/auth/signin", origin);
       const callbackUrl = tenantCallbackUrl(req.headers.get("host"), nextUrl);
       // Absolute callback (host + path), not just the path: login runs through the canonical
       // AUTH_URL host, so the post-login redirect must carry the tenant subdomain to return the
@@ -27,7 +35,7 @@ export default auth((req) => {
     }
     const user = req.auth.user;
     if (!canEnterAdminPortal(user.platformRole, user.orgRole)) {
-      return NextResponse.redirect(new URL("/forbidden", nextUrl.origin));
+      return NextResponse.redirect(new URL("/forbidden", origin));
     }
   }
 
@@ -43,4 +51,17 @@ export const config = {
 function tenantCallbackUrl(host: string | null, nextUrl: URL) {
   const requestHost = host ?? nextUrl.host;
   return `${nextUrl.protocol}//${requestHost}${nextUrl.pathname}${nextUrl.search}`;
+}
+
+/**
+ * Resolve the request origin from the Host header, falling back to nextUrl.origin.
+ * Inside Docker, nextUrl.origin can resolve to the canonical AUTH_URL host (e.g. lvh.me:3200)
+ * instead of the actual tenant subdomain (e.g. paysyslabs.lvh.me:3200), causing cross-origin
+ * RSC fetch failures. Using the Host header preserves the tenant subdomain (v0.19.6, BUG-1).
+ */
+function requestOrigin(host: string | null, proto: string | null, nextUrl?: URL): string {
+  if (host) {
+    return `${proto ?? "http"}://${host}`;
+  }
+  return nextUrl?.origin ?? "http://localhost:3200";
 }

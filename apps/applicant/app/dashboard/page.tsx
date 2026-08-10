@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { auth } from "@/auth";
-import { getTenantContext } from "@talentos/ui";
+import { getTenantContext, ProgressBar, SubmissionStatusBadge } from "@talentos/ui";
 import {
   getTenantBySlug,
   getUserByEmail,
   listApplicantApplications,
-  listProgramTasks,
+  listPublishedProgramTasks,
+  listAssignedMissionsWithTasks,
   listCalendarEvents,
   listUserNotifications,
   getApplicantMissionProgress,
@@ -15,6 +16,8 @@ import {
   prisma,
 } from "@talentos/db";
 import { DashboardConsentGate } from "@/components/DashboardConsentGate";
+import { DeadlineCountdown } from "@/components/DeadlineCountdown";
+import { CountdownTimer } from "@/components/CountdownTimer";
 
 function formatDate(value: Date | null | undefined) {
   if (!value) return "—";
@@ -47,26 +50,38 @@ export default async function DashboardPage() {
   const showConsentGate = !profile?.publicProfileEnabled;
 
   const program = acceptedApp.program;
-  const tasks = await listProgramTasks(tenant.id, program.id);
-  const completedTaskIds = await listCompletedTaskIds(user.id, program.id);
+  const weeklyTasks = await listPublishedProgramTasks(tenant.id, program.id);
+  const completedTaskIds = await listCompletedTaskIds(tenant.id, user.id, program.id);
   const events = await listCalendarEvents(tenant.id, program.id);
   const notifications = await listUserNotifications(user.id, tenant.id);
   // Mission-driven progress (v0.16.0, D-069): the SEM learning loop is the source of truth — only
-  // ACCEPTED mission submissions move the bar. Tasks remain a supplementary checklist below.
+  // ACCEPTED mission submissions move the bar.
   const missionProgress = await getApplicantMissionProgress(tenant.id, user.id, program.id);
+  // Tasks are mission-derived (v0.19.0): the same fixed 3-step checklist per assigned mission.
+  const missionsWithTasks = await listAssignedMissionsWithTasks(tenant.id, user.id, program.id);
 
-  const totalTasks = tasks.length;
-  const completedTasks = completedTaskIds.length;
+  const totalMissionSteps = missionsWithTasks.length * 3;
+  const completedMissionSteps = missionsWithTasks.reduce(
+    (sum, { tasks }) => sum + tasks.filter((task) => task.complete).length,
+    0
+  );
+  const requiredWeeklyTasks = weeklyTasks.filter((task) => task.required);
+  const completedWeeklyTasks = requiredWeeklyTasks.filter((task) => completedTaskIds.includes(task.id)).length;
   const overallPercentage = missionProgress.overall.percentage;
-
-  const now = new Date();
-  const daysRemaining = program.endsAt
-    ? Math.max(0, Math.ceil((new Date(program.endsAt).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-    : null;
 
   const recentNotifications = notifications.slice(0, 3);
   const upcomingEvents = events.slice(0, 2);
-  const currentWeekTasks = tasks.filter((t) => t.weekNumber === 1).slice(0, 4); // Week 1 tasks as "current"
+  // The current mission's tasks (falls back to the first assigned mission if everything's accepted).
+  const currentMissionTasks =
+    missionsWithTasks.find(({ mission }) => mission.id === missionProgress.currentMission?.id) ??
+    missionsWithTasks[0] ??
+    null;
+  const currentAssignment = currentMissionTasks?.assignment ?? null;
+  const currentDeadlineIsLive =
+    currentAssignment && ["ACCEPTED", "IN_PROGRESS", "OVERDUE"].includes(currentAssignment.status) && currentAssignment.deadlineAt;
+
+  // Time Remaining is wired to the current mission's own deadline (v0.19.1), not a static program
+  // end date — it only ticks once that mission has been accepted (see the live countdown below).
 
   return (
     <div>
@@ -100,9 +115,7 @@ export default async function DashboardPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-500">Overall Progress</p>
           <p className="mt-2 text-2xl font-bold text-brand-blue">{overallPercentage}%</p>
-          <div className="mt-2 h-2 rounded-full bg-slate-100">
-            <div className="h-2 rounded-full bg-brand-blue" style={{ width: `${overallPercentage}%` }} />
-          </div>
+          <ProgressBar className="mt-2" value={overallPercentage} aria-label="Overall progress" />
           <p className="mt-1 text-xs text-slate-500">accepted missions</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -111,13 +124,30 @@ export default async function DashboardPage() {
           <p className="mt-1 text-xs text-slate-500">of {missionProgress.overall.total} total</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">Tasks Completed</p>
-          <p className="mt-2 text-2xl font-bold text-amber-600">{completedTasks}</p>
-          <p className="mt-1 text-xs text-slate-500">of {totalTasks} total</p>
+          <p className="text-sm font-medium text-slate-500">Weekly Tasks</p>
+          <p className="mt-2 text-2xl font-bold text-amber-600">{completedWeeklyTasks}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            of {requiredWeeklyTasks.length} required · {completedMissionSteps}/{totalMissionSteps} mission steps
+          </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">Days Remaining</p>
-          <p className="mt-2 text-2xl font-bold text-brand-navy">{daysRemaining ?? "—"}</p>
+          <p className="text-sm font-medium text-slate-500">Time Remaining</p>
+          <p className="mt-2 text-xl font-bold text-brand-navy">
+            {currentDeadlineIsLive && currentAssignment?.deadlineAt ? (
+              <CountdownTimer
+                deadlineAt={currentAssignment.deadlineAt}
+                graceEndsAt={currentAssignment.graceEndsAt}
+                variant="plain"
+              />
+            ) : (
+              "—"
+            )}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            {currentAssignment?.status === "NOT_STARTED" || !currentAssignment
+              ? "accept your current mission to start the clock"
+              : "on your current mission"}
+          </p>
         </div>
       </div>
 
@@ -132,17 +162,13 @@ export default async function DashboardPage() {
           </div>
           <div className="space-y-3">
             {missionProgress.weeks.map((week) => (
-              <div key={week.weekNumber}>
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className="font-medium text-slate-700">Week {week.weekNumber}</span>
-                  <span className="text-slate-500">
-                    {week.acceptedMissions}/{week.totalMissions} missions · {week.percentage}%
-                  </span>
-                </div>
-                <div className="h-2 rounded-full bg-slate-100">
-                  <div className="h-2 rounded-full bg-brand-blue" style={{ width: `${week.percentage}%` }} />
-                </div>
-              </div>
+              <ProgressBar
+                key={week.weekNumber}
+                value={week.percentage}
+                label={`Week ${week.weekNumber}`}
+                valueText={`${week.acceptedMissions}/${week.totalMissions} missions · ${week.percentage}%`}
+                aria-label={`Week ${week.weekNumber} progress`}
+              />
             ))}
           </div>
         </div>
@@ -165,8 +191,13 @@ export default async function DashboardPage() {
               </p>
               <p className="mt-1 text-base font-semibold text-slate-800">{missionProgress.currentMission.title}</p>
               <div className="mt-3">
-                <SubmissionStatusChip status={missionProgress.currentMission.submissionStatus} />
+                <SubmissionStatusBadge status={missionProgress.currentMission.submissionStatus} />
               </div>
+              {currentDeadlineIsLive && currentAssignment?.deadlineAt && currentAssignment.graceEndsAt ? (
+                <div className="mt-3">
+                  <DeadlineCountdown deadlineAt={currentAssignment.deadlineAt} graceEndsAt={currentAssignment.graceEndsAt} />
+                </div>
+              ) : null}
             </Link>
           ) : missionProgress.overall.total > 0 ? (
             <div className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">
@@ -180,7 +211,7 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        {/* Current week tasks */}
+        {/* Current mission's tasks (v0.19.0) — the fixed 3-step checklist for the mission in progress */}
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-brand-navy">Current Tasks</h2>
@@ -188,24 +219,31 @@ export default async function DashboardPage() {
               View all →
             </Link>
           </div>
-          {currentWeekTasks.length === 0 ? (
-            <p className="text-sm text-slate-500">No tasks for this week yet.</p>
+          {!currentMissionTasks ? (
+            <p className="text-sm text-slate-500">No tasks yet — missions haven&apos;t been assigned.</p>
           ) : (
             <div className="space-y-3">
-              {currentWeekTasks.map((task) => {
-                const done = completedTaskIds.includes(task.id);
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-blue">
+                Week {currentMissionTasks.mission.weekNumber} · {currentMissionTasks.mission.title}
+              </p>
+              {currentMissionTasks.tasks.map((task) => {
+                const href =
+                  task.index === 3
+                    ? `/dashboard/missions/${currentMissionTasks.mission.id}`
+                    : `/dashboard/tasks/${currentMissionTasks.assignment.id}/${task.index}`;
                 return (
-                  <div key={task.id} className="flex items-start gap-3 rounded-xl border border-slate-100 p-3">
-                    <div className={`mt-0.5 h-5 w-5 shrink-0 rounded ${done ? "bg-emerald-500" : "border-2 border-slate-300"}`} />
+                  <Link
+                    key={task.index}
+                    href={href}
+                    className="flex items-start gap-3 rounded-xl border border-slate-100 p-3 transition hover:border-brand-blue"
+                  >
+                    <div className={`mt-0.5 h-5 w-5 shrink-0 rounded ${task.complete ? "bg-emerald-500" : "border-2 border-slate-300"}`} />
                     <div className="flex-1">
-                      <p className={`text-sm font-medium ${done ? "text-slate-400 line-through" : "text-slate-800"}`}>
-                        {task.title}
+                      <p className={`text-sm font-medium ${task.complete ? "text-slate-400 line-through" : "text-slate-800"}`}>
+                        Task {task.index}: {task.title}
                       </p>
-                      {task.dueAt ? (
-                        <p className="mt-0.5 text-xs text-slate-500">Due: {formatDate(task.dueAt)}</p>
-                      ) : null}
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
@@ -261,29 +299,4 @@ export default async function DashboardPage() {
       </div>
     </div>
   );
-}
-
-function SubmissionStatusChip({ status }: { status: SubmissionStatus | null }) {
-  if (!status) {
-    return (
-      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">Not started</span>
-    );
-  }
-  const styles: Record<SubmissionStatus, string> = {
-    DRAFT: "bg-slate-100 text-slate-700",
-    SUBMITTED: "bg-blue-100 text-blue-700",
-    REVIEWED: "bg-slate-100 text-slate-700",
-    NEEDS_REVISION: "bg-amber-100 text-amber-800",
-    ACCEPTED: "bg-emerald-100 text-emerald-700",
-    REPEAT: "bg-rose-100 text-rose-700"
-  };
-  const labels: Record<SubmissionStatus, string> = {
-    DRAFT: "Draft saved",
-    SUBMITTED: "Submitted — awaiting review",
-    REVIEWED: "Reviewed",
-    NEEDS_REVISION: "Revision requested",
-    ACCEPTED: "Accepted",
-    REPEAT: "Repeat assigned"
-  };
-  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${styles[status]}`}>{labels[status]}</span>;
 }

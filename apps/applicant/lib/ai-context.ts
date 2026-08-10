@@ -16,6 +16,7 @@ import {
   listCompletedTaskIds,
   listPublishedProgramMissions,
   getApplicantProgramProgress,
+  listApplicantMissionAssignmentStatuses,
 } from "@talentos/db";
 
 // ---------------------------------------------------------------------------
@@ -86,6 +87,13 @@ export type ApplicantContext = {
     difficulty: string;
   }[];
 
+  /** Mission assignment statuses for the applicant (which missions are assigned and their progress). */
+  assignments: {
+    missionId: string;
+    status: string;
+    deadlineAt: string | null;
+  }[];
+
   /** Submission statuses for missions the applicant has started. */
   submissions: ContextSubmission[];
 
@@ -115,6 +123,7 @@ export async function buildApplicantContext(
     progress: null,
     upcomingTasks: [],
     missions: [],
+    assignments: [],
     submissions: [],
     daysRemaining: null,
   };
@@ -131,9 +140,9 @@ export async function buildApplicantContext(
     const program = acceptedApp.program;
 
     // 2. Gather tasks, completions, missions, and progress in parallel
-    const [tasks, completedTaskIds, missions, weekProgress, submissions] = await Promise.all([
+    const [tasks, completedTaskIds, missions, weekProgress, submissions, assignmentStatuses] = await Promise.all([
       listProgramTasks(tenantId, program.id),
-      listCompletedTaskIds(userId, program.id),
+      listCompletedTaskIds(tenantId, userId, program.id),
       listPublishedProgramMissions(tenantId, program.id),
       getApplicantProgramProgress(userId, tenantId, program.id),
       // Fetch submissions for this applicant's missions
@@ -142,7 +151,23 @@ export async function buildApplicantContext(
         include: { mission: { select: { id: true, title: true, weekNumber: true } } },
         orderBy: { createdAt: "desc" },
       }),
+      // Fetch assignment statuses so the mentor knows which missions are assigned and their state
+      listApplicantMissionAssignmentStatuses(tenantId, userId, program.id),
     ]);
+
+    // Build assignment list from the mission list + assignment status map
+    const assignmentList = missions
+      .map((m) => {
+        const info = assignmentStatuses.get(m.id);
+        return info
+          ? {
+              missionId: m.id,
+              status: info.status as string,
+              deadlineAt: info.deadlineAt ? info.deadlineAt.toISOString() : null,
+            }
+          : null;
+      })
+      .filter((a): a is { missionId: string; status: string; deadlineAt: string | null } => a !== null);
 
     // 3. Compute progress summary
     const totalTasks = tasks.length;
@@ -229,6 +254,7 @@ export async function buildApplicantContext(
       },
       upcomingTasks,
       missions: missionList,
+      assignments: assignmentList,
       submissions: submissionList,
       daysRemaining,
     };
@@ -290,6 +316,14 @@ export function buildContextSignature(ctx: ApplicantContext): string {
     .join(",");
   parts.push(`s:${subSig}`);
 
+  // Assignment ids + status + deadline (sorted) — ensures cache invalidates when assignment
+  // status changes (e.g. NOT_STARTED → IN_PROGRESS → PASSED) or deadline changes
+  const assignSig = ctx.assignments
+    .map((a) => `${a.missionId}:${a.status}:${a.deadlineAt ?? "none"}`)
+    .sort()
+    .join(",");
+  parts.push(`a:${assignSig}`);
+
   // Days remaining
   parts.push(`d:${ctx.daysRemaining ?? "none"}`);
 
@@ -337,7 +371,16 @@ export function contextToPromptSection(ctx: ApplicantContext): string {
   if (ctx.missions.length > 0) {
     lines.push("Missions:");
     for (const m of ctx.missions) {
-      lines.push(`  - Week ${m.weekNumber}: ${m.title} (${m.difficulty})`);
+      const assignment = ctx.assignments.find((a) => a.missionId === m.id);
+      const submission = ctx.submissions.find((s) => s.missionId === m.id);
+      const statusLabel = assignment
+        ? `assigned=${assignment.status}`
+        : "not assigned";
+      const submissionLabel = submission ? `, submission=${submission.status}` : "";
+      const deadlineLabel = assignment?.deadlineAt
+        ? `, deadline=${new Date(assignment.deadlineAt).toLocaleDateString()}`
+        : "";
+      lines.push(`  - Week ${m.weekNumber}: ${m.title} (${m.difficulty}) — ${statusLabel}${submissionLabel}${deadlineLabel}`);
     }
   }
 

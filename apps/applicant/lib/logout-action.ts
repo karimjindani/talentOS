@@ -18,11 +18,15 @@ export async function logoutAction(): Promise<void> {
   const requestHeaders = await headers();
   const host = requestHeaders.get("host") ?? "localhost:3100";
   const proto = requestHeaders.get("x-forwarded-proto") ?? "http";
+  // AUTH_URL is the NextAuth v5 canonical origin; NEXTAUTH_URL is the v4 alias that NextAuth v5
+  // also reads. Use either before falling back to the request host — the request host is a tenant
+  // subdomain (e.g. paysyslabs.lvh.me) which Keycloak cannot validate as a post-logout redirect.
+  const canonicalAuthUrl = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? `http://${host}`;
   const logoutUrl = buildTenantLogoutUrl({
     issuer: process.env.KEYCLOAK_ISSUER ?? "http://keycloak.lvh.me:8080/realms/talentos",
     idToken: activeSession?.idToken,
     clientId: process.env.KEYCLOAK_CLIENT_ID ?? "talentos-applicant",
-    authUrl: process.env.AUTH_URL ?? `http://${host}`,
+    authUrl: canonicalAuthUrl,
     requestOrigin: `${proto}://${host}`
   });
   await signOut({ redirect: false });

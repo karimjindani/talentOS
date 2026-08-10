@@ -1,9 +1,46 @@
 # Data Dictionary
 
-Code version: `v0.18.4`
+Code version: `v0.19.6`
 
-Baseline commit: `bf59ca4`
+Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
 
+> `v0.19.6` (Mission Workspace LMS, Curriculum Tooling & Thursday Scheduling, D-091–D-093) adds the
+> `DOCUMENT` value to `LearningResourceType`, a nullable `video_resources.fileId` FK→`stored_files`
+> (`ON DELETE SET NULL`) for uploaded document resources, and a `program_tasks.isPrerequisite` boolean
+> (default `false`) that gates the mission's own steps. Migrations:
+> `20260723120000_learning_resource_document`, `20260723140000_program_task_prerequisite`. No other
+> table shape changed.
+>
+> `v0.19.5` weekly-task/submission-readiness work adds `LearningResourceType` (`MARKDOWN`, `YOUTUBE`),
+> extends `program_tasks` with `required`/`published`, extends the legacy-named `video_resources` table
+> with task association and reusable resource content fields, and makes `user_task_completions`
+> tenant-scoped. Migration: `20260716090000_weekly_tasks_submission_readiness`.
+>
+> `v0.19.2` (Logout Regression Fix & Confirmation Gates, D-083) makes no schema change.
+>
+> `v0.19.1` (Dashboard Wiring & Same-Week Repeat, D-082) makes no schema change — a function rename
+> (`createRepeatFromWeekOneTx` → `createRepeatMissionForSameWeekTx`) and dashboard/program/tasks/
+> missions pages reading already-shipped `MissionAssignment` fields.
+>
+> `v0.19.0` (Mission-Driven Tasks & Submissions Admin Tab, D-081) adds `missions.tutorialUrl`
+> (String?) and `mission_task_completion`: `id` (cuid PK), `tenantId` (FK→tenants), `missionAssignmentId`
+> (FK→mission_assignments, Cascade), `taskIndex` (Int, 1 or 2), `completedAt` (DateTime, default
+> now()). Unique on `[missionAssignmentId, taskIndex]` (constraint name
+> `mission_task_completion_key`). Task 3 has no row of its own — see `MissionAssignment` notes.
+> The later weekly-task/readiness slice reactivates `program_tasks`, `video_resources`, and
+> `user_task_completions` as a separate program-week learning track. `mission_task_completion`
+> remains the assignment-attempt workflow-step model.
+> Migration: `20260714110000_mission_tasks`.
+>
+> `v0.18.5` (Mission Deadline & Lifecycle, D-080) adds `missions.deadlineHours` (Int, default 168),
+> `missions.gracePeriodHours` (Int, default 24), `mission_assignments.acceptedAt`/`deadlineAt`/
+> `graceEndsAt` (all nullable DateTime); changes the `mission_assignments` default status to
+> `NOT_STARTED` and rebuilds the `MissionAssignmentStatus` enum to `NOT_STARTED, ACCEPTED,
+> IN_PROGRESS, PENDING_EVALUATION, LATE_SUBMITTED, OVERDUE, FAILED, PASSED, REPEAT`; extends
+> `ApplicationStatus` with `DISQUALIFIED` and `AWAITING_MISSION_ASSIGNMENT` (both terminal — no
+> outgoing transition in `packages/auth/src/workflow.ts`). Migration:
+> `20260714090000_mission_deadlines_and_lifecycle`.
+>
 > `v0.15.0` (AI Mentor MVP, D-066) adds `mentor_conversation`: `id`, `tenantId` (FK→tenants),
 > `userId` (FK→users), `title`, `createdAt`, `updatedAt`, index on `[tenantId, userId, updatedAt]`;
 > and `mentor_message`: `id`, `conversationId` (FK→mentor_conversation), `role` (`"user"` |
@@ -176,7 +213,7 @@ Baseline commit: `bf59ca4`
 | `tenantId` | Owning tenant. |
 | `programId` | Program receiving the application. |
 | `applicantId` | User who submitted the application. |
-| `status` | `DRAFT`, `SUBMITTED`, `UNDER_REVIEW`, `ACCEPTED`, `REJECTED` or `WAITLISTED`. |
+| `status` | `DRAFT`, `SUBMITTED`, `UNDER_REVIEW`, `ACCEPTED`, `REJECTED`, `WAITLISTED`, `DISQUALIFIED` (`v0.18.5`, grace period expired with no submission — terminal) or `AWAITING_MISSION_ASSIGNMENT` (`v0.18.5`, a `REPEAT` decision had no alternate mission to reassign — terminal until an admin manually assigns one). |
 | `submittedAt` | Submission timestamp. |
 | `reviewedAt` | Review completion timestamp. |
 | `reviewerNotes` | Internal admin review notes. |
@@ -210,6 +247,9 @@ Baseline commit: `bf59ca4`
 | `deliverables` | Required artifacts such as PRD, repository, deployment URL and Loom video. |
 | `evaluationCriteria` | Completion level or grading rubric. |
 | `competencyTags` | Competency mapping labels. |
+| `deadlineHours` | Hours from acceptance until the submission deadline; default `168` (7 days) (`v0.18.5`). |
+| `gracePeriodHours` | Hours after the deadline during which a late submission is still accepted; default `24` (`v0.18.5`). |
+| `tutorialUrl` | Optional YouTube tutorial link for the fixed Task 2 "Study the Tutorial" step; when set, the task requires watching to the end before it can be marked complete (`v0.19.0`). |
 
 ## MissionAssignment
 
@@ -221,10 +261,28 @@ Baseline commit: `bf59ca4`
 | `missionId` | Published mission assigned to the applicant. |
 | `weekNumber` | Program week for the assignment. |
 | `attemptNumber` | Attempt sequence within the applicant's program week, starting at 1. |
-| `status` | `ACTIVE`, `SUBMITTED`, `PASSED` or `REPEAT`. |
+| `status` | `NOT_STARTED`, `ACCEPTED`, `IN_PROGRESS`, `PENDING_EVALUATION`, `LATE_SUBMITTED`, `OVERDUE`, `FAILED`, `PASSED` or `REPEAT` (`v0.18.5`; replaces the earlier `ACTIVE`/`SUBMITTED` model). |
 | `assignedAt` | Timestamp for when the assignment was made. |
+| `acceptedAt` | Timestamp of the applicant's explicit Accept Mission action; null until accepted. Deadline/grace are computed from this, not `assignedAt` (`v0.18.5`). |
+| `deadlineAt` | `acceptedAt` + the mission's `deadlineHours`; null until accepted (`v0.18.5`). |
+| `graceEndsAt` | `deadlineAt` + the mission's `gracePeriodHours`; null until accepted (`v0.18.5`). |
 | `createdAt` | Row creation timestamp. |
 | `updatedAt` | Row update timestamp. |
+
+## MissionTaskCompletion
+
+Per-assignment-attempt completion row for the fixed Task 1 (Review the Mission Brief) and Task 2
+(Study the Tutorial) template (`v0.19.0`). Task 3 (Build & Submit Evidence) has no row of its own —
+it is derived from the linked `Submission.status` moving beyond `DRAFT`/`NEEDS_REVISION`. Unique on
+`[missionAssignmentId, taskIndex]`; cascades on `MissionAssignment` delete, so regression cleanup
+needs no separate marker for this table.
+
+| Field | Purpose |
+| --- | --- |
+| `tenantId` | Owning tenant; keeps task completions isolated by organization. |
+| `missionAssignmentId` | The assignment attempt this task completion belongs to. |
+| `taskIndex` | `1` (Review the Mission Brief) or `2` (Study the Tutorial). |
+| `completedAt` | Completion timestamp (default now). |
 
 ## EngineeringJournalEntry
 
@@ -240,7 +298,7 @@ field. Unique on `[tenantId, applicantId, entryDate]` — one entry per applican
 | `missionId` | Mission the reflection is written against; must be assigned to the applicant (`v0.18.0`). |
 | `missionAssignmentId` | Nullable legacy-safe link to the exact assignment attempt. New entries always set it. |
 | `weekNumber` | Program week, derived from the selected mission — not trusted from the client. |
-| `entryDate` | Calendar date of the reflection; unique per applicant per tenant. |
+| `entryDate` | Applicant-selected calendar date of the reflection; unique per applicant per tenant. Today/past are allowed and future dates are rejected. It is separate from system timestamps. |
 | `language` | Entry language, seeded from `User.preferredJournalLanguage`. |
 | `workedOn` | What the applicant worked on that day. |
 | `challenge` | The main challenge encountered. |
@@ -273,15 +331,18 @@ field. Unique on `[tenantId, applicantId, entryDate]` — one entry per applican
 | `applicantId` | Participant who owns the submission. |
 | `status` | `DRAFT`, `SUBMITTED`, `NEEDS_REVISION`, `ACCEPTED` or `REPEAT` (`REVIEWED` reserved/unused). |
 | `repositoryUrl` | Git repository evidence link (host-allowlisted to github.com); PRD/README/user stories live in the repo. |
-| `deploymentUrl` | Deployed-application evidence link (any http/https). |
+| `deploymentUrl` | One or more public HTTP(S) deployed-application links stored as a normalized semicolon-separated string (maximum ten); historical single values remain compatible. |
 | `loomUrl` | Loom walkthrough evidence link (host-allowlisted to loom.com). |
 | `journalMarkdown` | Inline Engineering Journal (Markdown). |
-| `submittedAt` | Last submitted-for-review timestamp. |
+| `submittedAt` | Last submitted-for-review timestamp, set only after readiness and public URL checks pass; separate from journal `entryDate`. |
 | `reviewerFeedback` | Written staff feedback shown to the applicant. |
 | `reviewedAt` | Last review timestamp. |
 | `reviewerUserId` | Staff reviewer (ORG_ADMIN / TECH_LEAD / SUPER_ADMIN); `SetNull` on user delete. |
 
 ## ProgramTask
+
+Program-week learning task used by the Applicant Tasks page and submission-readiness service.
+This is separate from assignment-attempt workflow steps stored in `MissionTaskCompletion`.
 
 | Field | Purpose |
 | --- | --- |
@@ -292,17 +353,29 @@ field. Unique on `[tenantId, applicantId, entryDate]` — one entry per applican
 | `description` | Optional task details. |
 | `dueAt` | Optional due date. |
 | `order` | Sort order within the week (default 0). |
+| `required` | Whether completion blocks submission for missions assigned in this program week (default `true`). |
+| `published` | Whether applicants may see and complete the task (default `true`). |
+| `isPrerequisite` | (`v0.19.6`) Whether the mission's own steps stay locked for the applicant until this task is complete (default `false`). |
 
 ## VideoResource
+
+Legacy model/table name retained for compatibility. It now represents either Markdown or YouTube
+learning content and may be attached to a `ProgramTask`.
 
 | Field | Purpose |
 | --- | --- |
 | `tenantId` | Owning tenant. |
 | `programId` | Program the resource belongs to. |
-| `weekNumber` | Optional program week the resource is curated for. |
+| `taskId` | Optional `ProgramTask` association. When present, the task supplies the authoritative week. |
+| `type` | `LearningResourceType`: `MARKDOWN`, `YOUTUBE`, or `DOCUMENT` (`v0.19.6`; default `YOUTUBE` for legacy rows). |
+| `weekNumber` | Optional program week; derived from the associated task when `taskId` is present. |
 | `title` | Resource title. |
-| `url` | External video URL (YouTube/Loom), embedded on the dashboard Resources page. |
+| `url` | Optional validated public YouTube URL for `YOUTUBE` resources. `null` means the final video is pending. |
+| `markdownContent` | Markdown source for `MARKDOWN` resources; rendered as text/React elements without raw HTML. |
 | `description` | Optional description. |
+| `order` | Stable display order within a task/week. |
+| `durationSeconds` | Optional video/resource duration. |
+| `fileId` | (`v0.19.6`) Optional FK→`stored_files` for a `DOCUMENT` resource; the uploaded file applicants download. `null` for Markdown/YouTube. `ON DELETE SET NULL`. |
 
 ## Notification
 
@@ -329,11 +402,18 @@ field. Unique on `[tenantId, applicantId, entryDate]` — one entry per applican
 
 ## UserTaskCompletion
 
+Reactivated by `v0.19.5` for the separate program-week learning track. Mission workflow steps remain
+in `MissionTaskCompletion` and are not replaced by this model.
+
 | Field | Purpose |
 | --- | --- |
-| `taskId` | Completed `ProgramTask`; unique together with `userId`. |
-| `userId` | User who completed the task. |
+| `tenantId` | Authoritative tenant scope for the completion. |
+| `taskId` | Completed `ProgramTask`; unique together with `tenantId` and `userId`. |
+| `userId` | Applicant who completed the task. |
 | `completedAt` | Completion timestamp (default now). |
+
+Completions are week-level through the related task's `programId` and `weekNumber`; they do not point
+to `MissionAssignment`, so a repeat attempt in the same week retains learning-task completion.
 
 ## AuditLog
 

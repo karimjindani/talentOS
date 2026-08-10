@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// ApplicantShell renders a real <form action={logoutAction}> in the sidebar footer, which pulls in
+// @/auth -> next-auth -> next/server. That chain needs the Next.js runtime and isn't resolvable
+// under plain Vitest, so it's mocked the same way apps/applicant/lib/logout-action.test.ts mocks it.
+vi.mock("@/lib/logout-action", () => ({ logoutAction: vi.fn() }));
+
 import { isApplicantNavActive, APPLICANT_NAV_ITEMS } from "./ApplicantShell";
 
 describe("ApplicantShell isApplicantNavActive route matching", () => {

@@ -1,8 +1,8 @@
 # Testing Strategy
 
-Code version: `v0.18.4`
+Code version: `v0.19.6`
 
-Baseline commit: `6ef1ef7`
+Test evidence commit: `08cea25`
 
 ## Goals
 
@@ -17,9 +17,9 @@ The regression suite has two layers:
 The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts plus
 individual scenario rows after each run.
 
-Current totals (as of `v0.18.2`): **261 unit tests across 33 files** (`npm test`) and **28 scenarios
-across 12 areas** (`scripts/regression/run.ts`), verified 27 passed / 0 failed / 1 pre-existing
-documented skip (storage upload/download) against a freshly migrated local database. CI
+The `v0.19.6` runner defines **42 scenarios across 11 concrete areas plus the `all` orchestrator**.
+The current unit and executed-regression totals are recorded in the versioned test-results artifact,
+not inferred here. CI
 (`.github/workflows/ci.yml`) runs the **unit suite only**; scenario regression is a local capability
 driven from npm scripts or the Ops Console against the running Docker stack.
 
@@ -145,6 +145,53 @@ driven from npm scripts or the Ops Console against the running Docker stack.
   `getAssignedProgramMission` and rejected by `saveSubmissionDraft`; and a scenario documenting the
   known backfill gap for applicants accepted before assignment existed (see
   `docs/Regression_Scenarios.md` Known Gaps).
+
+### Mission Deadline & Lifecycle Tests (v0.18.5)
+
+- `packages/db/src/mission-assignments.test.ts` (15 tests): explicit-accept gating (`NOT_STARTED`
+  only, double-accept rejected), `deadlineAt`/`graceEndsAt` computed from the mission's own
+  `deadlineHours`/`gracePeriodHours` at acceptance time, reject-reassignment to an alternate
+  published mission, and the no-alternate-mission `AWAITING_MISSION_ASSIGNMENT` + reviewer
+  notification path.
+- `packages/db/src/mission-deadlines.test.ts` (4 tests, new): the idempotent two-phase sweep —
+  `ACCEPTED`/`IN_PROGRESS` past deadline → `OVERDUE`; `OVERDUE` past grace → `FAILED` +
+  `DISQUALIFIED`; re-running either phase against already-transitioned rows is a no-op.
+- `packages/db/src/submissions.test.ts` (33 tests): late submission inside the grace period recorded
+  as `LATE_SUBMITTED`; week auto-advance on acceptance capped at `FINAL_PROGRAM_WEEK`; a `FAILED`
+  assignment rejects new submissions.
+- `packages/auth/src/workflow.ts` tests: `DISQUALIFIED`/`AWAITING_MISSION_ASSIGNMENT` have no
+  outgoing admin-initiated transitions.
+- No scenario-level regression coverage yet for the accept action, the sweep script, or the
+  reject-reassignment flow through the real applicant/admin actions — see
+  `docs/Regression_Scenarios.md` Known Gaps.
+
+### Mission-Driven Tasks & Submissions Admin Tab Tests (v0.19.0)
+
+- `packages/db/src/mission-tasks.test.ts` (15 tests, new): task listing per assignment, the
+  Task-1/2-required completion check gating submission, mark/unmark, and Task 3's derivation from
+  `Submission.status`.
+- `apps/applicant/lib/youtube.test.ts` (9 tests, new): `parseYouTubeVideoId` across watch/share/
+  embed URL forms and invalid input; the IFrame Player `onStateChange` watch-gate itself has no
+  automated (Playwright) coverage, only manual browser verification.
+- `apps/admin/components/SidebarNav.test.ts` (15 tests): new Submissions nav item, updated
+  standard-nav-items integrity assertion.
+- `packages/db/src/missions.test.ts`: fixture coverage for `tutorialUrl`.
+- No scenario-level regression coverage yet for the submission task-gate, the watch-gate, or the
+  admin Submissions tab's reachability/filtering — the `reviewSubmissions` capability boundary it
+  reuses is already covered by the existing `missions` role-matrix scenario. See
+  `docs/Regression_Scenarios.md` Known Gaps.
+
+### Dashboard Wiring & Same-Week Repeat Tests (v0.19.1)
+
+- `packages/db/src/mission-assignments.test.ts`: dedicated test asserting a Week 3 `REPEAT` decision
+  reassigns Week 3 (not Week 1); existing `missions`-area regression scenarios ("Repeat-week attempts
+  preserve journal history without duplicate or infinite loops", "Repeated-week history stays
+  separate across mission variants and attempt boundaries") already assert the replacement
+  assignment keeps the failed assignment's `weekNumber`, so this correction is scenario-covered as
+  well as unit-covered.
+- Dashboard/My Program/Tasks/Missions wiring to live deadline and task-completion data was verified
+  manually in a real browser session (`accepted@demo.talentos.local`); no automated scenario yet
+  asserts the dashboard stat's source field. See `docs/Regression_Scenarios.md` Known Gaps.
 
 ### User-Guide Screenshot Capture (v0.16.1, manual)
 
@@ -369,3 +416,116 @@ From `v0.18.3`, the Ops Console regression result view shows individual scenario
 including each scenario name, status, duration and detail/error text. This closes the usability gap
 where operators could see area-level counts but had to search raw logs to identify exactly which
 scenario passed, failed or skipped.
+
+From `v0.18.5`, the regression baseline also covers the mission deadline/lifecycle state machine:
+explicit-accept gating and deadline/grace computation (`mission-assignments.test.ts`), the
+idempotent two-phase deadline sweep (`mission-deadlines.test.ts`, 4 tests), late-submission
+acceptance and the week auto-advance cap (`submissions.test.ts`), and the terminal
+`DISQUALIFIED`/`AWAITING_MISSION_ASSIGNMENT` application statuses having no outgoing transition. See
+`D-080`.
+
+From `v0.19.0`, the regression baseline also covers mission-driven tasks: the fixed 3-task
+completion model gating submission (`mission-tasks.test.ts`, 15 tests), YouTube video ID parsing for
+the tutorial watch-gate (`youtube.test.ts`, 9 tests), and the admin Submissions nav item
+(`SidebarNav.test.ts`). See `D-081`.
+
+From `v0.19.1`, the regression baseline also covers the same-week repeat correction: a dedicated
+unit test and the existing repeat-loop `missions`-area scenarios assert a `REPEAT` decision
+reassigns the same week that failed, not Week 1. The suite is **427 tests across 43 files**;
+`regression:all` is verified 35/36 passed, 1 pre-existing documented skip, 0 failed. See `D-082`.
+
+From `v0.19.2`, the regression baseline also covers the restored applicant dashboard Logout button
+(`ApplicantShell.test.ts`, 13 tests, now with the `@/lib/logout-action` mock so the file resolves)
+and the `vitest.config.ts` `@/(.+)` alias that makes `@/`-style imports resolvable for
+`apps/applicant` tests. No unit-test-count change (427 tests across 43 files). See `D-083`.
+
+From `v0.19.5`, focused unit coverage protects the separate weekly-task track, Markdown/YouTube
+resources, task-completion idempotency and scope, journal date/attempt eligibility, centralized
+submission readiness, semicolon-delimited deployment parsing, public URL reachability/SSRF controls,
+concurrent submission guards and safe Markdown rendering. Scenario coverage remains in the existing
+runner: Applicant covers completion/future dates/locked journals; Admin and Programs cover weekly
+content and review context; Missions covers readiness, failed-URL atomicity, selective locking and
+repeat separation; Tenant covers completion/journal boundaries; Unit executes the full Vitest suite.
+See `D-086` through `D-090` and the `v0.19.5` plan/test-results pair.
+
+From `v0.19.6`, the Mission Workspace LMS and curriculum/scheduling changes are protected by pure-logic
+unit tests where a DOM is not required, with client-only UI behavior recorded as explicit Known Gaps.
+New coverage: `apps/applicant/app/dashboard/missions/[id]/view-model.test.ts` (13 cases — step statuses,
+progress, continue target, countdown visibility, submission mode, canSubmit, reviewer feedback);
+`mission-assignments.test.ts` (`computeMissionDeadline` seven-weekday Thursday/≥4-working-day cases, the
+accept path, and repeat exclusion of every prior mission); `program-content.test.ts` (prerequisite-task
+persistence and the `DOCUMENT` resource with in-tenant/foreign `fileId` validation); and
+`apps/admin/lib/pagination.test.ts` (10 cases — page-size clamping, slicing, page-window ellipsis, empty
+list). `submissions.test.ts` was made date-independent by defaulting the assignment deadline relative to
+`now` (previously a hardcoded `2026-07-21/22` date that expired and produced three spurious failures).
+The full Vitest suite is **507 tests across 49 files**. Client-only scenarios — the ≥90% YouTube gate,
+sequential learning-task unlock, applicant step-lock UI, admin collapsible/auto-collapse and page
+rendering, and the Overview aggregation — are deferred to a future jsdom/browser harness and listed as
+Known Gaps in `Regression_Scenarios.md`. See `D-091` through `D-093` and the `v0.19.6` plan/test-results
+pair.
+
+### Configuration & Deployment Regression Tests (`v0.19.7`)
+
+Production-impacting issues were discovered that passed the existing suite but failed during manual QA:
+stale Prisma Client after schema changes, incorrect `NEXTAUTH_URL`, Keycloak redirect URI
+misconfiguration, SSR `window is not defined` in the login page, and missing admin `.env`. The following
+unit tests were added to detect these classes of issues automatically in CI before manual QA.
+
+**Environment & configuration validation** (`packages/auth-web/src/config.test.ts`, 23 tests):
+validates the applicant and admin `.env` files — `NEXTAUTH_URL` scheme/port/host-on-base-domain,
+`NEXTAUTH_SECRET` presence, `APP_BASE_DOMAIN` consistency across portals, `KEYCLOAK_ISSUER`/client ID
+correctness, `DATABASE_URL` scheme, cross-portal consistency (shared realm, base domain, database), and
+the `baseDomainCookieConfig` env-dependent branches (cookie domain scoping, `__Secure-` prefix for HTTPS,
+`__Host-` rejection, localhost fallback). Protects against: `NEXTAUTH_URL` pointing to `localhost`
+instead of the tenant base domain, missing `NEXTAUTH_SECRET` (MissingSecret runtime error), mismatched
+`APP_BASE_DOMAIN` breaking cookie sharing, and single-host vs multi-tenant cookie misconfiguration.
+
+**Prisma schema synchronization** (`packages/db/src/schema-sync.test.ts`, 14 tests):
+validates that the generated `@prisma/client` in `node_modules/.prisma/client` is in sync with
+`schema.prisma` — every schema model appears as a type in the generated client, every enum is declared,
+and every model has a `PrismaClient` delegate accessor. Also validates schema file integrity (datasource,
+generator, expected models/enums/enum-values) and migration directory structure. Protects against: stale
+Prisma Client after schema changes (the exact issue that caused 5 unit + 24 regression failures when a
+developer edited `schema.prisma` but forgot `npm run db:generate`).
+
+**Keycloak realm configuration** (`packages/auth-web/src/realm-config.test.ts`, 25 tests):
+comprehensive validation of the realm import JSON — realm enabled/registration/OTP policy, applicant and
+admin client redirect URIs (canonical callback, wildcard `*.lvh.me`, explicit `demo.lvh.me`, web origins,
+post-logout URIs, default scopes), ops client, all required realm roles (`ORG_ADMIN`, `HR`, `TECH_LEAD`,
+`APPLICANT`, `SUPER_ADMIN`), seed user email validity, no `CONFIGURE_TOTP` on non-superadmin users
+(2FA disabled platform-wide), provisioner service-account with `manage-users`, and redirect URI safety
+(no arbitrary external hosts, http/https only). Protects against: missing redirect URIs for subdomain
+tenants (Keycloak rejects `*.lvh.me` wildcards at runtime), missing realm roles causing `/forbidden`
+redirects, disabled registration breaking "Create account", and open-redirect via overly broad URIs.
+
+**Login callback URL & SSR safety** (`apps/applicant/lib/login-callback.test.ts`, 13 tests):
+validates the extracted `resolveCallbackUrl` pure function — relative path prefixing, absolute URL
+pass-through, query string preservation, tenant subdomain preservation (paysyslabs/acme), empty origin
+SSR fallback, non-http scheme handling, and SSR safety (callable without `window` defined). The login
+page component was refactored to call this function at click time (not render time) so `window` is always
+available. Protects against: SSR `window is not defined` crash during server-side rendering of the login
+page, and tenant subdomain loss where login redirects to the canonical `AUTH_URL` host instead of the
+user's tenant subdomain.
+
+**Middleware route protection & redirect validation** (`packages/auth-web/src/middleware-redirect.test.ts`, 27 tests):
+validates applicant middleware protected-route detection (`/dashboard`, `/apply`, `/application` and
+sub-routes protected; public routes and `_next` assets not protected), admin middleware route exemptions
+(`/api/auth`, `/forbidden`, `/logged-out` exempt; business routes not), tenant callback URL construction
+(preserves subdomain and query params, falls back to localhost), post-login redirect validation
+(`resolveTenantRedirect` allows canonical/tenant-subdomain/apex, rejects foreign/look-alike/malformed,
+resolves relative paths), tenant resolution from host header (subdomain/localhost/127.0.0.1/multi-level),
+and cookie domain sharing (`isSameBaseDomain`). Protects against: unauthenticated users reaching
+protected routes, tenant subdomain loss during redirect, open redirect to foreign hosts, and
+APPLICANT role reaching admin portal.
+
+**Deployment configuration validation** (`packages/db/src/deployment.test.ts`, 30 tests):
+validates `docker-compose.yml` (all services, ports, health checks, volumes, images, dependencies,
+read-only realm mount), `Dockerfile` (multi-stage build, `db:generate` before build, all package.json
+copies, SWC binary, standalone output, openssl, `NODE_ENV=production`), CI workflow (Node 24, `npm ci`,
+`db:generate`, typecheck/lint/test/build, realm-import validation job), port consistency across env
+files, and realm import JSON validity. Protects against: missing `db:generate` in Docker/CI producing
+stale clients, service port/dependency misconfiguration, and realm import JSON corruption.
+
+The full Vitest suite is **639 tests across 55 files**. The `@talentos/auth-web` alias was added to
+`vitest.config.ts` so auth-web tests can import the package's exports. The `baseDomainCookieConfig`
+function was exported from `packages/auth-web/src/auth.ts` for testability.

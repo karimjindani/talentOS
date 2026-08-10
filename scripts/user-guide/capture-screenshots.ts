@@ -11,13 +11,13 @@
  *   npx tsx scripts/user-guide/capture-screenshots.ts [section ...]
  *   Sections: public, apply, dashboard, admin, ops (default: all)
  *
- * Output: docs/user-guide/screenshots/*.png (referenced by docs/user-guide/User_Guide.md)
+ * Output: docs/user-guides/screenshots/*.png (referenced by the guides in docs/user-guides/)
  */
 import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 
-const OUT_DIR = path.resolve("docs/user-guide/screenshots");
+const OUT_DIR = path.resolve("docs/user-guides/screenshots");
 const VIEWPORT = { width: 1440, height: 900 };
 
 const URLS = {
@@ -240,6 +240,13 @@ async function main() {
     } else {
       skipped.push("20-admin-program-content.png — no program detail link found");
     }
+
+    // Top-level Tasks workspace (v0.20.0): weekly task + resource management with a program selected.
+    const programId = programDetail
+      ? new URL(programDetail).pathname.split("/programs/")[1]?.replace(/\/$/, "")
+      : "";
+    await goTo(page, `${URLS.tenantAdmin}/tasks${programId ? `?programId=${programId}` : ""}`);
+    await shot(page, "27-admin-tasks.png");
 
     await goTo(page, `${URLS.tenantAdmin}/missions`);
     await shot(page, "21-admin-missions.png");

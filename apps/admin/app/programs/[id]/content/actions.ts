@@ -10,7 +10,8 @@ import {
   deleteVideoResource,
   updateCalendarEvent,
   updateProgramTask,
-  updateVideoResource
+  updateVideoResource,
+  LearningResourceType
 } from "@talentos/db";
 import { requireTenantAccess } from "@/lib/tenant-guard";
 
@@ -88,12 +89,37 @@ function requiredHttpUrl(formData: FormData, name: string): string {
   return url.toString();
 }
 
+function optionalHttpUrl(formData: FormData, name: string): string | null {
+  return text(formData, name) ? requiredHttpUrl(formData, name) : null;
+}
+
+function resourceType(formData: FormData): LearningResourceType {
+  const value = text(formData, "type");
+  if (
+    value !== LearningResourceType.MARKDOWN &&
+    value !== LearningResourceType.YOUTUBE &&
+    value !== LearningResourceType.DOCUMENT
+  ) {
+    throw new Error("Choose Markdown, YouTube or Document as the resource type.");
+  }
+  return value;
+}
+
+function optionalPositiveInteger(formData: FormData, name: string): number | null {
+  const value = text(formData, name);
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error("Duration must be a positive number of seconds.");
+  }
+  return parsed;
+}
 function contentPath(programId: string): string {
   return `/programs/${programId}/content`;
 }
 
 // ---------------------------------------------------------------------------
-// Video resources
+// Weekly learning resources
 // ---------------------------------------------------------------------------
 
 export async function createVideoResourceAction(formData: FormData) {
@@ -103,14 +129,22 @@ export async function createVideoResourceAction(formData: FormData) {
   await createVideoResource({
     tenantId: tenant.id,
     programId,
+    taskId: optionalText(formData, "taskId"),
+    type: resourceType(formData),
     title: requiredText(formData, "title", "Title"),
-    url: requiredHttpUrl(formData, "url"),
+    url: optionalHttpUrl(formData, "url"),
+    markdownContent: optionalText(formData, "markdownContent"),
     description: optionalText(formData, "description"),
     weekNumber: optionalWeek(formData),
+    order: Number.parseInt(text(formData, "order"), 10) || 0,
+    durationSeconds: optionalPositiveInteger(formData, "durationSeconds"),
+    fileId: optionalText(formData, "fileId"),
     actorUserId
   });
 
   revalidatePath(contentPath(programId));
+  // The top-level Tasks page (v0.20.0) manages the same weekly tasks/resources, so keep it fresh too.
+  revalidatePath("/tasks");
 }
 
 export async function updateVideoResourceAction(formData: FormData) {
@@ -121,14 +155,22 @@ export async function updateVideoResourceAction(formData: FormData) {
     id: requiredText(formData, "id", "Resource"),
     tenantId: tenant.id,
     programId,
+    taskId: optionalText(formData, "taskId"),
+    type: resourceType(formData),
     title: requiredText(formData, "title", "Title"),
-    url: requiredHttpUrl(formData, "url"),
+    url: optionalHttpUrl(formData, "url"),
+    markdownContent: optionalText(formData, "markdownContent"),
     description: optionalText(formData, "description"),
     weekNumber: optionalWeek(formData),
+    order: Number.parseInt(text(formData, "order"), 10) || 0,
+    durationSeconds: optionalPositiveInteger(formData, "durationSeconds"),
+    fileId: optionalText(formData, "fileId"),
     actorUserId
   });
 
   revalidatePath(contentPath(programId));
+  // The top-level Tasks page (v0.20.0) manages the same weekly tasks/resources, so keep it fresh too.
+  revalidatePath("/tasks");
 }
 
 export async function deleteVideoResourceAction(formData: FormData) {
@@ -138,6 +180,8 @@ export async function deleteVideoResourceAction(formData: FormData) {
   await deleteVideoResource({ id: requiredText(formData, "id", "Resource"), tenantId: tenant.id, actorUserId });
 
   revalidatePath(contentPath(programId));
+  // The top-level Tasks page (v0.20.0) manages the same weekly tasks/resources, so keep it fresh too.
+  revalidatePath("/tasks");
 }
 
 // ---------------------------------------------------------------------------
@@ -156,10 +200,15 @@ export async function createProgramTaskAction(formData: FormData) {
     weekNumber: requiredWeek(formData),
     order: Number.parseInt(text(formData, "order"), 10) || 0,
     dueAt: optionalDate(formData, "dueAt"),
+    required: formData.get("required") === "on",
+    published: formData.get("published") === "on",
+    isPrerequisite: formData.get("isPrerequisite") === "on",
     actorUserId
   });
 
   revalidatePath(contentPath(programId));
+  // The top-level Tasks page (v0.20.0) manages the same weekly tasks/resources, so keep it fresh too.
+  revalidatePath("/tasks");
 }
 
 export async function updateProgramTaskAction(formData: FormData) {
@@ -175,10 +224,15 @@ export async function updateProgramTaskAction(formData: FormData) {
     weekNumber: requiredWeek(formData),
     order: Number.parseInt(text(formData, "order"), 10) || 0,
     dueAt: optionalDate(formData, "dueAt"),
+    required: formData.get("required") === "on",
+    published: formData.get("published") === "on",
+    isPrerequisite: formData.get("isPrerequisite") === "on",
     actorUserId
   });
 
   revalidatePath(contentPath(programId));
+  // The top-level Tasks page (v0.20.0) manages the same weekly tasks/resources, so keep it fresh too.
+  revalidatePath("/tasks");
 }
 
 export async function deleteProgramTaskAction(formData: FormData) {
@@ -188,6 +242,8 @@ export async function deleteProgramTaskAction(formData: FormData) {
   await deleteProgramTask({ id: requiredText(formData, "id", "Task"), tenantId: tenant.id, actorUserId });
 
   revalidatePath(contentPath(programId));
+  // The top-level Tasks page (v0.20.0) manages the same weekly tasks/resources, so keep it fresh too.
+  revalidatePath("/tasks");
 }
 
 // ---------------------------------------------------------------------------
@@ -210,6 +266,8 @@ export async function createCalendarEventAction(formData: FormData) {
   });
 
   revalidatePath(contentPath(programId));
+  // The top-level Tasks page (v0.20.0) manages the same weekly tasks/resources, so keep it fresh too.
+  revalidatePath("/tasks");
 }
 
 export async function updateCalendarEventAction(formData: FormData) {
@@ -229,6 +287,8 @@ export async function updateCalendarEventAction(formData: FormData) {
   });
 
   revalidatePath(contentPath(programId));
+  // The top-level Tasks page (v0.20.0) manages the same weekly tasks/resources, so keep it fresh too.
+  revalidatePath("/tasks");
 }
 
 export async function deleteCalendarEventAction(formData: FormData) {
@@ -238,4 +298,6 @@ export async function deleteCalendarEventAction(formData: FormData) {
   await deleteCalendarEvent({ id: requiredText(formData, "id", "Event"), tenantId: tenant.id, actorUserId });
 
   revalidatePath(contentPath(programId));
+  // The top-level Tasks page (v0.20.0) manages the same weekly tasks/resources, so keep it fresh too.
+  revalidatePath("/tasks");
 }

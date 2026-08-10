@@ -17,6 +17,7 @@ import {
   Zap,
   HelpCircle,
   Trash2,
+  Square,
 } from "lucide-react";
 
 type Message = {
@@ -152,6 +153,7 @@ export default function MentorPage() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Derive messages and loading state from the active conversation
   const activeConversation = conversations.find((c) => c.id === activeConversationId);
@@ -174,6 +176,7 @@ export default function MentorPage() {
   // Load conversations from localStorage on mount; fall back to API history once
   useEffect(() => {
     async function loadHistory() {
+      let loadedConversation = false;
       // 1. Try localStorage first
       const stored = loadConversationsFromStorage();
       if (stored.length > 0) {
@@ -189,6 +192,7 @@ export default function MentorPage() {
         const res = await fetch("/api/ai/mentor", { method: "GET" });
         if (res.ok) {
           const data = (await res.json()) as {
+            conversationId?: string;
             messages?: Array<{
               id: string;
               role: string;
@@ -208,7 +212,7 @@ export default function MentorPage() {
             }));
             const now = Date.now();
             const conv: Conversation = {
-              id: `conv-${now}`,
+              id: data.conversationId ?? `conv-${now}`,
               title: deriveTitle(apiMessages),
               messages: apiMessages,
               createdAt: now,
@@ -217,6 +221,7 @@ export default function MentorPage() {
             setConversations([conv]);
             setActiveConversationId(conv.id);
             saveConversationsToStorage([conv]);
+            loadedConversation = true;
           }
         }
       } catch {
@@ -224,7 +229,7 @@ export default function MentorPage() {
       } finally {
         setIsLoadingHistory(false);
         // If no conversation was loaded (fresh user), create one so Send works
-        if (!activeConversationId) {
+        if (!loadedConversation) {
           const newConv = createNewConversation();
           setConversations([newConv]);
           setActiveConversationId(newConv.id);
@@ -250,7 +255,7 @@ export default function MentorPage() {
       requestAnimationFrame(() => scrollToBottom());
     }, 0);
     return () => clearTimeout(id);
-  }, [messages.length, isSending, activeConversationId]);
+  }, [messages.length, messages.at(-1)?.content, isSending, activeConversationId]);
 
   // Check if user has scrolled away from bottom
   useEffect(() => {
@@ -303,11 +308,17 @@ export default function MentorPage() {
       content: trimmed,
       timestamp: new Date(),
     };
+    const mentorMessageId = `mentor-${Date.now()}`;
 
     // Append user message + set loading on the target conversation only
     updateConversation(targetConvId, (c) => ({
       ...c,
-      messages: [...c.messages, userMessage],
+      messages: [...c.messages, userMessage, {
+        id: mentorMessageId,
+        role: "mentor",
+        content: "",
+        timestamp: new Date(),
+      }],
       title: deriveTitle([...c.messages, userMessage]),
       updatedAt: Date.now(),
       isLoading: true,
@@ -322,10 +333,13 @@ export default function MentorPage() {
     }, 0);
 
     try {
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
       const res = await fetch("/api/ai/mentor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: trimmed }),
+        body: JSON.stringify({ prompt: trimmed, conversationId: targetConvId }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -333,31 +347,65 @@ export default function MentorPage() {
         throw new Error(body.error ?? "Something went wrong");
       }
 
-      const data = (await res.json()) as {
-        message: string;
-        cards?: MentorCard[];
-      };
-
-      const mentorMessage: Message = {
-        id: `mentor-${Date.now()}`,
-        role: "mentor",
-        content: data.message,
-        cards: data.cards,
-        timestamp: new Date(),
-      };
-
-      // Append AI response ONLY to the conversation that started the request
+      if (!res.body) throw new Error("Response stream is unavailable");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let content = "";
+      let serverConversationId = targetConvId;
+      let cards: MentorCard[] | undefined;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line) as { type: string; token?: string; error?: string; conversationId?: string; cards?: MentorCard[] };
+          if (event.type === "error") throw new Error(event.error ?? "Failed to get response");
+          if (event.type === "token" && event.token) {
+            content += event.token;
+            updateConversation(targetConvId, (c) => ({
+              ...c,
+              messages: c.messages.map((m) => m.id === mentorMessageId ? { ...m, content } : m),
+              updatedAt: Date.now(),
+            }));
+          }
+          if (event.type === "done") {
+            serverConversationId = event.conversationId ?? targetConvId;
+            cards = event.cards;
+          }
+        }
+      }
+      setConversations((prev) => {
+        const next = prev.map((c) => c.id === targetConvId ? {
+          ...c,
+          id: serverConversationId,
+          messages: c.messages.map((m) => m.id === mentorMessageId ? { ...m, content, cards } : m),
+          updatedAt: Date.now(),
+          isLoading: false,
+        } : c);
+        saveConversationsToStorage(next);
+        return next.sort((a, b) => b.updatedAt - a.updatedAt);
+      });
+      if (serverConversationId !== targetConvId) setActiveConversationId(serverConversationId);
+    } catch (err) {
+      const wasCancelled = err instanceof Error && err.name === "AbortError";
+      setError(wasCancelled ? null : err instanceof Error ? err.message : "Failed to get response");
+      // Clear loading state on error
       updateConversation(targetConvId, (c) => ({
         ...c,
-        messages: [...c.messages, mentorMessage],
-        updatedAt: Date.now(),
+        messages: c.messages.filter((m) => m.id !== mentorMessageId || m.content.length > 0),
         isLoading: false,
       }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to get response");
-      // Clear loading state on error
-      updateConversation(targetConvId, (c) => ({ ...c, isLoading: false }));
+    } finally {
+      abortControllerRef.current = null;
     }
+  }
+
+  function handleStop() {
+    abortControllerRef.current?.abort();
   }
 
   function handleSuggestedQuestion(question: string) {
@@ -386,6 +434,9 @@ export default function MentorPage() {
 
   function confirmClearChat() {
     if (activeConversationId) {
+      if (!activeConversationId.startsWith("conv-")) {
+        void fetch(`/api/ai/mentor?conversationId=${encodeURIComponent(activeConversationId)}`, { method: "DELETE" });
+      }
       // Delete the active conversation from storage
       const remaining = conversations.filter((c) => c.id !== activeConversationId);
       persistConversations(remaining);
@@ -413,6 +464,9 @@ export default function MentorPage() {
 
   /** Delete a specific conversation from the history list. */
   function handleDeleteConversation(convId: string) {
+    if (!convId.startsWith("conv-")) {
+      void fetch(`/api/ai/mentor?conversationId=${encodeURIComponent(convId)}`, { method: "DELETE" });
+    }
     const remaining = conversations.filter((c) => c.id !== convId);
     persistConversations(remaining);
 
@@ -607,7 +661,7 @@ export default function MentorPage() {
               </div>
             )}
 
-            {!isLoadingHistory && messages.map((msg, index) => (
+            {!isLoadingHistory && messages.map((msg, index) => (msg.content || msg.cards?.length) ? (
               <MessageBubble
                 key={msg.id}
                 id={msg.id}
@@ -617,7 +671,7 @@ export default function MentorPage() {
                 timestamp={msg.timestamp}
                 isLatest={index === messages.length - 1}
               />
-            ))}
+            ) : null)}
 
             {isSending && (
               <div className="flex justify-start">
@@ -703,11 +757,12 @@ export default function MentorPage() {
               </div>
               <button
                 type="button"
-                onClick={handleSend}
-                disabled={!input.trim() || isSending}
+                onClick={isSending ? handleStop : handleSend}
+                disabled={!isSending && !input.trim()}
+                aria-label={isSending ? "Stop generating" : "Send message"}
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-brand-blue to-blue-600 text-white transition-all hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Send className="h-5 w-5" />
+                {isSending ? <Square className="h-4 w-4 fill-current" /> : <Send className="h-5 w-5" />}
               </button>
             </div>
             <div className="mt-2 flex items-center justify-between">

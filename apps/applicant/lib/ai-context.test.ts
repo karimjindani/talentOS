@@ -10,6 +10,7 @@ const dbMock = vi.hoisted(() => ({
   listCompletedTaskIds: vi.fn(),
   listPublishedProgramMissions: vi.fn(),
   getApplicantProgramProgress: vi.fn(),
+  listApplicantMissionAssignmentStatuses: vi.fn(),
   prismaSubmissionFindMany: vi.fn(),
 }));
 
@@ -24,6 +25,7 @@ vi.mock("@talentos/db", () => ({
   listCompletedTaskIds: dbMock.listCompletedTaskIds,
   listPublishedProgramMissions: dbMock.listPublishedProgramMissions,
   getApplicantProgramProgress: dbMock.getApplicantProgramProgress,
+  listApplicantMissionAssignmentStatuses: dbMock.listApplicantMissionAssignmentStatuses,
 }));
 
 import { buildApplicantContext, contextToPromptSection } from "./ai-context";
@@ -81,6 +83,7 @@ describe("AI Context — buildApplicantContext", () => {
     dbMock.listCompletedTaskIds.mockResolvedValue(completedTaskIds);
     dbMock.listPublishedProgramMissions.mockResolvedValue(missions);
     dbMock.getApplicantProgramProgress.mockResolvedValue(weekProgress);
+    dbMock.listApplicantMissionAssignmentStatuses.mockResolvedValue(new Map());
     dbMock.prismaSubmissionFindMany.mockResolvedValue([]);
 
     const ctx = await buildApplicantContext("t1", "u1");
@@ -134,6 +137,7 @@ describe("AI Context — buildApplicantContext", () => {
     dbMock.listCompletedTaskIds.mockResolvedValue([]);
     dbMock.listPublishedProgramMissions.mockResolvedValue([]);
     dbMock.getApplicantProgramProgress.mockResolvedValue([]);
+    dbMock.listApplicantMissionAssignmentStatuses.mockResolvedValue(new Map());
     dbMock.prismaSubmissionFindMany.mockResolvedValue([]);
 
     await buildApplicantContext("tenant-abc", "user-xyz");
@@ -160,6 +164,7 @@ describe("AI Context — buildApplicantContext", () => {
     dbMock.listCompletedTaskIds.mockResolvedValue(completedTaskIds);
     dbMock.listPublishedProgramMissions.mockResolvedValue([]);
     dbMock.getApplicantProgramProgress.mockResolvedValue([]);
+    dbMock.listApplicantMissionAssignmentStatuses.mockResolvedValue(new Map());
     dbMock.prismaSubmissionFindMany.mockResolvedValue([]);
 
     const ctx = await buildApplicantContext("t1", "u1");
@@ -175,6 +180,7 @@ describe("AI Context — buildApplicantContext", () => {
     dbMock.listCompletedTaskIds.mockResolvedValue([]);
     dbMock.listPublishedProgramMissions.mockResolvedValue([]);
     dbMock.getApplicantProgramProgress.mockResolvedValue([]);
+    dbMock.listApplicantMissionAssignmentStatuses.mockResolvedValue(new Map());
     dbMock.prismaSubmissionFindMany.mockResolvedValue([
       {
         missionId: "m-2",
@@ -189,6 +195,28 @@ describe("AI Context — buildApplicantContext", () => {
     expect(ctx.submissions.length).toBe(1);
     expect(ctx.submissions[0].missionTitle).toBe("API Development");
     expect(ctx.submissions[0].status).toBe("SUBMITTED");
+  });
+
+  // Assignments with deadline info
+  it("includes assignment statuses with deadline info from the database", async () => {
+    dbMock.listApplicantApplications.mockResolvedValue([acceptedApplication]);
+    dbMock.listProgramTasks.mockResolvedValue([]);
+    dbMock.listCompletedTaskIds.mockResolvedValue([]);
+    dbMock.listPublishedProgramMissions.mockResolvedValue(missions);
+    dbMock.getApplicantProgramProgress.mockResolvedValue([]);
+    dbMock.listApplicantMissionAssignmentStatuses.mockResolvedValue(
+      new Map([
+        ["m-1", { status: "IN_PROGRESS", deadlineAt: new Date("2026-07-20T23:59:59Z") }],
+      ])
+    );
+    dbMock.prismaSubmissionFindMany.mockResolvedValue([]);
+
+    const ctx = await buildApplicantContext("t1", "u1");
+
+    expect(ctx.assignments.length).toBe(1);
+    expect(ctx.assignments[0].missionId).toBe("m-1");
+    expect(ctx.assignments[0].status).toBe("IN_PROGRESS");
+    expect(ctx.assignments[0].deadlineAt).not.toBeNull();
   });
 });
 
@@ -209,6 +237,7 @@ describe("AI Context — contextToPromptSection", () => {
       },
       upcomingTasks: [],
       missions: [],
+      assignments: [],
       submissions: [],
       daysRemaining: 30,
     };
@@ -231,6 +260,7 @@ describe("AI Context — contextToPromptSection", () => {
       progress: null,
       upcomingTasks: [],
       missions: [],
+      assignments: [],
       submissions: [],
       daysRemaining: null,
     };
@@ -250,6 +280,7 @@ describe("AI Context — contextToPromptSection", () => {
         { id: "t1", title: "Build API", weekNumber: 3, dueAt: "2026-07-20T00:00:00Z", completed: false, overdue: false },
       ],
       missions: [],
+      assignments: [],
       submissions: [],
       daysRemaining: null,
     };
@@ -268,6 +299,7 @@ describe("AI Context — contextToPromptSection", () => {
       progress: null,
       upcomingTasks: [],
       missions: [{ id: "m1", title: "API Development", weekNumber: 3, difficulty: "Intermediate" }],
+      assignments: [],
       submissions: [],
       daysRemaining: null,
     };

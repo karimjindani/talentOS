@@ -153,9 +153,19 @@ function TimelineCard({ card }: { card: Extract<MentorCard, { kind: "timeline" }
                   </span>
                 </div>
               </div>
-              {i === 0 && (
-                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+              {item.includes("🔧") && (
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
                   Current
+                </span>
+              )}
+              {item.includes("📋") && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                  Up Next
+                </span>
+              )}
+              {item.includes("⚠️") && (
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                  Overdue
                 </span>
               )}
             </div>

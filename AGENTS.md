@@ -55,3 +55,15 @@ Before assigning or changing a code or documentation version:
     - a private, unpublished feature branch may be rebased;
     - a shared or already-published branch should normally merge `origin/main` rather than rewrite history;
     - never force-push without explicit approval.
+
+## Confirmation Gates
+
+Before starting either of the following, stop and ask the user for explicit
+confirmation. Do not proceed until the user confirms.
+
+1. **Starting the documentation-update process** for a versioned iteration
+   (creating/updating the plan, test results, and any of Data_Model,
+   Data_Dictionary, Architecture, Decision_Log, Deployment,
+   Regression_Scenarios, Testing_Strategy).
+2. **Pushing commits to a remote branch** (including force-pushes and
+   fast-forward pushes alike).

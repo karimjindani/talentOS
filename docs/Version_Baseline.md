@@ -1,20 +1,202 @@
 # Version Baseline
 
-## Current Baseline
+## Current Allocated Iteration (Review Pending)
 
-Version: `v0.18.4`
+Version: `v0.19.6`
 
-Baseline name: `AI Mentor SSE Streaming + Send Button Fix`
+Baseline name: `Mission Workspace LMS, Curriculum Tooling And Thursday Scheduling`
 
-Baseline code commit: `_set on merge_`
+Base branch and commit: `origin/main` at `a43118c`
 
-Baseline date: `2026-07-14`
+Feature branch and code commit: `refactor/mission-workspace-lms-ui` at `08cea25`
 
-Previous baseline: `v0.18.3`
+Documentation date: `2026-07-23`
 
-Previous baseline commit: `f7a330c`
+Latest released baseline: `v0.19.5` at `2fcb919`
+
+Reserved active-branch version: none — no other active unmerged remote branch owns a higher version.
+
+Migrations: `20260723120000_learning_resource_document`, `20260723140000_program_task_prerequisite`
+
+Repository state: `v0.19.6` application code and documentation are uncommitted in the working tree;
+the feature branch tip equals `origin/main`. The baseline commit is recorded as `pending` here and in
+`Architecture.md`/`Testing_Strategy.md`/the test-results artifact, to be backfilled by the follow-up
+`Record v0.19.6 baseline` commit.
+
+Upstream state: `git rev-list --left-right --count origin/main...HEAD` returned `0 0` after
+`git fetch --all`, so the branch carries the latest `origin/main` and no feature-side commits yet. No
+merge, rebase or push was performed during this documentation update.
 
 ## Baseline Summary
+
+`v0.19.6` is allocated after checking `origin/main` and every active unmerged remote branch. The latest
+released version is `v0.19.5` (`2fcb919`); no active branch owns a higher number, so `v0.19.6` is the
+next available patch.
+
+The iteration modernizes the applicant Mission Workspace into a tabbed LMS experience (pure view-model,
+compact navy header, in-tab YouTube playback gated at ≥90% watched, sequentially-unlocked weekly
+learning tasks, live `d h m s` countdown) while preserving every existing mission/assignment/submission
+rule. It extends admin curriculum tooling with a top-level **Tasks** page, `DOCUMENT` learning
+resources (real file upload validated to the tenant), `isPrerequisite` tasks that lock the mission's
+own steps, list pagination (10/20) + filters across Applications/Programs/Missions/Submissions, and a
+live Overview KPI dashboard. Mission scheduling moves to a Thursday deadline cadence with ≥4 working
+days, and a repeat excludes every mission the applicant already had that week. Shared `@talentos/ui`
+primitives replace duplicated markup. Two additive migrations; the submission state machine, RBAC,
+Keycloak and URL-safety checks are unchanged. See `D-091` through `D-093`.
+
+## v0.19.6 Documentation Index
+
+| Artifact | Location |
+| --- | --- |
+| Iteration plan and requirement traceability | `docs/plans/v0.19.6_Mission_Workspace_LMS_And_Scheduling.md` |
+| Executed test results | `docs/testing/v0.19.6_Mission_Workspace_LMS_And_Scheduling_Test_Results.md` |
+| Architecture/design | `docs/Architecture.md` |
+| Data model | `docs/Data_Model.md` |
+| Data dictionary | `docs/Data_Dictionary.md` |
+| Decision record | `docs/Decision_Log.md` (`D-091` through `D-095`) |
+| Testing strategy and scenario catalog | `docs/Testing_Strategy.md`, `docs/Regression_Scenarios.md` |
+| QA report | `docs/audits/v0.19.6_Applicant_Onboarding_QA_Report.md` |
+| Applicant guidance | `docs/user-guides/Applicant_Portal_User_Guide.md` |
+| Back Office guidance | `docs/user-guides/Back_Office_User_Guide.md` |
+
+## v0.19.6 SSDLC Checklist Coverage
+
+| `docs/sdlc.md` control | Evidence | Coverage |
+| --- | --- | --- |
+| Document every iteration | Versioned plan/results, this baseline and documentation index | Complete |
+| Preserve committed/tested behavior | 671 unit tests (49+ files) plus `regression:all` | Complete; storage carries one pre-existing documented skip |
+| Update architecture/design | `docs/Architecture.md`; `D-091` through `D-095` | Complete |
+| Update testing and regression | `docs/Testing_Strategy.md`; `docs/Regression_Scenarios.md`; versioned results | Complete with explicit deferred client-only checks |
+| Keep Docker/deployment guidance current | No topology or deployment-step change this iteration | N/A — no deployment change |
+| Update data model/dictionary | `docs/Data_Model.md`; `docs/Data_Dictionary.md` (`DOCUMENT`, `fileId`, `isPrerequisite`) | Complete |
+| Shift-left security | Tenant-scoped reads/actions; in-tenant `fileId` validation; unchanged URL-safety/state machine | Complete; residual client-only gates recorded as Known Gaps |
+| Plan uses repository template expectations | Scope, out-of-scope, scenarios, security, tests and verification sections | Complete |
+| Plan scenarios map to results and regression catalog | S1-S10 appear one-for-one in plan, results and `Regression_Scenarios.md` | Complete; S6/S7/S10 and UI portions of S4/S5/S8/S9 explicit Known Gaps |
+| User guidance updated | Applicant and Back Office user guides | Complete |
+
+The baseline remains review pending until this documentation is committed and the follow-up
+`Record v0.19.6 baseline` commit backfills the `pending` commit fields.
+
+## v0.19.5 Documentation Index
+
+| Artifact | Location |
+| --- | --- |
+| Iteration plan and requirement traceability | `docs/plans/v0.19.5_Weekly_Tasks_And_Submission_Readiness.md` |
+| Executed test results | `docs/testing/v0.19.5_Weekly_Tasks_And_Submission_Readiness_Test_Results.md` |
+| Security/risk review | `docs/audits/v0.19.5_Weekly_Tasks_Submission_Readiness_Security_Review.md` |
+| Architecture/design | `docs/Architecture.md` |
+| Data model | `docs/Data_Model.md` |
+| Data dictionary | `docs/Data_Dictionary.md` |
+| Decision record | `docs/Decision_Log.md` (`D-086` through `D-090`) |
+| Testing strategy and scenario catalog | `docs/Testing_Strategy.md`, `docs/Regression_Scenarios.md` |
+| Deployment/release/rollback notes | `docs/Deployment.md` |
+| Applicant guidance | `docs/user-guides/Applicant_Portal_User_Guide.md` |
+| Back Office guidance | `docs/user-guides/Back_Office_User_Guide.md` |
+| Supporting implementation evidence | `docs/developer-notes/2026-07-16_Weekly_Tasks_Journal_Readiness_Full_Report.md` |
+
+The plan and test-results artifacts are the formal SSDLC record. Developer notes are supporting evidence
+and do not replace the required versioned artifacts.
+
+## v0.19.5 SSDLC Checklist Coverage
+
+| `docs/sdlc.md` control | Evidence | Coverage |
+| --- | --- | --- |
+| Document every iteration | Versioned plan/results, this baseline and documentation index | Complete |
+| Preserve committed/tested behavior | 473 unit tests plus affected/full regression evidence | Complete; full run has two documented Ops environment failures and one storage skip |
+| Update architecture/design | `docs/Architecture.md`; `D-086` through `D-090` | Complete |
+| Update testing and regression | `docs/Testing_Strategy.md`; `docs/Regression_Scenarios.md`; versioned results | Complete with explicit deferred browser checks |
+| Keep Docker/deployment guidance current | `docs/Deployment.md` release, deploy, compatibility and rollback notes | Complete; no topology change |
+| Update data model/dictionary | `docs/Data_Model.md`; `docs/Data_Dictionary.md` | Complete |
+| Shift-left security | Versioned security/risk review; URL/tenant/Markdown/concurrency tests | Complete with residual risks recorded |
+| Plan uses repository template expectations | Scope, out-of-scope, scenarios, security, tests and verification sections | Complete |
+| Plan scenarios map to results and regression catalog | S1-S12 appear one-for-one in plan, results and `Regression_Scenarios.md` | Complete; S11/S12 limitations explicit |
+| User guidance updated | Applicant and Back Office user guides | Complete |
+
+The baseline remains review pending because this documentation has not been committed or approved for
+merge.
+
+`v0.19.3` is a patch that (1) adds regex-based personal-name pattern matching to the AI Mentor RBSE
+so questions like "explain hitesh" or "who is john" are blocked before any LLM call — previously
+"explain" was an allowed topic so these reached GLM; (2) adds `stream_options.include_usage` to the
+GLM streaming request so token counts are returned in the SSE stream (fixes `tokens=?` in logs);
+(3) ensures RBSE always runs regardless of conversation history so blocked questions never reach
+GLM even in multi-turn conversations; and (4) switches the Vitest pool from `threads` to `forks`
+with `testTimeout: 15_000` to eliminate cross-file mock contamination that caused 6 spurious test
+failures under the full 43-file suite. No schema change; no migration; unit suite: 427 tests across
+43 files, all pass; `regression:all` 32/36 passed, 3 pre-existing infra failures (Ops console not
+in Docker, Keycloak admin redirect), 1 documented skip. Plan:
+`docs/plans/v0.19.3_AI_Mentor_RBSE_Name_Blocking_And_Token_Tracking.md`; results:
+`docs/testing/v0.19.3_AI_Mentor_RBSE_Name_Blocking_And_Token_Tracking_Test_Results.md`. See `D-084`.
+
+`v0.19.1` is a patch that wires the applicant Dashboard, My Program, Tasks and Missions pages to
+the real mission-lifecycle data `v0.18.5`/`v0.19.0` introduced (Days Remaining and every "current
+mission" countdown now derive from the actual assignment's `deadlineAt`, not `Program.endsAt`; My
+Program's Start/End dates derive from the Week 1 assignment's `acceptedAt` + 4 weeks) and corrects
+the `REPEAT` review decision to reassign the applicant an alternate mission for the **same week
+that failed** instead of always resetting to Week 1 (`createRepeatFromWeekOneTx` renamed
+`createRepeatMissionForSameWeekTx`, now driven by the failed assignment's own `weekNumber`). No
+schema change. Unit suite: 427 tests across 43 files; `regression:all` 35/36 passed, 1 pre-existing
+documented skip (storage), 0 failed. Plan:
+`docs/plans/v0.19.1_Dashboard_Wiring_And_Same_Week_Repeat.md`; results:
+`docs/testing/v0.19.1_Dashboard_Wiring_And_Same_Week_Repeat_Test_Results.md`. See `D-082`.
+
+`v0.19.0` replaces the applicant Tasks/Resources experience with a fixed 3-task template driven
+directly by each mission assignment (Review the Mission Brief, Study the Tutorial, Build & Submit
+Evidence) instead of the legacy program-level `ProgramTask`/`VideoResource` content. A new
+`MissionTaskCompletion` model (migration `20260714110000_mission_tasks`) tracks tasks 1 and 2 per
+assignment attempt (unique on `[missionAssignmentId, taskIndex]`); task 3 has no completion row —
+it is implied complete once the linked `Submission.status` moves beyond `DRAFT`/`NEEDS_REVISION`.
+Submission is now gated on tasks 1 and 2 being complete
+(`packages/db/src/mission-tasks.ts`, wired into `saveSubmissionDraft`/`submitSubmission`). A new
+optional `Mission.tutorialUrl` powers a YouTube IFrame Player watch-gate on Task 2 — "Mark as
+complete" stays disabled until the video reaches `YT.PlayerState.ENDED`; a mission with no
+`tutorialUrl` has no gate. The legacy dashboard tables are kept in the schema, unused, by explicit
+product decision — only the applicant UI and the admin Program Content authoring page (now Calendar
+Events only) stop reading/writing them. A new admin **Submissions** tab (`/submissions`, new
+sidebar entry between Missions and Operations) lists and filters submissions across every mission
+for reviewers, reusing the existing `reviewSubmissions` capability and the existing per-submission
+review page — no new authorization surface. A `javascript:`-URI XSS vector in `tutorialUrl`
+rendering, found by automated review during this iteration, is closed on both the write side
+(`parseOptionalHttpUrl`) and the read side (a defensive scheme re-check). Plan:
+`docs/plans/v0.19.0_Mission_Driven_Tasks.md`; results:
+`docs/testing/v0.19.0_Mission_Driven_Tasks_Test_Results.md`. See `D-081`.
+
+`v0.18.5` gives every `MissionAssignment` an explicit time-boxed lifecycle instead of an
+open-ended `ACTIVE` state (migration `20260714090000_mission_deadlines_and_lifecycle`). A new
+`acceptMissionAssignment` action is the applicant's explicit "Accept Mission" step — only accepting
+starts the deadline/grace clock, computed from the new per-mission `Mission.deadlineHours`
+(default 168h) and `Mission.gracePeriodHours` (default 24h) at the moment of acceptance; an
+assignment the applicant never accepts never expires. `MissionAssignmentStatus` becomes
+`NOT_STARTED → ACCEPTED → IN_PROGRESS → PENDING_EVALUATION | LATE_SUBMITTED`, with `OVERDUE`
+(deadline passed, inside grace) and terminal `FAILED` (grace expired) as deadline-driven side
+states, replacing the `v0.18.0` `ACTIVE`/`SUBMITTED` model. A standalone, idempotent deadline sweep
+(`packages/db/src/mission-deadlines.ts`, `scripts/mission-deadlines/sweep.ts`, `npm run
+mission-deadlines:sweep`) — run as an external scheduled job, deliberately kept out of the app
+request path per explicit product direction for future scaling — transitions `OVERDUE` and
+`FAILED` in two status-scoped, re-run-safe phases; the grace-period-expired path also sets
+`Application.status = DISQUALIFIED` (a deliberately terminal outcome for this version — a future
+Back Office "rejoin from Week 1" path is explicitly deferred, not built). A submission made inside
+the grace period is still accepted, recorded as `LATE_SUBMITTED`. Accepting a submission
+auto-advances the applicant to the next week's mission, capped at `FINAL_PROGRAM_WEEK = 4`. A
+`REPEAT` review decision reassigns the applicant a different published mission (this version: back
+at Week 1 — corrected to same-week in `v0.19.1`); with no alternate mission available,
+`Application.status` becomes `AWAITING_MISSION_ASSIGNMENT` and every `ORG_ADMIN`/`TECH_LEAD` in the
+tenant is notified. New `ApplicationStatus` values `DISQUALIFIED`/`AWAITING_MISSION_ASSIGNMENT`
+have no outgoing admin-initiated transition (`packages/auth/src/workflow.ts`). All new end-to-end
+scenarios are unit-tested but deferred at the scenario-regression level per `D-076` — see
+`docs/Regression_Scenarios.md` Known Gaps. Plan:
+`docs/plans/v0.18.5_Mission_Deadline_Lifecycle.md`; results:
+`docs/testing/v0.18.5_Mission_Deadline_Lifecycle_Test_Results.md`. See `D-080`.
+
+**Process note:** `v0.18.5`, `v0.19.0` and `v0.19.1` all ship from a single implementation commit
+instead of one commit per version, mirroring the accepted exception already recorded for
+`v0.17.0`/`v0.17.1`/`v0.18.0` under `D-073`. All three versions were built in one continuous local
+session before any of it was committed, so there was no prior per-version commit history to
+preserve or rewrite; splitting the single working-tree diff into three artificial commits after the
+fact (especially where one file, such as the applicant dashboard page, carries both `v0.19.0` and
+`v0.19.1` changes in the same hunks) would risk introducing broken intermediate states with no
+compensating benefit. This is recorded as a one-time accepted exception, not a precedent for future
+multi-version work — future iterations should commit as each version is completed.
 
 `v0.18.3` improves the local Ops Console regression-result experience (D-078). The regression runner
 already emitted detailed `REGRESSION_RESULT_JSON.results`; this baseline preserves those scenario rows
@@ -535,7 +717,7 @@ documentation for architecture, data model, data dictionary, deployment and test
 
 ## Portal Scope
 
-As of `v0.18.0` (previously a `v0.3.0` snapshot, refreshed at `v0.16.3`).
+As of `v0.19.0` (previously a `v0.3.0` snapshot, refreshed at `v0.16.3` and `v0.18.0`).
 
 Public Applicant Portal routes (`apps/applicant`, container `talentos-applicant`):
 
@@ -545,8 +727,9 @@ Public Applicant Portal routes (`apps/applicant`, container `talentos-applicant`
 - `/application` (authenticated)
 - `/access-denied` (`v0.14.2` tenant guard)
 - `/logged-out` (`v0.14.3` post-logout return, canonical host)
-- `/dashboard` + `program`, `tasks`, `resources`, `calendar`, `notifications`, `profile` (`v0.12.0`, accepted applicants)
-- `/dashboard/missions`, `/dashboard/missions/[id]` (`v0.14.0`; My Submission section `v0.15.0`; assigned-missions-only `v0.18.0`)
+- `/dashboard` + `program`, `tasks`, `resources`, `calendar`, `notifications`, `profile` (`v0.12.0`, accepted applicants; `program`/`tasks` rewired to mission-driven data at `v0.19.0`/`v0.19.1`)
+- `/dashboard/missions`, `/dashboard/missions/[id]` (`v0.14.0`; My Submission section `v0.15.0`; assigned-missions-only `v0.18.0`; Accept Mission action + deadline countdown `v0.18.5`; task-completion submission gate `v0.19.0`)
+- `/dashboard/tasks/[assignmentId]/[taskIndex]` (`v0.19.0`, per-task resource page with YouTube watch-gate for the tutorial task)
 - `/dashboard/journal`, `/dashboard/journal/new`, `/dashboard/journal/[id]` (`v0.17.0`, Engineering Journal)
 - `/api/auth/[...nextauth]`
 - `/api/branding/logo` (public tenant logo, `v0.9.0`)
@@ -559,9 +742,10 @@ Program Admin Portal routes (`apps/admin`, container `talentos-admin`, served at
 - `/`
 - `/applications`, `/applications/[id]`
 - `/programs`, `/programs/new`, `/programs/[id]`
-- `/programs/[id]/content` (`v0.16.0`, `manageProgramContent`)
-- `/missions`, `/missions/new`, `/missions/[id]` (`v0.14.0`)
+- `/programs/[id]/content` (`v0.16.0`, `manageProgramContent`; Video Resources/Weekly Tasks sections removed at `v0.19.0` — Calendar Events only)
+- `/missions`, `/missions/new`, `/missions/[id]` (`v0.14.0`; `tutorialUrl` field `v0.19.0`)
 - `/missions/[id]/submissions/[submissionId]` (`v0.15.0` submission review)
+- `/submissions` (`v0.19.0`, cross-mission filterable review list, `reviewSubmissions`)
 - `/operations` (`v0.8.0`)
 - `/settings` (`v0.9.0` branding)
 - `/organizations` (SUPER_ADMIN only, `v0.10.0`)
@@ -574,9 +758,12 @@ Program Admin Portal routes (`apps/admin`, container `talentos-admin`, served at
 Local Ops Console (`apps/ops`, host-run on `127.0.0.1:3300`, not containerized): Keycloak-gated
 operations UI running regression/cleanup/reset jobs (`v0.8.0`/`v0.12.2`/`v0.13.0`).
 
+External scheduled job (not a portal route): `scripts/mission-deadlines/sweep.ts`
+(`npm run mission-deadlines:sweep`, `v0.18.5`) — run by an external cron, not reachable over HTTP.
+
 ## Package Scope
 
-Packages, apps and infrastructure included as of `v0.18.0` (no new top-level package since `v0.16.3`):
+Packages, apps and infrastructure included as of `v0.19.0` (no new top-level package since `v0.16.3`):
 
 - `apps/applicant`
 - `apps/admin`

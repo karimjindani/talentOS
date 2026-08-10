@@ -1,12 +1,16 @@
 # Back Office User Guide
 
-Applies to version: `v0.18.4`
+Applies to version: `v0.19.5`
 
-Last verified: 2026-07-14
+Last verified: 2026-07-19
 
 Audience: platform super admins, organization admins, HR reviewers, and tech leads.
 
 Required access: Keycloak account with a Back Office role and matching tenant membership where applicable.
+
+> **Screenshots** live in [`screenshots/`](screenshots/) and were captured against the local demo
+> deployment. Regenerate them after seeding the stack (`npm run local:bootstrap`) with
+> `npx tsx scripts/user-guide/capture-screenshots.ts` (see [`scripts/user-guide/capture-screenshots.ts`](../../scripts/user-guide/capture-screenshots.ts)).
 
 ## Purpose
 
@@ -57,6 +61,11 @@ Back Office access requires both:
 - a valid Keycloak realm role, and
 - a matching TalentOS `TenantMembership` for tenant-scoped actions.
 
+Signing in lands on the Back Office overview — a live snapshot of applications, programs and mission
+submissions:
+
+![Back Office overview](screenshots/15-admin-overview.png)
+
 ## Role and Capability Matrix
 
 | Capability | SUPER_ADMIN | ORG_ADMIN | HR | TECH_LEAD |
@@ -90,7 +99,11 @@ Tenant slugs become local subdomains, for example `{slug}.lvh.me`.
 4. Change the status to the appropriate review outcome.
 
 Supported review outcomes include accepted, rejected, waitlisted, and under review. Status changes are
-audited.
+audited. The queue supports search, status/program filters and pagination.
+
+![Applications queue](screenshots/16-admin-applications.png)
+
+![Application review and decision](screenshots/17-admin-application-detail.png)
 
 ## Programs
 
@@ -104,14 +117,54 @@ Organization Admins and Super Admins manage programs.
 
 Only published programs are visible to applicants.
 
+![Programs](screenshots/18-admin-programs.png)
+
+![Program detail and publishing](screenshots/19-admin-program-detail.png)
+
+### Program content (`v0.16.0`)
+
+Organization Admins and Super Admins manage the applicant dashboard's curriculum content per
+program from **Programs → [program] → Manage content** (`/programs/[id]/content`):
+
+- **Learning resources** — associate a resource with a weekly task, choose **Markdown** or
+  **YouTube**, and set title, description, order, and optional duration. Markdown content is stored
+  directly; YouTube URLs must be public YouTube links and may remain blank while production is pending.
+- **Weekly tasks** — title, description, program week, order, optional due date, required state, and
+  published state. Published tasks appear on the applicant Tasks page. Required tasks block mission
+  submission for that program week until the applicant marks them complete.
+- **Calendar events** — title, description, start/end time, location. Shown on the applicant
+  Calendar page.
+
+Each entry can be edited inline or deleted. All changes are audited. HR and Tech Lead see a
+read-only notice on this page. The page also flags published required tasks that are missing either a
+Markdown or YouTube resource.
+
+![Program content management](screenshots/20-admin-program-content.png)
+
+The demo seed configures three ordered required Week 1 tasks: **Environment Setup**, **Git and GitHub
+Basics**, and **Introduction to AI-Assisted Coding**. Each has Markdown content and a YouTube resource
+record. The final introductory YouTube video is not supplied yet, so its URL is intentionally pending;
+the repository includes a short production outline and does not seed a fake link.
+
+### Tasks (`v0.20.0`)
+
+The top-level **Tasks** sidebar page manages weekly learning tasks and their resources for a chosen
+program without opening the full Program Content page. Search or pick a program, then add or edit
+tasks (each collapses to a `Task N — title` header) and, inline under each task, add multiple learning
+resources — Markdown reading, YouTube video, or an uploaded **Document** (PDF/DOC/DOCX/TXT/image).
+Required tasks gate mission submission; tasks marked **Prerequisite** must be completed before the
+applicant can start the mission's own steps.
+
+![Tasks workspace](screenshots/27-admin-tasks.png)
+
 ## Missions
 
 Organization Admins and Super Admins manage missions.
 
 1. Open **Missions**.
 2. Create a draft mission for a program.
-3. Add the mission objective, acceptance criteria, deliverables, evaluation criteria, and competency
-   tags.
+3. Add the mission objective, acceptance criteria, deliverables, evaluation criteria, competency
+   tags, tutorial URL, deadline hours, and grace-period hours.
 4. Publish the mission when it is ready for accepted applicants.
 5. Archive missions that should no longer be visible to applicants.
 
@@ -121,6 +174,10 @@ The demo program seeds the full four-week mission arc (`v0.15.1`) — Week 1 **B
 Landing Page** (Beginner) through Week 4 **Take TaskPilot to Production** (Expert) — all published
 and visible to accepted applicants.
 
+![Missions authoring list](screenshots/21-admin-missions.png)
+
+![Mission detail and submissions](screenshots/22-admin-mission-detail.png)
+
 ### Reviewing mission submissions (`v0.15.0`)
 
 Each mission detail page lists its applicant submissions (applicant, status, submitted and reviewed
@@ -129,8 +186,8 @@ never review each other's work (Graduate Profile: graduates are not code reviewe
 
 1. Open **Missions** and select the mission.
 2. In **Submissions**, select **Review** on a submitted entry.
-3. Inspect the evidence: Git repository, deployed application, and Loom walkthrough (links open in a
-   new tab), plus all dedicated **Engineering Journal** entries for that applicant and mission
+3. Inspect the evidence: Git repository, each deployed application URL, and Loom walkthrough (every
+   link opens separately in a new tab), plus all dedicated **Engineering Journal** entries for that applicant and mission
    assignment attempt. Engineering Journal entries are read-only for reviewers. The legacy
    `Submission.journalMarkdown` field is retained for data compatibility but is not displayed.
 4. Either **Accept submission** — final; the submission becomes portfolio evidence for the mission's
@@ -139,6 +196,11 @@ never review each other's work (Graduate Profile: graduates are not code reviewe
    or a repeat requires written feedback.
 5. The applicant is notified automatically (acceptance or revision request with your feedback), and
    the review is recorded in the audit log.
+
+Before a submission can reach this review screen in **Submitted** state, the server requires every
+published required task for the assignment's program week, at least four journals linked to that exact
+attempt, and publicly reachable GitHub/every deployment/Loom URL. These checks do not grant reviewers any
+new journal write permission; journal context remains read-only.
 
 A submission can be reviewed only while it is in **Submitted** status. A revision reuses the current
 attempt. A repeat keeps the old submission and its locked Engineering Journal entries as read-only
@@ -161,6 +223,8 @@ Tenant settings control white-label presentation.
 
 Branding changes apply to both Applicant and Admin portals for that tenant.
 
+![Tenant settings and branding](screenshots/24-admin-settings.png)
+
 ## Operations
 
 The Operations page is a local-development tool. It is not a production operations console.
@@ -175,13 +239,19 @@ Use it to:
 
 The Operations page must not be used as evidence that production monitoring exists.
 
+![Admin operations health](screenshots/25-admin-operations.png)
+
+The standalone **Local Ops Console** (`http://127.0.0.1:3300`) provides out-of-band health checks,
+regression-suite execution and local reset controls, protected by the same Keycloak session:
+
+![Local Ops Console](screenshots/26-ops-console.png)
+
 ## Known Limitations
 
 - Full Back Office user/role management UI is not complete yet.
 - Production deployment operations, backups, alerting, and monitoring are not covered by this guide.
-- Mission submissions, engineering journal review, public portfolios, and hiring intelligence are future
-  workflows.
-- Screenshots are not part of this guide yet.
+- Public recruiter portfolios, hiring intelligence, and automated Engineering Journal scoring remain
+  future workflows.
 
 ## Troubleshooting
 

@@ -9,7 +9,10 @@ const STATUS_STYLES: Record<string, string> = {
   PUBLISHED: "bg-emerald-100 text-emerald-700",
   ARCHIVED: "bg-slate-200 text-slate-600",
   // Mission-submission review loop (v0.15.0, D-067).
-  NEEDS_REVISION: "bg-amber-100 text-amber-800"
+  NEEDS_REVISION: "bg-amber-100 text-amber-800",
+  // Mission-deadline/reject-loop program outcomes (v0.18.5).
+  DISQUALIFIED: "bg-rose-100 text-rose-700",
+  AWAITING_MISSION_ASSIGNMENT: "bg-amber-100 text-amber-800"
 };
 
 type StatusBadgeProps = {

@@ -1,13 +1,17 @@
 # Applicant Portal User Guide
 
-Applies to version: `v0.18.4`
+Applies to version: `v0.19.5`
 
-Last verified: 2026-07-14
+Last verified: 2026-07-19
 
 Audience: applicants and accepted program participants.
 
 Required access: Keycloak applicant account with the `APPLICANT` role. Dashboard and mission pages require
 an accepted application for the tenant program.
+
+> **Screenshots** live in [`screenshots/`](screenshots/) and were captured against the local demo
+> deployment. Regenerate them after seeding the stack (`npm run local:bootstrap`) with
+> `npx tsx scripts/user-guide/capture-screenshots.ts` (see [`scripts/user-guide/capture-screenshots.ts`](../../scripts/user-guide/capture-screenshots.ts)).
 
 ## Purpose
 
@@ -56,6 +60,18 @@ Signing in on a tenant subdomain (`http://<tenant>.lvh.me:3100`) determines whic
 acting in. You may hold an account under more than one tenant; each subdomain shows only that tenant's
 programs and application.
 
+Each tenant has a branded landing page on its own subdomain:
+
+![Tenant landing page](screenshots/01-applicant-home.png)
+
+The portal delegates authentication to Keycloak; new applicants use **Create account**:
+
+![Portal login](screenshots/02-applicant-login.png)
+
+![Keycloak sign-in](screenshots/03-keycloak-signin.png)
+
+![Keycloak self-registration](screenshots/03b-keycloak-register.png)
+
 ## Apply to a Program
 
 1. Open `http://demo.lvh.me:3100/apply`.
@@ -68,6 +84,8 @@ programs and application.
 
 After submission, TalentOS records the application as `SUBMITTED`. Duplicate active applications for the
 same program are blocked.
+
+![Application form](screenshots/04-applicant-apply.png)
 
 ## View Application Status
 
@@ -82,6 +100,8 @@ Common statuses are:
 - `ACCEPTED`
 - `REJECTED`
 - `WAITLISTED`
+
+![Application status](screenshots/05-applicant-application-status.png)
 
 ## Accepted Applicant Dashboard
 
@@ -99,7 +119,34 @@ The dashboard contains:
 - Notifications
 - Profile
 
+![Dashboard overview](screenshots/06-dashboard-overview.png)
+
+Other dashboard pages — My Program, Calendar, Notifications and Profile:
+
+![My Program](screenshots/14-dashboard-program.png)
+
+![Calendar](screenshots/11-dashboard-calendar.png)
+
+![Notifications](screenshots/12-dashboard-notifications.png)
+
+![Profile](screenshots/13-dashboard-profile.png)
+
 Applicants without an accepted application are redirected back to their application/status flow.
+
+### Your progress is mission-driven (`v0.16.0`)
+
+The overview page's **Overall Progress**, **Missions Accepted** tile and per-week **Program
+Progress** bars track your missions: a mission counts toward progress only when a reviewer has
+**accepted** your submission. Draft or submitted work does not move the bar yet. The **Current
+Mission** card shows the next mission in your program (with your submission status) and links
+straight to it; when every mission is accepted, your portfolio evidence is complete. Weekly tasks
+remain a separate checklist with their own tile — completing tasks does not change Overall
+Progress, but every required task for your assigned week must be complete before you can submit that
+week's mission.
+
+To sign out from the dashboard, use the **Logout** button at the bottom of the sidebar (below your
+name and email). Signing out ends both the portal session and the Keycloak single sign-on session and
+returns you to your tenant's portal home page (`v0.14.3`).
 
 ### Access to an organization you have not joined
 
@@ -108,6 +155,27 @@ you open another tenant's `/dashboard` or `/application` without a membership th
 an **Access denied** page ("You are not a member of this organization") with two options: **Apply to
 join** (opens that tenant's apply form) or **Sign out**. Applying is open to anyone signed in — submitting
 an application is what enrolls you as an `APPLICANT` in that tenant.
+
+## Weekly Tasks And Resources
+
+Open **Tasks** to see the week from your current assignment, required/optional labels, overall required
+task progress, and the items still blocking submission. Select **Mark complete** after finishing a
+task. Completion is saved for your account and program week; it remains complete if a reviewer asks
+you to repeat that week. Tasks cannot be unchecked in the current MVP.
+
+Each Week 1 task has ordered learning material:
+
+- a Markdown guide displayed safely in the portal;
+- a YouTube resource, which opens in a new tab when its final URL is available.
+
+The seeded Week 1 tasks are **Environment Setup**, **Git and GitHub Basics**, and **Introduction to
+AI-Assisted Coding**. The first guide is **Introduction to TalentOS**. The introductory video is still
+pending, so the portal shows that state instead of linking to a fake video. The **Resources** page also
+collects the current program's task-linked material in one read-only view.
+
+![Weekly tasks](screenshots/09-dashboard-tasks.png)
+
+![Learning resources](screenshots/10-dashboard-resources.png)
 
 ## Missions
 
@@ -127,12 +195,49 @@ The seeded Week 1 mission is **Build a Public Product Landing Page**.
 In `v0.18.0`, Week 1 has multiple seeded variants so interns do not all start with the exact same
 assignment. The assigned mission is the one that appears in your dashboard.
 
+![Missions list](screenshots/07-dashboard-missions.png)
+
+Opening a mission shows the mission workspace — brief, deliverables, the mission steps and the
+submission panel:
+
+![Mission workspace](screenshots/08-dashboard-mission-detail.png)
+
 | Week | Mission | Difficulty |
 | --- | --- | --- |
 | 1 | One seeded Week 1 variant assigned to you | Beginner |
 | 2 | Design and Build the TaskPilot Application | Intermediate |
 | 3 | Containerize, Automate and Load-Test TaskPilot | Advanced |
 | 4 | Take TaskPilot to Production | Expert |
+
+### Mission acceptance, tasks, submission, and review
+
+Open an assigned mission and select **Accept Mission** to start its deadline and grace-period clock.
+Each assignment attempt has fixed mission steps for reviewing the brief, studying the mission tutorial,
+and building/submitting evidence. These are separate from the reusable weekly learning tasks shown on
+the Tasks page; both sets must be complete before submission.
+
+- **Git repository URL** — must be on `github.com`; your PRD, README, user stories and acceptance
+  criteria live in the repository.
+- **Deployed application URL(s)** — one or more reachable public `http(s)` links. Keep one input and
+  separate multiple links with a semicolon, for example
+  `https://app.example.com; https://api.example.com` (maximum ten).
+- **Loom walkthrough URL** — must be a supported public `loom.com` share/watch link.
+
+1. Fill in your evidence and select **Save draft** as often as you like.
+2. Use the submission checklist to confirm mission steps and required week tasks are complete, at least
+   four journal entries belong to this assignment attempt, and every required evidence group is present.
+3. Select **Submit for review**. TalentOS checks the GitHub repository, every deployed application URL,
+   and Loom page independently for public reachability. Internal/private destinations are rejected;
+   one failed deployment URL blocks the whole submission and identifies that URL.
+4. If any check fails, the submission stays a draft (or revision), journals stay unchanged, and the
+   page shows an actionable error. Successful submission timestamps the submission, updates the
+   deadline-aware assignment status, and locks only the journals for this attempt.
+5. A reviewer can accept, request changes, or require a same-week repeat. Feedback appears on the
+   mission page and the applicant receives a notification.
+6. A revision reuses the same attempt and reruns readiness and URL checks. A repeat creates a fresh
+   assignment attempt: weekly learning tasks remain complete, while mission steps and the minimum four
+   attempt-linked journals must be completed again.
+7. An accepted submission is final and becomes portfolio evidence for the mission's competencies.
 
 ## AI Mentor
 
@@ -189,7 +294,9 @@ mission-submission journal is no longer shown in applicant or admin interfaces.
 The dedicated **Journal** dashboard page stores daily structured reflections. Entries are linked to
 your tenant, user account, accepted program, selected published mission and the mission's week number.
 You can create back-dated entries, but each date can have only one journal entry. If you already wrote
-an entry for a date, edit that entry instead of creating another one.
+an entry for a date, edit that entry instead of creating another one. Today and past dates are allowed;
+future dates are blocked in both the form and the server. The form uses your browser's local time zone
+to determine today. There is no 24-hour creation cooldown.
 
 Each journal entry asks for:
 
@@ -198,13 +305,19 @@ Each journal entry asks for:
 - How you solved it
 - What you learned
 - How you used AI, or that no AI was used
-- Confidence rating from 1 to 5
+- Confidence rating from 1 to 5, with an accessible explanation from "I need significant help" to
+  "I could explain this to someone else"
 - Time spent in hours
 - Evidence links such as GitHub, PR, deployed URL or video links
 
 You may write in English, Roman Urdu, Roman Hindi or another language. Use **Profile** to set your
 Preferred Journal Language; new journal entries use that preference by default. TalentOS does not
 translate or process languages automatically yet.
+
+The mission submission checklist counts only journal entries linked to the exact current assignment
+attempt and dated today or earlier. Previous attempts, another applicant/tenant, unlinked legacy rows,
+and future dates do not count toward the minimum of four. `entryDate` is the date you selected;
+submission time is recorded separately after all submission checks pass.
 
 AI scoring columns exist in the database for future mentor/reviewer workflows, but real AI scoring is
 not active in this version.
@@ -224,4 +337,3 @@ not active in this version.
 
 - Real AI journal scoring, weekly AI summaries and portfolio publishing are not implemented yet.
 - Evidence file attachments are not supported yet; journal and mission evidence use URL links.
-- Screenshots are not part of this guide yet.

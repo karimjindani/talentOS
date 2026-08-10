@@ -9,7 +9,8 @@ import { resolveTenantRedirect } from "@talentos/auth-web";
  */
 export function GET(request: NextRequest): NextResponse {
   const state = request.nextUrl.searchParams.get("state");
-  const baseUrl = new URL(process.env.AUTH_URL ?? "http://lvh.me:3100").origin;
+  // AUTH_URL (NextAuth v5) or NEXTAUTH_URL (v4 alias) — both point to the canonical auth origin.
+  const baseUrl = new URL(process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "http://lvh.me:3100").origin;
   const target = resolveTenantRedirect(state ?? baseUrl, baseUrl, process.env.APP_BASE_DOMAIN);
   return NextResponse.redirect(target);
 }

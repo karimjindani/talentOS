@@ -15,7 +15,7 @@ describe("SidebarNav isActive route matching", () => {
       expect(isActive("/applications", overview)).toBe(false);
       expect(isActive("/programs", overview)).toBe(false);
       expect(isActive("/missions", overview)).toBe(false);
-      expect(isActive("/operations", overview)).toBe(false);
+      expect(isActive("/submissions", overview)).toBe(false);
       expect(isActive("/settings", overview)).toBe(false);
       expect(isActive("/organizations", overview)).toBe(false);
     });
@@ -41,9 +41,17 @@ describe("SidebarNav isActive route matching", () => {
       expect(isActive("/missions/xyz", item)).toBe(true);
     });
 
-    it("Operations is active on `/operations` only", () => {
-      const item = NAV_ITEMS.find((i) => i.href === "/operations")!;
-      expect(isActive("/operations", item)).toBe(true);
+    it("Tasks is active on `/tasks` and with a query string", () => {
+      const item = NAV_ITEMS.find((i) => i.href === "/tasks")!;
+      expect(isActive("/tasks", item)).toBe(true);
+      // Program selection uses a query param; pathname (no query) still matches.
+      expect(isActive("/tasks", item)).toBe(true);
+    });
+
+    it("Submissions is active on `/submissions` and nested paths", () => {
+      const item = NAV_ITEMS.find((i) => i.href === "/submissions")!;
+      expect(isActive("/submissions", item)).toBe(true);
+      expect(isActive("/submissions/xyz", item)).toBe(true);
     });
 
     it("Settings is active on `/settings` only", () => {
@@ -63,7 +71,6 @@ describe("SidebarNav isActive route matching", () => {
       expect(isActive("/", item)).toBe(false);
       expect(isActive("/programs", item)).toBe(false);
       expect(isActive("/missions", item)).toBe(false);
-      expect(isActive("/operations", item)).toBe(false);
       expect(isActive("/settings", item)).toBe(false);
     });
 
@@ -75,6 +82,11 @@ describe("SidebarNav isActive route matching", () => {
       expect(isActive("/missions", item)).toBe(false);
     });
 
+    it("Missions is not active on Submissions or other top-level routes", () => {
+      const item = NAV_ITEMS.find((i) => i.href === "/missions")!;
+      expect(isActive("/submissions", item)).toBe(false);
+    });
+
     it("no item is active on an unknown route", () => {
       for (const item of NAV_ITEMS) {
         expect(isActive("/unknown-route", item)).toBe(false);
@@ -84,13 +96,14 @@ describe("SidebarNav isActive route matching", () => {
   });
 
   describe("NAV_ITEMS integrity", () => {
-    it("contains the six standard admin nav items in order", () => {
+    it("contains the seven standard admin nav items in order", () => {
       expect(NAV_ITEMS.map((i) => i.label)).toEqual([
         "Overview",
         "Applications",
         "Programs",
         "Missions",
-        "Operations",
+        "Tasks",
+        "Submissions",
         "Settings"
       ]);
     });

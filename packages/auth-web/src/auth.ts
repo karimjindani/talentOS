@@ -29,7 +29,7 @@ export type TalentosAuthOptions = {
  * `localhost` (single-label — browsers reject a Domain attribute on it) we fall back to next-auth's
  * host-only cookie defaults so nothing changes for a single-host deployment.
  */
-function baseDomainCookieConfig() {
+export function baseDomainCookieConfig() {
   const baseDomain = process.env.APP_BASE_DOMAIN;
   if (!baseDomain || baseDomain === "localhost") return undefined;
 
