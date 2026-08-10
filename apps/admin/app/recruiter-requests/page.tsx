@@ -6,10 +6,6 @@ function formatDate(value: Date | null) {
   return value ? new Date(value).toLocaleDateString() : "—";
 }
 
-function formatDateTime(value: Date | null) {
-  return value ? new Date(value).toLocaleString() : "—";
-}
-
 const STATUS_COLORS: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-800",
   APPROVED: "bg-green-100 text-green-800",

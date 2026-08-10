@@ -41,8 +41,9 @@ export async function POST(request: NextRequest) {
         PROFILE_DISABLED: { message: "This graduate has disabled their public profile.", status: 404 },
         INVALID: { message: "Invalid or expired token.", status: 401 },
       };
-      const info = errorMessages[result.error] ?? { message: "Invalid or expired token.", status: 401 };
-      return NextResponse.json({ error: info.message, reason: result.error }, { status: info.status });
+      const errorCode = result.error as string;
+      const info = errorMessages[errorCode] ?? { message: "Invalid or expired token.", status: 401 };
+      return NextResponse.json({ error: info.message, reason: errorCode }, { status: info.status });
     }
 
     const response = NextResponse.json({

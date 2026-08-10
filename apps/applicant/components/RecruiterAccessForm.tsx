@@ -17,7 +17,6 @@ export function RecruiterAccessForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [submittedEmail, setSubmittedEmail] = useState("");
 
   const [formData, setFormData] = useState({
     recruiterName: "",
@@ -50,7 +49,6 @@ export function RecruiterAccessForm({
         throw new Error(data.error || "Failed to submit request");
       }
 
-      setSubmittedEmail(formData.recruiterEmail);
       setSuccess(true);
       setFormData({
         recruiterName: "",

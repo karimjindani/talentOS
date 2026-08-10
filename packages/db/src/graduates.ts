@@ -209,7 +209,8 @@ export async function approveAccessRequest(id: string, reviewerId: string, rawTo
     if (request.status !== "PENDING") throw new Error(`Request is already ${request.status}.`);
     const updated = await tx.recruiterAccessRequest.update({
       where: { id },
-      data: { status: "APPROVED", reviewedById: reviewerId, reviewedAt: new Date(), token: hashToken(rawToken), expiresAt, approvedAt: new Date() }
+      data: { status: "APPROVED", reviewedById: reviewerId, reviewedAt: new Date(), token: hashToken(rawToken), expiresAt, approvedAt: new Date() },
+      include: { graduate: { include: { user: true } } }
     });
     return { request: updated, rawToken, expiresAt };
   });
