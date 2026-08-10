@@ -42,6 +42,12 @@ export async function reviewSubmissionAction(formData: FormData) {
     throw new Error("Written feedback is required when requesting changes or a repeat week.");
   }
 
+  const rawRating = String(formData.get("rating") ?? "").trim();
+  const rating = decision === "ACCEPTED" && rawRating ? Number(rawRating) : null;
+  if (decision === "ACCEPTED" && (rating === null || !Number.isFinite(rating) || rating < 1 || rating > 5)) {
+    throw new Error("A rating from 1 to 5 is required when accepting a submission.");
+  }
+
   const existing = await getTenantSubmission(id, tenant.id);
   if (!existing) {
     throw new Error("Submission not found.");
@@ -54,7 +60,8 @@ export async function reviewSubmissionAction(formData: FormData) {
     tenantId: tenant.id,
     status: decision,
     reviewerFeedback,
-    reviewerUserId
+    reviewerUserId,
+    rating
   });
 
   revalidatePath(`/missions/${existing.missionId}`);

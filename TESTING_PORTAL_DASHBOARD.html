@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TalentOS - Testing Portal Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .card .links {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .link-item {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+            transition: background 0.3s;
+        }
+        
+        .link-item:hover {
+            background: #e9ecef;
+        }
+        
+        .link-item a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .link-item a:hover {
+            color: #764ba2;
+        }
+        
+        .link-item .arrow {
+            margin-left: 10px;
+        }
+        
+        .section-title {
+            color: white;
+            font-size: 1.8em;
+            margin: 40px 0 20px 0;
+            font-weight: bold;
+        }
+        
+        .credentials {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+        
+        .credentials h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .credential-item {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #764ba2;
+        }
+        
+        .credential-field {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .credential-field label {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        
+        .credential-field input {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.95em;
+        }
+        
+        .copy-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+            margin-left: 5px;
+            transition: background 0.3s;
+        }
+        
+        .copy-btn:hover {
+            background: #764ba2;
+        }
+        
+        .role-badge {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            margin-left: 10px;
+        }
+        
+        .role-badge.super {
+            background: #ff6b6b;
+        }
+        
+        .role-badge.admin {
+            background: #ffa94d;
+        }
+        
+        .role-badge.applicant {
+            background: #51cf66;
+        }
+        
+        .testing-guide {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+        
+        .testing-guide h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .testing-guide ul {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 10px;
+        }
+        
+        .testing-guide li {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .testing-guide li:before {
+            content: "✓ ";
+            color: #51cf66;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        
+        footer {
+            text-align: center;
+            color: white;
+            margin-top: 40px;
+            opacity: 0.8;
+        }
+        
+        .btn-primary {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            border: 2px solid white;
+        }
+        
+        .btn-primary:hover {
+            background: transparent;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 TalentOS Testing Dashboard</h1>
+            <p>Click any link below to access the portals - Test all features and workflows</p>
+        </header>
+        
+        <!-- MAIN PORTALS -->
+        <div class="section-title">🌐 Main Portals</div>
+        
+        <div class="grid">
+            <div class="card">
+                <h2>📱 Applicant Portal</h2>
+                <div class="links">
+                    <div class="link-item">
+                        <a href="http://lvh.me:3100" target="_blank">
+                            Main Tenant <span class="arrow">→</span>
+                        </a>
+                    </div>
+                    <div class="link-item">
+                        <a href="http://demo.lvh.me:3100" target="_blank">
+                            Demo Tenant <span class="arrow">→</span>
+                        </a>
+                    </div>
+                    <div class="link-item">
+                        <a href="http://demo.lvh.me:3100/login" target="_blank">
+                            Login Page <span class="arrow">→</span>
+                        </a>
+                    </div>
+                    <div class="link-item">
+                        <a href="http://demo.lvh.me:3100/apply" target="_blank">
+                            Apply to Programs <span class="arrow">→</span>
+                        </a>
+                    </div>
+                    <div class="link-item">
+                        <a href="http://demo.lvh.me:3100/dashboard" target="_blank">
+                            Dashboard <span class="arrow">→</span>
+                        </a>
+                    </div>
+                    <div class="link-item">
+                        <a href="http://demo.lvh.me:3100/dashboard/journal" target="_blank">
+                            Engineering Journal <span class="arrow">→</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>⚙️ Admin Portal</h2>
+                <div class="links">
+                    <div class="link-item">
+                        <a href="http://lvh.me:3200" target="_blank">
+                            Main Tenant <span class="arrow">→</span>
+                        </a>
+                    </div>
+                    <div class="link-item">
+                        <a href="http://demo.lvh.me:3200" target="_blank">
+                            Demo Tenant <span class="arrow">→</span>
+                        </a>
+                    </div>
+                    <div class="link-item">
+                        <a href="http://demo.lvh.me:3200/applications" target="_blank">
+                            Applications <span class="arrow">→</span>
+                        </a>
+                    </div>
+                    <div class="link-item">
+                        <a href="http://demo.lvh.me:3200/programs" target="_blank">
+                            Programs <span class="arrow">→</span>
+                        </a>
+                    </div>
+                    <div class="link-item">
+                        <a href="http://demo.lvh.me:3200/settings" target="_blank">
+                            Settings & Branding <span class="arrow">→</span>
+                        </a>
+                    </div>
+                    <div class="link-item">
+                        <a href="http://demo.lvh.me:3200/operations" target="_blank">
+                            Operations Console <span class="arrow">→</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>🎓 Public Graduate Portal</h2>
+                <div class="links">
+                    <div class="link-item">
+                        <a href="http://lvh.me:3100/graduates" target="_blank">
+                            Graduate Directory <span class="arrow">→</span>
+                        </a>
+                    </div>
+                    <div class="link-item">
+                        <a href="http://demo.lvh.me:3100/graduates" target="_blank">
+                            Graduate Directory (Demo) <span class="arrow">→</span>
+                        </a>
+                    </div>
+                    <div class="link-item">
+                        <a href="http://lvh.me:3100/dashboard/graduate-consent" target="_blank">
+                            Graduate Consent Modal <span class="arrow">→</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>🔐 Keycloak (IAM)</h2>
+                <div class="links">
+                    <div class="link-item">
+                        <a href="http://keycloak.lvh.me:8080" target="_blank">
+                            Keycloak Home <span class="arrow">→</span>
+                        </a>
+                    </div>
+                    <div class="link-item">
+                        <a href="http://keycloak.lvh.me:8080/admin" target="_blank">
+                            Admin Console <span class="arrow">→</span>
+                        </a>
+                    </div>
+                    <div class="link-item">
+                        <a href="http://keycloak.lvh.me:8080/realms/talentos" target="_blank">
+                            Realm: talentos <span class="arrow">→</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>💾 MinIO (File Storage)</h2>
+                <div class="links">
+                    <div class="link-item">
+                        <a href="http://localhost:9001" target="_blank">
+                            MinIO Console <span class="arrow">→</span>
+                        </a>
+                    </div>
+                    <div class="link-item">
+                        <a href="http://minio.lvh.me:9000" target="_blank">
+                            MinIO API <span class="arrow">→</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- CREDENTIALS -->
+        <div class="section-title">🔑 Test Credentials</div>
+        
+        <div class="credentials">
+            <h3>Super Admin <span class="role-badge super">SUPER_ADMIN</span></h3>
+            <div class="credential-item">
+                <div class="credential-field">
+                    <label>Email</label>
+                    <input type="text" value="superadmin@talentos.local" readonly>
+                </div>
+                <div class="credential-field">
+                    <label>Password</label>
+                    <input type="text" value="ChangeMeSuper#1" readonly>
+                </div>
+            </div>
+            <small>Access: http://lvh.me:3200 (main admin portal) - Create organizations, manage all tenants</small>
+        </div>
+        
+        <div class="credentials">
+            <h3>Org Admin (Demo) <span class="role-badge admin">ORG_ADMIN</span></h3>
+            <div class="credential-item">
+                <div class="credential-field">
+                    <label>Email</label>
+                    <input type="text" value="orgadmin@demo.talentos.local" readonly>
+                </div>
+                <div class="credential-field">
+                    <label>Password</label>
+                    <input type="text" value="ChangeMe123!" readonly>
+                </div>
+            </div>
+            <small>Access: http://demo.lvh.me:3200 - Manage demo tenant applications, programs, settings</small>
+        </div>
+        
+        <div class="credentials">
+            <h3>HR (Demo) <span class="role-badge admin">HR</span></h3>
+            <div class="credential-item">
+                <div class="credential-field">
+                    <label>Email</label>
+                    <input type="text" value="hr@demo.talentos.local" readonly>
+                </div>
+                <div class="credential-field">
+                    <label>Password</label>
+                    <input type="text" value="ChangeMe123!" readonly>
+                </div>
+            </div>
+            <small>Access: http://demo.lvh.me:3200 - Limited admin workflows based on role</small>
+        </div>
+        
+        <div class="credentials">
+            <h3>Tech Lead (Demo) <span class="role-badge admin">TECH_LEAD</span></h3>
+            <div class="credential-item">
+                <div class="credential-field">
+                    <label>Email</label>
+                    <input type="text" value="techlead@demo.talentos.local" readonly>
+                </div>
+                <div class="credential-field">
+                    <label>Password</label>
+                    <input type="text" value="ChangeMe123!" readonly>
+                </div>
+            </div>
+            <small>Access: http://demo.lvh.me:3200 - Limited admin workflows based on role</small>
+        </div>
+        
+        <div class="credentials">
+            <h3>Applicant <span class="role-badge applicant">APPLICANT</span></h3>
+            <div class="credential-item">
+                <div class="credential-field">
+                    <label>Email</label>
+                    <input type="text" value="applicant@demo.talentos.local" readonly>
+                </div>
+                <div class="credential-field">
+                    <label>Password</label>
+                    <input type="text" value="ChangeMe123!" readonly>
+                </div>
+            </div>
+            <small>Access: http://demo.lvh.me:3100 - Apply to programs, submit applications</small>
+        </div>
+        
+        <div class="credentials">
+            <h3>Accepted Applicant (with Dashboard) <span class="role-badge applicant">APPLICANT</span></h3>
+            <div class="credential-item">
+                <div class="credential-field">
+                    <label>Email</label>
+                    <input type="text" value="accepted@demo.talentos.local" readonly>
+                </div>
+                <div class="credential-field">
+                    <label>Password</label>
+                    <input type="text" value="ChangeMe123!" readonly>
+                </div>
+            </div>
+            <small>Access: http://demo.lvh.me:3100 - Dashboard, missions, journal, AI mentor</small>
+        </div>
+        
+        <div class="credentials">
+            <h3>Keycloak Admin 🔒</h3>
+            <div class="credential-item">
+                <div class="credential-field">
+                    <label>Username</label>
+                    <input type="text" value="admin" readonly>
+                </div>
+                <div class="credential-field">
+                    <label>Password</label>
+                    <input type="text" value="admin" readonly>
+                </div>
+            </div>
+            <small>Access: http://keycloak.lvh.me:8080/admin - Manage users, roles, clients, realm settings</small>
+        </div>
+        
+        <div class="credentials">
+            <h3>MinIO Console 📦</h3>
+            <div class="credential-item">
+                <div class="credential-field">
+                    <label>Username</label>
+                    <input type="text" value="talentos" readonly>
+                </div>
+                <div class="credential-field">
+                    <label>Password</label>
+                    <input type="text" value="talentos_dev_password" readonly>
+                </div>
+            </div>
+            <small>Access: http://localhost:9001 - View uploaded files, buckets, manage storage</small>
+        </div>
+        
+        <!-- TESTING CHECKLIST -->
+        <div class="section-title">✅ What to Test</div>
+        
+        <div class="testing-guide">
+            <h3>Graduate Portal Workflows</h3>
+            <ul>
+                <li>Browse public graduate directory</li>
+                <li>Search graduates by name/skills</li>
+                <li>Filter by country, sort by rating</li>
+                <li>View public graduate profile</li>
+                <li>Submit recruiter access request form</li>
+                <li>Receive verification email</li>
+                <li>Verify email and access full portfolio</li>
+                <li>Accept consent modal in applicant dashboard</li>
+                <li>Publish graduate profile</li>
+                <li>Fill out graduate profile form</li>
+                <li>View published profile in directory</li>
+                <li>Manage profile visibility (publish/unpublish)</li>
+            </ul>
+        </div>
+        
+        <div class="testing-guide">
+            <h3>Applicant Portal Workflows</h3>
+            <ul>
+                <li>Login with applicant credentials</li>
+                <li>Create new account (sign-up)</li>
+                <li>Browse available programs</li>
+                <li>Submit application with file uploads</li>
+                <li>Track application status</li>
+                <li>Access dashboard (as accepted applicant)</li>
+                <li>View assigned missions</li>
+                <li>Submit mission evidence</li>
+                <li>Write engineering journal entries</li>
+                <li>View AI mentor guidance</li>
+                <li>Logout and verify session handling</li>
+            </ul>
+        </div>
+        
+        <div class="testing-guide">
+            <h3>Admin Portal Workflows</h3>
+            <ul>
+                <li>Login with admin credentials</li>
+                <li>Review pending applications</li>
+                <li>Accept/Reject applications</li>
+                <li>Create new program</li>
+                <li>Edit program details</li>
+                <li>Publish/Archive programs</li>
+                <li>Update tenant branding colors</li>
+                <li>Upload tenant logo</li>
+                <li>Create and assign missions</li>
+                <li>Review mission submissions</li>
+                <li>Access operations console</li>
+                <li>Run regression tests (super admin only)</li>
+            </ul>
+        </div>
+        
+        <div class="testing-guide">
+            <h3>Cross-Tenant & Security</h3>
+            <ul>
+                <li>Login on main tenant (lvh.me)</li>
+                <li>Switch to demo tenant (demo.lvh.me)</li>
+                <li>Verify session persistence</li>
+                <li>Test tenant data isolation</li>
+                <li>Create new organization (super admin)</li>
+                <li>Verify multi-tenant routing</li>
+                <li>Test RBAC role enforcement</li>
+                <li>Verify file storage isolation</li>
+            </ul>
+        </div>
+        
+        <!-- COMMANDS -->
+        <div class="section-title">⌨️ Useful Commands</div>
+        
+        <div class="testing-guide">
+            <h3>Testing Flow for Graduate Portal</h3>
+            <ul>
+                <li>1. Visit: /graduates - See directory of all public profiles</li>
+                <li>2. Search and filter to find graduates</li>
+                <li>3. Click on a graduate to view their public profile</li>
+                <li>4. Submit recruiter access request with email</li>
+                <li>5. Check email inbox for verification link</li>
+                <li>6. Click verification link to access full portfolio</li>
+                <li>7. Login as applicant to /dashboard</li>
+                <li>8. Complete all missions to see consent modal</li>
+                <li>9. Click "Publish Profile" in consent modal</li>
+                <li>10. Fill out graduate profile form with bio/links</li>
+                <li>11. Verify profile appears in /graduates directory</li>
+                <li>12. View your published profile from the directory</li>
+            </ul>
+        </div>
+        
+        <div class="testing-guide">
+            <h3>Docker & Logs</h3>
+            <ul>
+                <li><code>docker-compose logs -f</code> - View all logs</li>
+                <li><code>docker-compose logs -f applicant</code> - Applicant portal logs</li>
+                <li><code>docker-compose logs -f admin</code> - Admin portal logs</li>
+                <li><code>docker-compose logs -f keycloak</code> - Keycloak logs</li>
+                <li><code>docker-compose ps</code> - List all running services</li>
+                <li><code>docker-compose restart</code> - Restart all services</li>
+            </ul>
+        </div>
+        
+        <div class="testing-guide">
+            <h3>Regression Tests</h3>
+            <ul>
+                <li><code>npm.cmd run regression:applicant</code> - Test applicant flows</li>
+                <li><code>npm.cmd run regression:admin</code> - Test admin flows</li>
+                <li><code>npm.cmd run regression:auth</code> - Test authentication</li>
+                <li><code>npm.cmd run regression:missions</code> - Test missions</li>
+                <li><code>npm.cmd run regression:all</code> - Run all tests</li>
+            </ul>
+        </div>
+        
+        <footer>
+            <p>TalentOS Testing Dashboard | Version 0.18.2</p>
+            <p>📖 See TESTING_GUIDE.md for detailed testing documentation</p>
+        </footer>
+    </div>
+    
+    <script>
+        // Copy to clipboard functionality
+        document.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const input = this.previousElementSibling;
+                input.select();
+                document.execCommand('copy');
+                this.textContent = '✓ Copied!';
+                setTimeout(() => {
+                    this.textContent = 'Copy';
+                }, 2000);
+            });
+        });
+    </script>
+</body>
+</html>

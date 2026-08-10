@@ -286,7 +286,8 @@ describe("submission data access", () => {
       tenantId: "tenant-1",
       status: "NEEDS_REVISION",
       reviewerFeedback: "Add acceptance criteria evidence.",
-      reviewerUserId: "lead-1"
+      reviewerUserId: "lead-1",
+      rating: null
     });
 
     expect(prismaMock.txSubmissionUpdate).toHaveBeenCalledWith({
@@ -324,7 +325,8 @@ describe("submission data access", () => {
       tenantId: "tenant-1",
       status: "ACCEPTED",
       reviewerFeedback: "Great work.",
-      reviewerUserId: "lead-1"
+      reviewerUserId: "lead-1",
+      rating: 4.5
     });
 
     expect(prismaMock.txNotificationCreate).toHaveBeenCalledWith({
@@ -358,7 +360,8 @@ describe("submission data access", () => {
       tenantId: "tenant-1",
       status: "REPEAT",
       reviewerFeedback: "Repeat Week 1 with a fresh attempt.",
-      reviewerUserId: "lead-1"
+      reviewerUserId: "lead-1",
+      rating: null
     });
 
     expect(prismaMock.txMissionAssignmentUpdateMany).toHaveBeenCalledWith({
@@ -383,7 +386,8 @@ describe("submission data access", () => {
         tenantId: "tenant-1",
         status: "NEEDS_REVISION",
         reviewerFeedback: "n/a",
-        reviewerUserId: "lead-1"
+        reviewerUserId: "lead-1",
+        rating: null
       })
     ).rejects.toThrow("Invalid submission status transition");
     expect(prismaMock.txNotificationCreate).not.toHaveBeenCalled();
@@ -397,7 +401,8 @@ describe("submission data access", () => {
         tenantId: "other-tenant",
         status: "ACCEPTED",
         reviewerFeedback: "",
-        reviewerUserId: "lead-1"
+        reviewerUserId: "lead-1",
+        rating: 4.5
       })
     ).rejects.toThrow("Submission not found for this tenant.");
   });

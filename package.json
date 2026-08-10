@@ -26,6 +26,7 @@
     "regression:tenant": "tsx scripts/regression/run.ts tenant",
     "regression:dashboard": "tsx scripts/regression/run.ts dashboard",
     "regression:storage": "tsx scripts/regression/run.ts storage",
+    "regression:public-portal": "tsx scripts/regression/run.ts public-portal",
     "regression:ops": "tsx scripts/regression/run.ts ops",
     "regression:all": "tsx scripts/regression/run.ts all",
     "ops:start": "npm run start -w @talentos/ops",
@@ -35,7 +36,9 @@
     "local:smoke-login": "tsx scripts/local/smoke-login.ts",
     "db:generate": "prisma generate --schema packages/db/prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema packages/db/prisma/schema.prisma",
-    "db:seed": "tsx packages/db/prisma/seed.ts"
+    "db:seed": "tsx packages/db/prisma/seed.ts",
+    "seed:public-portal-demo": "tsx scripts/seed-public-portal-demo.ts",
+    "cleanup:public-portal-demo": "tsx scripts/seed-public-portal-demo.ts --cleanup"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

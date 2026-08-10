@@ -10,8 +10,11 @@ import {
   listUserNotifications,
   getApplicantMissionProgress,
   listCompletedTaskIds,
+  isGraduateConsentRequired,
   type SubmissionStatus,
+  prisma,
 } from "@talentos/db";
+import { DashboardConsentGate } from "@/components/DashboardConsentGate";
 
 function formatDate(value: Date | null | undefined) {
   if (!value) return "—";
@@ -35,6 +38,13 @@ export default async function DashboardPage() {
   if (!user || !tenant || !acceptedApp) {
     return null;
   }
+
+  const consentRequired = await isGraduateConsentRequired(user.id);
+  const profile = await prisma.graduateProfile.findUnique({
+    where: { userId: user.id },
+    select: { publicProfileEnabled: true },
+  });
+  const showConsentGate = !profile?.publicProfileEnabled;
 
   const program = acceptedApp.program;
   const tasks = await listProgramTasks(tenant.id, program.id);
@@ -60,6 +70,20 @@ export default async function DashboardPage() {
 
   return (
     <div>
+      <DashboardConsentGate show={showConsentGate} />
+      {consentRequired ? (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+          <h2 className="text-xl font-semibold">Publish your graduate profile</h2>
+          <p className="mt-2 text-sm leading-6">
+            You&apos;re eligible to share your verified profile with recruiters. Visit the graduate profile page to review consent and publish your public profile.
+          </p>
+          <div className="mt-4">
+            <Link href="/dashboard/graduate-profile" className="inline-flex rounded-full bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800">
+              Review consent and publish profile
+            </Link>
+          </div>
+        </div>
+      ) : null}
       {/* Welcome header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-brand-navy">
@@ -145,9 +169,12 @@ export default async function DashboardPage() {
               </div>
             </Link>
           ) : missionProgress.overall.total > 0 ? (
-            <p className="rounded-xl bg-emerald-50 p-4 text-sm font-medium text-emerald-700">
-              All missions accepted — your portfolio evidence is complete. 🎉
-            </p>
+            <div className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">
+              <p className="font-medium">All missions accepted — your portfolio evidence is complete. 🎉</p>
+              <Link href="/dashboard/graduate-profile" className="mt-3 inline-block font-semibold underline">
+                Review consent and publish your graduate profile →
+              </Link>
+            </div>
           ) : (
             <p className="text-sm text-slate-500">No assigned missions yet.</p>
           )}

@@ -86,6 +86,8 @@ Start or repair the full local stack with:
 npm.cmd run local:bootstrap
 ```
 
+Bootstrap also seeds four consented Public Portal demo graduates, each with one completed and rated mission for weeks 1 through 4. The seed is idempotent. Remove only these Public Portal records with `npm.cmd run cleanup:public-portal-demo`.
+
 Validate it with:
 
 ```powershell
@@ -101,6 +103,8 @@ npm.cmd run local:smoke-login
 - Applicant Apply: http://demo.lvh.me:3100/apply
 - Applicant Application: http://demo.lvh.me:3100/application
 - Applicant Dashboard: http://demo.lvh.me:3100/dashboard
+- Public Graduate Directory: http://localhost:3100/graduates
+- Recruiter Workspace: http://localhost:3100/recruiter
 - Admin Portal: http://lvh.me:3200
 - Demo Admin Portal: http://demo.lvh.me:3200
 - Admin Applications: http://demo.lvh.me:3200/applications

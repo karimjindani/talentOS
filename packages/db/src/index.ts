@@ -16,3 +16,6 @@ export * from "./submissions";
 export * from "./journal";
 export * from "./program-content";
 export * from "./mentor";
+export * from "./graduates";
+export * from "./slug-generator";
+export * from "./token-generator";
