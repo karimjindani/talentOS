@@ -12,7 +12,6 @@ import {
   getApplicantMissionProgress,
   listCompletedTaskIds,
   isGraduateConsentRequired,
-  type SubmissionStatus,
   prisma,
 } from "@talentos/db";
 import { DashboardConsentGate } from "@/components/DashboardConsentGate";

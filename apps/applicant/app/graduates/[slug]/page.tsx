@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { RecruiterAccessForm } from "@/components/RecruiterAccessForm";
 import { GraduateCard } from "@/components/GraduateCard";
-import { AlertCircle, Mail } from "lucide-react";
+import { AlertCircle, Mail, BriefcaseBusiness } from "lucide-react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { ShareProfileButtons } from "@/components/ShareProfileButtons";
 
 interface GraduateProfile {
@@ -146,19 +146,30 @@ export default function GraduateProfilePage() {
               <Mail className="h-5 w-5 flex-shrink-0 text-blue-600 mt-0.5" />
               <div className="text-sm text-blue-700">
                 <p>
-                  <strong>Full portfolio access:</strong> To see this graduate's complete portfolio,
-                  missions, assignments, and engineering journal, submit the access request form below.
+                  <strong>Full portfolio access:</strong> To see this graduate&apos;s complete portfolio,
+                  missions, assignments, and engineering journal, use the &quot;Request Full Profile Access&quot;
+                  button to submit a single access request for all graduates.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Recruiter Form - Sidebar */}
+          {/* Access CTA - Sidebar */}
           <div>
-            <RecruiterAccessForm
-              graduateSlug={profile.slug}
-              graduateName={profile.name}
-            />
+            <div className="rounded-lg border border-slate-200 bg-white p-6">
+              <BriefcaseBusiness className="h-8 w-8 text-brand-blue" />
+              <h3 className="mt-3 text-lg font-semibold text-slate-900">Want full access?</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Request access to all graduate portfolios — missions, assignments, and engineering
+                journals — with a single form. Our team reviews requests within 24 hours.
+              </p>
+              <Link
+                href="/graduates"
+                className="mt-4 inline-block w-full rounded-lg bg-brand-blue px-4 py-2.5 text-center font-semibold text-white transition-colors hover:bg-blue-700"
+              >
+                Request Full Profile Access
+              </Link>
+            </div>
           </div>
         </div>
       </main>
