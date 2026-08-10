@@ -1,6 +1,6 @@
 # TalentOS Vision
 
-Code version: `v0.18.2`
+Code version: `v0.19.6`
 
 ## Vision Statement
 
