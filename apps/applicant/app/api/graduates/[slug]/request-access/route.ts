@@ -1,16 +1,11 @@
 /**
  * API Route: /api/graduates/[slug]/request-access
- * Create recruiter access request and send verification email
+ * Create recruiter access request (PENDING — admin must approve before email/token are sent)
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createRecruiterAccessRequest, prisma } from "@talentos/db";
-import {
-  generateSecureToken,
-  calculateTokenExpiry,
-  generateVerificationUrl,
-} from "@talentos/db";
-import { sendVerificationEmail } from "@/lib/email-service";
+import { generateSecureToken, calculateTokenExpiry } from "@talentos/db";
 import { checkRateLimit, requestIp } from "@/lib/rate-limit";
 
 export async function POST(
@@ -70,11 +65,11 @@ export async function POST(
       );
     }
 
-    // Generate secure token
+    // Generate secure token (stored hashed; will be regenerated on admin approval)
     const token = generateSecureToken();
-    const expiresAt = calculateTokenExpiry(7); // Valid for 7 days
+    const expiresAt = calculateTokenExpiry(7); // Valid for 7 days after approval
 
-    // Create access request in database
+    // Create access request as PENDING — no email sent yet
     const accessRequest = await createRecruiterAccessRequest(
       graduate.id,
       {
@@ -89,33 +84,14 @@ export async function POST(
       expiresAt
     );
 
-    // Generate verification URL
-    const baseUrl = process.env.PUBLIC_APP_URL || process.env.AUTH_URL || "http://localhost:3100";
-    const verificationUrl = generateVerificationUrl(baseUrl, token);
-
-    // Send verification email
-    try {
-      await sendVerificationEmail({
-        to: String(recruiterEmail).trim().toLowerCase(),
-        recruiterName: String(recruiterName).trim(),
-        graduateName: graduate.user?.name || "a Graduate",
-        verificationUrl,
-        expiresAt,
-      });
-    } catch (emailError) {
-      console.error("Error sending verification email:", emailError);
-      await prisma.recruiterAccessRequest.delete({ where: { id: accessRequest.id } });
-      return NextResponse.json(
-        { error: "We could not send the verification email. Please try again later." },
-        { status: 502 }
-      );
-    }
+    // Do NOT send email here — admin must approve first.
+    // The email with the secure link is sent when the admin approves the request.
 
     return NextResponse.json({
       success: true,
-      message: "Verification email sent to " + recruiterEmail,
-      expiresAt,
+      message: "Your access request has been submitted successfully. It is currently under review by our admin team. Once approved, you will receive an email containing a secure access link.",
       accessRequestId: accessRequest.id,
+      status: "PENDING",
     });
   } catch (error) {
     console.error("Error in POST /api/graduates/[slug]/request-access:", error);

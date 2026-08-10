@@ -75,10 +75,10 @@ export function RecruiterAccessForm({
         <div className="flex gap-3">
           <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600" />
           <div>
-            <h3 className="font-semibold text-green-900">Request Submitted!</h3>
+            <h3 className="font-semibold text-green-900">Access Request Submitted!</h3>
             <p className="mt-1 text-sm text-green-700">
-              A verification email has been sent to <strong>{submittedEmail}</strong>.
-              Please click the link in the email to verify your identity and access {graduateName}'s
+              Your access request has been submitted successfully. It is currently under review by our admin team.
+              Once approved, you will receive an email containing a secure access link to view {graduateName}&apos;s
               full portfolio.
             </p>
           </div>
@@ -193,7 +193,7 @@ export function RecruiterAccessForm({
         disabled={loading}
         className="w-full rounded-lg bg-brand-blue py-2.5 text-center font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {loading ? "Sending..." : "Send Access Request"}
+        {loading ? "Submitting..." : "Submit Access Request"}
       </button>
     </form>
   );

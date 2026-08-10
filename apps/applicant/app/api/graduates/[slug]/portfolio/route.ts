@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFullProfileForRecruiter, getRecruiterSession, logProfileView } from "@talentos/db";
+import { getFullProfileForRecruiter, getRecruiterSession, logProfileView, prisma } from "@talentos/db";
+import { sendProfileViewNotification } from "@/lib/email-service";
 
 export async function GET(
   request: NextRequest,
@@ -24,6 +25,25 @@ export async function GET(
       forwardedFor || request.headers.get("x-real-ip") || undefined,
       request.headers.get("user-agent") || undefined
     );
+
+    // Notify the graduate that their profile was viewed (best-effort, non-blocking)
+    try {
+      const graduateUser = await prisma.user.findFirst({
+        where: { graduateProfile: { id: profile.graduateId } },
+        select: { email: true, name: true }
+      });
+      if (graduateUser) {
+        await sendProfileViewNotification({
+          to: graduateUser.email,
+          graduateName: graduateUser.name || "TalentOS Graduate",
+          recruiterName: session.recruiter.name,
+          recruiterOrganization: session.recruiter.organization,
+          viewedAt: new Date(),
+        });
+      }
+    } catch (notifyError) {
+      console.error("Failed to send profile-view notification:", notifyError);
+    }
 
     return NextResponse.json({ success: true, profile });
   } catch (error) {

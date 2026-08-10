@@ -24,8 +24,10 @@ export function GraduateConsentModal({
   const [step, setStep] = useState<"consent" | "form">("consent");
   const [isOpen, setIsOpen] = useState(true);
   const [isDeclining, setIsDeclining] = useState(false);
+  const [isSkipping, setIsSkipping] = useState(false);
   const [declineError, setDeclineError] = useState<string | null>(null);
   const [declineSuccess, setDeclineSuccess] = useState(false);
+  const [skipSuccess, setSkipSuccess] = useState(false);
 
   const handlePublish = () => {
     if (showProfileFormOnPublish) {
@@ -55,6 +57,22 @@ export function GraduateConsentModal({
       setDeclineError(error instanceof Error ? error.message : "Unable to decline consent.");
     } finally {
       setIsDeclining(false);
+    }
+  };
+
+  const handleSkip = async () => {
+    setIsSkipping(true);
+    setDeclineError(null);
+    try {
+      const response = await fetch("/api/graduates/profile/skip", { method: "POST" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Unable to skip consent.");
+      onDecline?.();
+      setSkipSuccess(true);
+    } catch (error) {
+      setDeclineError(error instanceof Error ? error.message : "Unable to skip consent.");
+    } finally {
+      setIsSkipping(false);
     }
   };
 
@@ -101,6 +119,24 @@ export function GraduateConsentModal({
                   <h3 className="text-lg font-semibold text-slate-900">You have declined recruiter visibility</h3>
                   <p className="mt-2 text-sm">
                     Your profile will remain private and will not be shared with verified recruiters. You can return to this page anytime to consent and publish your graduate profile.
+                  </p>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsOpen(false)}
+                    className="inline-flex items-center justify-center rounded-3xl bg-brand-blue px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                  >
+                    Return to dashboard
+                  </button>
+                </div>
+              </div>
+            ) : skipSuccess ? (
+              <div className="space-y-5 rounded-3xl border border-slate-200 bg-amber-50 p-5 text-slate-700">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Decision saved — you can decide later</h3>
+                  <p className="mt-2 text-sm">
+                    Your consent status has been saved as <span className="font-semibold">Skipped / Not Decided</span>. Your profile will remain unpublished until you provide a decision. You can return to this page anytime to acknowledge or decline.
                   </p>
                 </div>
                 <div className="flex justify-end">
@@ -161,8 +197,16 @@ export function GraduateConsentModal({
               </button>
               <button
                 type="button"
+                onClick={handleSkip}
+                disabled={isSkipping}
+                className="inline-flex items-center justify-center rounded-3xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSkipping ? "Saving…" : "Skip for Now"}
+              </button>
+              <button
+                type="button"
                 onClick={handlePublish}
-                className="inline-flex items-center justify-center rounded-3xl bg-brand-blue px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                className="inline-flex items-center justify-center rounded-3xl bg-brand-blue px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 sm:ml-auto"
               >
                 I Agree & Continue
               </button>

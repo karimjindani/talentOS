@@ -26,9 +26,23 @@ export async function POST(request: NextRequest) {
 
     if (!result) {
       return NextResponse.json(
-        { error: "Invalid or expired token" },
+        { error: "Invalid or expired token", reason: "INVALID" },
         { status: 401 }
       );
+    }
+
+    if ("error" in result) {
+      const errorMessages: Record<string, { message: string; status: number }> = {
+        EXPIRED: { message: "Your access has expired. The 7-day access period has ended. Please submit a new access request.", status: 401 },
+        REVOKED: { message: "Your access has been revoked by the administrator. Please submit a new access request if you need access again.", status: 403 },
+        REJECTED: { message: "Your access request was rejected by the administrator.", status: 403 },
+        PENDING: { message: "Your access request is still pending admin review. You will receive an email once it is approved.", status: 403 },
+        CONSUMED: { message: "This access link has already been used. Please use your recruiter session to access the portfolio.", status: 401 },
+        PROFILE_DISABLED: { message: "This graduate has disabled their public profile.", status: 404 },
+        INVALID: { message: "Invalid or expired token.", status: 401 },
+      };
+      const info = errorMessages[result.error] ?? { message: "Invalid or expired token.", status: 401 };
+      return NextResponse.json({ error: info.message, reason: result.error }, { status: info.status });
     }
 
     const response = NextResponse.json({

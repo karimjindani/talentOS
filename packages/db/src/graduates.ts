@@ -67,7 +67,7 @@ async function getCompletionSnapshot(userId: string) {
 }
 
 export async function createOrUpdateGraduateProfile(userId: string, data: GraduateProfileInput) {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, graduateProfile: { select: { slug: true } } } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, graduateProfile: { select: { slug: true, id: true } } } });
   if (!user) throw new Error("User not found.");
   const completion = await getCompletionSnapshot(userId);
   if (data.profilePhotoFileId) {
@@ -82,6 +82,7 @@ export async function createOrUpdateGraduateProfile(userId: string, data: Gradua
     publicProfileEnabled: true,
     consentDate: new Date(),
     consentVersion: 1,
+    consentStatus: "ACKNOWLEDGED" as const,
     bio: data.bio,
     linkedinUrl: data.linkedinUrl ?? null,
     githubUrl: data.githubUrl ?? null,
@@ -97,6 +98,8 @@ export async function createOrUpdateGraduateProfile(userId: string, data: Gradua
       await tx.graduateArtifact.deleteMany({ where: { graduateId: profile.id } });
       if (data.artifacts.length) await tx.graduateArtifact.createMany({ data: data.artifacts.map((artifact) => ({ graduateId: profile.id, ...artifact })) });
     }
+    // Record consent history
+    await tx.consentHistory.create({ data: { graduateProfileId: profile.id, status: "ACKNOWLEDGED", action: "Applicant acknowledged consent and published profile" } });
     return profile;
   });
 }
@@ -167,7 +170,84 @@ export async function createRecruiterAccessRequest(graduateId: string, recruiter
     create: { email: recruiterData.recruiterEmail, name: recruiterData.recruiterName, organization: recruiterData.recruiterOrganization, designation: recruiterData.recruiterDesignation, phone: recruiterData.recruiterPhone },
     update: { name: recruiterData.recruiterName, organization: recruiterData.recruiterOrganization, designation: recruiterData.recruiterDesignation, phone: recruiterData.recruiterPhone }
   });
-  return prisma.recruiterAccessRequest.create({ data: { graduateId, recruiterId: recruiter.id, ...recruiterData, token: hashToken(rawToken), expiresAt } });
+  // Create as PENDING — admin must approve before token is usable and email is sent
+  return prisma.recruiterAccessRequest.create({
+    data: { graduateId, recruiterId: recruiter.id, ...recruiterData, token: hashToken(rawToken), expiresAt, status: "PENDING" }
+  });
+}
+
+// --- Admin review functions ---
+
+export async function getPendingAccessRequests(options: { page?: number; limit?: number; status?: "PENDING" | "APPROVED" | "REJECTED" | "REVOKED" | "EXPIRED" } = {}) {
+  const page = Math.max(1, options.page ?? 1);
+  const limit = Math.min(100, Math.max(1, options.limit ?? 20));
+  const where = options.status ? { status: options.status } : {};
+  const [requests, total] = await Promise.all([
+    prisma.recruiterAccessRequest.findMany({
+      where,
+      include: { graduate: { include: { user: { select: { name: true, email: true } }, program: { select: { name: true } } } }, recruiter: true },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit, take: limit
+    }),
+    prisma.recruiterAccessRequest.count({ where })
+  ]);
+  return { requests, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+}
+
+export async function getAccessRequestDetail(id: string) {
+  return prisma.recruiterAccessRequest.findUnique({
+    where: { id },
+    include: { graduate: { include: { user: { select: { name: true, email: true } }, program: { select: { name: true } } } }, recruiter: true }
+  });
+}
+
+export async function approveAccessRequest(id: string, reviewerId: string, rawToken: string) {
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
+  return prisma.$transaction(async (tx) => {
+    const request = await tx.recruiterAccessRequest.findUnique({ where: { id }, include: { recruiter: true } });
+    if (!request) throw new Error("Access request not found.");
+    if (request.status !== "PENDING") throw new Error(`Request is already ${request.status}.`);
+    const updated = await tx.recruiterAccessRequest.update({
+      where: { id },
+      data: { status: "APPROVED", reviewedById: reviewerId, reviewedAt: new Date(), token: hashToken(rawToken), expiresAt, approvedAt: new Date() }
+    });
+    return { request: updated, rawToken, expiresAt };
+  });
+}
+
+export async function rejectAccessRequest(id: string, reviewerId: string, rejectionReason?: string) {
+  return prisma.recruiterAccessRequest.update({
+    where: { id },
+    data: { status: "REJECTED", reviewedById: reviewerId, reviewedAt: new Date(), rejectionReason }
+  });
+}
+
+export async function revokeAccessRequest(id: string, reviewerId: string) {
+  return prisma.$transaction(async (tx) => {
+    const request = await tx.recruiterAccessRequest.findUnique({ where: { id } });
+    if (!request) throw new Error("Access request not found.");
+    if (request.status !== "APPROVED") throw new Error("Only approved requests can be revoked.");
+    const updated = await tx.recruiterAccessRequest.update({
+      where: { id },
+      data: { status: "REVOKED", revokedAt: new Date(), revokedById: reviewerId }
+    });
+    // Also invalidate any active recruiter sessions for this request's recruiter+graduate pair
+    if (request.recruiterId) {
+      await tx.recruiterSession.deleteMany({ where: { recruiterId: request.recruiterId } });
+    }
+    return updated;
+  });
+}
+
+export async function getAccessRequestStats() {
+  const [pending, approved, rejected, revoked, expired] = await Promise.all([
+    prisma.recruiterAccessRequest.count({ where: { status: "PENDING" } }),
+    prisma.recruiterAccessRequest.count({ where: { status: "APPROVED" } }),
+    prisma.recruiterAccessRequest.count({ where: { status: "REJECTED" } }),
+    prisma.recruiterAccessRequest.count({ where: { status: "REVOKED" } }),
+    prisma.recruiterAccessRequest.count({ where: { status: "EXPIRED" } })
+  ]);
+  return { pending, approved, rejected, revoked, expired, total: pending + approved + rejected + revoked + expired };
 }
 
 export async function consumeRecruiterAccessToken(rawToken: string) {
@@ -175,8 +255,16 @@ export async function consumeRecruiterAccessToken(rawToken: string) {
   const sessionToken = generateSecureToken();
   return prisma.$transaction(async (tx) => {
     const request = await tx.recruiterAccessRequest.findUnique({ where: { token: tokenHash }, include: { graduate: true, recruiter: true } });
-    if (!request || !request.recruiter || request.expiresAt <= new Date() || request.consumedAt || !request.graduate.publicProfileEnabled) return null;
-    const consumed = await tx.recruiterAccessRequest.updateMany({ where: { id: request.id, consumedAt: null }, data: { approvedAt: new Date(), consumedAt: new Date() } });
+    // Must be APPROVED, not expired, not consumed, not revoked, and profile still public
+    if (!request || !request.recruiter) return null;
+    if (request.status === "REVOKED") return { error: "REVOKED" as const };
+    if (request.status === "REJECTED") return { error: "REJECTED" as const };
+    if (request.status === "PENDING") return { error: "PENDING" as const };
+    if (request.status !== "APPROVED") return { error: "INVALID" as const };
+    if (request.expiresAt <= new Date()) return { error: "EXPIRED" as const };
+    if (request.consumedAt) return { error: "CONSUMED" as const };
+    if (!request.graduate.publicProfileEnabled) return { error: "PROFILE_DISABLED" as const };
+    const consumed = await tx.recruiterAccessRequest.updateMany({ where: { id: request.id, consumedAt: null }, data: { consumedAt: new Date() } });
     if (consumed.count !== 1) return null;
     await tx.recruiterAccount.update({ where: { id: request.recruiter.id }, data: { verifiedAt: new Date() } });
     await tx.recruiterSession.create({ data: { recruiterId: request.recruiter.id, tokenHash: hashToken(sessionToken), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) } });
@@ -193,7 +281,7 @@ export async function getRecruiterSession(rawToken: string | undefined) {
 }
 
 export async function getFullProfileForRecruiter(slug: string, recruiterId: string) {
-  const grant = await prisma.recruiterAccessRequest.findFirst({ where: { recruiterId, graduate: { slug, publicProfileEnabled: true }, approvedAt: { not: null }, expiresAt: { gt: new Date() } } });
+  const grant = await prisma.recruiterAccessRequest.findFirst({ where: { recruiterId, graduate: { slug, publicProfileEnabled: true }, status: "APPROVED", expiresAt: { gt: new Date() } } });
   if (!grant) return null;
   const profile = await prisma.graduateProfile.findUnique({
     where: { slug }, include: {
@@ -223,7 +311,7 @@ export async function getFullProfileForRecruiter(slug: string, recruiterId: stri
 
 export async function getRecruiterGraduateContact(slug: string, recruiterId: string) {
   const grant = await prisma.recruiterAccessRequest.findFirst({
-    where: { recruiterId, graduate: { slug, publicProfileEnabled: true }, approvedAt: { not: null }, expiresAt: { gt: new Date() } },
+    where: { recruiterId, graduate: { slug, publicProfileEnabled: true }, status: "APPROVED", expiresAt: { gt: new Date() } },
     include: { graduate: { include: { user: { select: { name: true, email: true } } } }, recruiter: true }
   });
   if (!grant || !grant.recruiter) return null;
@@ -257,7 +345,7 @@ export async function getRecruiterDashboard(recruiterId: string) {
     select: {
       id: true, email: true, name: true, organization: true, designation: true, phone: true, verifiedAt: true,
       savedCandidates: { orderBy: { createdAt: "desc" }, include: { graduate: { include: publicProfileInclude } } },
-      accessRequests: { where: { approvedAt: { not: null }, expiresAt: { gt: new Date() } }, select: { graduateId: true, expiresAt: true } }
+      accessRequests: { where: { status: "APPROVED", expiresAt: { gt: new Date() } }, select: { graduateId: true, expiresAt: true } }
     }
   });
   if (!recruiter) return null;
@@ -303,5 +391,36 @@ export async function declineGraduateProfilePublishing(userId: string) {
   if (!user?.graduateProfile) {
     throw new Error("No graduate profile exists to decline.");
   }
-  return prisma.graduateProfile.update({ where: { userId }, data: { publicProfileEnabled: false, consentDate: null, consentVersion: { increment: 1 } } });
+  return prisma.$transaction(async (tx) => {
+    const profile = await tx.graduateProfile.update({ where: { userId }, data: { publicProfileEnabled: false, consentDate: null, consentVersion: { increment: 1 }, consentStatus: "DECLINED" } });
+    await tx.consentHistory.create({ data: { graduateProfileId: profile.id, status: "DECLINED", action: "Applicant declined public profile sharing" } });
+    return profile;
+  });
+}
+
+// --- Skip consent (decide later) ---
+export async function skipGraduateConsent(userId: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { graduateProfile: { select: { id: true } } } });
+  if (!user?.graduateProfile) {
+    throw new Error("No graduate profile exists to skip consent.");
+  }
+  return prisma.$transaction(async (tx) => {
+    const profile = await tx.graduateProfile.update({ where: { userId }, data: { publicProfileEnabled: false, consentDate: null, consentStatus: "SKIPPED" } });
+    await tx.consentHistory.create({ data: { graduateProfileId: profile.id, status: "SKIPPED", action: "Applicant chose to decide later" } });
+    return profile;
+  });
+}
+
+// --- Consent history ---
+export async function getConsentHistory(graduateProfileId: string) {
+  return prisma.consentHistory.findMany({
+    where: { graduateProfileId },
+    orderBy: { createdAt: "asc" }
+  });
+}
+
+export async function getConsentHistoryByUserId(userId: string) {
+  const profile = await prisma.graduateProfile.findUnique({ where: { userId }, select: { id: true } });
+  if (!profile) return [];
+  return getConsentHistory(profile.id);
 }

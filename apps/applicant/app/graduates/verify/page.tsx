@@ -9,6 +9,7 @@ export default function VerifyEmailPage() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
+  const [errorTitle, setErrorTitle] = useState("Verification Failed");
   const token = searchParams.get("token");
 
   useEffect(() => {
@@ -41,7 +42,13 @@ export default function VerifyEmailPage() {
         }, 2000);
       } catch (err) {
         setStatus("error");
-        setMessage(err instanceof Error ? err.message : "Verification failed");
+        const errMsg = err instanceof Error ? err.message : "Verification failed";
+        setMessage(errMsg);
+        if (errMsg.includes("expired")) setErrorTitle("Access Expired");
+        else if (errMsg.includes("revoked")) setErrorTitle("Access Revoked");
+        else if (errMsg.includes("pending")) setErrorTitle("Access Pending Review");
+        else if (errMsg.includes("rejected")) setErrorTitle("Access Rejected");
+        else setErrorTitle("Verification Failed");
       }
     };
 
@@ -85,7 +92,7 @@ export default function VerifyEmailPage() {
             <>
               <AlertCircle className="mx-auto h-12 w-12 text-red-600" />
               <h2 className="mt-4 text-lg font-semibold text-slate-900">
-                Verification Failed
+                {errorTitle}
               </h2>
               <p className="mt-2 text-slate-600">{message}</p>
               <button

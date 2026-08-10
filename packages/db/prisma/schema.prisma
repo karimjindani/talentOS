@@ -621,6 +621,22 @@ model MentorMessage {
 // ─────────────────────────────────────────────────────────────────
 
 /// Graduate Profile - Published profiles visible on public portal
+/// Consent status for a graduate's public profile
+enum ConsentStatus {
+  ACKNOWLEDGED
+  DECLINED
+  SKIPPED
+}
+
+/// Recruiter access request review status
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVOKED
+  EXPIRED
+}
+
 model GraduateProfile {
   id                      String   @id @default(cuid())
   userId                  String   @unique
@@ -631,6 +647,7 @@ model GraduateProfile {
   publicProfileEnabled    Boolean  @default(false)
   consentDate             DateTime?
   consentVersion          Int      @default(1)
+  consentStatus           ConsentStatus?
 
   // Profile information
   bio                     String?  @db.VarChar(500)
@@ -667,6 +684,7 @@ model GraduateProfile {
   viewAudits              ProfileViewAudit[]
   artifacts               GraduateArtifact[]
   savedBy                 SavedCandidate[]
+  consentHistory          ConsentHistory[]
 
   @@index([publicProfileEnabled])
   @@index([overallRating])
@@ -695,6 +713,14 @@ model RecruiterAccessRequest {
   approvedAt              DateTime?
   consumedAt              DateTime?
 
+  // Admin review fields
+  status                  AccessRequestStatus @default(PENDING)
+  reviewedById            String?
+  reviewedAt              DateTime?
+  rejectionReason         String?  @db.VarChar(1000)
+  revokedAt               DateTime?
+  revokedById             String?
+
   // Timestamps
   createdAt               DateTime @default(now())
 
@@ -706,6 +732,8 @@ model RecruiterAccessRequest {
   @@index([token])
   @@index([recruiterEmail])
   @@index([recruiterId])
+  @@index([status])
+  @@index([reviewedById])
   @@map("recruiter_access_requests")
 }
 
@@ -794,4 +822,20 @@ model SavedCandidate {
   @@unique([recruiterId, graduateId])
   @@index([graduateId])
   @@map("saved_candidates")
+}
+
+/// Consent History - Audit trail of all consent decisions for a graduate profile
+model ConsentHistory {
+  id                String        @id @default(cuid())
+  graduateProfileId String
+  status            ConsentStatus
+  action            String        @db.VarChar(500)
+  ipAddress         String?
+  createdAt         DateTime      @default(now())
+
+  graduateProfile   GraduateProfile @relation(fields: [graduateProfileId], references: [id], onDelete: Cascade)
+
+  @@index([graduateProfileId])
+  @@index([createdAt])
+  @@map("consent_history")
 }
