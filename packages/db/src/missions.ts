@@ -1,6 +1,9 @@
 import { type MissionDifficulty, type MissionStatus, Prisma } from "@prisma/client";
 import { prisma } from "./client";
-import { backfillAssignmentsForAcceptedApplicantsTx } from "./mission-assignments";
+import {
+  backfillAssignmentsForAcceptedApplicantsTx,
+  resumeAwaitingMissionAssignmentsTx
+} from "./mission-assignments";
 
 export type MissionListFilters = {
   programId?: string;
@@ -98,6 +101,12 @@ export async function createMission(input: MissionInput) {
         tenantId: input.tenantId,
         programId: input.programId
       });
+      // Hand the new mission to anyone parked waiting on a repeat for this week.
+      await resumeAwaitingMissionAssignmentsTx(tx, {
+        tenantId: input.tenantId,
+        programId: input.programId,
+        weekNumber: input.weekNumber
+      });
     }
 
     return mission;
@@ -157,7 +166,10 @@ export type SetMissionStatusInput = {
 
 export function setMissionStatus({ id, tenantId, status, actorUserId }: SetMissionStatusInput) {
   return prisma.$transaction(async (tx) => {
-    const existing = await tx.mission.findFirst({ where: { id, tenantId }, select: { programId: true, status: true } });
+    const existing = await tx.mission.findFirst({
+      where: { id, tenantId },
+      select: { programId: true, status: true, weekNumber: true }
+    });
     if (!existing) {
       throw new Error("Mission not found for this tenant.");
     }
@@ -184,6 +196,12 @@ export function setMissionStatus({ id, tenantId, status, actorUserId }: SetMissi
       await backfillAssignmentsForAcceptedApplicantsTx(tx, {
         tenantId,
         programId: existing.programId
+      });
+      // Hand the newly published mission to anyone parked waiting on a repeat for this week.
+      await resumeAwaitingMissionAssignmentsTx(tx, {
+        tenantId,
+        programId: existing.programId,
+        weekNumber: existing.weekNumber
       });
     }
 

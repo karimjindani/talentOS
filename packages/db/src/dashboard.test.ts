@@ -39,8 +39,9 @@ import {
   getApplicantProgramProgress,
   listCalendarEvents,
   listCompletedTaskIds,
+  listCompletedTaskIdsForMission,
   listProgramTasks,
-  listTasksByWeek,
+  listTasksByMission,
   listUserNotifications,
   listVideoResources,
   markApplicantTaskCompleted,
@@ -57,7 +58,12 @@ describe("dashboard helpers", () => {
       userTaskCompletion: { upsert: prismaMock.txCompletionUpsert },
       auditLog: { create: prismaMock.txAuditCreate }
     }));
-    prismaMock.txAssignmentFindFirst.mockResolvedValue({ id: "assignment-1", programId: "program-1", weekNumber: 1 });
+    prismaMock.txAssignmentFindFirst.mockResolvedValue({
+      id: "assignment-1",
+      programId: "program-1",
+      weekNumber: 1,
+      missionId: "mission-1"
+    });
     prismaMock.txApplicationFindFirst.mockResolvedValue({ id: "application-1" });
     prismaMock.txTaskFindFirst.mockResolvedValue({ id: "task-1" });
     prismaMock.txCompletionUpsert.mockResolvedValue({ id: "completion-1" });
@@ -80,13 +86,34 @@ describe("dashboard helpers", () => {
     });
   });
 
-  it("lists applicant-visible tasks by program week, never by mission", async () => {
+  // Reversed in v0.20.0: tasks are authored per mission, so the applicant query is by mission and
+  // must NOT fall back to the week (which would leak other missions' tasks for the same week).
+  it("lists applicant-visible tasks by mission, never by week", async () => {
     prismaMock.programTaskFindMany.mockResolvedValue([]);
-    await listTasksByWeek("tenant-1", "program-1", 2);
+    await listTasksByMission("tenant-1", "mission-1");
     const query = prismaMock.programTaskFindMany.mock.calls[0][0];
-    expect(query.where).toEqual({ tenantId: "tenant-1", programId: "program-1", weekNumber: 2, published: true });
-    expect(query.where).not.toHaveProperty("missionId");
+    expect(query.where).toEqual({ tenantId: "tenant-1", missionId: "mission-1", published: true });
+    expect(query.where).not.toHaveProperty("weekNumber");
     expect(query.orderBy).toEqual([{ order: "asc" }, { createdAt: "asc" }]);
+  });
+
+  it("scopes mission task completions to the mission, so a repeat on another mission starts empty", async () => {
+    prismaMock.userTaskCompletionFindMany.mockResolvedValue([{ taskId: "task-1" }]);
+    await expect(listCompletedTaskIdsForMission("tenant-1", "user-1", "mission-1")).resolves.toEqual(["task-1"]);
+    expect(prismaMock.userTaskCompletionFindMany).toHaveBeenCalledWith({
+      where: { tenantId: "tenant-1", userId: "user-1", task: { tenantId: "tenant-1", missionId: "mission-1" } },
+      select: { taskId: true }
+    });
+  });
+
+  it("scopes the admin task list to a mission when one is selected", async () => {
+    prismaMock.programTaskFindMany.mockResolvedValue([]);
+    await listProgramTasks("tenant-1", "program-1", "mission-1");
+    expect(prismaMock.programTaskFindMany.mock.calls[0][0].where).toEqual({
+      tenantId: "tenant-1",
+      programId: "program-1",
+      missionId: "mission-1"
+    });
   });
 
   it("lists Markdown and YouTube resources tenant-scoped and ordered", async () => {
@@ -134,7 +161,7 @@ describe("dashboard helpers", () => {
         id: "task-1",
         tenantId: "tenant-1",
         programId: "program-1",
-        weekNumber: 1,
+        missionId: "mission-1",
         published: true
       },
       select: { id: true }
@@ -146,14 +173,14 @@ describe("dashboard helpers", () => {
     });
   });
 
-  it("rejects another tenant/program/week task before writing completion", async () => {
+  it("rejects a task from another tenant/program/mission before writing completion", async () => {
     prismaMock.txTaskFindFirst.mockResolvedValue(null);
     await expect(markApplicantTaskCompleted({
       tenantId: "tenant-1",
       applicantId: "user-1",
       taskId: "other-task",
       missionAssignmentId: "assignment-1"
-    })).rejects.toThrow("not found for this program week");
+    })).rejects.toThrow("not found for this mission");
     expect(prismaMock.txCompletionUpsert).not.toHaveBeenCalled();
   });
 

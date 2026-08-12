@@ -212,9 +212,17 @@ submission panel:
 ### Mission acceptance, tasks, submission, and review
 
 Open an assigned mission and select **Accept Mission** to start its deadline and grace-period clock.
-Each assignment attempt has fixed mission steps for reviewing the brief, studying the mission tutorial,
-and building/submitting evidence. These are separate from the reusable weekly learning tasks shown on
-the Tasks page; both sets must be complete before submission.
+Accepting is also what makes the mission "started" — journal entries cannot be dated before that day.
+
+The workspace is a set of tabs: **Overview**, the mission's fixed steps (review the brief, study the
+tutorial), one tab per learning task authored for **this mission**, and finally submission. Learning
+tasks unlock in order, and a task marked as a prerequisite blocks the mission's own steps until it is
+complete.
+
+![Mission workspace](screenshots/32-applicant-mission-workspace.png)
+
+Since `v0.20.0`, learning tasks belong to a **specific mission** rather than to the week in general, so
+you only ever see the tasks authored for the mission you were actually assigned.
 
 - **Git repository URL** — must be on `github.com`; your PRD, README, user stories and acceptance
   criteria live in the repository.
@@ -234,10 +242,15 @@ the Tasks page; both sets must be complete before submission.
    deadline-aware assignment status, and locks only the journals for this attempt.
 5. A reviewer can accept, request changes, or require a same-week repeat. Feedback appears on the
    mission page and the applicant receives a notification.
-6. A revision reuses the same attempt and reruns readiness and URL checks. A repeat creates a fresh
-   assignment attempt: weekly learning tasks remain complete, while mission steps and the minimum four
-   attempt-linked journals must be completed again.
-7. An accepted submission is final and becomes portfolio evidence for the mission's competencies.
+6. A revision reuses the same attempt and reruns readiness and URL checks. A **repeat** creates a
+   fresh attempt on a *different* mission for the same week — never the one you just failed. Because
+   tasks belong to a mission (`v0.20.0`), the new mission brings its own learning tasks to complete;
+   your completions on the earlier mission are kept, not erased. Mission steps and the minimum four
+   attempt-linked journal entries must be done again for the new attempt.
+7. If no unused mission exists for that week, you will see that you are waiting for one. Your program
+   team is notified automatically, and the new mission is assigned the moment they publish it —
+   nothing is required from you.
+8. An accepted submission is final and becomes portfolio evidence for the mission's competencies.
 
 ## AI Mentor
 
@@ -289,14 +302,49 @@ The mentor caches LLM responses to avoid redundant API calls and reduce latency:
 Daily reflection is recorded only through the dedicated Engineering Journal. The legacy inline
 mission-submission journal is no longer shown in applicant or admin interfaces.
 
-## Engineering Journal (`v0.17.0`)
+## Engineering Journal (`v0.17.0`, grouped in `v0.20.0`)
 
 The dedicated **Journal** dashboard page stores daily structured reflections. Entries are linked to
 your tenant, user account, accepted program, selected published mission and the mission's week number.
-You can create back-dated entries, but each date can have only one journal entry. If you already wrote
-an entry for a date, edit that entry instead of creating another one. Today and past dates are allowed;
-future dates are blocked in both the form and the server. The form uses your browser's local time zone
-to determine today. There is no 24-hour creation cooldown.
+
+### Step 1 — Browse your journal by mission
+
+Open **Journal** in the sidebar. Entries are grouped into one collapsible section per mission, newest
+first, with only your current mission expanded. Each section header shows the week, the mission title
+and how many entries it holds; a **Locked** badge means that mission's attempt has been submitted.
+
+![Journal grouped by mission](screenshots/28-applicant-journal-grouped.png)
+
+A repeated week appears **twice** — once per mission — so the reflections you wrote for the first
+attempt stay separate from the retry. Where a week has more than one attempt, the header adds an
+**Attempt N** label.
+
+Expand a section to list its entries. Each row shows the date, language, confidence and time logged,
+with **View** and **Edit** actions. Entries whose attempt has been submitted show **Locked** in place
+of Edit.
+
+![Journal sections expanded](screenshots/29-applicant-journal-expanded.png)
+
+### Step 2 — Read an entry
+
+**View** opens the entry read-only. If it is still editable, an **Edit** button switches the same page
+into the form; if it has been locked by a submission, the page shows "Locked after submission" instead.
+
+![Journal entry detail](screenshots/30-applicant-journal-entry.png)
+
+### Step 3 — Write a new entry
+
+**New entry** opens the form. The entry date is bounded at both ends:
+
+- **Not before the mission started.** A journal entry records work done *on* a mission, so it cannot
+  pre-date the day you accepted that mission (`v0.20.0`). The date picker enforces this and the hint
+  names the earliest valid day; the server rejects it too, so editing the page cannot bypass it.
+- **Not in the future.** Today and earlier only, judged in your browser's time zone.
+
+One entry per date. If you already wrote an entry for a date, edit that entry instead — the form links
+you straight to it.
+
+![New journal entry form](screenshots/31-applicant-journal-new.png)
 
 Each journal entry asks for:
 

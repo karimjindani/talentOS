@@ -27,7 +27,7 @@ Local development URLs:
 - Programs: `http://demo.lvh.me:3200/programs`
 - Missions: `http://demo.lvh.me:3200/missions`
 - Settings: `http://demo.lvh.me:3200/settings`
-- Operations: `http://demo.lvh.me:3200/operations`
+- Local Ops Console (not part of the Back Office): `http://127.0.0.1:3300`
 - Organizations, Super Admin only: `http://lvh.me:3200/organizations`
 - Keycloak Admin Console: `http://keycloak.lvh.me:8080`
 
@@ -148,12 +148,28 @@ the repository includes a short production outline and does not seed a fake link
 
 ### Tasks (`v0.20.0`)
 
-The top-level **Tasks** sidebar page manages weekly learning tasks and their resources for a chosen
-program without opening the full Program Content page. Search or pick a program, then add or edit
-tasks (each collapses to a `Task N — title` header) and, inline under each task, add multiple learning
-resources — Markdown reading, YouTube video, or an uploaded **Document** (PDF/DOC/DOCX/TXT/image).
-Required tasks gate mission submission; tasks marked **Prerequisite** must be completed before the
-applicant can start the mission's own steps.
+Tasks are authored **per mission**. An applicant only ever sees the tasks belonging to the mission
+they were actually assigned, which is what keeps a repeated week's two missions from sharing a task
+list.
+
+1. Open **Tasks** in the sidebar.
+2. Search or pick a **Program**.
+3. Pick a **Mission** from that program and select **Load tasks**. Until a mission is chosen no editor
+   appears — a task cannot exist without one. If the program has no missions yet, the page says so and
+   you must create one first.
+4. Add or edit tasks (each collapses to a `Task N — title` header) and, inline under each task, add
+   learning resources — Markdown reading, YouTube video, or an uploaded **Document**
+   (PDF/DOC/DOCX/TXT/image).
+
+![Tasks authored per mission](screenshots/34-admin-tasks-by-mission.png)
+
+- **Required for submission** gates the applicant's submission for that mission.
+- **Prerequisite (blocks mission start)** must be completed before the applicant can begin the
+  mission's own steps.
+- **Published to applicants** hides work-in-progress tasks.
+
+The Program Content page no longer carries a second task editor; it links here instead, so there is
+one place tasks are authored.
 
 ![Tasks workspace](screenshots/27-admin-tasks.png)
 
@@ -161,12 +177,46 @@ applicant can start the mission's own steps.
 
 Organization Admins and Super Admins manage missions.
 
-1. Open **Missions**.
-2. Create a draft mission for a program.
-3. Add the mission objective, acceptance criteria, deliverables, evaluation criteria, competency
-   tags, tutorial URL, deadline hours, and grace-period hours.
+1. Open **Missions**, then **New mission**.
+2. Either **import a Markdown spec** (below) or fill the form in by hand.
+3. Review the objective, acceptance criteria, deliverables, evaluation criteria, competency tags,
+   tutorial URL, deadline hours, and grace-period hours.
 4. Publish the mission when it is ready for accepted applicants.
 5. Archive missions that should no longer be visible to applicants.
+
+#### Import a mission from Markdown (`v0.20.0`)
+
+Rather than typing five long-form fields into the browser, upload the spec as one Markdown file.
+
+1. On **New mission**, use the **Import from Markdown** panel.
+2. Choose the **Program**, **Week number**, **Order** and **Difficulty** — the file does not carry
+   these.
+3. Attach the `.md` file and select **Import as draft**.
+
+![Import a mission from Markdown](screenshots/33-admin-mission-import.png)
+
+The file supplies the title and every long-form field:
+
+```markdown
+# Mission title
+
+## Objective
+## Mission Brief
+## Deliverables
+## Acceptance Criteria
+## Evaluation Criteria
+## Competency Tags
+- Problem Discovery
+- Communication
+```
+
+This is the same convention the seeded curriculum uses, so any spec under
+`packages/db/prisma/seed-data/missions/` imports unchanged. A **Download a template** link on the
+panel gives you a working example.
+
+The mission is always created as a **draft** so you can review it before publishing. If the file is
+missing sections, the import is refused and **every** missing heading is named at once — nothing is
+written until the file is valid.
 
 HR and Tech Lead users can view missions but cannot create, edit, publish, or archive them.
 
@@ -197,9 +247,29 @@ never review each other's work (Graduate Profile: graduates are not code reviewe
 5. The applicant is notified automatically (acceptance or revision request with your feedback), and
    the review is recorded in the audit log.
 
+#### Review history (`v0.20.0`)
+
+A **Review history** panel sits directly under Evidence, above the journal, listing every decision
+made on this attempt in order — round number, decision, reviewer, timestamp and the feedback given.
+
+![Review history on a submission](screenshots/35-admin-review-history.png)
+
+This matters because a single submission row is reused through the revision loop: before `v0.20.0`
+each new decision overwrote the previous feedback, so "accepted first time" and "accepted after two
+rounds of changes" were indistinguishable. Every round is now kept, and **Previous Attempt History**
+shows the same round-by-round breakdown for earlier attempts.
+
+Reviews recorded before `v0.20.0` were reconstructed from the audit log. Their decisions and order are
+accurate, but feedback text was never stored per round, so earlier rounds show *"No feedback
+recorded."* — only the final round's text survived. Everything reviewed since is captured in full.
+
+The journal itself is collapsible: the section stays open with each entry collapsed to a summary row
+(date, week, mission, confidence, time), and the newest entry expanded. This keeps the review controls
+reachable instead of pushing them below a wall of entries.
+
 Before a submission can reach this review screen in **Submitted** state, the server requires every
-published required task for the assignment's program week, at least four journals linked to that exact
-attempt, and publicly reachable GitHub/every deployment/Loom URL. These checks do not grant reviewers any
+published required task **for that assignment's mission** (`v0.20.0`), at least four journals linked to
+that exact attempt, and publicly reachable GitHub/every deployment/Loom URL. These checks do not grant reviewers any
 new journal write permission; journal context remains read-only.
 
 A submission can be reviewed only while it is in **Submitted** status. A revision reuses the current
@@ -227,9 +297,11 @@ Branding changes apply to both Applicant and Admin portals for that tenant.
 
 ## Operations
 
-The Operations page is a local-development tool. It is not a production operations console.
+There is no Operations page inside the Back Office. It was removed in favour of a standalone console
+so that health checks stay reachable when the portals themselves are down.
 
-Use it to:
+The **Local Ops Console** (`http://127.0.0.1:3300`) is a local-development tool, not a production
+operations console, protected by the same Keycloak session. Use it to:
 
 - view app-visible service health,
 - run scenario regression areas,
@@ -237,12 +309,7 @@ Use it to:
 - run safe regression cleanup for marker-tagged records,
 - view reset guidance for local TalentOS resources.
 
-The Operations page must not be used as evidence that production monitoring exists.
-
-![Admin operations health](screenshots/25-admin-operations.png)
-
-The standalone **Local Ops Console** (`http://127.0.0.1:3300`) provides out-of-band health checks,
-regression-suite execution and local reset controls, protected by the same Keycloak session:
+It must not be used as evidence that production monitoring exists.
 
 ![Local Ops Console](screenshots/26-ops-console.png)
 

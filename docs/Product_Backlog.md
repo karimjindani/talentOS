@@ -1,8 +1,8 @@
 # Product Backlog
 
-Code version: `v0.19.6`
+Code version: `v0.20.0`
 
-Documentation update: `Backlog refreshed as part of the v0.16.2 vision audit (D-070): recorded the v0.15.1 four-week mission seed (D-068) and the v0.16.0 mission-driven dashboard progress + program content management (D-069) as delivered. Refreshed again during v0.18.2 (D-077): corrected the stale "Engineering Journal module" next-slice entry (delivered in v0.17.0/v0.17.1) and the pre-v0.18.0 mission-visibility wording. Refreshed again during v0.19.6 (D-094): reconciled the v0.19.0–v0.19.6 mission-lifecycle, mission-workspace/LMS, curriculum-tooling, submission-readiness and AI Mentor delivery, and recorded AI Mentor as delivered rather than an open boundary slice.`
+Documentation update: `Backlog refreshed as part of the v0.16.2 vision audit (D-070): recorded the v0.15.1 four-week mission seed (D-068) and the v0.16.0 mission-driven dashboard progress + program content management (D-069) as delivered. Refreshed again during v0.18.2 (D-077): corrected the stale "Engineering Journal module" next-slice entry (delivered in v0.17.0/v0.17.1) and the pre-v0.18.0 mission-visibility wording. Refreshed again during v0.19.6 (D-094): reconciled the v0.19.0–v0.19.6 mission-lifecycle, mission-workspace/LMS, curriculum-tooling, submission-readiness and AI Mentor delivery, and recorded AI Mentor as delivered rather than an open boundary slice. Refreshed again during `v0.20.0` (D-096..D-100): recorded mission-scoped task authoring, dangling-repeat recovery, immutable submission review history with the evaluation summary, the mission-grouped journal and its mission-start date rule, and Markdown mission import as delivered. The remaining known slice is retiring the fixed 3-step mission workflow (`mission-tasks.ts`) in favour of admin-authored steps, deferred from `v0.20.0`.`
 
 ## MVP
 

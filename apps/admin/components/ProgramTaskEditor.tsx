@@ -136,11 +136,16 @@ function TaskResources({
 
 export function ProgramTaskEditor({
   programId,
+  missionId,
+  missionTitle,
   tasks,
   resources,
   actions
 }: {
   programId: string;
+  /** Tasks are authored under one mission (v0.20.0) — the caller must resolve it first. */
+  missionId: string;
+  missionTitle: string;
   tasks: ProgramTask[];
   resources: VideoResource[];
   actions: ProgramTaskEditorActions;
@@ -150,10 +155,10 @@ export function ProgramTaskEditor({
   return (
     <>
       <section>
-        <h2 className="text-xl font-semibold">Weekly tasks ({tasks.length})</h2>
+        <h2 className="text-xl font-semibold">Tasks for {missionTitle} ({tasks.length})</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Required tasks gate mission submission and appear on the applicant Tasks page for the matching week. Add each
-          task&apos;s learning resources inline below it.
+          These tasks belong to this mission only. Required tasks gate its submission, and an applicant
+          assigned a different mission never sees them. Add each task&apos;s learning resources inline below it.
         </p>
         <div className="mt-3 space-y-3">
           {tasks.map((task, index) => (
@@ -162,7 +167,8 @@ export function ProgramTaskEditor({
               <form action={actions.updateTask}>
                 <input type="hidden" name="id" value={task.id} />
                 <input type="hidden" name="programId" value={programId} />
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <input type="hidden" name="missionId" value={missionId} />
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <label className={labelClass}>
                     Title
                     <input name="title" required defaultValue={task.title} className={inputClass} />
@@ -170,10 +176,6 @@ export function ProgramTaskEditor({
                   <label className={labelClass}>
                     Description
                     <input name="description" defaultValue={task.description ?? ""} className={inputClass} />
-                  </label>
-                  <label className={labelClass}>
-                    Week
-                    <input name="weekNumber" type="number" min={1} max={4} required defaultValue={task.weekNumber} className={inputClass} />
                   </label>
                   <label className={labelClass}>
                     Order
@@ -230,8 +232,10 @@ export function ProgramTaskEditor({
 
         <form action={actions.createTask} className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
           <input type="hidden" name="programId" value={programId} />
-          <h3 className="text-sm font-semibold text-slate-700">Add weekly task</h3>
-          <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {/* The task's week is derived from this mission server-side, so there is no week input. */}
+          <input type="hidden" name="missionId" value={missionId} />
+          <h3 className="text-sm font-semibold text-slate-700">Add task to {missionTitle}</h3>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className={labelClass}>
               Title
               <input name="title" required className={inputClass} />
@@ -239,10 +243,6 @@ export function ProgramTaskEditor({
             <label className={labelClass}>
               Description
               <input name="description" className={inputClass} />
-            </label>
-            <label className={labelClass}>
-              Week
-              <input name="weekNumber" type="number" min={1} max={4} required defaultValue={1} className={inputClass} />
             </label>
             <label className={labelClass}>
               Order

@@ -12,8 +12,8 @@ import {
   getTenantBySlug,
   getUserByEmail,
   listApplicantApplications,
-  listCompletedTaskIds,
-  listTasksByWeek,
+  listCompletedTaskIdsForMission,
+  listTasksByMission,
   type MissionTaskSummary,
   type Submission
 } from "@talentos/db";
@@ -81,9 +81,8 @@ export default async function ApplicantMissionDetailPage({ params }: MissionDeta
 
   // Weekly learning tasks for this mission's week (v0.20.0) — surfaced as tabs in the workspace with
   // their resources shown under each task. Completion is only writable while the assignment is open.
-  const program = acceptedApp.program;
-  const weeklyTasks = await listTasksByWeek(tenant.id, program.id, mission.weekNumber);
-  const completedWeeklyTaskIds = new Set(await listCompletedTaskIds(tenant.id, user.id, program.id, mission.weekNumber));
+  const weeklyTasks = await listTasksByMission(tenant.id, mission.id);
+  const completedWeeklyTaskIds = new Set(await listCompletedTaskIdsForMission(tenant.id, user.id, mission.id));
   const assignmentOpen = Boolean(assignment && ["ACCEPTED", "IN_PROGRESS", "OVERDUE"].includes(assignment.status));
 
   // Prerequisite learning tasks gate the mission's own steps (v0.20.0): until every prerequisite is

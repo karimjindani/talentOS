@@ -11,8 +11,8 @@ import {
   getUserByEmail,
   listApplicantApplications,
   listAssignedMissionsWithTasks,
-  listCompletedTaskIds,
-  listTasksByWeek,
+  listCompletedTaskIdsForMission,
+  listTasksByMission,
   type MissionTaskSummary
 } from "@talentos/db";
 import { TaskCompletionButton } from "./TaskCompletionButton";
@@ -42,10 +42,10 @@ export default async function TasksPage() {
   const latestAssignment = await getLatestMissionAssignmentForApplicantProgram(tenant.id, user.id, program.id);
   const weeklyAssignment = activeAssignment ?? latestAssignment;
   const weeklyTasks = weeklyAssignment
-    ? await listTasksByWeek(tenant.id, program.id, weeklyAssignment.weekNumber)
+    ? await listTasksByMission(tenant.id, weeklyAssignment.missionId)
     : [];
   const completedTaskIds = weeklyAssignment
-    ? await listCompletedTaskIds(tenant.id, user.id, program.id, weeklyAssignment.weekNumber)
+    ? await listCompletedTaskIdsForMission(tenant.id, user.id, weeklyAssignment.missionId)
     : [];
   const completed = new Set(completedTaskIds);
   const requiredWeeklyTasks = weeklyTasks.filter((task) => task.required);

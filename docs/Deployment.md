@@ -1,12 +1,29 @@
 # Deployment
 
-Code version: `v0.19.5`
+Code version: `v0.20.0`
 
 Deployment evidence commit: `2b3afce`
 
-Current deployment update: `v0.19.5` (requires database migration
-`20260716090000_weekly_tasks_submission_readiness`, Prisma generation, Week 1 seed refresh and Applicant/
-Admin rebuild; no container-topology, Keycloak, permission or environment-variable change)
+Current deployment update: `v0.20.0` (requires two database migrations —
+`20260808090000_program_task_mission_scope` and `20260810120000_submission_review_history` — Prisma
+generation and an Applicant/Admin rebuild; no container-topology, Keycloak, permission or
+environment-variable change)
+
+> `v0.20.0` (Mission-Scoped Curriculum, Review History & Markdown Mission Authoring, D-096..D-100)
+> **requires two database migrations**, applied in order:
+>
+> - `20260808090000_program_task_mission_scope` — adds the required `ProgramTask.missionId`. It
+>   backfills each task to the first mission of its tenant/program/week and **deletes tasks with no
+>   matching mission**, so take a backup first and check the row count beforehand:
+>   `SELECT COUNT(*) FROM program_tasks pt WHERE NOT EXISTS (SELECT 1 FROM missions m WHERE
+>   m."tenantId" = pt."tenantId" AND m."programId" = pt."programId" AND m."weekNumber" =
+>   pt."weekNumber");`
+> - `20260810120000_submission_review_history` — adds `submission_reviews` plus
+>   `mission_assignments.reviewOutcome`/`revisionCount`, and reconstructs history from `audit_logs`.
+>   Additive and safe to re-run against an already-migrated database.
+>
+> Procedure: `npx prisma migrate deploy --schema packages/db/prisma/schema.prisma`, then
+> `docker compose up -d --build applicant admin`. No seed refresh is required.
 
 ## v0.19.5 Release And Deployment Notes
 
@@ -419,7 +436,7 @@ Admin container (`ADMIN_PORT=3200`, routes at root, RBAC-gated):
 - Admin missions (`v0.14.0`; `tutorialUrl` field `v0.19.0`): `http://demo.lvh.me:3200/missions`
 - Submission review (`v0.15.0`): `http://demo.lvh.me:3200/missions/<missionId>/submissions/<submissionId>`
 - Submissions tab (`v0.19.0`, cross-mission filterable list): `http://demo.lvh.me:3200/submissions`
-- Admin operations page: `http://demo.lvh.me:3200/operations`
+- Local Ops Console (replaces the removed admin operations page, `c562e0f`): `http://127.0.0.1:3300`
 - Organizations console (SUPER_ADMIN only): `http://lvh.me:3200/organizations`
 - Admin settings: `http://demo.lvh.me:3200/settings`
 - Forbidden page: `http://demo.lvh.me:3200/forbidden`

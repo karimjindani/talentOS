@@ -1,6 +1,6 @@
 # TalentOS Architecture
 
-Code version: `v0.19.6`
+Code version: `v0.20.0`
 
 Architecture evidence commit: `08cea25`
 
@@ -45,11 +45,14 @@ for the assignment's program week. The dashboard's learning resources, weekly ta
 and calendar events are managed by admins from the Program Content page (`/programs/[id]/content`,
 `manageProgramContent` capability).
 
-### Weekly Tasks And Submission Readiness (`v0.19.5`)
+### Weekly Tasks And Submission Readiness (`v0.19.5`, mission-scoped in `v0.20.0`)
 
-`ProgramTask` remains the authoritative tenant/program/week model; it is not attached to a mission.
-`UserTaskCompletion` stores tenant + applicant + task once, so completing learning/setup work remains
-valid when the same program week is repeated. `VideoResource` is retained as the database/API name for
+`ProgramTask` is scoped to a **mission** (`missionId`, required as of `v0.20.0`); `weekNumber` is a
+denormalized copy of the mission's week, always written from `ProgramTask.mission`. Applicants only
+see tasks authored for the mission they were assigned, and submission readiness gates on that
+mission's own required tasks. `UserTaskCompletion` stores tenant + applicant + task once, so a
+completion is not destroyed by a repeat — but because a repeat is served a *different* mission, that
+new mission brings its own tasks to complete rather than inheriting the previous mission's progress. `VideoResource` is retained as the database/API name for
 compatibility, but now supports ordered `MARKDOWN` and `YOUTUBE` resources attached to a task. Applicant
 pages render Markdown without raw HTML and show a clear pending state when a YouTube URL has not yet
 been supplied.
@@ -296,7 +299,9 @@ flowchart TD
       AdminHome --> Missions["/missions"]
       Missions --> MissionDetail["/missions/new, /missions/[id]"]
       MissionDetail --> SubmissionReview["/missions/[id]/submissions/[submissionId] (review)"]
-      AdminHome --> Operations["/operations"]
+      AdminHome --> Tasks["/tasks (program then mission, then task authoring)"]
+      AdminHome --> Submissions["/submissions (cross-mission list)"]
+      Submissions --> SubmissionReview
       AdminHome --> Settings["/settings"]
       AdminHome --> Organizations["/organizations (SUPER_ADMIN)"]
       AdminHome --> Forbidden["/forbidden"]
@@ -486,9 +491,11 @@ The architecture establishes clear seams between modules and shared libraries:
 - `packages/ui` owns shared front-end pieces (presentational components, tenant header helper, Tailwind brand preset) consumed by both apps. As of `v0.9.0` the Tailwind brand colors are CSS variables (`--brand-blue`/`--brand-navy`/`--brand-mist`) with hex fallbacks, and `brandStyleBlock(tenant)` emits a per-tenant `<style>` block injected in each portal's root layout so a tenant's saved colors theme both portals live with no component changes.
 - `apps/applicant` owns the public/applicant routes, UI, middleware and API endpoints.
 - `apps/admin` owns the administrator routes, UI and middleware, served at the container root, gated by RBAC.
-- `apps/admin` includes `/operations`, a local-development dashboard for app-visible health checks,
-  area-based scenario regression commands, marker-based cleanup guidance and local reset instructions.
-  It does not execute Docker reset commands from the web app.
+- `apps/admin` has no Operations page: it was removed (`c562e0f`) in favour of the standalone
+  `apps/ops` console, so health checks and regression tooling stay reachable when the portals
+  themselves are down. That console covers app-visible health checks, area-based scenario regression
+  commands, marker-based cleanup guidance and local reset instructions, and does not execute Docker
+  reset commands from the web app.
 - `keycloak/import` owns the realm definition (roles, clients, password policy, demo users).
 - AI mentor integration is represented by a stubbed service boundary in the applicant app.
 

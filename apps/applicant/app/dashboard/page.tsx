@@ -13,6 +13,7 @@ import {
   listCompletedTaskIds,
   isGraduateConsentRequired,
   prisma,
+  FINAL_PROGRAM_WEEK,
 } from "@talentos/db";
 import { DashboardConsentGate } from "@/components/DashboardConsentGate";
 import { DeadlineCountdown } from "@/components/DeadlineCountdown";
@@ -76,6 +77,20 @@ export default async function DashboardPage() {
     missionsWithTasks[0] ??
     null;
   const currentAssignment = currentMissionTasks?.assignment ?? null;
+
+  // Distinguish "nothing assigned yet" and "waiting for the next week" from genuine completion
+  // (v0.20.0). missionProgress.overall.total counts ASSIGNED missions, so an applicant who passed
+  // weeks 1-2 while week 3 was unpublished previously saw "All missions accepted" -- congratulated
+  // for finishing a program they were only halfway through.
+  const highestAssignedWeek = missionsWithTasks.reduce(
+    (highest, { mission }) => Math.max(highest, mission.weekNumber),
+    0
+  );
+  const hasNoAssignments = missionsWithTasks.length === 0;
+  const programComplete =
+    !missionProgress.currentMission && highestAssignedWeek >= FINAL_PROGRAM_WEEK;
+  const awaitingNextMission =
+    !missionProgress.currentMission && !hasNoAssignments && !programComplete;
   const currentDeadlineIsLive =
     currentAssignment && ["ACCEPTED", "IN_PROGRESS", "OVERDUE"].includes(currentAssignment.status) && currentAssignment.deadlineAt;
 
@@ -108,6 +123,26 @@ export default async function DashboardPage() {
           {program.startsAt ? ` · Started ${formatDate(program.startsAt)}` : ""}
         </p>
       </div>
+
+      {hasNoAssignments ? (
+        <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+          <p className="font-semibold">No missions are available in this program yet.</p>
+          <p className="mt-1 text-sm">
+            Your program team has been notified. You&apos;ll be assigned your first mission
+            automatically as soon as one is published — nothing is needed from you.
+          </p>
+        </div>
+      ) : awaitingNextMission ? (
+        <div className="mb-8 rounded-2xl border border-sky-200 bg-sky-50 p-6 text-sky-900">
+          <p className="font-semibold">
+            Week {highestAssignedWeek} is complete — waiting for your next mission.
+          </p>
+          <p className="mt-1 text-sm">
+            Your program team has been notified. Week {highestAssignedWeek + 1} will be assigned
+            automatically once a mission is published for it.
+          </p>
+        </div>
+      ) : null}
 
       {/* Quick stats */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -198,15 +233,20 @@ export default async function DashboardPage() {
                 </div>
               ) : null}
             </Link>
-          ) : missionProgress.overall.total > 0 ? (
+          ) : programComplete ? (
             <div className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">
               <p className="font-medium">All missions accepted — your portfolio evidence is complete. 🎉</p>
               <Link href="/dashboard/graduate-profile" className="mt-3 inline-block font-semibold underline">
                 Review consent and publish your graduate profile →
               </Link>
             </div>
+          ) : awaitingNextMission ? (
+            <p className="rounded-xl bg-sky-50 p-4 text-sm font-medium text-sky-800">
+              Week {highestAssignedWeek} accepted. Your Week {highestAssignedWeek + 1} mission has not
+              been published yet.
+            </p>
           ) : (
-            <p className="text-sm text-slate-500">No assigned missions yet.</p>
+            <p className="text-sm text-slate-500">No missions in this program yet.</p>
           )}
         </div>
 

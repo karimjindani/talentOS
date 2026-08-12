@@ -2,6 +2,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "./client";
 
 export const DEFAULT_ASSIGNMENT_WEEK = 1;
+/** Programs run four weeks; passing week 4 graduates rather than assigning a week 5. */
+export const FINAL_PROGRAM_WEEK = 4;
 
 const REQUIRED_WORKING_DAYS = 4; // Monday–Thursday
 const THURSDAY = 4; // Date.getUTCDay(): Sunday = 0 … Thursday = 4
@@ -65,7 +67,12 @@ export function listAssignedProgramMissions(tenantId: string, applicantId: strin
         }
       }
       return [...latestByWeek.values()]
-        .map((assignment) => assignment.mission)
+        .map((assignment) => ({
+          ...assignment.mission,
+          // When the mission became workable for this applicant, so the journal form can stop them
+          // dating an entry before they had even accepted it (v0.20.0).
+          startedAt: assignment.acceptedAt ?? assignment.assignedAt
+        }))
         .sort((a, b) => a.weekNumber - b.weekNumber || a.order - b.order || a.title.localeCompare(b.title));
     });
 }
@@ -236,6 +243,60 @@ export async function assignWeekMissionToAcceptedApplicantTx(
  * Safe to call multiple times: `assignWeekMissionToAcceptedApplicantTx` is idempotent (returns the
  * existing assignment if one already exists for the week/attempt).
  */
+/**
+ * Warn the people who can fix it that an applicant is enrolled with nothing to work on. Accepting an
+ * application when the program has no publishable mission used to fail silently: the applicant
+ * landed in a fully working portal with every surface empty and no one was told (v0.20.0).
+ */
+export async function notifyReviewersOfMissingMissionTx(
+  tx: Prisma.TransactionClient,
+  { tenantId, title, body }: { tenantId: string; title: string; body: string }
+): Promise<number> {
+  const reviewers = await tx.tenantMembership.findMany({
+    where: { tenantId, role: { in: [...PROGRAM_REVIEWER_ROLES] } },
+    select: { userId: true }
+  });
+  if (reviewers.length === 0) {
+    return 0;
+  }
+  await tx.notification.createMany({
+    data: reviewers.map((reviewer) => ({
+      tenantId,
+      userId: reviewer.userId,
+      type: "WARNING" as const,
+      title,
+      body
+    }))
+  });
+  return reviewers.length;
+}
+
+/**
+ * The week this applicant should be handed next, or null when they need nothing.
+ *
+ * Null covers three distinct cases on purpose: an attempt is still open, the latest attempt is a
+ * REPEAT (resumeAwaitingMissionAssignmentsTx owns that path and must not be double-served), or they
+ * have passed the final week and graduated.
+ */
+export async function nextAssignableWeekForApplicantTx(
+  tx: Prisma.TransactionClient,
+  { tenantId, programId, applicantId }: { tenantId: string; programId: string; applicantId: string }
+): Promise<number | null> {
+  const latest = await tx.missionAssignment.findFirst({
+    where: { tenantId, programId, applicantId },
+    select: { weekNumber: true, status: true },
+    orderBy: [{ weekNumber: "desc" }, { attemptNumber: "desc" }]
+  });
+  if (!latest) {
+    return DEFAULT_ASSIGNMENT_WEEK;
+  }
+  if (latest.status !== "PASSED") {
+    return null;
+  }
+  const next = latest.weekNumber + 1;
+  return next <= FINAL_PROGRAM_WEEK ? next : null;
+}
+
 export async function backfillAssignmentsForAcceptedApplicantsTx(
   tx: Prisma.TransactionClient,
   { tenantId, programId }: { tenantId: string; programId: string }
@@ -245,15 +306,127 @@ export async function backfillAssignmentsForAcceptedApplicantsTx(
     select: { applicantId: true }
   });
 
+  // Previously this always asked for week 1, so an applicant who had passed week 2 and was waiting
+  // on week 3 was never served when week 3 was finally published -- the week-1 lookup found their
+  // existing assignment and no-opped. Ask for the week each applicant actually needs instead.
+  let assigned = 0;
   for (const app of acceptedApplications) {
-    await assignWeekMissionToAcceptedApplicantTx(tx, {
+    const weekNumber = await nextAssignableWeekForApplicantTx(tx, {
       tenantId,
       programId,
       applicantId: app.applicantId
     });
+    if (weekNumber === null) {
+      continue;
+    }
+    const assignment = await assignWeekMissionToAcceptedApplicantTx(tx, {
+      tenantId,
+      programId,
+      applicantId: app.applicantId,
+      weekNumber
+    });
+    if (assignment) {
+      assigned += 1;
+    }
   }
 
-  return acceptedApplications.length;
+  return assigned;
+}
+
+/**
+ * Resume applicants parked in AWAITING_MISSION_ASSIGNMENT once a mission is published for the week
+ * they are waiting on.
+ *
+ * A REPEAT decision with no unassigned mission left for that week parks the application (see
+ * createRepeatMissionForSameWeekTx) and notifies reviewers to add one. Adding it is what unblocks the
+ * applicant, so publishing a mission must hand it to everyone waiting on that exact week — the
+ * ACCEPTED-only backfill above skips them precisely because they are no longer ACCEPTED.
+ *
+ * Keeps the repeat rules intact: same week as the attempt being repeated, never a mission the
+ * applicant has already been assigned for that week, and the next attempt number.
+ */
+export async function resumeAwaitingMissionAssignmentsTx(
+  tx: Prisma.TransactionClient,
+  { tenantId, programId, weekNumber }: { tenantId: string; programId: string; weekNumber: number }
+) {
+  // ACCEPTED is included alongside the parked status because a dangling REPEAT is reachable without
+  // parking: Mission -> MissionAssignment is onDelete: Cascade, so deleting or archiving the mission
+  // that held a repeat attempt removes the assignment and leaves the application ACCEPTED. The
+  // per-applicant guard below (latest attempt must be REPEAT for this exact week) is what makes this
+  // safe -- an ACCEPTED applicant with an open attempt is skipped.
+  const waitingApplications = await tx.application.findMany({
+    where: {
+      tenantId,
+      programId,
+      status: { in: ["AWAITING_MISSION_ASSIGNMENT", "ACCEPTED"] }
+    },
+    select: { id: true, applicantId: true }
+  });
+
+  let resumed = 0;
+  for (const application of waitingApplications) {
+    // The week being repeated is the applicant's latest attempt — the one the REPEAT decision closed.
+    const latest = await tx.missionAssignment.findFirst({
+      where: { tenantId, programId, applicantId: application.applicantId },
+      select: { weekNumber: true, attemptNumber: true, status: true },
+      orderBy: [{ weekNumber: "desc" }, { attemptNumber: "desc" }]
+    });
+    if (!latest || latest.status !== "REPEAT" || latest.weekNumber !== weekNumber) {
+      continue;
+    }
+
+    const priorAssignments = await tx.missionAssignment.findMany({
+      where: { tenantId, programId, applicantId: application.applicantId, weekNumber },
+      select: { missionId: true }
+    });
+    const assignedMissionIds = [...new Set(priorAssignments.map((prior) => prior.missionId))];
+
+    const alternateMissions = await tx.mission.findMany({
+      where: {
+        tenantId,
+        programId,
+        weekNumber,
+        status: "PUBLISHED",
+        id: { notIn: assignedMissionIds }
+      },
+      select: { id: true, title: true },
+      orderBy: [{ order: "asc" }, { title: "asc" }]
+    });
+    if (alternateMissions.length === 0) {
+      continue; // still nothing for this applicant — they keep waiting
+    }
+
+    const mission = alternateMissions[0];
+    await tx.missionAssignment.create({
+      data: {
+        tenantId,
+        programId,
+        applicantId: application.applicantId,
+        missionId: mission.id,
+        weekNumber,
+        attemptNumber: latest.attemptNumber + 1,
+        status: "NOT_STARTED"
+      }
+    });
+
+    await tx.application.updateMany({
+      where: { id: application.id, tenantId, status: "AWAITING_MISSION_ASSIGNMENT" },
+      data: { status: "ACCEPTED" }
+    });
+
+    await tx.notification.create({
+      data: {
+        tenantId,
+        userId: application.applicantId,
+        type: "INFO",
+        title: `New Week ${weekNumber} mission assigned: ${mission.title}`,
+        body: `A new Week ${weekNumber} mission is available for your repeat attempt. Accept it to start the deadline.`
+      }
+    });
+    resumed += 1;
+  }
+
+  return resumed;
 }
 
 export function acceptMissionAssignment(input: {
@@ -396,21 +569,11 @@ export async function createRepeatMissionForSameWeekTx(
       data: { status: "AWAITING_MISSION_ASSIGNMENT" }
     });
 
-    const reviewers = await tx.tenantMembership.findMany({
-      where: { tenantId: assignment.tenantId, role: { in: [...PROGRAM_REVIEWER_ROLES] } },
-      select: { userId: true }
+    await notifyReviewersOfMissingMissionTx(tx, {
+      tenantId: assignment.tenantId,
+      title: `Applicant needs a new Week ${assignment.weekNumber} mission assignment`,
+      body: `A rejected applicant has no alternate Week ${assignment.weekNumber} mission available. Assign one manually.`
     });
-    if (reviewers.length > 0) {
-      await tx.notification.createMany({
-        data: reviewers.map((reviewer) => ({
-          tenantId: assignment.tenantId,
-          userId: reviewer.userId,
-          type: "WARNING" as const,
-          title: `Applicant needs a new Week ${assignment.weekNumber} mission assignment`,
-          body: `A rejected applicant has no alternate Week ${assignment.weekNumber} mission available. Assign one manually.`
-        }))
-      });
-    }
     return null;
   }
 

@@ -9,6 +9,7 @@ const prismaMock = vi.hoisted(() => ({
   txApplicationUpdateMany: vi.fn(),
   txApplicationFindFirstOrThrow: vi.fn(),
   txAssignMission: vi.fn(),
+  txNotifyReviewers: vi.fn(),
   txAuditLogCreate: vi.fn()
 }));
 
@@ -22,7 +23,9 @@ vi.mock("./client", () => ({
 }));
 
 vi.mock("./mission-assignments", () => ({
-  assignWeekMissionToAcceptedApplicantTx: prismaMock.txAssignMission
+  assignWeekMissionToAcceptedApplicantTx: prismaMock.txAssignMission,
+  notifyReviewersOfMissingMissionTx: prismaMock.txNotifyReviewers,
+  DEFAULT_ASSIGNMENT_WEEK: 1
 }));
 
 import {
@@ -171,5 +174,44 @@ describe("application duplicate policy", () => {
       programId: "program-1",
       applicantId: "applicant-1"
     });
+  });
+});
+
+describe("accepting into a program with no mission", () => {
+  beforeEach(() => {
+    prismaMock.txAssignMission.mockReset();
+    prismaMock.txNotifyReviewers.mockReset();
+  });
+
+  const accept = () =>
+    applyStatusTransition({
+      id: "application-1",
+      toStatus: "ACCEPTED",
+      reviewerNotes: "Welcome.",
+      actorUserId: "reviewer-1",
+      tenantId: "tenant-1"
+    });
+
+  // Silently enrolling someone with nothing to do was the bug: no assignment, no error, no notice.
+  it("warns reviewers when no assignment could be created", async () => {
+    prismaMock.txAssignMission.mockResolvedValue(null);
+
+    await accept();
+
+    expect(prismaMock.txNotifyReviewers).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        tenantId: "tenant-1",
+        title: expect.stringContaining("no Week 1 mission")
+      })
+    );
+  });
+
+  it("stays quiet when the applicant was assigned a mission", async () => {
+    prismaMock.txAssignMission.mockResolvedValue({ id: "assignment-1" });
+
+    await accept();
+
+    expect(prismaMock.txNotifyReviewers).not.toHaveBeenCalled();
   });
 });

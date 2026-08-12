@@ -38,7 +38,9 @@ export default async function NewJournalEntryPage() {
   const missionOptions = availableMissions.map((mission) => ({
     id: mission.id,
     title: mission.title,
-    weekNumber: mission.weekNumber
+    weekNumber: mission.weekNumber,
+    // Bounds the entry-date picker: an entry cannot pre-date the mission becoming workable.
+    startedAt: mission.startedAt ? toJournalDateInput(mission.startedAt) : null
   }));
   const lockedMission = getDefaultNewJournalMission(missionOptions);
 

@@ -5,10 +5,13 @@ import { prisma } from "./client";
 // ProgramTask helpers
 // ---------------------------------------------------------------------------
 
-/** List all tasks for a program, ordered by weekNumber then order. */
-export function listProgramTasks(tenantId: string, programId: string) {
+/**
+ * List tasks for a program (admin authoring view), ordered by weekNumber then order.
+ * Pass `missionId` to scope to the single mission an admin has selected (v0.20.0).
+ */
+export function listProgramTasks(tenantId: string, programId: string, missionId?: string) {
   return prisma.programTask.findMany({
-    where: { tenantId, programId },
+    where: { tenantId, programId, ...(missionId == null ? {} : { missionId }) },
     include: {
       resources: {
         where: { tenantId },
@@ -34,10 +37,16 @@ export function listPublishedProgramTasks(tenantId: string, programId: string) {
   });
 }
 
-/** List applicant-visible tasks and their resources for a program week. */
-export function listTasksByWeek(tenantId: string, programId: string, weekNumber: number) {
+/**
+ * List applicant-visible tasks and their resources for one mission (v0.20.0).
+ *
+ * Tasks are mission-scoped, so this — not a week lookup — is what the applicant sees: only the
+ * tasks authored under the mission they were actually assigned. A repeat that rotates to a
+ * different mission therefore presents that mission's own tasks.
+ */
+export function listTasksByMission(tenantId: string, missionId: string) {
   return prisma.programTask.findMany({
-    where: { tenantId, programId, weekNumber, published: true },
+    where: { tenantId, missionId, published: true },
     include: {
       resources: {
         where: { tenantId },
@@ -145,6 +154,18 @@ export async function listCompletedTaskIds(
   return completions.map((c) => c.taskId);
 }
 
+/**
+ * Task IDs an applicant completed for one mission (v0.20.0). Tasks belong to a mission, so a repeat
+ * on a different mission starts from an empty set — the new mission's own tasks must be completed.
+ */
+export async function listCompletedTaskIdsForMission(tenantId: string, userId: string, missionId: string) {
+  const completions = await prisma.userTaskCompletion.findMany({
+    where: { tenantId, userId, task: { tenantId, missionId } },
+    select: { taskId: true }
+  });
+  return completions.map((completion) => completion.taskId);
+}
+
 export type CompleteApplicantTaskInput = {
   tenantId: string;
   applicantId: string;
@@ -162,7 +183,7 @@ export function markApplicantTaskCompleted(input: CompleteApplicantTaskInput) {
         applicantId: input.applicantId,
         status: { in: ["ACCEPTED", "IN_PROGRESS", "OVERDUE"] }
       },
-      select: { id: true, programId: true, weekNumber: true }
+      select: { id: true, programId: true, weekNumber: true, missionId: true }
     });
     if (!assignment) {
       throw new Error("An open assignment was not found for this applicant.");
@@ -181,18 +202,20 @@ export function markApplicantTaskCompleted(input: CompleteApplicantTaskInput) {
       throw new Error("Tasks are available only for the applicant's accepted program.");
     }
 
+    // Tasks belong to a mission (v0.20.0), so completion is validated against the assignment's
+    // mission rather than its week — a task from another mission in the same week is rejected.
     const task = await tx.programTask.findFirst({
       where: {
         id: input.taskId,
         tenantId: input.tenantId,
         programId: assignment.programId,
-        weekNumber: assignment.weekNumber,
+        missionId: assignment.missionId,
         published: true
       },
       select: { id: true }
     });
     if (!task) {
-      throw new Error("Task was not found for this program week.");
+      throw new Error("Task was not found for this mission.");
     }
 
     const completion = await tx.userTaskCompletion.upsert({

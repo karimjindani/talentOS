@@ -17,6 +17,7 @@ const prismaMock = vi.hoisted(() => ({
   txEventDeleteMany: vi.fn(),
   txEventFindFirstOrThrow: vi.fn(),
   txStoredFileFindFirst: vi.fn(),
+  txMissionFindFirst: vi.fn(),
   txAuditLogCreate: vi.fn()
 }));
 
@@ -67,10 +68,12 @@ describe("program content data access", () => {
           findFirstOrThrow: prismaMock.txEventFindFirstOrThrow
         },
         storedFile: { findFirst: prismaMock.txStoredFileFindFirst },
+        mission: { findFirst: prismaMock.txMissionFindFirst },
         auditLog: { create: prismaMock.txAuditLogCreate }
       })
     );
     prismaMock.txProgramFindFirst.mockResolvedValue({ id: "program-1" });
+    prismaMock.txMissionFindFirst.mockResolvedValue({ id: "mission-1", weekNumber: 1 });
     prismaMock.txResourceCreate.mockResolvedValue({ id: "res-1" });
     prismaMock.txResourceUpdateMany.mockResolvedValue({ count: 1 });
     prismaMock.txResourceDeleteMany.mockResolvedValue({ count: 1 });
@@ -247,9 +250,10 @@ function taskInput() {
   return {
     tenantId: "tenant-1",
     programId: "program-1",
+    // Tasks are mission-scoped (v0.20.0); weekNumber comes from the mission, not the caller.
+    missionId: "mission-1",
     title: "Environment Setup",
     description: "Install Node.js and Docker.",
-    weekNumber: 1,
     order: 0,
     dueAt: new Date("2026-07-10"),
     required: true,

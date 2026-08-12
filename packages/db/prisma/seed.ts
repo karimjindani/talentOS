@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient, type MissionDifficulty, type TenantRole } from "@prisma/client";
 import { assignWeekMissionToAcceptedApplicantTx } from "../src/mission-assignments";
+import { parseMissionSpecMarkdownOrThrow } from "../src/mission-spec";
 
 const prisma = new PrismaClient();
 const seedDir = dirname(fileURLToPath(import.meta.url));
@@ -56,51 +57,15 @@ const weekOneMissionSpecs: { id: string; specFile: string; order: number }[] = [
 function loadWeekOneMissionSeed({ id, specFile, order }: { id: string; specFile: string; order: number }): MissionSeed {
   const markdown = readFileSync(join(seedDir, "seed-data", "missions", "ai-native-engineering", "week-1", specFile), "utf8");
 
+  // Same parser the Back Office import uses (v0.20.0), so a spec that seeds cleanly also uploads
+  // cleanly. Throwing here is intentional: a malformed seed spec should stop the seed.
   return {
     id,
-    title: extractTitle(markdown),
     difficulty: "BEGINNER",
     weekNumber: 1,
     order,
-    objective: extractSection(markdown, "Objective"),
-    brief: extractSection(markdown, "Mission Brief"),
-    deliverables: extractSection(markdown, "Deliverables"),
-    acceptanceCriteria: extractSection(markdown, "Acceptance Criteria"),
-    evaluationCriteria: extractSection(markdown, "Evaluation Criteria"),
-    competencyTags: extractListSection(markdown, "Competency Tags")
+    ...parseMissionSpecMarkdownOrThrow(markdown)
   };
-}
-
-function extractTitle(markdown: string): string {
-  const title = markdown
-    .split(/\r?\n/)
-    .find((line) => line.startsWith("# "))
-    ?.replace(/^#\s+/, "")
-    .trim();
-  if (!title) {
-    throw new Error("Mission spec is missing a level-1 title.");
-  }
-  return title;
-}
-
-function extractSection(markdown: string, heading: string): string {
-  const lines = markdown.split(/\r?\n/);
-  const start = lines.findIndex((line) => line.trim() === `## ${heading}`);
-  if (start === -1) {
-    throw new Error(`Mission spec is missing ## ${heading}.`);
-  }
-  const end = lines.findIndex((line, index) => index > start && line.startsWith("## "));
-  return lines
-    .slice(start + 1, end === -1 ? undefined : end)
-    .join("\n")
-    .trim();
-}
-
-function extractListSection(markdown: string, heading: string): string[] {
-  return extractSection(markdown, heading)
-    .split(/\r?\n/)
-    .map((line) => line.trim().replace(/^-\s+/, ""))
-    .filter(Boolean);
 }
 
 const missionSeeds: MissionSeed[] = [

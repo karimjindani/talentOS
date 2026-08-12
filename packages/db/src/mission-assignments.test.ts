@@ -5,7 +5,9 @@ const prismaMock = vi.hoisted(() => ({
   missionFindFirst: vi.fn(),
   transaction: vi.fn(),
   txApplicationFindFirst: vi.fn(),
+  txApplicationFindMany: vi.fn(),
   txApplicationUpdateMany: vi.fn(),
+  txNotificationCreate: vi.fn(),
   txMissionAssignmentFindFirst: vi.fn(),
   txMissionAssignmentFindMany: vi.fn(),
   txMissionAssignmentUpdate: vi.fn(),
@@ -32,6 +34,9 @@ import {
   acceptMissionAssignment,
   assignWeekMissionToAcceptedApplicant,
   computeMissionDeadline,
+  backfillAssignmentsForAcceptedApplicantsTx,
+  nextAssignableWeekForApplicantTx,
+  resumeAwaitingMissionAssignmentsTx,
   createRepeatMissionForSameWeekTx,
   getAssignedProgramMission,
   listAssignedProgramMissions
@@ -285,6 +290,161 @@ describe("acceptMissionAssignment", () => {
   });
 });
 
+describe("resumeAwaitingMissionAssignmentsTx", () => {
+  beforeEach(() => {
+    for (const mock of Object.values(prismaMock)) {
+      mock.mockReset();
+    }
+    prismaMock.txApplicationFindMany.mockResolvedValue([{ id: "application-1", applicantId: "applicant-1" }]);
+    prismaMock.txMissionAssignmentCreate.mockImplementation(async ({ data }) => ({ id: "assignment-new", ...data }));
+    prismaMock.txApplicationUpdateMany.mockResolvedValue({ count: 1 });
+    prismaMock.txNotificationCreate.mockResolvedValue({ id: "notification-1" });
+  });
+
+  const tx = () => ({
+    application: {
+      findMany: prismaMock.txApplicationFindMany,
+      updateMany: prismaMock.txApplicationUpdateMany
+    },
+    missionAssignment: {
+      findFirst: prismaMock.txMissionAssignmentFindFirst,
+      findMany: prismaMock.txMissionAssignmentFindMany,
+      create: prismaMock.txMissionAssignmentCreate
+    },
+    mission: { findMany: prismaMock.txMissionFindMany },
+    notification: { create: prismaMock.txNotificationCreate }
+  }) as never;
+
+  it("assigns the newly published mission to an applicant waiting on that week and returns them to ACCEPTED", async () => {
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({ weekNumber: 2, attemptNumber: 2, status: "REPEAT" });
+    prismaMock.txMissionAssignmentFindMany.mockResolvedValue([{ missionId: "mission-used" }]);
+    prismaMock.txMissionFindMany.mockResolvedValue([{ id: "mission-new", title: "Fresh Week 2" }]);
+
+    const resumed = await resumeAwaitingMissionAssignmentsTx(tx(), {
+      tenantId: "tenant-1",
+      programId: "program-1",
+      weekNumber: 2
+    });
+
+    expect(resumed).toBe(1);
+    // Same week, never a mission already served, next attempt number.
+    expect(prismaMock.txMissionFindMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: "tenant-1",
+        programId: "program-1",
+        weekNumber: 2,
+        status: "PUBLISHED",
+        id: { notIn: ["mission-used"] }
+      },
+      select: { id: true, title: true },
+      orderBy: [{ order: "asc" }, { title: "asc" }]
+    });
+    expect(prismaMock.txMissionAssignmentCreate).toHaveBeenCalledWith({
+      data: {
+        tenantId: "tenant-1",
+        programId: "program-1",
+        applicantId: "applicant-1",
+        missionId: "mission-new",
+        weekNumber: 2,
+        attemptNumber: 3,
+        status: "NOT_STARTED"
+      }
+    });
+    expect(prismaMock.txApplicationUpdateMany).toHaveBeenCalledWith({
+      where: { id: "application-1", tenantId: "tenant-1", status: "AWAITING_MISSION_ASSIGNMENT" },
+      data: { status: "ACCEPTED" }
+    });
+    expect(prismaMock.txNotificationCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ userId: "applicant-1", type: "INFO" })
+    });
+  });
+
+  // Regression (v0.20.0): a dangling REPEAT can also sit on an ACCEPTED application — deleting or
+  // archiving the mission that held the repeat attempt cascade-removes the assignment and leaves the
+  // application ACCEPTED, so gating recovery on AWAITING_MISSION_ASSIGNMENT wedged the applicant on
+  // the "repeat assigned" tag with no mission and no way to submit.
+  it("rescues an ACCEPTED application whose latest assignment is a dangling REPEAT for that week", async () => {
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({ weekNumber: 2, attemptNumber: 1, status: "REPEAT" });
+    prismaMock.txMissionAssignmentFindMany.mockResolvedValue([{ missionId: "mission-used" }]);
+    prismaMock.txMissionFindMany.mockResolvedValue([{ id: "mission-new", title: "Fresh Week 2" }]);
+
+    const resumed = await resumeAwaitingMissionAssignmentsTx(tx(), {
+      tenantId: "tenant-1",
+      programId: "program-1",
+      weekNumber: 2
+    });
+
+    expect(resumed).toBe(1);
+    expect(prismaMock.txApplicationFindMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: "tenant-1",
+        programId: "program-1",
+        status: { in: ["AWAITING_MISSION_ASSIGNMENT", "ACCEPTED"] }
+      },
+      select: { id: true, applicantId: true }
+    });
+    expect(prismaMock.txMissionAssignmentCreate).toHaveBeenCalledWith({
+      data: {
+        tenantId: "tenant-1",
+        programId: "program-1",
+        applicantId: "applicant-1",
+        missionId: "mission-new",
+        weekNumber: 2,
+        attemptNumber: 2,
+        status: "NOT_STARTED"
+      }
+    });
+    // Returning an already-ACCEPTED application to ACCEPTED must stay a no-op, not an error.
+    expect(prismaMock.txApplicationUpdateMany).toHaveBeenCalledWith({
+      where: { id: "application-1", tenantId: "tenant-1", status: "AWAITING_MISSION_ASSIGNMENT" },
+      data: { status: "ACCEPTED" }
+    });
+  });
+
+  it("leaves an ACCEPTED applicant alone when their latest attempt is still open", async () => {
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({ weekNumber: 2, attemptNumber: 2, status: "NOT_STARTED" });
+
+    const resumed = await resumeAwaitingMissionAssignmentsTx(tx(), {
+      tenantId: "tenant-1",
+      programId: "program-1",
+      weekNumber: 2
+    });
+
+    expect(resumed).toBe(0);
+    expect(prismaMock.txMissionAssignmentCreate).not.toHaveBeenCalled();
+  });
+
+  it("ignores applicants waiting on a different week", async () => {
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({ weekNumber: 2, attemptNumber: 2, status: "REPEAT" });
+
+    const resumed = await resumeAwaitingMissionAssignmentsTx(tx(), {
+      tenantId: "tenant-1",
+      programId: "program-1",
+      weekNumber: 3
+    });
+
+    expect(resumed).toBe(0);
+    expect(prismaMock.txMissionAssignmentCreate).not.toHaveBeenCalled();
+    expect(prismaMock.txApplicationUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("leaves the applicant waiting when every mission for the week was already assigned to them", async () => {
+    prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({ weekNumber: 2, attemptNumber: 2, status: "REPEAT" });
+    prismaMock.txMissionAssignmentFindMany.mockResolvedValue([{ missionId: "mission-used" }]);
+    prismaMock.txMissionFindMany.mockResolvedValue([]);
+
+    const resumed = await resumeAwaitingMissionAssignmentsTx(tx(), {
+      tenantId: "tenant-1",
+      programId: "program-1",
+      weekNumber: 2
+    });
+
+    expect(resumed).toBe(0);
+    expect(prismaMock.txMissionAssignmentCreate).not.toHaveBeenCalled();
+    expect(prismaMock.txApplicationUpdateMany).not.toHaveBeenCalled();
+  });
+});
+
 describe("createRepeatMissionForSameWeekTx", () => {
   const failedAssignment = {
     id: "assignment-9",
@@ -410,5 +570,94 @@ describe("createRepeatMissionForSameWeekTx", () => {
       "Only the applicant's latest assignment attempt can be repeated."
     );
     expect(prismaMock.txMissionAssignmentCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("serving applicants who have nothing to work on", () => {
+  const scope = { tenantId: "tenant-1", programId: "program-1", applicantId: "applicant-1" };
+
+  beforeEach(() => {
+    for (const mock of Object.values(prismaMock)) {
+      mock.mockReset();
+    }
+  });
+
+  const tx = () => ({
+    application: { findMany: prismaMock.txApplicationFindMany, findFirst: prismaMock.txApplicationFindFirst },
+    missionAssignment: {
+      findFirst: prismaMock.txMissionAssignmentFindFirst,
+      findMany: prismaMock.txMissionAssignmentFindMany,
+      groupBy: prismaMock.txMissionAssignmentGroupBy,
+      create: prismaMock.txMissionAssignmentCreate
+    },
+    mission: { findMany: prismaMock.txMissionFindMany },
+    tenantMembership: { findMany: prismaMock.txTenantMembershipFindMany },
+    notification: { createMany: prismaMock.txNotificationCreateMany }
+  }) as never;
+
+  describe("nextAssignableWeekForApplicantTx", () => {
+    it("starts a never-assigned applicant at week 1", async () => {
+      prismaMock.txMissionAssignmentFindFirst.mockResolvedValue(null);
+      expect(await nextAssignableWeekForApplicantTx(tx(), scope)).toBe(1);
+    });
+
+    // The regression this fixes: passing week 2 with week 3 unpublished left the applicant needing
+    // week 3, but the backfill only ever asked for week 1 and no-opped on their existing row.
+    it("advances a passed applicant to the following week", async () => {
+      prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({ weekNumber: 2, status: "PASSED" });
+      expect(await nextAssignableWeekForApplicantTx(tx(), scope)).toBe(3);
+    });
+
+    it("serves nothing while an attempt is still open", async () => {
+      prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({ weekNumber: 2, status: "IN_PROGRESS" });
+      expect(await nextAssignableWeekForApplicantTx(tx(), scope)).toBeNull();
+    });
+
+    // resumeAwaitingMissionAssignmentsTx owns repeats; serving here too would double-assign.
+    it("leaves a REPEAT to the resume path", async () => {
+      prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({ weekNumber: 2, status: "REPEAT" });
+      expect(await nextAssignableWeekForApplicantTx(tx(), scope)).toBeNull();
+    });
+
+    it("does not invent a week five after the final week", async () => {
+      prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({ weekNumber: 4, status: "PASSED" });
+      expect(await nextAssignableWeekForApplicantTx(tx(), scope)).toBeNull();
+    });
+  });
+
+  describe("backfillAssignmentsForAcceptedApplicantsTx", () => {
+    it("assigns the week the applicant actually needs, not always week 1", async () => {
+      prismaMock.txApplicationFindMany.mockResolvedValue([{ applicantId: "applicant-1" }]);
+      prismaMock.txMissionAssignmentFindFirst
+        .mockResolvedValueOnce({ weekNumber: 2, status: "PASSED" }) // next-week lookup
+        .mockResolvedValueOnce(null); // no existing week-3 attempt
+      prismaMock.txApplicationFindFirst.mockResolvedValue({ id: "application-1" });
+      prismaMock.txMissionFindMany.mockResolvedValue([{ id: "mission-3", title: "Week 3", order: 0 }]);
+      prismaMock.txMissionAssignmentGroupBy.mockResolvedValue([]);
+      prismaMock.txMissionAssignmentCreate.mockImplementation(async ({ data }) => ({ id: "new", ...data }));
+
+      const assigned = await backfillAssignmentsForAcceptedApplicantsTx(tx(), {
+        tenantId: "tenant-1",
+        programId: "program-1"
+      });
+
+      expect(assigned).toBe(1);
+      expect(prismaMock.txMissionAssignmentCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({ weekNumber: 3, attemptNumber: 1, status: "NOT_STARTED" })
+      });
+    });
+
+    it("skips applicants whose current attempt is still open", async () => {
+      prismaMock.txApplicationFindMany.mockResolvedValue([{ applicantId: "applicant-1" }]);
+      prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({ weekNumber: 1, status: "IN_PROGRESS" });
+
+      const assigned = await backfillAssignmentsForAcceptedApplicantsTx(tx(), {
+        tenantId: "tenant-1",
+        programId: "program-1"
+      });
+
+      expect(assigned).toBe(0);
+      expect(prismaMock.txMissionAssignmentCreate).not.toHaveBeenCalled();
+    });
   });
 });

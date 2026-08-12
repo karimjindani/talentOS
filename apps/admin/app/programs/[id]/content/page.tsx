@@ -7,20 +7,12 @@ import {
   getTenantBySlug,
   getTenantProgram,
   listCalendarEvents,
-  listProgramTasks,
-  listVideoResources
+  listProgramTasks
 } from "@talentos/db";
-import { ProgramTaskEditor } from "@/components/ProgramTaskEditor";
 import {
   createCalendarEventAction,
-  createProgramTaskAction,
-  createVideoResourceAction,
   deleteCalendarEventAction,
-  deleteProgramTaskAction,
-  deleteVideoResourceAction,
-  updateCalendarEventAction,
-  updateProgramTaskAction,
-  updateVideoResourceAction
+  updateCalendarEventAction
 } from "./actions";
 
 type ProgramContentPageProps = {
@@ -66,8 +58,7 @@ export default async function ProgramContentPage({ params }: ProgramContentPageP
     );
   }
 
-  const [resources, tasks, events] = await Promise.all([
-    listVideoResources(tenant.id, program.id),
+  const [tasks, events] = await Promise.all([
     listProgramTasks(tenant.id, program.id),
     listCalendarEvents(tenant.id, program.id, true)
   ]);
@@ -86,22 +77,25 @@ export default async function ProgramContentPage({ params }: ProgramContentPageP
         All changes are audited.
       </p>
 
-      {/* Weekly tasks + learning resources — shared with the top-level Tasks page. */}
-      <div className="mt-8 grid gap-10">
-        <ProgramTaskEditor
-          programId={program.id}
-          tasks={tasks}
-          resources={resources}
-          actions={{
-            createTask: createProgramTaskAction,
-            updateTask: updateProgramTaskAction,
-            deleteTask: deleteProgramTaskAction,
-            createResource: createVideoResourceAction,
-            updateResource: updateVideoResourceAction,
-            deleteResource: deleteVideoResourceAction
-          }}
-        />
-      </div>
+      {/*
+        Tasks are authored per mission (v0.20.0), so task/resource authoring lives on the Tasks page
+        where a mission can be selected. Keeping a second program-wide editor here would let an admin
+        create tasks without choosing a mission, which the model no longer allows.
+      */}
+      <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-xl font-semibold">Tasks &amp; learning resources</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Tasks belong to a specific mission. This program has{" "}
+          <span className="font-semibold text-slate-800">{tasks.length}</span>{" "}
+          {tasks.length === 1 ? "task" : "tasks"} across its missions.
+        </p>
+        <Link
+          href={`/tasks?programId=${program.id}`}
+          className="mt-4 inline-flex rounded-xl bg-brand-blue px-4 py-2 text-sm font-semibold text-white"
+        >
+          Manage tasks by mission →
+        </Link>
+      </section>
 
       {/* ------------------------------------------------------------------ */}
       <section className="mt-10">

@@ -95,7 +95,12 @@ export function validateTimeSpentHours(value: number): number {
 export function listApplicantJournalEntries(tenantId: string, applicantId: string, programId: string) {
   return prisma.engineeringJournalEntry.findMany({
     where: { tenantId, applicantId, programId },
-    include: { mission: { select: { id: true, title: true, weekNumber: true } } },
+    // attemptNumber labels the per-mission groups on the Journal tab: a repeated week produces two
+    // missions, and the applicant needs to see which attempt each set of reflections belongs to.
+    include: {
+      mission: { select: { id: true, title: true, weekNumber: true } },
+      missionAssignment: { select: { attemptNumber: true } }
+    },
     orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }]
   });
 }
@@ -178,7 +183,21 @@ export async function listPreviousMissionAttemptHistoryForSubmissionReview({
       attemptNumber: true,
       status: true,
       weekNumber: true,
+      reviewOutcome: true,
+      revisionCount: true,
       mission: { select: { id: true, title: true } },
+      // Full round-by-round history (v0.20.0): the submission row keeps only the last decision, so
+      // without this an attempt that took three rounds looks the same as one accepted outright.
+      reviews: {
+        select: {
+          round: true,
+          decision: true,
+          feedback: true,
+          createdAt: true,
+          reviewer: { select: { name: true, email: true } }
+        },
+        orderBy: { round: "asc" }
+      },
       submissions: {
         where: {
           tenantId: currentAssignment.tenantId,
@@ -219,6 +238,9 @@ export async function listPreviousMissionAttemptHistoryForSubmissionReview({
       attemptNumber: attempt.attemptNumber,
       assignmentStatus: attempt.status,
       weekNumber: attempt.weekNumber,
+      reviewOutcome: attempt.reviewOutcome,
+      revisionCount: attempt.revisionCount,
+      reviews: attempt.reviews,
       mission: attempt.mission,
       submission: submission
         ? {
@@ -301,6 +323,12 @@ export async function createJournalEntry(input: CreateJournalEntryInput) {
         missionId: input.missionId
       });
 
+      assertJournalEntryOnOrAfterMissionStart(
+        content.entryDate,
+        assignment.acceptedAt ?? assignment.assignedAt,
+        input.calendarTimeZone
+      );
+
       await assertEntryDateAvailable(tx, {
         tenantId: input.tenantId,
         applicantId: input.applicantId,
@@ -375,6 +403,15 @@ export async function updateJournalEntry(input: UpdateJournalEntryInput) {
     if (existing.missionAssignmentId && existing.missionAssignmentId !== assignment.id) {
       throw new Error("A saved journal entry cannot be moved to another assignment attempt.");
     }
+
+    // Also enforced on update so an edit cannot move a date back past the mission start. Entries
+    // created before this rule existed keep their out-of-range dates until edited, at which point
+    // the date must be corrected -- the form's `min` shows the applicant the earliest valid day.
+    assertJournalEntryOnOrAfterMissionStart(
+      content.entryDate,
+      assignment.acceptedAt ?? assignment.assignedAt,
+      input.calendarTimeZone
+    );
 
     try {
       await assertEntryDateAvailable(tx, {
@@ -469,6 +506,34 @@ export function normalizeJournalEntryDate(value: Date, now = new Date(), timeZon
     throw new Error("Journal entry date cannot be in the future.");
   }
   return normalized;
+}
+
+/**
+ * A journal entry records work done ON a mission, so it cannot pre-date the moment that mission
+ * became workable (v0.20.0). Reviewers were rejecting submissions whose journals were dated before
+ * the applicant had even accepted the mission -- `normalizeJournalEntryDate` only ever guarded the
+ * upper bound (no future dates), leaving the lower bound wide open.
+ *
+ * The boundary is the assignment's acceptedAt, not assignedAt: the applicant cannot open the mission
+ * workspace until they accept, and the deadline/grace timers start from the same instant. A repeat
+ * attempt therefore gets its own, later boundary, which is what keeps attempt-2 journals honest.
+ */
+export function assertJournalEntryOnOrAfterMissionStart(
+  entryDate: Date,
+  missionStartedAt: Date | null | undefined,
+  timeZone = "UTC"
+): void {
+  if (!missionStartedAt) {
+    return;
+  }
+  const start = calendarDateInTimeZone(missionStartedAt, timeZone);
+  if (entryDate < start) {
+    throw new Error(journalBeforeMissionStartMessage(start));
+  }
+}
+
+export function journalBeforeMissionStartMessage(start: Date): string {
+  return `Journal entry date cannot be before the mission started (${start.toISOString().slice(0, 10)}).`;
 }
 
 function calendarDateInTimeZone(value: Date, timeZone: string): Date {

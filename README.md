@@ -110,7 +110,7 @@ npm.cmd run local:smoke-login
 - Admin Applications: http://demo.lvh.me:3200/applications
 - Admin Programs: http://demo.lvh.me:3200/programs
 - Admin Settings: http://demo.lvh.me:3200/settings
-- Admin Operations: http://demo.lvh.me:3200/operations
+- Local Ops Console (standalone; replaces the removed admin Operations page): http://127.0.0.1:3300
 - Admin Organizations (SUPER_ADMIN only): http://lvh.me:3200/organizations
 - Keycloak Admin Console: http://keycloak.lvh.me:8080
 - MinIO API: http://minio.lvh.me:9000
@@ -132,7 +132,9 @@ These credentials are for local development only.
 | Keycloak local admin console | `admin` | `admin` | Local Keycloak administration. |
 | MinIO local console | `talentos` | `talentos_dev_password` | Local object storage console. |
 
-The Admin Operations page requires a `SUPER_ADMIN` or `ORG_ADMIN` user.
+The standalone Local Ops Console (`http://127.0.0.1:3300`) requires a `SUPER_ADMIN` or `ORG_ADMIN`
+user. The Back Office no longer has an Operations page — it was replaced by that console so health
+checks stay reachable when the portals are down.
 
 Signup, password policy and authenticator-app 2FA are owned by Keycloak. Applicant self-registration is
 enabled (`v0.7.1`) via the portal "Create account" button (OIDC `prompt=create`) / Keycloak's hosted

@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.19.6`
+Code version: `v0.20.0`
 
 ## Purpose
 
@@ -254,3 +254,21 @@ Cleanup rules:
   typing "explain hitesh" in the AI Mentor chat and receiving the blocked response without
   a GLM API call. The token usage tracking (`stream_options.include_usage`) is also only
   verified manually via Docker logs.
+- **Dangling repeat rescue on publish (`v0.20.0`, D-097)** — publishing a mission for a week an
+  applicant is waiting on assigns them the new mission at the next attempt number, and a `DRAFT`
+  mission must not. Covered by `mission-assignments.test.ts` and verified manually in the admin
+  portal (8/8), but there is no `scripts/regression/run.ts` scenario, because the fixture needs an
+  applicant deliberately left with a dangling `REPEAT`.
+- **Backfill advancing to the applicant's next week (`v0.20.0`, D-097)** — publishing Week N+1 after
+  an applicant passes Week N assigns Week N+1 rather than re-checking Week 1. Verified against the
+  live database (8/8) and unit-tested via `nextAssignableWeekForApplicantTx`; the existing
+  `regression:missions` scenario still only documents the "accepted before any mission existed" case.
+- **Journal grouped by mission (`v0.20.0`, D-099)** — the Journal tab rendering one collapsible
+  section per mission, a repeated week appearing twice with attempt labels, and locked entries showing
+  **Locked** instead of Edit. Pure UI over already-covered data; verified in the portal (11/11) and by
+  `apps/applicant/app/dashboard/journal/view-model.test.ts`.
+- **Mission import from Markdown (`v0.20.0`, D-100)** — uploading a spec creates a populated DRAFT; a
+  file missing sections is refused naming every missing heading and writes nothing; a non-Markdown
+  file is refused. Verified in the portal (19/19) and by `mission-spec.test.ts` against the real seed
+  corpus. Not automated because the regression harness has no multipart file-upload helper; adding one
+  is the prerequisite for closing this gap.

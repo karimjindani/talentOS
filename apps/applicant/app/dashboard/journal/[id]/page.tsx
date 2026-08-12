@@ -16,6 +16,7 @@ import {
   formatJournalDate,
   getJournalEntryPageTitle,
   isJournalEditMode,
+  isJournalEntryLocked,
   toJournalDateInput
 } from "../view-model";
 
@@ -44,23 +45,28 @@ export default async function JournalEntryPage({ params, searchParams }: Journal
   if (!entry || entry.programId !== acceptedApp.program.id) {
     notFound();
   }
-  const journalLocked =
-    Boolean(entry.lockedAt) ||
-    (!entry.missionAssignmentId &&
-      (await isJournalMissionLockedForApplicant(tenant.id, user.id, entry.missionId)));
+  // Only legacy unlinked entries need the mission-level lookup; linked entries answer from lockedAt.
+  const missionLocked = entry.missionAssignmentId
+    ? false
+    : await isJournalMissionLockedForApplicant(tenant.id, user.id, entry.missionId);
+  // Shared with the Journal tab's list so the two cannot disagree about what is editable.
+  const journalLocked = isJournalEntryLocked(entry, missionLocked);
   const effectiveEditMode = editMode && !journalLocked;
 
   const missions = await listAssignedProgramMissions(tenant.id, user.id, acceptedApp.program.id);
   const missionOptions = missions.map((mission) => ({
     id: mission.id,
     title: mission.title,
-    weekNumber: mission.weekNumber
+    weekNumber: mission.weekNumber,
+    startedAt: mission.startedAt ? toJournalDateInput(mission.startedAt) : null
   }));
   const lockedMission =
     findJournalMissionOption(missionOptions, entry.missionId) ?? {
       id: entry.missionId,
       title: entry.mission.title,
-      weekNumber: entry.weekNumber
+      weekNumber: entry.weekNumber,
+      // Unknown for a mission no longer in the assigned list; the server still enforces the bound.
+      startedAt: null
     };
 
   return (

@@ -66,14 +66,34 @@ enum SubmissionStatus {
   REPEAT
 }
 
+/// One reviewer decision on a submitted attempt (v0.20.0). Mirrors the three review actions in the
+/// Back Office; kept separate from SubmissionStatus because that enum also carries draft/submitted
+/// lifecycle states that are not review outcomes.
+enum ReviewDecision {
+  ACCEPTED
+  CHANGES_REQUESTED
+  REPEAT
+}
+
+/// How an attempt ended, denormalized onto MissionAssignment so evaluation queries (and the AI
+/// evaluator) can group a whole program without replaying SubmissionReview rows. Always derived
+/// from those rows -- never set independently. "First time" means accepted on round 1 of the
+/// attempt; whether the *week* was repeated is separately visible from attemptNumber > 1.
+enum ReviewOutcome {
+  ACCEPTED_FIRST_TIME
+  ACCEPTED_AFTER_CHANGES
+  CHANGES_REQUESTED
+  REPEATED
+}
+
 enum MissionAssignmentStatus {
-  NOT_STARTED       // assigned, not yet explicitly accepted by the applicant
-  ACCEPTED          // applicant accepted; deadline/grace timers running
-  IN_PROGRESS       // a draft submission exists for this attempt
+  NOT_STARTED // assigned, not yet explicitly accepted by the applicant
+  ACCEPTED // applicant accepted; deadline/grace timers running
+  IN_PROGRESS // a draft submission exists for this attempt
   PENDING_EVALUATION // submitted before the deadline; awaiting reviewer
-  LATE_SUBMITTED    // submitted during the grace period after the deadline
-  OVERDUE           // deadline passed, no submission yet, grace period running
-  FAILED            // grace period passed with no submission
+  LATE_SUBMITTED // submitted during the grace period after the deadline
+  OVERDUE // deadline passed, no submission yet, grace period running
+  FAILED // grace period passed with no submission
   PASSED
   REPEAT
 }
@@ -109,26 +129,27 @@ model Tenant {
   logoFileId String?     @unique
   logoFile   StoredFile? @relation("TenantLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
 
-  memberships           TenantMembership[]
-  programs              Program[]
-  applications          Application[]
-  auditLogs             AuditLog[]
-  missions              Mission[]
-  portfolioItems        PortfolioArtifact[]
-  certificates          Certificate[]
-  knowledgeDocs         KnowledgeBaseDocument[]
-  aiInteractions        AIInteraction[]
-  storedFiles           StoredFile[]
-  programTasks          ProgramTask[]
-  videoResources        VideoResource[]
-  taskCompletions       UserTaskCompletion[]
-  notifications         Notification[]
-  calendarEvents        CalendarEvent[]
-  submissions           Submission[]
-  journalEntries        EngineeringJournalEntry[]
-  missionAssignments    MissionAssignment[]
+  memberships            TenantMembership[]
+  programs               Program[]
+  applications           Application[]
+  auditLogs              AuditLog[]
+  missions               Mission[]
+  portfolioItems         PortfolioArtifact[]
+  certificates           Certificate[]
+  knowledgeDocs          KnowledgeBaseDocument[]
+  aiInteractions         AIInteraction[]
+  storedFiles            StoredFile[]
+  programTasks           ProgramTask[]
+  videoResources         VideoResource[]
+  taskCompletions        UserTaskCompletion[]
+  notifications          Notification[]
+  calendarEvents         CalendarEvent[]
+  submissions            Submission[]
+  submissionReviews      SubmissionReview[]
+  journalEntries         EngineeringJournalEntry[]
+  missionAssignments     MissionAssignment[]
   missionTaskCompletions MissionTaskCompletion[]
-  mentorConversations   MentorConversation[]
+  mentorConversations    MentorConversation[]
 
   @@map("tenants")
 }
@@ -155,6 +176,7 @@ model User {
   auditLogs           AuditLog[]
   submissions         Submission[]              @relation("SubmissionApplicant")
   reviewedSubmissions Submission[]              @relation("SubmissionReviewer")
+  submissionReviews   SubmissionReview[]        @relation("SubmissionReviewReviewer")
   journalEntries      EngineeringJournalEntry[] @relation("JournalEntryApplicant")
   missionAssignments  MissionAssignment[]       @relation("MissionAssignmentApplicant")
   aiInteractions      AIInteraction[]
@@ -303,6 +325,7 @@ model Mission {
   submissions    Submission[]
   journalEntries EngineeringJournalEntry[]
   assignments    MissionAssignment[]
+  tasks          ProgramTask[]
 
   @@index([tenantId, programId, status])
   @@index([tenantId, status])
@@ -318,6 +341,11 @@ model MissionAssignment {
   weekNumber    Int
   attemptNumber Int                     @default(1)
   status        MissionAssignmentStatus @default(NOT_STARTED)
+  // Review outcome for THIS attempt (v0.20.0), maintained from SubmissionReview on every review so
+  // an evaluator can tell a clean pass from one that needed rework. Null until first reviewed.
+  reviewOutcome ReviewOutcome?
+  // Number of CHANGES_REQUESTED decisions within this attempt.
+  revisionCount Int                     @default(0)
   assignedAt    DateTime                @default(now())
   // Set only once the applicant explicitly accepts (v0.18.5) — deadline/grace are computed from
   // this, not assignedAt, so an un-accepted assignment never silently expires.
@@ -328,11 +356,12 @@ model MissionAssignment {
   updatedAt     DateTime                @updatedAt
 
   tenant          Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  program        Program                   @relation(fields: [programId], references: [id], onDelete: Cascade)
-  applicant      User                      @relation("MissionAssignmentApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
-  mission        Mission                   @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  submissions    Submission[]
-  journalEntries EngineeringJournalEntry[]
+  program         Program                   @relation(fields: [programId], references: [id], onDelete: Cascade)
+  applicant       User                      @relation("MissionAssignmentApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
+  mission         Mission                   @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  submissions     Submission[]
+  reviews         SubmissionReview[]
+  journalEntries  EngineeringJournalEntry[]
   taskCompletions MissionTaskCompletion[]
 
   @@unique([tenantId, programId, applicantId, weekNumber, attemptNumber], map: "mission_assignment_attempt_key")
@@ -352,8 +381,8 @@ model MissionTaskCompletion {
   taskIndex           Int
   completedAt         DateTime @default(now())
 
-  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  missionAssignment MissionAssignment  @relation(fields: [missionAssignmentId], references: [id], onDelete: Cascade)
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  missionAssignment MissionAssignment @relation(fields: [missionAssignmentId], references: [id], onDelete: Cascade)
 
   @@unique([missionAssignmentId, taskIndex], map: "mission_task_completion_key")
   @@map("mission_task_completions")
@@ -385,8 +414,10 @@ model Submission {
   applicant         User               @relation("SubmissionApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
   reviewer          User?              @relation("SubmissionReviewer", fields: [reviewerUserId], references: [id], onDelete: SetNull)
   missionAssignment MissionAssignment? @relation(fields: [missionAssignmentId], references: [id], onDelete: SetNull)
+  reviews           SubmissionReview[]
 
-  // One submission row per assignment attempt; the SEM revision loop reuses that attempt's row.
+  // One submission row per assignment attempt; the SEM revision loop reuses that attempt's row, so
+  // reviewerFeedback/reviewedAt hold only the LATEST decision -- SubmissionReview is the history.
   @@index([missionId, status])
   @@index([applicantId])
   @@index([tenantId, status])
@@ -540,13 +571,18 @@ model RegressionDataMarker {
 
 /// A learning task scoped to a tenant-owned program week, independent of mission attempts.
 model ProgramTask {
-  id          String    @id @default(cuid())
-  tenantId    String
-  programId   String
-  weekNumber  Int
-  title       String
-  description String?
-  dueAt       DateTime?
+  id             String    @id @default(cuid())
+  tenantId       String
+  programId      String
+  // Tasks are authored per mission (v0.20.0): an admin picks program → mission, and the applicant
+  // only ever sees the tasks belonging to the mission they were assigned. weekNumber is kept
+  // denormalized from the mission for the existing week-ordered queries and is always written from
+  // ProgramTask.mission — never independently.
+  missionId      String
+  weekNumber     Int
+  title          String
+  description    String?
+  dueAt          DateTime?
   order          Int       @default(0)
   required       Boolean   @default(true)
   published      Boolean   @default(true)
@@ -557,10 +593,12 @@ model ProgramTask {
 
   tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   program     Program              @relation(fields: [programId], references: [id], onDelete: Cascade)
+  mission     Mission              @relation(fields: [missionId], references: [id], onDelete: Cascade)
   completions UserTaskCompletion[]
   resources   VideoResource[]
 
   @@index([tenantId, programId, weekNumber, published, order])
+  @@index([tenantId, missionId, published, order])
   @@map("program_tasks")
 }
 
@@ -640,8 +678,8 @@ model UserTaskCompletion {
   completedAt DateTime @default(now())
 
   tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  task ProgramTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task   ProgramTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, userId, taskId])
   @@index([tenantId, userId])
@@ -658,9 +696,9 @@ model MentorConversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages  MentorMessage[]
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages MentorMessage[]
 
   @@index([tenantId, userId, updatedAt])
   @@map("mentor_conversations")
@@ -668,14 +706,14 @@ model MentorConversation {
 
 /// A single message within a mentor conversation.
 model MentorMessage {
-  id              String   @id @default(cuid())
-  conversationId  String
-  role            String   // "user" | "mentor"
-  content         String
-  cardsJson       String?  // JSON-serialised MentorCard[]
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String // "user" | "mentor"
+  content        String
+  cardsJson      String? // JSON-serialised MentorCard[]
+  createdAt      DateTime @default(now())
 
-  conversation    MentorConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation MentorConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
   @@map("mentor_messages")
@@ -903,4 +941,36 @@ model ConsentHistory {
   @@index([graduateProfileId])
   @@index([createdAt])
   @@map("consent_history")
+}
+
+/// Immutable review history (v0.20.0). Because one Submission row is reused across the SEM revision
+/// loop, each new decision overwrote the previous reviewerFeedback -- so "accepted first time" and
+/// "accepted after two rounds of changes" were indistinguishable in the data. One row is appended
+/// per reviewer decision, preserving the feedback text that makes the sequence useful for
+/// evaluation. Rows are never updated or deleted.
+model SubmissionReview {
+  id                  String         @id @default(cuid())
+  tenantId            String
+  submissionId        String
+  missionAssignmentId String
+  // Denormalized from the assignment so per-week evaluation rollups need no join. Written only from
+  // MissionAssignment, never independently.
+  weekNumber          Int
+  attemptNumber       Int
+  /// 1-based position of this decision within the attempt.
+  round               Int
+  decision            ReviewDecision
+  feedback            String?
+  reviewerUserId      String?
+  createdAt           DateTime       @default(now())
+
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  submission        Submission        @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  missionAssignment MissionAssignment @relation(fields: [missionAssignmentId], references: [id], onDelete: Cascade)
+  reviewer          User?             @relation("SubmissionReviewReviewer", fields: [reviewerUserId], references: [id], onDelete: SetNull)
+
+  @@unique([missionAssignmentId, round], map: "submission_review_round_key")
+  @@index([tenantId, weekNumber])
+  @@index([submissionId])
+  @@map("submission_reviews")
 }

@@ -197,7 +197,8 @@ export async function createProgramTaskAction(formData: FormData) {
     programId,
     title: requiredText(formData, "title", "Title"),
     description: optionalText(formData, "description"),
-    weekNumber: requiredWeek(formData),
+    // Tasks are authored under a mission (v0.20.0); weekNumber is derived from it in the DB layer.
+    missionId: requiredText(formData, "missionId", "Mission"),
     order: Number.parseInt(text(formData, "order"), 10) || 0,
     dueAt: optionalDate(formData, "dueAt"),
     required: formData.get("required") === "on",
@@ -221,7 +222,8 @@ export async function updateProgramTaskAction(formData: FormData) {
     programId,
     title: requiredText(formData, "title", "Title"),
     description: optionalText(formData, "description"),
-    weekNumber: requiredWeek(formData),
+    // Tasks are authored under a mission (v0.20.0); weekNumber is derived from it in the DB layer.
+    missionId: requiredText(formData, "missionId", "Mission"),
     order: Number.parseInt(text(formData, "order"), 10) || 0,
     dueAt: optionalDate(formData, "dueAt"),
     required: formData.get("required") === "on",

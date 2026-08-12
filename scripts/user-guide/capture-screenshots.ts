@@ -9,7 +9,7 @@
  *
  * Usage:
  *   npx tsx scripts/user-guide/capture-screenshots.ts [section ...]
- *   Sections: public, apply, dashboard, admin, ops (default: all)
+ *   Sections: public, apply, dashboard, workflows, admin, adminflows, ops (default: all)
  *
  * Output: docs/user-guides/screenshots/*.png (referenced by the guides in docs/user-guides/)
  */
@@ -30,6 +30,9 @@ const URLS = {
 
 const USERS = {
   accepted: { username: "accepted@demo.talentos.local", password: "ChangeMe123!" },
+  // Has real history — several missions, a repeated week and a full journal — so the workflow
+  // screenshots show populated screens rather than empty states.
+  worked: { username: "guide.applicant.mrxnzy25@demo.talentos.local", password: "ChangeMe123!" },
   orgAdmin: { username: "orgadmin@demo.talentos.local", password: "ChangeMe123!" }
 };
 
@@ -118,6 +121,22 @@ async function optionalShot(page: Page, url: string | null, name: string, what: 
   await goTo(page, url);
   await shot(page, name);
 }
+
+/**
+ * Link to a program by visible name, falling back to the first one. Keeps the guide pointed at the
+ * seeded curriculum rather than whichever program happens to sort first.
+ */
+async function programLinkByName(page: Page, name: string): Promise<string | null> {
+  // The row's link is labelled "Edit →", so match the row that carries the program name.
+  const link = page.locator(`tr:has-text("${name}") a[href*="/programs/"]`).first();
+  if (await link.count()) {
+    const href = await link.getAttribute("href");
+    if (href) return new URL(href, page.url()).toString();
+  }
+  return firstDetailLink(page, "/programs/");
+}
+
+const GUIDE_PROGRAM = "AI-Native Software Engineering";
 
 async function withContext(browser: Browser, fn: (context: BrowserContext, page: Page) => Promise<void>) {
   const context = await browser.newContext({ viewport: VIEWPORT });
@@ -218,6 +237,42 @@ async function main() {
     await shot(page, "14-dashboard-program.png");
   });
 
+  // --- Accepted applicant: the working flows (v0.20.0) ---------------------------------------
+  // Journal grouping, the mission workspace and the submission gate are the screens applicants
+  // actually spend time in, and none were captured before.
+  if (sectionEnabled("workflows")) await withContext(browser, async (_context, page) => {
+    await goTo(page, `${URLS.tenantApplicant}/dashboard`);
+    await completeLogin(page, USERS.worked.username, USERS.worked.password);
+
+    await goTo(page, `${URLS.tenantApplicant}/dashboard/journal`);
+    await shot(page, "28-applicant-journal-grouped.png");
+
+    // Expand every mission group so the guide can show the entry rows and their View/Edit actions.
+    const groups = page.locator("details");
+    for (let i = 0; i < (await groups.count()); i++) {
+      await groups.nth(i).locator("summary").first().click().catch(() => undefined);
+    }
+    await shot(page, "29-applicant-journal-expanded.png");
+
+    await optionalShot(
+      page,
+      await firstDetailLink(page, "/dashboard/journal/"),
+      "30-applicant-journal-entry.png",
+      "journal entry"
+    );
+
+    await goTo(page, `${URLS.tenantApplicant}/dashboard/journal/new`);
+    await shot(page, "31-applicant-journal-new.png");
+
+    await goTo(page, `${URLS.tenantApplicant}/dashboard/missions`);
+    await optionalShot(
+      page,
+      await firstDetailLink(page, "/dashboard/missions/"),
+      "32-applicant-mission-workspace.png",
+      "mission workspace"
+    );
+  });
+
   // --- Org Admin: admin portal ---------------------------------------------------------------
   if (sectionEnabled("admin")) await withContext(browser, async (_context, page) => {
     await goTo(page, `${URLS.tenantAdmin}/applications`);
@@ -252,16 +307,63 @@ async function main() {
     await shot(page, "21-admin-missions.png");
     const missionDetail = await firstDetailLink(page, "/missions/");
     await optionalShot(page, missionDetail, "22-admin-mission-detail.png", "mission detail");
-    if (missionDetail) {
-      await optionalShot(page, await firstDetailLink(page, "/submissions/"), "23-admin-submission-review.png", "submission review");
-    } else {
-      skipped.push("23-admin-submission-review.png — no mission detail link found");
-    }
+    // 23-admin-submission-review.png retired: the mission detail page no longer lists submissions
+    // (v0.20.0), so it can never be reached from here. Submission review is captured as
+    // 35-admin-review-history.png via the Submissions list, which is the real route.
 
     await goTo(page, `${URLS.tenantAdmin}/settings`);
     await shot(page, "24-admin-settings.png");
-    await goTo(page, `${URLS.tenantAdmin}/operations`);
-    await shot(page, "25-admin-operations.png");
+    // 25-admin-operations.png retired: the admin Operations page was removed (c562e0f) in favour of
+    // the standalone Ops Console below. The number is left unused so other references keep working.
+  });
+
+  // --- Org Admin: authoring and review flows (v0.20.0) ---------------------------------------
+  // Mission Markdown import, per-mission task authoring and the submission review timeline.
+  if (sectionEnabled("adminflows")) await withContext(browser, async (_context, page) => {
+    await goTo(page, `${URLS.tenantAdmin}/missions`);
+    await completeLogin(page, USERS.orgAdmin.username, USERS.orgAdmin.password);
+
+    // Mission creation, showing the Markdown import panel above the manual form.
+    await goTo(page, `${URLS.tenantAdmin}/missions/new`);
+    const format = page.locator('details:has-text("Required format")').first();
+    if (await format.count()) await format.locator("summary").first().click().catch(() => undefined);
+    await shot(page, "33-admin-mission-import.png");
+
+    // Tasks are authored per mission, so pick a program then a mission to reach the editor.
+    await goTo(page, `${URLS.tenantAdmin}/programs`);
+    const programDetail = await programLinkByName(page, GUIDE_PROGRAM);
+    const programId = programDetail
+      ? new URL(programDetail).pathname.split("/programs/")[1]?.replace(/\/$/, "")
+      : "";
+    if (programId) {
+      await goTo(page, `${URLS.tenantAdmin}/tasks?programId=${programId}`);
+      const missionSelect = page.locator('select[name="missionId"]');
+      if (await missionSelect.count()) {
+        const value = await missionSelect.locator("option").nth(1).getAttribute("value");
+        if (value) {
+          await missionSelect.selectOption(value);
+          await page.locator('button:has-text("Load tasks")').first().click().catch(() => undefined);
+          await settle(page);
+        }
+      }
+      await shot(page, "34-admin-tasks-by-mission.png");
+    } else {
+      skipped.push("34-admin-tasks-by-mission.png — no program detail link found");
+    }
+
+    // Submission review, with the round-by-round history expanded.
+    // Defaults to status=SUBMITTED, which is usually empty. ACCEPTED is the useful filter here:
+    // an accepted submission has been reviewed at least once, so it has a history to show.
+    await goTo(page, `${URLS.tenantAdmin}/submissions?status=ACCEPTED`);
+    const submission = await firstDetailLink(page, "/submissions/");
+    if (submission) {
+      await goTo(page, submission);
+      const previous = page.locator('details:has-text("Previous Attempt History")').first();
+      if (await previous.count()) await previous.locator("summary").first().click().catch(() => undefined);
+      await shot(page, "35-admin-review-history.png");
+    } else {
+      skipped.push("35-admin-review-history.png — no submission link found");
+    }
   });
 
   // --- Org Admin: local Ops Console ----------------------------------------------------------

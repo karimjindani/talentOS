@@ -35,8 +35,10 @@ export default async function ApplicantMissionsPage() {
       </p>
 
       {missionsWithTasks.length === 0 ? (
-        <p className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
-          No assigned missions are available yet.
+        <p className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900 shadow-sm">
+          <span className="font-semibold">No missions are available in this program yet.</span>{" "}
+          Your program team has been notified — your first mission will be assigned automatically as
+          soon as one is published.
         </p>
       ) : (
         <div className="mt-8 grid gap-4">

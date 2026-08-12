@@ -49,6 +49,7 @@ import {
   listApplicantJournalEntries,
   listEngineeringJournalEntriesForSubmissionReview,
   listPreviousMissionAttemptHistoryForSubmissionReview,
+  assertJournalEntryOnOrAfterMissionStart,
   normalizeJournalEntryDate,
   parseJournalEvidenceLinks,
   updateJournalEntry,
@@ -101,6 +102,13 @@ function previousAttempt(
     missionId?: string;
     missionTitle?: string;
     journalEntries?: ReturnType<typeof reviewJournal>[];
+    reviews?: Array<{
+      round: number;
+      decision: "ACCEPTED" | "CHANGES_REQUESTED" | "REPEAT";
+      feedback: string | null;
+      createdAt: Date;
+      reviewer: { name: string | null; email: string } | null;
+    }>;
     submissions?: Array<{
       id: string;
       missionAssignmentId: string | null;
@@ -117,6 +125,17 @@ function previousAttempt(
     attemptNumber,
     status: "REPEAT" as const,
     weekNumber: 1,
+    reviewOutcome: "REPEATED" as const,
+    revisionCount: 0,
+    reviews: options.reviews ?? [
+      {
+        round: 1,
+        decision: "REPEAT" as const,
+        feedback: `Feedback ${attemptNumber}`,
+        createdAt: new Date(`2026-07-0${attemptNumber}T12:00:00.000Z`),
+        reviewer: { name: "Tech Lead", email: "lead@demo.local" }
+      }
+    ],
     mission: {
       id: options.missionId ?? `mission-${attemptNumber}`,
       title: options.missionTitle ?? `Mission ${attemptNumber}`
@@ -197,7 +216,10 @@ describe("engineering journal data access", () => {
 
     expect(prismaMock.entryFindMany).toHaveBeenCalledWith({
       where: { tenantId: "tenant-1", applicantId: "user-1", programId: "program-1" },
-      include: { mission: { select: { id: true, title: true, weekNumber: true } } },
+      include: {
+        mission: { select: { id: true, title: true, weekNumber: true } },
+        missionAssignment: { select: { attemptNumber: true } }
+      },
       orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }]
     });
   });
@@ -524,6 +546,10 @@ describe("engineering journal data access", () => {
         "journalEntries",
         "mission",
         "missionAssignmentId",
+        // v0.20.0: round-by-round history so a reviewer sees what was already asked for.
+        "reviewOutcome",
+        "reviews",
+        "revisionCount",
         "submission",
         "weekNumber"
       ]);
@@ -966,3 +992,79 @@ function journalInputFixture() {
     evidenceLinks: ["https://github.com/org/repo"]
   };
 }
+
+describe("journal entries cannot pre-date the mission start", () => {
+  const acceptedAt = new Date("2026-07-06T09:30:00.000Z");
+
+  describe("assertJournalEntryOnOrAfterMissionStart", () => {
+    const entry = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+
+    it("rejects a date before the day the mission was accepted", () => {
+      expect(() => assertJournalEntryOnOrAfterMissionStart(entry("2026-07-05"), acceptedAt)).toThrow(
+        "cannot be before the mission started (2026-07-06)"
+      );
+    });
+
+    it("allows the mission start day itself", () => {
+      expect(() => assertJournalEntryOnOrAfterMissionStart(entry("2026-07-06"), acceptedAt)).not.toThrow();
+    });
+
+    it("allows any later day", () => {
+      expect(() => assertJournalEntryOnOrAfterMissionStart(entry("2026-07-20"), acceptedAt)).not.toThrow();
+    });
+
+    // The boundary is a calendar day in the applicant's zone, matching the future-date guard.
+    it("resolves the boundary in the applicant's time zone", () => {
+      const lateUtc = new Date("2026-07-06T20:00:00.000Z"); // already 2026-07-07 in Karachi
+      expect(() => assertJournalEntryOnOrAfterMissionStart(entry("2026-07-06"), lateUtc, "Asia/Karachi")).toThrow(
+        "2026-07-07"
+      );
+      expect(() =>
+        assertJournalEntryOnOrAfterMissionStart(entry("2026-07-07"), lateUtc, "Asia/Karachi")
+      ).not.toThrow();
+    });
+
+    // Legacy assignments predate acceptedAt; skipping is safer than inventing a boundary.
+    it("is a no-op when the mission start is unknown", () => {
+      expect(() => assertJournalEntryOnOrAfterMissionStart(entry("2020-01-01"), null)).not.toThrow();
+    });
+  });
+
+  describe("createJournalEntry", () => {
+    beforeEach(() => {
+      prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({
+        id: "assignment-1",
+        tenantId: "tenant-1",
+        programId: "program-1",
+        applicantId: "user-1",
+        missionId: "mission-1",
+        weekNumber: 2,
+        attemptNumber: 1,
+        status: "ACCEPTED",
+        acceptedAt,
+        assignedAt: new Date("2026-07-01T09:00:00.000Z"),
+        mission: { id: "mission-1", programId: "program-1", weekNumber: 2 }
+      });
+    });
+
+    it("refuses an entry dated before the applicant accepted the mission", async () => {
+      await expect(
+        createJournalEntry(journalInput({ entryDate: new Date("2026-07-05T00:00:00.000Z") }))
+      ).rejects.toThrow("cannot be before the mission started");
+      expect(prismaMock.txEntryCreate).not.toHaveBeenCalled();
+    });
+
+    it("accepts an entry dated on or after the mission start", async () => {
+      await createJournalEntry(journalInput({ entryDate: new Date("2026-07-07T00:00:00.000Z") }));
+      expect(prismaMock.txEntryCreate).toHaveBeenCalled();
+    });
+
+    // acceptedAt is the boundary, not assignedAt: the applicant cannot work the mission until they
+    // accept it, and the deadline timers start from the same instant.
+    it("uses acceptedAt rather than assignedAt as the boundary", async () => {
+      await expect(
+        createJournalEntry(journalInput({ entryDate: new Date("2026-07-02T00:00:00.000Z") }))
+      ).rejects.toThrow("2026-07-06");
+    });
+  });
+});

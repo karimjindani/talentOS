@@ -1,6 +1,10 @@
 import type { ApplicationStatus, Prisma } from "@prisma/client";
 import { prisma } from "./client";
-import { assignWeekMissionToAcceptedApplicantTx } from "./mission-assignments";
+import {
+  assignWeekMissionToAcceptedApplicantTx,
+  DEFAULT_ASSIGNMENT_WEEK,
+  notifyReviewersOfMissingMissionTx
+} from "./mission-assignments";
 
 export type ApplicationAnswerInput = {
   questionKey: string;
@@ -221,11 +225,21 @@ export function applyStatusTransition({
 
     const application = await tx.application.findFirstOrThrow({ where: { id, tenantId } });
     if (toStatus === "ACCEPTED") {
-      await assignWeekMissionToAcceptedApplicantTx(tx, {
+      const assignment = await assignWeekMissionToAcceptedApplicantTx(tx, {
         tenantId,
         programId: application.programId,
         applicantId: application.applicantId
       });
+      // Accepting into a program with no publishable mission leaves the applicant enrolled with
+      // nothing to do. It self-heals when a mission is published (see the backfill), but until then
+      // only the reviewers can act, so tell them rather than failing silently (v0.20.0).
+      if (!assignment) {
+        await notifyReviewersOfMissingMissionTx(tx, {
+          tenantId,
+          title: `Accepted applicant has no Week ${DEFAULT_ASSIGNMENT_WEEK} mission to start`,
+          body: `An application was accepted but this program has no published Week ${DEFAULT_ASSIGNMENT_WEEK} mission, so no assignment could be created. Publish one to start them automatically.`
+        });
+      }
     }
 
     return application;

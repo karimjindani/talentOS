@@ -10,6 +10,7 @@ import {
 import {
   createMission,
   getTenantMission,
+  parseMissionSpecMarkdown,
   setMissionStatus,
   updateMission,
   type MissionDifficulty
@@ -100,6 +101,68 @@ export async function createMissionAction(formData: FormData) {
   });
 
   redirect(`/missions/${mission.id}`);
+}
+
+const MAX_SPEC_BYTES = 512 * 1024;
+
+/**
+ * Create a mission from an uploaded Markdown spec (v0.20.0).
+ *
+ * Authoring five long-form fields in browser textareas is the slow part of adding a mission, and the
+ * specs already exist as documents — the same format `prisma/seed-data/missions` uses, so those
+ * files import unchanged. Only the metadata the file does not carry (program, week, order,
+ * difficulty) comes from the form.
+ *
+ * Always created as DRAFT: the mission page is the review step, and DRAFT is invisible to
+ * applicants, so a mis-parsed spec can never reach one.
+ *
+ * Failures redirect back with a message rather than throwing. A thrown server action renders in
+ * production as a digest-only error page with nothing actionable on it.
+ */
+export async function importMissionSpecAction(formData: FormData) {
+  const { tenant, actorUserId } = await requireMissionManager();
+
+  const programId = String(formData.get("programId") ?? "").trim();
+  if (!programId) {
+    redirectWithImportError("Choose a program before importing.");
+  }
+
+  const file = formData.get("spec");
+  if (!(file instanceof File) || file.size === 0) {
+    redirectWithImportError("Attach a Markdown file to import.");
+  }
+  const spec = file as File;
+  if (!/\.(md|markdown)$/i.test(spec.name)) {
+    redirectWithImportError(`"${spec.name}" is not a Markdown file. Upload a .md or .markdown file.`);
+  }
+  if (spec.size > MAX_SPEC_BYTES) {
+    redirectWithImportError("That file is larger than 512 KB. Upload the mission spec on its own.");
+  }
+
+  const parsed = parseMissionSpecMarkdown(await spec.text());
+  if (!parsed.ok) {
+    redirectWithImportError(parsed.errors.join(" "));
+    return;
+  }
+
+  const mission = await createMission({
+    tenantId: tenant.id,
+    actorUserId,
+    programId,
+    difficulty: parseDifficulty(formData.get("difficulty")),
+    weekNumber: parseInteger(formData.get("weekNumber"), 1),
+    order: parseInteger(formData.get("order"), 0),
+    tutorialUrl: null,
+    status: "DRAFT",
+    ...parsed.value
+  });
+
+  redirect(`/missions/${mission.id}?imported=1`);
+}
+
+/** `redirect` throws internally, so this never returns — typed as such to satisfy control flow. */
+function redirectWithImportError(message: string): never {
+  redirect(`/missions/new?importError=${encodeURIComponent(message)}`);
 }
 
 export async function updateMissionAction(formData: FormData) {

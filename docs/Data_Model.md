@@ -1,6 +1,6 @@
 # Data Model
 
-Code version: `v0.19.6`
+Code version: `v0.20.0`
 
 Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
 
@@ -253,6 +253,11 @@ erDiagram
   replacing the earlier `ACTIVE`/`SUBMITTED` model); uniqueness includes the attempt number.
   `acceptedAt`/`deadlineAt`/`graceEndsAt` (`v0.18.5`) are set by the applicant's explicit Accept
   Mission action, not by assignment time.
+- `ProgramTask` carries a required `missionId` as of `v0.20.0`, so tasks belong to one mission rather
+  than to a program week; `weekNumber` is denormalized from that mission.
+- `SubmissionReview` (`v0.20.0`): append-only review history — one row per reviewer decision
+  (`round`, `decision`, `feedback`, reviewer, timestamp), unique on `(missionAssignmentId, round)`.
+  `MissionAssignment.reviewOutcome` and `revisionCount` are rollups derived from these rows.
 - `MissionTaskCompletion`: per-assignment-attempt completion row for the fixed Task 1 (Review the
   Mission Brief) and Task 2 (Study the Tutorial) template (`v0.19.0`); Task 3 (Build & Submit
   Evidence) has no row of its own — it is derived from the linked `Submission.status`. Unique on

@@ -153,11 +153,12 @@ export async function getMissionSubmissionReadinessWithClient(
         loomUrl: true
       }
     }),
+    // Required tasks are the assigned mission's own (v0.20.0), not every task in the week.
     client.programTask.findMany({
       where: {
         tenantId: input.tenantId,
         programId: assignment.programId,
-        weekNumber: assignment.weekNumber,
+        missionId: assignment.missionId,
         published: true,
         required: true
       },
@@ -183,7 +184,7 @@ export async function getMissionSubmissionReadinessWithClient(
           task: {
             tenantId: input.tenantId,
             programId: assignment.programId,
-            weekNumber: assignment.weekNumber
+            missionId: assignment.missionId
           }
         },
         select: { taskId: true }

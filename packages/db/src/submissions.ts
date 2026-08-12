@@ -1,7 +1,8 @@
-import { type SubmissionStatus } from "@prisma/client";
+import { type ReviewDecision, type ReviewOutcome, type SubmissionStatus } from "@prisma/client";
 import { prisma } from "./client";
 import {
   assignWeekMissionToAcceptedApplicantTx,
+  FINAL_PROGRAM_WEEK,
   createRepeatMissionForSameWeekTx,
   getActiveMissionAssignmentForMissionTx
 } from "./mission-assignments";
@@ -26,7 +27,6 @@ import { REQUIRED_TASK_INDEXES } from "./mission-tasks";
 // Programs run a fixed four-week arc; accepting the week-4 submission completes the program
 // instead of assigning a week 5 (assignWeekMissionToAcceptedApplicantTx already no-ops when no
 // PUBLISHED mission exists for a week, but the explicit cap keeps that intent obvious here).
-const FINAL_PROGRAM_WEEK = 4;
 
 // Mission-submission workflow helpers (v0.15.0, D-067). All reads/writes are tenant-scoped via the
 // Submission.tenantId column; writes additionally verify the mission chain and the applicant owner.
@@ -401,6 +401,24 @@ export type ReviewSubmissionInput = {
   rating: number | null;
 };
 
+const REVIEW_DECISION_BY_STATUS = {
+  ACCEPTED: "ACCEPTED",
+  NEEDS_REVISION: "CHANGES_REQUESTED",
+  REPEAT: "REPEAT"
+} as const satisfies Record<ReviewSubmissionInput["status"], ReviewDecision>;
+
+/**
+ * How this attempt ended, for evaluation rollups. "First time" is scoped to the attempt: accepted
+ * with no change requests. Whether the *week* was repeated is a separate fact, visible from the
+ * assignment's attemptNumber -- a week-two repeat that then passes cleanly is ACCEPTED_FIRST_TIME
+ * on attempt 2, which is what an evaluator wants to see alongside the earlier REPEATED attempt.
+ */
+export function deriveReviewOutcome(decision: ReviewDecision, revisionCount: number): ReviewOutcome {
+  if (decision === "REPEAT") return "REPEATED";
+  if (decision === "CHANGES_REQUESTED") return "CHANGES_REQUESTED";
+  return revisionCount === 0 ? "ACCEPTED_FIRST_TIME" : "ACCEPTED_AFTER_CHANGES";
+}
+
 /**
  * Review a SUBMITTED attempt: accept it, return the same attempt for revision, or close it as REPEAT
  * and create the next attempt. The review, assignment update and notification share one transaction.
@@ -451,13 +469,44 @@ export async function reviewSubmission({
       // exists for the applicant to revise.
       const assignmentStatus =
         status === "ACCEPTED" ? "PASSED" : status === "REPEAT" ? "REPEAT" : "IN_PROGRESS";
+
+      // Append the decision to the immutable review history (v0.20.0) before rolling it up. The
+      // submission row keeps only the latest feedback, so without this an accepted-first-time pass
+      // and one that took two rounds of changes are indistinguishable after the fact.
+      const priorReviews = await tx.submissionReview.findMany({
+        where: { missionAssignmentId: submission.missionAssignment.id },
+        select: { decision: true }
+      });
+      const decision = REVIEW_DECISION_BY_STATUS[status];
+      const revisionCount =
+        priorReviews.filter((review) => review.decision === "CHANGES_REQUESTED").length +
+        (decision === "CHANGES_REQUESTED" ? 1 : 0);
+
+      await tx.submissionReview.create({
+        data: {
+          tenantId,
+          submissionId: submission.id,
+          missionAssignmentId: submission.missionAssignment.id,
+          weekNumber: submission.missionAssignment.weekNumber,
+          attemptNumber: submission.missionAssignment.attemptNumber,
+          round: priorReviews.length + 1,
+          decision,
+          feedback: reviewerFeedback || null,
+          reviewerUserId
+        }
+      });
+
       await tx.missionAssignment.updateMany({
         where: {
           id: submission.missionAssignment.id,
           tenantId,
           applicantId: submission.applicantId
         },
-        data: { status: assignmentStatus }
+        data: {
+          status: assignmentStatus,
+          reviewOutcome: deriveReviewOutcome(decision, revisionCount),
+          revisionCount
+        }
       });
 
       if (status === "REPEAT") {
@@ -618,4 +667,46 @@ export async function getApplicantMissionProgress(
     },
     currentMission
   };
+}
+
+export type SubmissionReviewHistoryEntry = {
+  round: number;
+  decision: ReviewDecision;
+  feedback: string | null;
+  reviewedAt: Date;
+  reviewerName: string | null;
+};
+
+/**
+ * Round-by-round review history for one assignment attempt (v0.20.0), oldest first.
+ *
+ * The submission row only ever holds the latest decision, so this is the only way the review page
+ * can show that an attempt went CHANGES_REQUESTED -> ACCEPTED rather than being accepted outright.
+ */
+export async function listSubmissionReviewHistory({
+  tenantId,
+  missionAssignmentId
+}: {
+  tenantId: string;
+  missionAssignmentId: string;
+}): Promise<SubmissionReviewHistoryEntry[]> {
+  const reviews = await prisma.submissionReview.findMany({
+    where: { tenantId, missionAssignmentId },
+    select: {
+      round: true,
+      decision: true,
+      feedback: true,
+      createdAt: true,
+      reviewer: { select: { name: true, email: true } }
+    },
+    orderBy: { round: "asc" }
+  });
+
+  return reviews.map((review) => ({
+    round: review.round,
+    decision: review.decision,
+    feedback: review.feedback,
+    reviewedAt: review.createdAt,
+    reviewerName: review.reviewer?.name ?? review.reviewer?.email ?? null
+  }));
 }

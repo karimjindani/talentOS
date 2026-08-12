@@ -18,6 +18,8 @@ type MissionOption = {
   id: string;
   title: string;
   weekNumber: number;
+  /** YYYY-MM-DD the mission became workable; bounds the entry date. Null when unknown. */
+  startedAt?: string | null;
 };
 
 export type JournalEntryFormDefaults = {
@@ -64,7 +66,14 @@ export function JournalEntryForm({
   const [confidenceRating, setConfidenceRating] = useState(defaults.confidenceRating);
   const [entryDate, setEntryDate] = useState(defaults.entryDate);
   const [maxEntryDate, setMaxEntryDate] = useState(defaults.entryDate);
+  // Tracked so the date bound follows the chosen mission: each mission starts on its own day, and a
+  // repeat attempt starts later than the attempt it replaces.
+  const [selectedMissionId, setSelectedMissionId] = useState(defaults.missionId);
   const [calendarTimeZone, setCalendarTimeZone] = useState("UTC");
+
+  const selectedMission =
+    lockedMission ?? missions.find((mission) => mission.id === selectedMissionId) ?? null;
+  const minEntryDate = selectedMission?.startedAt ?? undefined;
 
   useEffect(() => {
     const localToday = toLocalDateInput(new Date());
@@ -108,7 +117,13 @@ export function JournalEntryForm({
         ) : (
           <label className="grid gap-1.5 text-sm font-medium text-slate-700">
             Assigned mission
-            <select name="missionId" defaultValue={defaults.missionId} required className={inputClass}>
+            <select
+              name="missionId"
+              value={selectedMissionId}
+              onChange={(event) => setSelectedMissionId(event.target.value)}
+              required
+              className={inputClass}
+            >
               <option value="">Select an assigned mission</option>
               {missions.map((mission) => (
                 <option key={mission.id} value={mission.id}>
@@ -129,11 +144,16 @@ export function JournalEntryForm({
             name="entryDate"
             value={entryDate}
             onChange={(event) => setEntryDate(event.target.value)}
+            min={minEntryDate}
             max={maxEntryDate}
             required
             className={inputClass}
           />
-          <span className="text-xs font-normal text-slate-500">Today or an earlier date.</span>
+          <span className="text-xs font-normal text-slate-500">
+            {minEntryDate
+              ? `Between the mission start (${minEntryDate}) and today.`
+              : "Today or an earlier date."}
+          </span>
         </label>
       </div>
 

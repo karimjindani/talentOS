@@ -207,9 +207,13 @@ export function deleteVideoResource({ id, tenantId, actorUserId }: DeleteContent
 export type ProgramTaskInput = {
   tenantId: string;
   programId: string;
+  /**
+   * The mission this task belongs to (v0.20.0). weekNumber is not accepted from the caller — it is
+   * always read from the mission so the denormalized column cannot drift.
+   */
+  missionId: string;
   title: string;
   description: string | null;
-  weekNumber: number;
   order: number;
   dueAt: Date | null;
   required: boolean;
@@ -222,14 +226,16 @@ export type ProgramTaskInput = {
 export function createProgramTask(input: ProgramTaskInput) {
   return prisma.$transaction(async (tx) => {
     await assertProgramBelongsToTenant(tx, input.programId, input.tenantId);
+    const mission = await assertMissionBelongsToProgram(tx, input);
 
     const task = await tx.programTask.create({
       data: {
         tenantId: input.tenantId,
         programId: input.programId,
+        missionId: mission.id,
         title: input.title,
         description: input.description,
-        weekNumber: input.weekNumber,
+        weekNumber: mission.weekNumber,
         order: input.order,
         dueAt: input.dueAt,
         required: input.required,
@@ -245,7 +251,7 @@ export function createProgramTask(input: ProgramTaskInput) {
         action: "task.created",
         entityType: "ProgramTask",
         entityId: task.id,
-        metadata: { programId: input.programId, weekNumber: input.weekNumber }
+        metadata: { programId: input.programId, missionId: mission.id, weekNumber: mission.weekNumber }
       }
     });
 
@@ -255,14 +261,34 @@ export function createProgramTask(input: ProgramTaskInput) {
 
 export type UpdateProgramTaskInput = ProgramTaskInput & { id: string };
 
+/**
+ * Resolve the task's mission and prove it belongs to the same tenant + program, returning its week
+ * so ProgramTask.weekNumber is always written from the mission rather than trusted from the form.
+ */
+async function assertMissionBelongsToProgram(
+  tx: Prisma.TransactionClient,
+  { missionId, programId, tenantId }: { missionId: string; programId: string; tenantId: string }
+) {
+  const mission = await tx.mission.findFirst({
+    where: { id: missionId, tenantId, programId },
+    select: { id: true, weekNumber: true }
+  });
+  if (!mission) {
+    throw new Error("Mission not found for this program.");
+  }
+  return mission;
+}
+
 export function updateProgramTask(input: UpdateProgramTaskInput) {
   return prisma.$transaction(async (tx) => {
+    const mission = await assertMissionBelongsToProgram(tx, input);
     const result = await tx.programTask.updateMany({
       where: { id: input.id, tenantId: input.tenantId, programId: input.programId },
       data: {
+        missionId: mission.id,
         title: input.title,
         description: input.description,
-        weekNumber: input.weekNumber,
+        weekNumber: mission.weekNumber,
         order: input.order,
         dueAt: input.dueAt,
         required: input.required,
@@ -281,7 +307,7 @@ export function updateProgramTask(input: UpdateProgramTaskInput) {
         action: "task.updated",
         entityType: "ProgramTask",
         entityId: input.id,
-        metadata: { programId: input.programId, weekNumber: input.weekNumber }
+        metadata: { programId: input.programId, missionId: mission.id, weekNumber: mission.weekNumber }
       }
     });
 

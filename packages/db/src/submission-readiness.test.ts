@@ -55,31 +55,33 @@ describe("mission submission readiness", () => {
     prismaMock.journalCount.mockResolvedValue(REQUIRED_JOURNAL_ENTRY_COUNT);
   });
 
-  it("loads required tasks by tenant, program and week rather than mission", async () => {
+  // Reversed in v0.20.0: tasks belong to a mission, so readiness gates on the assigned mission's own
+  // required tasks — not every task that happens to share the week.
+  it("loads required tasks by tenant, program and mission rather than week", async () => {
     const readiness = await getMissionSubmissionReadiness(input(), new Date("2026-07-16T12:00:00Z"));
     expect(readiness.ready).toBe(true);
     expect(prismaMock.taskFindMany).toHaveBeenCalledWith({
       where: {
         tenantId: "tenant-1",
         programId: "program-1",
-        weekNumber: 1,
+        missionId: "mission-1",
         published: true,
         required: true
       },
       select: { id: true, title: true },
       orderBy: [{ order: "asc" }, { createdAt: "asc" }]
     });
-    expect(prismaMock.taskFindMany.mock.calls[0][0].where).not.toHaveProperty("missionId");
+    expect(prismaMock.taskFindMany.mock.calls[0][0].where).not.toHaveProperty("weekNumber");
   });
 
-  it("counts only completions for this tenant, applicant and week tasks", async () => {
+  it("counts only completions for this tenant, applicant and mission tasks", async () => {
     await getMissionSubmissionReadiness(input());
     expect(prismaMock.completionFindMany).toHaveBeenCalledWith({
       where: {
         tenantId: "tenant-1",
         userId: "applicant-1",
         taskId: { in: ["task-1", "task-2"] },
-        task: { tenantId: "tenant-1", programId: "program-1", weekNumber: 1 }
+        task: { tenantId: "tenant-1", programId: "program-1", missionId: "mission-1" }
       },
       select: { taskId: true }
     });
@@ -107,7 +109,9 @@ describe("mission submission readiness", () => {
     });
   });
 
-  it("keeps week task completion reusable on a repeat while requiring new attempt journals", async () => {
+  // Completions are keyed by task, not attempt: repeating the SAME mission reuses them. Rotating to a
+  // different mission instead yields that mission's own (incomplete) tasks — see listTasksByMission.
+  it("keeps mission task completion reusable across attempts while requiring new attempt journals", async () => {
     const readiness = await getMissionSubmissionReadiness(input());
     expect(readiness.tasks.completed).toBe(2);
     expect(prismaMock.completionFindMany.mock.calls[0][0].where).not.toHaveProperty("missionAssignmentId");

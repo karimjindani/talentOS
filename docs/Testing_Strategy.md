@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.19.6`
+Code version: `v0.20.0`
 
 Test evidence commit: `08cea25`
 
@@ -17,7 +17,7 @@ The regression suite has two layers:
 The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts plus
 individual scenario rows after each run.
 
-The `v0.19.6` runner defines **42 scenarios across 11 concrete areas plus the `all` orchestrator**.
+The `v0.20.0` runner defines **42 scenarios across 11 concrete areas plus the `all` orchestrator**.
 The current unit and executed-regression totals are recorded in the versioned test-results artifact,
 not inferred here. CI
 (`.github/workflows/ci.yml`) runs the **unit suite only**; scenario regression is a local capability
@@ -529,3 +529,29 @@ stale clients, service port/dependency misconfiguration, and realm import JSON c
 The full Vitest suite is **639 tests across 55 files**. The `@talentos/auth-web` alias was added to
 `vitest.config.ts` so auth-web tests can import the package's exports. The `baseDomainCookieConfig`
 function was exported from `packages/auth-web/src/auth.ts` for testability.
+
+## v0.20.0 — Mission-Scoped Curriculum, Review History And Markdown Authoring
+
+`npm run regression:all`: **41/42 passed, 0 failed, 1 skipped** (the pre-existing, documented storage
+upload scenario). Unit coverage is 729 tests across 57 files.
+
+The suite earned its keep this iteration: its first run failed 12 of 42 scenarios, all caused by this
+iteration's own changes. Eleven were fixtures writing journal entries dated before the fixture's
+`acceptedAt`, invalid under the new start-date rule (D-099); one was a fixture creating a
+`ProgramTask` without the now-required `missionId` (D-096). Both were fixture defects. A third was a
+real contract change: "a repeat attempt retains week tasks" is false once tasks are mission-scoped,
+because a repeat is served a different mission carrying its own tasks — that assertion now encodes the
+new contract and additionally asserts the earlier mission's completion is preserved.
+
+Fixture convention introduced here: any assignment a scenario writes journals against must carry an
+explicit acceptance date. `createSubmissionFixture` backdates `acceptedAt` to a constant, and every
+directly-built `missionAssignment.create` sets `assignedAt`/`acceptedAt`. Otherwise a fixture accepted
+"now" has exactly one legal journal date, which collides with the one-entry-per-applicant-per-day
+rule. Scenarios asserting on the acceptance → deadline calculation opt out via
+`backdateAcceptanceTo: null`.
+
+Four behaviours are covered by unit tests and manual portal verification rather than the runner, and
+are recorded in `Regression_Scenarios.md` Known Gaps: dangling-repeat rescue on publish, backfill
+advancing to the next week, the grouped Journal tab, and Markdown mission import (blocked on the
+harness lacking a multipart upload helper). See `D-096` through `D-100` and the `v0.20.0`
+plan/test-results artifacts.

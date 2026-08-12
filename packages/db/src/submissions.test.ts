@@ -25,7 +25,10 @@ const prismaMock = vi.hoisted(() => ({
   txAuditLogCreate: vi.fn(),
   txNotificationCreate: vi.fn(),
   txJournalUpdateMany: vi.fn(),
-  txMissionTaskCompletionFindMany: vi.fn()
+  txMissionTaskCompletionFindMany: vi.fn(),
+  txSubmissionReviewFindMany: vi.fn(),
+  txSubmissionReviewCreate: vi.fn(),
+  submissionReviewFindMany: vi.fn()
 }));
 
 const readinessMock = vi.hoisted(() => ({
@@ -45,6 +48,7 @@ vi.mock("./client", () => ({
     missionAssignment: {
       findMany: prismaMock.missionAssignmentFindMany
     },
+    submissionReview: { findMany: prismaMock.submissionReviewFindMany },
     $transaction: prismaMock.transaction
   }
 }));
@@ -64,6 +68,7 @@ import {
   listMissionSubmissions,
   listTenantSubmissions,
   parseEvidenceUrl,
+  listSubmissionReviewHistory,
   reviewSubmission,
   saveSubmissionDraft,
   submitSubmission
@@ -122,10 +127,15 @@ describe("submission data access", () => {
         engineeringJournalEntry: { updateMany: prismaMock.txJournalUpdateMany },
         auditLog: { create: prismaMock.txAuditLogCreate },
         notification: { create: prismaMock.txNotificationCreate, createMany: prismaMock.txNotificationCreateMany },
-        missionTaskCompletion: { findMany: prismaMock.txMissionTaskCompletionFindMany }
+        missionTaskCompletion: { findMany: prismaMock.txMissionTaskCompletionFindMany },
+        submissionReview: {
+          findMany: prismaMock.txSubmissionReviewFindMany,
+          create: prismaMock.txSubmissionReviewCreate
+        }
       })
     );
     prismaMock.txMissionAssignmentFindMany.mockResolvedValue([]);
+    prismaMock.txSubmissionReviewFindMany.mockResolvedValue([]);
     // Tasks 1 & 2 complete by default so existing submit-flow tests are unaffected by the gate;
     // tests for the gate itself override this.
     prismaMock.txMissionTaskCompletionFindMany.mockResolvedValue([{ taskIndex: 1 }, { taskIndex: 2 }]);
@@ -589,6 +599,136 @@ describe("submission data access", () => {
     });
   });
 
+  // Review history (v0.20.0): one Submission row is reused across the revision loop, so without an
+  // append-only history "accepted first time" and "accepted after two rounds" are indistinguishable.
+  describe("review history", () => {
+    const reviewable = () => ({
+      id: "sub-1",
+      status: "SUBMITTED",
+      missionId: "mission-1",
+      applicantId: "user-1",
+      missionAssignmentId: "assignment-1",
+      mission: { id: "mission-1", title: "Build a Landing Page" },
+      missionAssignment: {
+        id: "assignment-1",
+        tenantId: "tenant-1",
+        programId: "program-1",
+        applicantId: "user-1",
+        missionId: "mission-1",
+        weekNumber: 2,
+        attemptNumber: 1
+      }
+    });
+
+    it("appends round 1 and records ACCEPTED_FIRST_TIME when accepted with no prior changes", async () => {
+      prismaMock.txSubmissionFindFirst.mockResolvedValue(reviewable());
+      prismaMock.txSubmissionReviewFindMany.mockResolvedValue([]);
+
+      await reviewSubmission({
+        id: "sub-1",
+        tenantId: "tenant-1",
+        status: "ACCEPTED",
+        reviewerFeedback: "Great work.",
+        reviewerUserId: "lead-1"
+      });
+
+      expect(prismaMock.txSubmissionReviewCreate).toHaveBeenCalledWith({
+        data: {
+          tenantId: "tenant-1",
+          submissionId: "sub-1",
+          missionAssignmentId: "assignment-1",
+          weekNumber: 2,
+          attemptNumber: 1,
+          round: 1,
+          decision: "ACCEPTED",
+          feedback: "Great work.",
+          reviewerUserId: "lead-1"
+        }
+      });
+      expect(prismaMock.txMissionAssignmentUpdateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { status: "PASSED", reviewOutcome: "ACCEPTED_FIRST_TIME", revisionCount: 0 }
+        })
+      );
+    });
+
+    it("records ACCEPTED_AFTER_CHANGES and keeps the revision count when an earlier round asked for changes", async () => {
+      prismaMock.txSubmissionFindFirst.mockResolvedValue(reviewable());
+      prismaMock.txSubmissionReviewFindMany.mockResolvedValue([{ decision: "CHANGES_REQUESTED" }]);
+
+      await reviewSubmission({
+        id: "sub-1",
+        tenantId: "tenant-1",
+        status: "ACCEPTED",
+        reviewerFeedback: "Fixed, thanks.",
+        reviewerUserId: "lead-1"
+      });
+
+      expect(prismaMock.txSubmissionReviewCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({ round: 2, decision: "ACCEPTED" })
+      });
+      expect(prismaMock.txMissionAssignmentUpdateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { status: "PASSED", reviewOutcome: "ACCEPTED_AFTER_CHANGES", revisionCount: 1 }
+        })
+      );
+    });
+
+    it("counts a change request and marks the attempt CHANGES_REQUESTED", async () => {
+      prismaMock.txSubmissionFindFirst.mockResolvedValue(reviewable());
+      prismaMock.txSubmissionReviewFindMany.mockResolvedValue([]);
+
+      await reviewSubmission({
+        id: "sub-1",
+        tenantId: "tenant-1",
+        status: "NEEDS_REVISION",
+        reviewerFeedback: "Journal entries predate the mission start.",
+        reviewerUserId: "lead-1"
+      });
+
+      expect(prismaMock.txSubmissionReviewCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          round: 1,
+          decision: "CHANGES_REQUESTED",
+          feedback: "Journal entries predate the mission start."
+        })
+      });
+      expect(prismaMock.txMissionAssignmentUpdateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { status: "IN_PROGRESS", reviewOutcome: "CHANGES_REQUESTED", revisionCount: 1 }
+        })
+      );
+    });
+
+    it("marks the attempt REPEATED and preserves the reason", async () => {
+      prismaMock.txSubmissionFindFirst.mockResolvedValue(reviewable());
+      prismaMock.txSubmissionReviewFindMany.mockResolvedValue([{ decision: "CHANGES_REQUESTED" }]);
+      prismaMock.txMissionAssignmentFindFirst.mockResolvedValue({ id: "assignment-1" });
+      prismaMock.txMissionFindMany.mockResolvedValue([]);
+
+      await reviewSubmission({
+        id: "sub-1",
+        tenantId: "tenant-1",
+        status: "REPEAT",
+        reviewerFeedback: "Repo code and journal entries are stale.",
+        reviewerUserId: "lead-1"
+      });
+
+      expect(prismaMock.txSubmissionReviewCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          round: 2,
+          decision: "REPEAT",
+          feedback: "Repo code and journal entries are stale."
+        })
+      });
+      expect(prismaMock.txMissionAssignmentUpdateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { status: "REPEAT", reviewOutcome: "REPEATED", revisionCount: 1 }
+        })
+      );
+    });
+  });
+
   it("sends a SUCCESS notification on acceptance", async () => {
     prismaMock.txSubmissionFindFirst.mockResolvedValue({
       id: "sub-1",
@@ -647,7 +787,8 @@ describe("submission data access", () => {
 
     expect(prismaMock.txMissionAssignmentUpdateMany).toHaveBeenCalledWith({
       where: { id: "assignment-1", tenantId: "tenant-1", applicantId: "user-1" },
-      data: { status: "REPEAT" }
+      // v0.20.0 also stamps the attempt's review outcome for evaluation rollups.
+      data: { status: "REPEAT", reviewOutcome: "REPEATED", revisionCount: 0 }
     });
     // Repeats the same week (3) with a different mission — never resets back to week one.
     expect(prismaMock.txMissionAssignmentCreate).toHaveBeenCalledTimes(1);
@@ -993,3 +1134,51 @@ function asAssignments(missions: { id: string; title: string; weekNumber: number
     mission
   }));
 }
+
+describe("listSubmissionReviewHistory", () => {
+  beforeEach(() => {
+    prismaMock.submissionReviewFindMany.mockReset();
+  });
+
+  it("returns rounds oldest first, scoped to the tenant and attempt", async () => {
+    prismaMock.submissionReviewFindMany.mockResolvedValue([
+      {
+        round: 1,
+        decision: "CHANGES_REQUESTED",
+        feedback: "Journals are stale.",
+        createdAt: new Date("2026-08-01T10:00:00.000Z"),
+        reviewer: { name: "Tech Lead", email: "lead@demo.local" }
+      },
+      {
+        round: 2,
+        decision: "ACCEPTED",
+        feedback: "Resolved.",
+        createdAt: new Date("2026-08-02T10:00:00.000Z"),
+        reviewer: { name: null, email: "admin@demo.local" }
+      }
+    ]);
+
+    const history = await listSubmissionReviewHistory({
+      tenantId: "tenant-1",
+      missionAssignmentId: "assignment-1"
+    });
+
+    expect(prismaMock.submissionReviewFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId: "tenant-1", missionAssignmentId: "assignment-1" },
+        orderBy: { round: "asc" }
+      })
+    );
+    expect(history.map((entry) => entry.decision)).toEqual(["CHANGES_REQUESTED", "ACCEPTED"]);
+    expect(history[0].feedback).toBe("Journals are stale.");
+    // Falls back to email when the reviewer has no display name.
+    expect(history[1].reviewerName).toBe("admin@demo.local");
+  });
+
+  it("returns an empty history for an attempt that was never reviewed", async () => {
+    prismaMock.submissionReviewFindMany.mockResolvedValue([]);
+    await expect(
+      listSubmissionReviewHistory({ tenantId: "tenant-1", missionAssignmentId: "assignment-1" })
+    ).resolves.toEqual([]);
+  });
+});

@@ -1,6 +1,6 @@
 # Decision Log
 
-Code version: `v0.19.5`
+Code version: `v0.20.0`
 
 Architecture evidence commit: `2b3afce`
 
@@ -1159,3 +1159,83 @@ Full QA report at `docs/audits/v0.19.6_Applicant_Onboarding_QA_Report.md`.
 Date: 2026-08-07
 
 Status: Implemented; committed on `fix/applicant-journal-tenant-redirect`
+
+## D-096: Tasks Are Authored Per Mission, Not Per Program Week (v0.20.0)
+
+**Context:** `ProgramTask` was scoped to a program week, so every mission in a week shared one task
+list. An applicant assigned Week 2's *TaskPilot* mission saw tasks written for a different Week 2
+mission, and a repeated week served the same tasks again on the replacement mission.
+
+**Decision:** Add a required `missionId` to `ProgramTask` and author tasks per mission. `weekNumber`
+stays as a denormalized copy of the mission's week for existing week-ordered queries and is always
+written from `ProgramTask.mission`, never independently. The admin picks program → mission before any
+editor appears; the Program Content page links to the Tasks page instead of carrying a second editor.
+Submission readiness and completion listing key on `missionId`.
+
+**Consequences:** Migration `20260808090000_program_task_mission_scope` backfills each task to the
+first mission of its tenant/program/week and deletes rows with no match (one orphaned Week 2 row
+locally). A repeat now brings the new mission's own tasks; completions on the earlier mission are
+preserved, not carried forward. `Architecture.md` and `Data_Model.md` statements that a task "is not
+attached to a mission" and that week-level completions survive a repeat are reversed.
+
+## D-097: Publishing A Mission Resumes Dangling Repeat Attempts (v0.20.0)
+
+**Context:** A `REPEAT` decision with no unused mission for that week parked the application in
+`AWAITING_MISSION_ASSIGNMENT`. Recovery keyed on that status alone, so an application left `ACCEPTED`
+with a dangling `REPEAT` — reachable when the assignment's mission is removed, and produced locally by
+a verification script — could never be served again by any code path.
+
+**Decision:** `resumeAwaitingMissionAssignmentsTx` selects both `AWAITING_MISSION_ASSIGNMENT` and
+`ACCEPTED` applications. The existing per-applicant guard (latest attempt must be `REPEAT` for that
+exact week) is what keeps it safe: an `ACCEPTED` applicant with an open attempt is skipped.
+
+**Consequences:** `AWAITING_MISSION_ASSIGNMENT` is no longer terminal (`Data_Dictionary.md` corrected).
+Recovery is idempotent and cannot double-serve, because a served applicant's latest attempt is no
+longer `REPEAT`.
+
+## D-098: Review Decisions Are Kept As Immutable History (v0.20.0)
+
+**Context:** One `Submission` row is reused through the SEM revision loop, so each review overwrote
+`reviewerFeedback`/`reviewedAt`. "Accepted first time" and "accepted after two rounds of changes" were
+indistinguishable in the data — the exact distinction AI evaluation of an applicant needs.
+
+**Decision:** Add an append-only `SubmissionReview` table (round, decision, feedback, reviewer,
+timestamp) written on every review, plus denormalized `reviewOutcome` and `revisionCount` on
+`MissionAssignment` for rollups. Feedback text is stored per round deliberately: the reason changes
+were requested is stronger evaluation signal than the decision label. `getApplicantEvaluationSummary`
+exposes the per-week journey and `formatEvaluationSummaryForPrompt` renders it for a model.
+
+**Consequences:** Migration `20260810120000_submission_review_history` reconstructs history from
+`audit_logs`, which recorded every decision. Feedback text was never audited, so backfilled rounds
+other than the last carry `NULL` feedback rather than a guess. `@@unique([missionAssignmentId, round])`
+doubles as the concurrency guard against two simultaneous reviews.
+
+## D-099: Journal Entries Cannot Pre-Date The Mission Start (v0.20.0)
+
+**Context:** `normalizeJournalEntryDate` guarded only the upper bound (no future dates). Applicants
+were dating entries before they had even accepted the mission — 8 of 12 local entries did — and a
+reviewer rejected a submission over it.
+
+**Decision:** Reject entry dates earlier than the calendar day of the assignment's `acceptedAt`,
+resolved in the applicant's time zone, on both create and update. `acceptedAt` is the boundary rather
+than `assignedAt` because the workspace is unusable until acceptance and the deadline timers start
+from the same instant, which also gives a repeat attempt its own later boundary.
+
+**Consequences:** The date picker gains a `min` bound; the server remains authoritative. Entries
+created before this rule keep their dates until edited, at which point the date must be corrected.
+Regression fixtures now set an explicit acceptance date, since journals otherwise had no valid window.
+
+## D-100: Missions Can Be Imported From A Markdown Spec (v0.20.0)
+
+**Context:** Creating a mission meant filling 13 fields, five of them long-form textareas, even though
+the seed corpus already authored missions as Markdown against a fixed section convention with a parser
+private to `prisma/seed.ts`.
+
+**Decision:** Promote that parser to `packages/db/src/mission-spec.ts` and reuse it for both seeding
+and a Back Office import. The file carries the title and the seven content fields; program, week,
+order and difficulty stay form inputs, so existing seed specs import unchanged. Imports always create
+a `DRAFT`. Parse failures redirect back with every problem listed rather than throwing, because a
+thrown server action renders as a digest-only error page in production.
+
+**Consequences:** One parser instead of two. Frontmatter for week/difficulty was considered and
+rejected to avoid a second source of truth for metadata.
