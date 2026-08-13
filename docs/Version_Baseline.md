@@ -2,43 +2,85 @@
 
 ## Current Allocated Iteration (Review Pending)
 
-Version: `v0.20.1`
+Version: `v0.20.2`
 
-Baseline name: `Comprehensive Test Coverage, Request Logging And Journal Per-Mission-Per-Date`
+Baseline name: `Decision Log Integrity And Opt-In Request Logging`
 
-Base branch and commit: `origin/main` at `033418c` (v0.20.0 released via PR #56)
+Base branch and commit: `origin/main` at `43e7537`
 
-Feature branch: `feature/comprehensive-test-coverage`
+Feature branch and code commit: `feature/v0.20.2-doc-integrity-and-request-logging` at `pending`
 
-Documentation date: `2026-08-12`
+Documentation date: `2026-08-13`
 
-Latest released baseline: `v0.20.0` at `033418c`
+Latest released baseline: `v0.20.1` at `9e2324b` (PR #59)
 
-Reserved active-branch version: none — the only active unmerged remote branch is
-`origin/feature/comprehensive-test-coverage` (this branch).
+Reserved active-branch version: none — `git branch -r --no-merged origin/main` lists no active
+unmerged remote branch. `origin/feature/v0.20.0-mission-scoped-curriculum`,
+`origin/feature/v0.20.1-e2e-evidence-ci` and `origin/feature/comprehensive-test-coverage` have all been
+merged and deleted. `origin/main` declares `v0.20.1`, so `v0.20.2` is the next available patch.
 
-Migrations: `20260811000000_v0_20_1_journal_per_mission_per_date`
+Migrations: none. This iteration changes no schema, so `Data_Model.md` and `Data_Dictionary.md` are
+unchanged — recorded explicitly rather than skipped, per `docs/sdlc.md` principle 6.
 
-Repository state: `v0.20.1` adds request logging to applicant and admin middleware, a journal
-uniqueness constraint per mission per date, updated test coverage, and refreshed documentation
-versions across all versioned docs.
+Repository state: `v0.20.2` code and documentation are uncommitted in the working tree at the time
+of writing; the baseline commit is recorded as `pending` here, to be backfilled by the follow-up
+`Record v0.20.2 baseline` commit. It is a correction iteration. It resolves a duplicate `D-096` decision
+identifier created by two branches allocating it independently, supplies the plan and test-results pair
+`v0.20.1` shipped without, documents the `e2e-evidence` CI job in `CI_CD_Pipeline.md` (whose version
+header had been bumped with no content change), and makes the `v0.20.1` middleware request logging
+opt-in and filtered instead of unconditional.
 
-Upstream state: `origin/main` is at `033418c` (v0.20.0, PR #56). The previously active branches
-`origin/feature/v0.20.0-mission-scoped-curriculum` and `origin/feature/v0.20.1-e2e-evidence-ci`
-have been deleted (merged). Version allocation: `v0.20.0` is on main, so `v0.20.1` is the next
-available patch.
+Upstream state: `origin/main` is at `43e7537`, which merges PR #56 (`v0.20.0`), PR #57 (E2E evidence
+CI), PR #59 (`v0.20.1`) and PR #58 (`vision.md` revisions).
 
 ### What this iteration changes
 
-1. **Request logging in middleware** — Applicant and admin middleware now log every request
-   (timestamp, method, path, tenant, auth status) to Docker stdout for observability.
-2. **Journal per-mission-per-date constraint** (migration
-   `20260811000000_v0_20_1_journal_per_mission_per_date`) — Enforces uniqueness of journal entries
-   per mission per date.
-3. **Updated test coverage** — New and updated tests for journal logic and applicant dashboard
-   journal actions.
-4. **Documentation version refresh** — All versioned docs updated from `v0.20.0`/earlier to
-   `v0.20.1` after pulling `origin/main`.
+1. **Duplicate decision identifier resolved** (`D-102`) — the `v0.19.7` entry becomes `D-101` and moves
+   after `D-100`; six inbound references repointed. `v0.20.0`'s `D-096`–`D-100` are unchanged because
+   they are cited as a contiguous range.
+2. **`v0.20.1` plan and test-results pair** — reconstructed retroactively from the merged commits and
+   that iteration's own CI artifact, plus a `v0.20.1` traceability section in
+   `Regression_Scenarios.md` covering all 13 scenarios.
+3. **`CI_CD_Pipeline.md` content sync** — the `e2e-evidence` job is documented; the claim that scenario
+   regression "is a local/Ops-Console capability, not a CI stage" is removed as untrue since PR #57.
+4. **Opt-in request logging** (`D-102`) — `packages/auth-web/src/request-log.ts`, gated on
+   `REQUEST_LOG === "1"` and filtered to real navigations. `docker-compose.yml` enables it for the
+   local stack.
+5. **Stale scenario counts corrected** — `Regression_Scenarios.md` claimed 40 and 42 scenario objects;
+   the runner has 53.
+
+## v0.20.2 Documentation Index
+
+| Artifact | Location |
+| --- | --- |
+| Plan | `docs/plans/v0.20.2_Decision_Log_Integrity_And_Opt_In_Request_Logging.md` |
+| Test results | `docs/testing/v0.20.2_Decision_Log_Integrity_And_Opt_In_Request_Logging_Test_Results.md` |
+| Decision record | `docs/Decision_Log.md` (`D-102`; renumbering note on `D-101`) |
+| CI/CD policy | `docs/CI_CD_Pipeline.md` |
+| Scenario catalog | `docs/Regression_Scenarios.md` (v0.20.1 traceability, Known Gaps) |
+| Testing strategy | `docs/Testing_Strategy.md` |
+| Deployment | `docs/Deployment.md` (`REQUEST_LOG`) |
+| Data model / dictionary | Unchanged — no schema change this iteration |
+| User guides | Unchanged — no user-facing surface change |
+
+## v0.20.1 Released Baseline
+
+Version: `v0.20.1` at `9e2324b` (PR #59, merged 2026-08-13).
+
+Migrations: `20260811000000_v0_20_1_journal_per_mission_per_date`.
+
+Shipped: request logging in both middlewares (made opt-in in `v0.20.2`), the journal
+per-mission-per-date uniqueness rule, twelve new runner scenarios taking the suite from 42 to 53, six
+new unit test files, and two CI-only screenshot-capture fixes.
+
+Its plan and test-results pair were **missing at merge** and were reconstructed during `v0.20.2`; see
+the retroactive notes in both documents and `D-102`.
+
+| Artifact | Location |
+| --- | --- |
+| Plan | `docs/plans/v0.20.1_Request_Logging_Journal_Date_Rule_And_Scenario_Coverage.md` |
+| Test results | `docs/testing/v0.20.1_Request_Logging_Journal_Date_Rule_And_Scenario_Coverage_Test_Results.md` |
+| Decision record | `docs/Decision_Log.md` (`D-101`, renumbered from `D-096`) |
 
 ## Baseline Summary
 
@@ -52,7 +94,7 @@ matrix, journal validation helpers, and server actions for applicant (mission ac
 journal create/update) and admin (program CRUD, submission review, organization creation). No
 production code was changed — all 138 new tests pass against the existing implementation. A new
 `docs/REGRESSION_TEST_PLAN.md` documents the complete coverage matrix, known gaps, and manual-only
-scenarios. See `D-096`.
+scenarios. See `D-101`.
 
 ## v0.19.7 Documentation Index
 
@@ -60,7 +102,7 @@ scenarios. See `D-096`.
 | --- | --- |
 | Regression test plan | `docs/REGRESSION_TEST_PLAN.md` |
 | Architecture/design | `docs/Architecture.md` (unchanged) |
-| Decision record | `docs/Decision_Log.md` (`D-096`) |
+| Decision record | `docs/Decision_Log.md` (`D-101`) |
 | Testing strategy and scenario catalog | `docs/Testing_Strategy.md`, `docs/Regression_Scenarios.md` |
 
 ## v0.19.7 SSDLC Checklist Coverage

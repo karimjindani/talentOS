@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveTenantFromHost } from "@talentos/auth/tenant";
+import { logRequest } from "@talentos/auth-web";
 import { auth } from "@/auth";
 
 // Applicant-only routes that require an authenticated session. The landing page stays
@@ -10,7 +11,13 @@ export default auth((req) => {
   const { nextUrl } = req;
   const tenant = resolveTenantFromHost(req.headers.get("host"));
 
-  console.log(`[applicant] ${new Date().toISOString()} ${req.method} ${nextUrl.pathname} tenant=${tenant.tenantSlug} auth=${!!req.auth}`);
+  logRequest({
+    app: "applicant",
+    method: req.method,
+    pathname: nextUrl.pathname,
+    tenantSlug: tenant.tenantSlug,
+    authenticated: Boolean(req.auth)
+  });
 
   const isProtected = PROTECTED_PREFIXES.some(
     (prefix) => nextUrl.pathname === prefix || nextUrl.pathname.startsWith(`${prefix}/`)
