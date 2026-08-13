@@ -811,7 +811,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "NEEDS_REVISION",
         reviewerFeedback: "Tighten the acceptance-criteria evidence.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: null
       });
       const afterRevisionRequest = await getApplicantSubmission(fixture.mission.id, fixture.user.id, fixture.tenant.id);
       if (afterRevisionRequest?.status !== "NEEDS_REVISION") {
@@ -1200,7 +1201,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "REPEAT",
         reviewerFeedback: "Repeat Week 1 with a fresh attempt.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: null
       });
 
       const attempts = await prisma.missionAssignment.findMany({
@@ -1324,7 +1326,8 @@ const scenarios: Scenario[] = [
           tenantId: fixture.tenant.id,
           status: "REPEAT",
           reviewerFeedback: "Duplicate repeat should fail.",
-          reviewerUserId: fixture.actor.id
+          reviewerUserId: fixture.actor.id,
+          rating: null
         });
         throw new Error("A repeated review created another assignment attempt.");
       } catch (error) {
@@ -1347,7 +1350,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "NEEDS_REVISION",
         reviewerFeedback: "Add one more reflection before resubmitting.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: null
       });
       const followUpJournal = await createTrackedJournalEntry(
         ctx.runId,
@@ -2542,7 +2546,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "NEEDS_REVISION",
         reviewerFeedback: "Please fix the deployment URL.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: null
       });
       if (reviewed.status !== "NEEDS_REVISION") {
         throw new Error(`Expected NEEDS_REVISION, got ${reviewed.status}`);
@@ -2630,7 +2635,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "REPEAT",
         reviewerFeedback: "Not sufficient — please repeat this week.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: null
       });
       if (repeated.status !== "REPEAT") {
         throw new Error(`Expected REPEAT, got ${repeated.status}`);
@@ -2693,7 +2699,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "NEEDS_REVISION",
         reviewerFeedback: "Round 1: fix issues.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: null
       });
 
       // Resubmit
@@ -3330,7 +3337,8 @@ async function createRepeatedSubmissionFixture(runId: string) {
     tenantId: fixture.tenant.id,
     status: "REPEAT",
     reviewerFeedback: "Repeat this week with a new assignment attempt.",
-    reviewerUserId: fixture.actor.id
+    reviewerUserId: fixture.actor.id,
+    rating: null
   });
 
   const attemptTwoNotStarted = await prisma.missionAssignment.findFirst({
