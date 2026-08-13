@@ -25,3 +25,6 @@ Thumbs.db
 .idea/
 .vscode/
 .claude/settings.local.json
+
+# Playwright journey test artifacts
+test-results/
