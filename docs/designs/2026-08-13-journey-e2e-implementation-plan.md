@@ -453,8 +453,10 @@ export async function adminToken(): Promise<string> {
     body: new URLSearchParams({
       grant_type: "password",
       client_id: "admin-cli",
-      username: process.env.KEYCLOAK_ADMIN ?? "admin",
-      password: process.env.KEYCLOAK_ADMIN_PASSWORD ?? "admin"
+      // This repo's bootstrap vars are KC_ADMIN / KC_ADMIN_PASSWORD (docker-compose.yml,
+      // scripts/local/support.ts) — not KEYCLOAK_ADMIN_*.
+      username: process.env.KC_ADMIN ?? "admin",
+      password: process.env.KC_ADMIN_PASSWORD ?? "admin"
     })
   });
   if (!response.ok) throw new Error(`Keycloak admin token failed: ${response.status}`);
@@ -721,7 +723,10 @@ Task 8. It is the one piece of that script worth keeping.
 import type { Page } from "@playwright/test";
 import type { Actor } from "./types";
 
-export const JOURNEY_PASSWORD = "Journey123!";
+// Must satisfy the realm's password policy:
+// length(12) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1).
+// "Journey123!" was 11 characters and is rejected at user creation (found in Task 3).
+export const JOURNEY_PASSWORD = "JourneyPass123!";
 
 const APPLICANT_PORT = 3100;
 const ADMIN_PORT = 3200;
