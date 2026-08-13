@@ -85,6 +85,19 @@ export async function deleteJourneyUser(userId: string): Promise<void> {
   }
 }
 
+/**
+ * Pure decision of whether a single Keycloak user is an orphan the sweep should reap.
+ * Unknown age must fail SAFE (preserve), not toward deletion: a missing `createdTimestamp`
+ * must never be treated as epoch-old — Keycloak types this field as optional, so the absent
+ * case is real, and treating it as "always older than cutoff" would reap a run's own in-flight
+ * user. Extracted so the guard logic can be unit-tested without any HTTP call.
+ */
+export function shouldReapUser(user: { email?: string; createdTimestamp?: number }, cutoffMs: number): boolean {
+  if (!user.email || !isJourneyEmail(user.email)) return false;
+  if ((user.createdTimestamp ?? Date.now()) >= cutoffMs) return false;
+  return true;
+}
+
 /** Safety net for runs killed before cleanup. Returns how many users were removed. */
 export async function sweepOrphanJourneyUsers(now: Date = new Date()): Promise<number> {
   const token = await adminToken();
@@ -97,8 +110,7 @@ export async function sweepOrphanJourneyUsers(now: Date = new Date()): Promise<n
 
   let removed = 0;
   for (const user of users) {
-    if (!user.email || !isJourneyEmail(user.email)) continue;
-    if ((user.createdTimestamp ?? 0) >= cutoff) continue;
+    if (!shouldReapUser(user, cutoff)) continue;
     await deleteJourneyUser(user.id);
     removed += 1;
   }
