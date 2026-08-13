@@ -9,7 +9,7 @@ import { checkRateLimit, requestIp } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
-    const rateLimit = checkRateLimit(`recruiter-verify:${requestIp(request)}`, { limit: 10, windowMs: 15 * 60 * 1000 });
+    const rateLimit = checkRateLimit(`recruiter-verify:${requestIp(request)}`, { limit: 50, windowMs: 15 * 60 * 1000 });
     if (!rateLimit.allowed) return NextResponse.json({ error: "Too many verification attempts. Please try again later." }, { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } });
     const body = await request.json();
     const { token } = body;
@@ -43,7 +43,11 @@ export async function POST(request: NextRequest) {
       };
       const errorCode = result.error as string;
       const info = errorMessages[errorCode] ?? { message: "Invalid or expired token.", status: 401 };
-      return NextResponse.json({ error: info.message, reason: errorCode }, { status: info.status });
+      const responseBody: { error: string; reason: string; rejectionReason?: string | null } = { error: info.message, reason: errorCode };
+      if ("rejectionReason" in result && result.rejectionReason) {
+        responseBody.rejectionReason = result.rejectionReason;
+      }
+      return NextResponse.json(responseBody, { status: info.status });
     }
 
     const response = NextResponse.json({
@@ -53,8 +57,13 @@ export async function POST(request: NextRequest) {
       slug: result.request.graduate.slug,
       expiresAt: result.request.expiresAt,
     });
+    // Secure flag is only set when HTTPS is actually in use. In Docker we run
+    // NODE_ENV=production but serve plain HTTP on port 3100, so checking NODE_ENV
+    // alone would set Secure and the browser would drop the cookie over HTTP.
+    const useSecureCookie = process.env.COOKIE_SECURE === "true" ||
+      (process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE !== "false");
     response.cookies.set("talentos_recruiter_session", result.sessionToken, {
-      httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 30 * 24 * 60 * 60
+      httpOnly: true, sameSite: "lax", secure: useSecureCookie, path: "/", maxAge: 30 * 24 * 60 * 60
     });
     return response;
   } catch (error) {

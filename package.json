@@ -57,6 +57,7 @@
     "lucide-react": "^1.23.0",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.1",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "resend": "^6.19.0"
   }
 }

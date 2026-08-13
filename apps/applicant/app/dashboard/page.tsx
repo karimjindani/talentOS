@@ -45,9 +45,12 @@ export default async function DashboardPage() {
   const consentRequired = await isGraduateConsentRequired(user.id);
   const profile = await prisma.graduateProfile.findUnique({
     where: { userId: user.id },
-    select: { publicProfileEnabled: true },
+    select: { publicProfileEnabled: true, consentStatus: true },
   });
-  const showConsentGate = !profile?.publicProfileEnabled;
+  // Only auto-show the consent modal if the user has never seen it (no profile at all)
+  // or their profile is enabled but consent was never recorded. If they DECLINED or SKIPPED,
+  // don't pop the modal again — they can re-open it from the sidebar "Consent Form" link.
+  const showConsentGate = !profile?.publicProfileEnabled && profile?.consentStatus !== "DECLINED" && profile?.consentStatus !== "SKIPPED" && profile?.consentStatus !== "ACKNOWLEDGED";
 
   const program = acceptedApp.program;
   const weeklyTasks = await listPublishedProgramTasks(tenant.id, program.id);
@@ -104,10 +107,10 @@ export default async function DashboardPage() {
         <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
           <h2 className="text-xl font-semibold">Publish your graduate profile</h2>
           <p className="mt-2 text-sm leading-6">
-            You&apos;re eligible to share your verified profile with recruiters. Visit the graduate profile page to review consent and publish your public profile.
+            You&apos;re eligible to share your verified profile with recruiters. Visit the consent page to review and publish your public profile.
           </p>
           <div className="mt-4">
-            <Link href="/dashboard/graduate-profile" className="inline-flex rounded-full bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800">
+            <Link href="/dashboard/consent" className="inline-flex rounded-full bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800">
               Review consent and publish profile
             </Link>
           </div>

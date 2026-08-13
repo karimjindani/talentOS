@@ -130,7 +130,7 @@ export default function GraduateProfilePage() {
             <div className="mt-8 rounded-lg border border-slate-200 bg-white p-6">
               <h2 className="text-lg font-semibold text-slate-900">About</h2>
               <p className="mt-3 text-slate-600 leading-relaxed">{profile.bio}</p>
-              <ShareProfileButtons name={profile.name} />
+              <ShareProfileButtons name={profile.name} githubUrl={profile.githubUrl} />
 
               {profile.country && (
                 <div className="mt-4 pt-4 border-t border-slate-200">

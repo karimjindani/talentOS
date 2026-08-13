@@ -554,6 +554,27 @@ export async function reviewSubmission({
       }
     });
 
+    // Auto-publish: when a submission is accepted, check if the applicant now has
+    // 4+ accepted missions with ratings in a single program AND has acknowledged
+    // consent. If so, automatically enable their public profile on the portal.
+    if (status === "ACCEPTED") {
+      const acceptedSubmissions = await tx.submission.findMany({
+        where: { applicantId: submission.applicantId, status: "ACCEPTED", rating: { not: null } },
+        select: { mission: { select: { programId: true } } }
+      });
+      const programCounts = new Map<string, number>();
+      for (const s of acceptedSubmissions) {
+        programCounts.set(s.mission.programId, (programCounts.get(s.mission.programId) ?? 0) + 1);
+      }
+      const hasEnough = [...programCounts.values()].some((count) => count >= 4);
+      if (hasEnough) {
+        await tx.graduateProfile.updateMany({
+          where: { userId: submission.applicantId, consentStatus: "ACKNOWLEDGED", publicProfileEnabled: false },
+          data: { publicProfileEnabled: true }
+        });
+      }
+    }
+
     return updated;
   });
 }

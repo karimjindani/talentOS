@@ -16,7 +16,7 @@ export function RecruiterRequestActions({ requestId, status }: RecruiterRequestA
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
 
-  const handleAction = async (action: "approve" | "reject" | "revoke") => {
+  const handleAction = async (action: "approve" | "reject" | "revoke" | "resend") => {
     setLoading(action);
     setError(null);
     setSuccess(null);
@@ -109,14 +109,24 @@ export function RecruiterRequestActions({ requestId, status }: RecruiterRequestA
           ) : null}
 
           {status === "APPROVED" ? (
-            <button
-              type="button"
-              onClick={() => handleAction("revoke")}
-              disabled={loading !== null}
-              className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
-            >
-              {loading === "revoke" ? "Revoking…" : "Revoke Access"}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => handleAction("resend")}
+                disabled={loading !== null}
+                className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
+              >
+                {loading === "resend" ? "Sending…" : "Resend Email"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAction("revoke")}
+                disabled={loading !== null}
+                className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+              >
+                {loading === "revoke" ? "Revoking…" : "Revoke Access"}
+              </button>
+            </>
           ) : null}
 
           {status === "REJECTED" || status === "REVOKED" || status === "EXPIRED" ? (

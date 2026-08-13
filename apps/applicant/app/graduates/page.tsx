@@ -17,8 +17,11 @@ export default function GraduatesPage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-8 text-center text-sm text-slate-600">
-        <p>© 2026 TalentOS. All rights reserved.</p>
+      <footer className="border-t border-slate-200 bg-white py-10 text-center text-sm text-slate-500">
+        <div className="mx-auto max-w-7xl px-6">
+          <p className="font-semibold text-slate-700">TalentOS — Verified Graduate Talent Directory</p>
+          <p className="mt-1">© 2026 TalentOS. All rights reserved.</p>
+        </div>
       </footer>
     </div>
   );

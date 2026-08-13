@@ -1,27 +1,35 @@
 /**
  * Admin-side email service for recruiter access approval notifications.
+ * Supports both Resend API and SMTP (nodemailer) as transport providers.
+ * Provider is selected via EMAIL_PROVIDER env var: "resend" or "smtp" (default).
  * Mirrors the applicant email service but lives in the admin app.
  */
 
 import nodemailer from "nodemailer";
 
 let transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
+let resendClient: import("resend").Resend | null = null;
 
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>'"]/g, (character) => ({
+  return value.replace(/[&<>'"]/g, (character) => (({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
     "'": "&#39;",
     '"': "&quot;"
-  })[character] as string);
+  })[character] as string));
 }
 
-function deliveryMode(): "smtp" | "log" {
+function emailProvider(): "resend" | "smtp" | "log" {
   if (process.env.EMAIL_DELIVERY_MODE === "log") return "log";
+  if (process.env.EMAIL_PROVIDER === "resend" && process.env.RESEND_API_KEY) return "resend";
+  if (process.env.EMAIL_PROVIDER === "resend" && !process.env.RESEND_API_KEY) {
+    if (process.env.NODE_ENV !== "production") return "log";
+    throw new Error("EMAIL_PROVIDER is 'resend' but RESEND_API_KEY is not set.");
+  }
   if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) return "smtp";
   if (process.env.NODE_ENV !== "production") return "log";
-  throw new Error("Email delivery is not configured. Set SMTP variables or EMAIL_DELIVERY_MODE=log for local use.");
+  throw new Error("Email delivery is not configured. Set RESEND_API_KEY or SMTP variables, or EMAIL_DELIVERY_MODE=log for local use.");
 }
 
 function smtpTransporter() {
@@ -34,6 +42,14 @@ function smtpTransporter() {
   return transporter;
 }
 
+async function getResendClient() {
+  if (!resendClient) {
+    const { Resend } = await import("resend");
+    resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendClient;
+}
+
 export interface VerificationEmailData {
   to: string;
   recruiterName: string;
@@ -43,7 +59,9 @@ export interface VerificationEmailData {
 }
 
 export async function sendVerificationEmail(data: VerificationEmailData) {
-  if (deliveryMode() === "log") {
+  const provider = emailProvider();
+
+  if (provider === "log") {
     console.info(`[email preview] Recruiter verification for ${data.to}: ${data.verificationUrl}`);
     return { messageId: "local-email-preview" };
   }
@@ -63,12 +81,20 @@ export async function sendVerificationEmail(data: VerificationEmailData) {
       </main>
     </body></html>`;
   const text = `Hi ${data.recruiterName},\n\nYour access to ${data.graduateName}'s TalentOS portfolio has been approved.\nVerify here: ${data.verificationUrl}\n\nThis link expires on ${expiryDate}.`;
+  const from = process.env.EMAIL_FROM || "noreply@talentos.io";
+  const subject = "Your TalentOS Recruiter Access Has Been Approved";
 
-  return smtpTransporter().sendMail({
-    from: process.env.EMAIL_FROM || "noreply@talentos.io",
-    to: data.to,
-    subject: "TalentOS Portfolio Access Approved",
-    html,
-    text
-  });
+  if (provider === "resend") {
+    const { data: resendData, error } = await (await getResendClient()).emails.send({
+      from,
+      to: data.to,
+      subject,
+      html,
+      text,
+    });
+    if (error) throw new Error(`Resend API error: ${error.message}`);
+    return { messageId: resendData?.id ?? "resend-sent" };
+  }
+
+  return smtpTransporter().sendMail({ from, to: data.to, subject, html, text });
 }

@@ -31,7 +31,7 @@ export function PublicGraduateDirectory() {
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationData>({
     page: 1,
-    limit: 20,
+    limit: 6,
     total: 0,
     pages: 0,
   });
@@ -53,7 +53,7 @@ export function PublicGraduateDirectory() {
     try {
       const params = new URLSearchParams({
         page: filters.page.toString(),
-        limit: "20",
+        limit: "6",
         sort: filters.sort,
         ...(filters.search && { search: filters.search }),
         ...(filters.country && { country: filters.country }),
@@ -104,17 +104,22 @@ export function PublicGraduateDirectory() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-slate-900">Graduate Talent Directory</h1>
-        <p className="text-slate-600">
-          Discover {pagination.total} verified graduates from our program
-        </p>
+    <div className="space-y-8">
+      {/* Hero Header */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-navy via-brand-blue to-brand-purple px-8 py-12 text-white shadow-lg">
+        <div className="relative z-10">
+          <h1 className="text-4xl font-bold tracking-tight">Graduate Talent Directory</h1>
+          <p className="mt-3 max-w-2xl text-lg text-blue-100">
+            Discover verified graduates from our program.
+            Browse profiles, skills, and connect with top talent.
+          </p>
+        </div>
+        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+        <div className="absolute -bottom-12 -left-12 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
       </div>
 
       {/* Search and Filters */}
-      <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-6">
+      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         {/* Search */}
         <div className="space-y-2">
           <label className="block text-sm font-medium text-slate-700">Search</label>
@@ -181,19 +186,26 @@ export function PublicGraduateDirectory() {
           {[...Array(6)].map((_, i) => (
             <div
               key={i}
-              className="animate-pulse rounded-lg border border-slate-200 bg-white p-4"
+              className="animate-pulse rounded-2xl border border-slate-200 bg-white p-6"
             >
-              <div className="mb-3 h-48 rounded-lg bg-slate-200" />
-              <div className="h-4 w-3/4 rounded bg-slate-200" />
-              <div className="mt-2 h-3 w-1/2 rounded bg-slate-100" />
+              <div className="mb-4 h-6 w-3/4 rounded bg-slate-200" />
+              <div className="mb-3 h-4 w-1/2 rounded bg-slate-100" />
+              <div className="space-y-2">
+                <div className="h-3 w-full rounded bg-slate-100" />
+                <div className="h-3 w-2/3 rounded bg-slate-100" />
+              </div>
             </div>
           ))}
         </div>
       ) : graduates.length === 0 ? (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-12 text-center">
-          <Filter className="mx-auto h-12 w-12 text-slate-400" />
-          <h3 className="mt-2 text-lg font-medium text-slate-900">No graduates found</h3>
-          <p className="mt-1 text-slate-600">Try adjusting your search filters</p>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-16 text-center">
+          <Filter className="mx-auto h-16 w-16 text-slate-300" />
+          <h3 className="mt-4 text-xl font-semibold text-slate-900">No graduates found</h3>
+          <p className="mt-2 text-slate-600">
+            {pagination.total === 0
+              ? "There are no public graduate profiles yet. Profiles will appear here once graduates complete their training and give consent."
+              : "Try adjusting your search filters"}
+          </p>
         </div>
       ) : (
         <>
@@ -207,40 +219,29 @@ export function PublicGraduateDirectory() {
             ))}
           </div>
 
-          {/* Pagination */}
-          {pagination.pages > 1 && (
-            <div className="flex items-center justify-center gap-2">
+          {/* Pagination Controls — always show < page > format */}
+          {pagination.total > 0 && (
+            <div className="flex items-center justify-center gap-4">
               <button
                 onClick={() => handlePageChange(pagination.page - 1)}
                 disabled={pagination.page === 1}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-lg font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Previous page"
               >
-                Previous
+                &lt;
               </button>
 
-              {[...Array(Math.min(5, pagination.pages))].map((_, i) => {
-                const pageNum = i + 1;
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => handlePageChange(pageNum)}
-                    className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                      pagination.page === pageNum
-                        ? "bg-brand-blue text-white"
-                        : "border border-slate-300 text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
+              <span className="text-sm font-medium text-slate-700">
+                Page {pagination.page} of {pagination.pages}
+              </span>
 
               <button
                 onClick={() => handlePageChange(pagination.page + 1)}
                 disabled={pagination.page === pagination.pages}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-lg font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Next page"
               >
-                Next
+                &gt;
               </button>
             </div>
           )}
@@ -250,6 +251,11 @@ export function PublicGraduateDirectory() {
             Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
             {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
             {pagination.total} graduates
+          </div>
+
+          {/* Consent note */}
+          <div className="text-center text-xs text-slate-500">
+            🛡️ profiles are published with explicit consent from our graduates
           </div>
         </>
       )}

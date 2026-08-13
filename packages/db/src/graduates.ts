@@ -136,7 +136,7 @@ function serializePublicProfile(profile: any) {
 const publicProfileInclude = { user: { select: { name: true, email: true } }, program: { select: { id: true, name: true } } } as const;
 
 export async function getPublicProfile(slug: string) {
-  const profile = await prisma.graduateProfile.findFirst({ where: { slug, publicProfileEnabled: true }, include: publicProfileInclude });
+  const profile = await prisma.graduateProfile.findFirst({ where: { slug, publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" }, include: publicProfileInclude });
   return profile ? serializePublicProfile(profile) : null;
 }
 
@@ -147,6 +147,7 @@ export async function getPublicProfiles(options: {
   const { page = 1, limit = 20, sort = "rating", search, country, monthFrom, monthTo, programId } = options;
   const where = {
     publicProfileEnabled: true,
+    consentStatus: "ACKNOWLEDGED" as const,
     ...(search ? { OR: [{ bio: { contains: search, mode: "insensitive" as const } }, { skills: { hasSome: [search.toLowerCase()] } }, { user: { name: { contains: search, mode: "insensitive" as const } } }] } : {}),
     ...(country ? { country: { contains: country, mode: "insensitive" as const } } : {}),
     ...(programId ? { programId } : {}),
@@ -156,7 +157,7 @@ export async function getPublicProfiles(options: {
   const [profiles, total, programs] = await Promise.all([
     prisma.graduateProfile.findMany({ where, include: publicProfileInclude, orderBy, skip: (page - 1) * limit, take: limit }),
     prisma.graduateProfile.count({ where }),
-    prisma.program.findMany({ where: { graduateProfiles: { some: { publicProfileEnabled: true } } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+    prisma.program.findMany({ where: { graduateProfiles: { some: { publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" } } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
   ]);
   return { data: profiles.map(serializePublicProfile), pagination: { page, limit, total, pages: Math.ceil(total / limit) }, filters: { programs } };
 }
@@ -259,14 +260,17 @@ export async function consumeRecruiterAccessToken(rawToken: string) {
     // Must be APPROVED, not expired, not consumed, not revoked, and profile still public
     if (!request || !request.recruiter) return null;
     if (request.status === "REVOKED") return { error: "REVOKED" as const };
-    if (request.status === "REJECTED") return { error: "REJECTED" as const };
+    if (request.status === "REJECTED") return { error: "REJECTED" as const, rejectionReason: request.rejectionReason ?? null };
     if (request.status === "PENDING") return { error: "PENDING" as const };
     if (request.status !== "APPROVED") return { error: "INVALID" as const };
     if (request.expiresAt <= new Date()) return { error: "EXPIRED" as const };
-    if (request.consumedAt) return { error: "CONSUMED" as const };
     if (!request.graduate.publicProfileEnabled) return { error: "PROFILE_DISABLED" as const };
-    const consumed = await tx.recruiterAccessRequest.updateMany({ where: { id: request.id, consumedAt: null }, data: { consumedAt: new Date() } });
-    if (consumed.count !== 1) return null;
+    if (request.graduate.consentStatus !== "ACKNOWLEDGED") return { error: "PROFILE_DISABLED" as const };
+    // Track first-use timestamp for analytics, but do NOT invalidate the token.
+    // The link remains reusable for the entire 7-day approved access period.
+    if (!request.consumedAt) {
+      await tx.recruiterAccessRequest.update({ where: { id: request.id }, data: { consumedAt: new Date() } });
+    }
     await tx.recruiterAccount.update({ where: { id: request.recruiter.id }, data: { verifiedAt: new Date() } });
     await tx.recruiterSession.create({ data: { recruiterId: request.recruiter.id, tokenHash: hashToken(sessionToken), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) } });
     return { request, sessionToken };
@@ -281,8 +285,40 @@ export async function getRecruiterSession(rawToken: string | undefined) {
   return session;
 }
 
+/**
+ * Check whether a recruiter has any active (APPROVED, non-expired) access request.
+ * A single approved request grants access to ALL public, consented graduate profiles —
+ * not just the one the request was originally attached to.
+ */
+async function recruiterHasActiveAccess(recruiterId: string) {
+  const grant = await prisma.recruiterAccessRequest.findFirst({
+    where: { recruiterId, status: "APPROVED", expiresAt: { gt: new Date() } },
+    select: { id: true, expiresAt: true },
+  });
+  return grant;
+}
+
+/**
+ * Return all public, consented graduate profiles for a verified recruiter's sidebar.
+ * The recruiter sees every published graduate, not just the one tied to their access request.
+ */
+export async function getAllAccessibleGraduates(recruiterId: string) {
+  const grant = await recruiterHasActiveAccess(recruiterId);
+  if (!grant) return null;
+  const profiles = await prisma.graduateProfile.findMany({
+    where: { publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" },
+    include: publicProfileInclude,
+    orderBy: { overallRating: "desc" },
+  });
+  return {
+    accessExpiresAt: grant.expiresAt,
+    graduates: profiles.map((p) => serializePublicProfile(p)),
+  };
+}
+
 export async function getFullProfileForRecruiter(slug: string, recruiterId: string) {
-  const grant = await prisma.recruiterAccessRequest.findFirst({ where: { recruiterId, graduate: { slug, publicProfileEnabled: true }, status: "APPROVED", expiresAt: { gt: new Date() } } });
+  // A single approved access request grants access to ALL public+consented graduates.
+  const grant = await recruiterHasActiveAccess(recruiterId);
   if (!grant) return null;
   const profile = await prisma.graduateProfile.findUnique({
     where: { slug }, include: {
@@ -294,8 +330,10 @@ export async function getFullProfileForRecruiter(slug: string, recruiterId: stri
     }
   });
   if (!profile) return null;
+  // Ensure the profile is public and consented
+  if (!profile.publicProfileEnabled || profile.consentStatus !== "ACKNOWLEDGED") return null;
   return {
-    graduateId: profile.id, accessRequestId: grant.id,
+    graduateId: profile.id, accessRequestId: grant.id, accessExpiresAt: grant.expiresAt,
     overview: { name: publicName(profile.user.name, profile.user.email), email: profile.emailPublic ? profile.user.email : null,
       photo: profile.profilePhotoFileId ? `/api/graduates/${profile.slug}/photo` : profile.profilePhotoUrl, bio: profile.bio, country: profile.country,
       skills: profile.skills, interests: profile.interests, linkedinUrl: profile.linkedinUrl, githubUrl: profile.githubUrl, program: profile.program },
@@ -311,28 +349,32 @@ export async function getFullProfileForRecruiter(slug: string, recruiterId: stri
 }
 
 export async function getRecruiterGraduateContact(slug: string, recruiterId: string) {
-  const grant = await prisma.recruiterAccessRequest.findFirst({
-    where: { recruiterId, graduate: { slug, publicProfileEnabled: true }, status: "APPROVED", expiresAt: { gt: new Date() } },
-    include: { graduate: { include: { user: { select: { name: true, email: true } } } }, recruiter: true }
+  const grant = await recruiterHasActiveAccess(recruiterId);
+  if (!grant) return null;
+  const graduate = await prisma.graduateProfile.findFirst({
+    where: { slug, publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" },
+    include: { user: { select: { name: true, email: true } } }
   });
-  if (!grant || !grant.recruiter) return null;
+  if (!graduate) return null;
+  const recruiter = await prisma.recruiterAccount.findUnique({ where: { id: recruiterId } });
+  if (!recruiter) return null;
   return {
-    graduateId: grant.graduateId,
-    graduateName: publicName(grant.graduate.user.name, grant.graduate.user.email),
-    graduateEmail: grant.graduate.user.email,
-    recruiter: grant.recruiter
+    graduateId: graduate.id,
+    graduateName: publicName(graduate.user.name, graduate.user.email),
+    graduateEmail: graduate.user.email,
+    recruiter
   };
 }
 
 export async function getGraduatePhoto(slug: string) {
   return prisma.graduateProfile.findFirst({
-    where: { slug, publicProfileEnabled: true, profilePhotoFileId: { not: null } },
+    where: { slug, publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED", profilePhotoFileId: { not: null } },
     select: { profilePhotoFile: { select: { storageKey: true } } }
   });
 }
 
 export async function toggleSavedCandidate(recruiterId: string, slug: string) {
-  const graduate = await prisma.graduateProfile.findFirst({ where: { slug, publicProfileEnabled: true }, select: { id: true } });
+  const graduate = await prisma.graduateProfile.findFirst({ where: { slug, publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" }, select: { id: true } });
   if (!graduate) return null;
   const existing = await prisma.savedCandidate.findUnique({ where: { recruiterId_graduateId: { recruiterId, graduateId: graduate.id } } });
   if (existing) { await prisma.savedCandidate.delete({ where: { id: existing.id } }); return { saved: false }; }

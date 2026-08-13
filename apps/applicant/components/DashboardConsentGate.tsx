@@ -17,7 +17,7 @@ export function DashboardConsentGate({ show }: DashboardConsentGateProps) {
   return (
     <GraduateConsentModal
       showProfileFormOnPublish={false}
-      onPublish={() => router.push("/dashboard/graduate-profile")}
+      onPublish={() => router.push("/dashboard/consent")}
       onDecline={() => setIsOpen(false)}
     />
   );

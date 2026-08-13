@@ -1,7 +1,7 @@
 /**
  * API Route: /api/graduates/request-access
- * Create recruiter access request for ALL public graduate profiles (PENDING — admin must approve)
- * This replaces the per-graduate request-access endpoint so recruiters only fill the form once.
+ * Create a SINGLE recruiter access request (PENDING — admin must approve)
+ * One form submission = one request, regardless of how many public graduates exist.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -42,46 +42,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get all public graduate profiles
-    const publicGraduates = await prisma.graduateProfile.findMany({
+    // Get the first public graduate profile to attach the request to.
+    // The schema requires a graduateId on each RecruiterAccessRequest, so we
+    // create a SINGLE request rather than one per graduate. When the admin
+    // approves this request, the recruiter receives a token that grants
+    // access to the full directory.
+    const firstPublicGraduate = await prisma.graduateProfile.findFirst({
       where: { publicProfileEnabled: true },
       select: { id: true },
     });
 
-    if (publicGraduates.length === 0) {
+    if (!firstPublicGraduate) {
       return NextResponse.json(
         { error: "No public graduate profiles are currently available." },
         { status: 404 }
       );
     }
 
-    // Create an access request for each public graduate
-    const results = await Promise.all(
-      publicGraduates.map((graduate) => {
-        const token = generateSecureToken();
-        const expiresAt = calculateTokenExpiry(7);
-        return createRecruiterAccessRequest(
-          graduate.id,
-          {
-            recruiterName: String(recruiterName).trim().slice(0, 200),
-            recruiterOrganization: String(recruiterOrganization).trim().slice(0, 200),
-            recruiterDesignation: String(recruiterDesignation).trim().slice(0, 200),
-            recruiterEmail: String(recruiterEmail).trim().toLowerCase(),
-            recruiterPhone: recruiterPhone ? String(recruiterPhone).trim().slice(0, 50) : undefined,
-            hiringRequirement: hiringRequirement ? String(hiringRequirement).trim().slice(0, 2000) : undefined,
-          },
-          token,
-          expiresAt
-        ).catch(() => null); // Skip duplicates (same recruiter+graduate pair)
-      })
-    );
+    const token = generateSecureToken();
+    const expiresAt = calculateTokenExpiry(7);
 
-    const createdCount = results.filter(Boolean).length;
+    await createRecruiterAccessRequest(
+      firstPublicGraduate.id,
+      {
+        recruiterName: String(recruiterName).trim().slice(0, 200),
+        recruiterOrganization: String(recruiterOrganization).trim().slice(0, 200),
+        recruiterDesignation: String(recruiterDesignation).trim().slice(0, 200),
+        recruiterEmail: String(recruiterEmail).trim().toLowerCase(),
+        recruiterPhone: recruiterPhone ? String(recruiterPhone).trim().slice(0, 50) : undefined,
+        hiringRequirement: hiringRequirement ? String(hiringRequirement).trim().slice(0, 2000) : undefined,
+      },
+      token,
+      expiresAt
+    );
 
     return NextResponse.json({
       success: true,
-      message: `Your access request has been submitted successfully for ${createdCount} graduate profile${createdCount !== 1 ? "s" : ""}. It is currently under review by our admin team. Once approved, you will receive an email containing a secure access link.`,
-      requestCount: createdCount,
+      message: "Your access request has been submitted successfully. It is currently under review by our admin team. Once approved, you will receive an email containing a secure access link to view all public graduate profiles.",
       status: "PENDING",
     });
   } catch (error) {

@@ -15,6 +15,8 @@ export type TalentosAuthOptions = {
   clientId: string;
   clientSecret: string;
   issuer: string;
+  /** Prefix for cookie names, e.g. "admin" or "applicant", to isolate sessions across portals on the same base domain. */
+  cookieNamePrefix?: string;
 };
 
 /**
@@ -29,7 +31,7 @@ export type TalentosAuthOptions = {
  * `localhost` (single-label — browsers reject a Domain attribute on it) we fall back to next-auth's
  * host-only cookie defaults so nothing changes for a single-host deployment.
  */
-export function baseDomainCookieConfig() {
+export function baseDomainCookieConfig(cookieNamePrefix = "") {
   const baseDomain = process.env.APP_BASE_DOMAIN;
   if (!baseDomain || baseDomain === "localhost") return undefined;
 
@@ -37,14 +39,15 @@ export function baseDomainCookieConfig() {
   // __Host- forbids a Domain attribute (so cannot be shared cross-subdomain); __Secure- is fine.
   const prefix = secure ? "__Secure-" : "";
   const shared = { domain: `.${baseDomain}`, path: "/", sameSite: "lax" as const, secure };
+  const tokenPrefix = cookieNamePrefix ? `${cookieNamePrefix}.` : "";
 
   return {
-    sessionToken: { name: `${prefix}authjs.session-token`, options: { ...shared, httpOnly: true } },
-    callbackUrl: { name: `${prefix}authjs.callback-url`, options: { ...shared } },
-    csrfToken: { name: `${prefix}authjs.csrf-token`, options: { ...shared, httpOnly: true } },
-    pkceCodeVerifier: { name: `${prefix}authjs.pkce.code_verifier`, options: { ...shared, httpOnly: true, maxAge: 900 } },
-    state: { name: `${prefix}authjs.state`, options: { ...shared, httpOnly: true, maxAge: 900 } },
-    nonce: { name: `${prefix}authjs.nonce`, options: { ...shared, httpOnly: true } }
+    sessionToken: { name: `${prefix}${tokenPrefix}authjs.session-token`, options: { ...shared, httpOnly: true } },
+    callbackUrl: { name: `${prefix}${tokenPrefix}authjs.callback-url`, options: { ...shared } },
+    csrfToken: { name: `${prefix}${tokenPrefix}authjs.csrf-token`, options: { ...shared, httpOnly: true } },
+    pkceCodeVerifier: { name: `${prefix}${tokenPrefix}authjs.pkce.code_verifier`, options: { ...shared, httpOnly: true, maxAge: 900 } },
+    state: { name: `${prefix}${tokenPrefix}authjs.state`, options: { ...shared, httpOnly: true, maxAge: 900 } },
+    nonce: { name: `${prefix}${tokenPrefix}authjs.nonce`, options: { ...shared, httpOnly: true } }
   };
 }
 
@@ -54,7 +57,7 @@ export function baseDomainCookieConfig() {
  * the same config is edge-safe when reused in middleware.
  */
 export function createTalentosAuth(options: TalentosAuthOptions): NextAuthResult {
-  const cookies = baseDomainCookieConfig();
+  const cookies = baseDomainCookieConfig(options.cookieNamePrefix);
   const baseDomain = process.env.APP_BASE_DOMAIN;
 
   return NextAuth({

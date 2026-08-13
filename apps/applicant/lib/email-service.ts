@@ -1,22 +1,28 @@
 import nodemailer from "nodemailer";
 
 let transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
+let resendClient: import("resend").Resend | null = null;
 
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>'"]/g, (character) => ({
+  return value.replace(/[&<>'"]/g, (character) => (({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
     "'": "&#39;",
     '"': "&quot;"
-  })[character] as string);
+  })[character] as string));
 }
 
-function deliveryMode(): "smtp" | "log" {
+function emailProvider(): "resend" | "smtp" | "log" {
   if (process.env.EMAIL_DELIVERY_MODE === "log") return "log";
+  if (process.env.EMAIL_PROVIDER === "resend" && process.env.RESEND_API_KEY) return "resend";
+  if (process.env.EMAIL_PROVIDER === "resend" && !process.env.RESEND_API_KEY) {
+    if (process.env.NODE_ENV !== "production") return "log";
+    throw new Error("EMAIL_PROVIDER is 'resend' but RESEND_API_KEY is not set.");
+  }
   if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) return "smtp";
   if (process.env.NODE_ENV !== "production") return "log";
-  throw new Error("Email delivery is not configured. Set SMTP variables or EMAIL_DELIVERY_MODE=log for local use.");
+  throw new Error("Email delivery is not configured. Set RESEND_API_KEY or SMTP variables, or EMAIL_DELIVERY_MODE=log for local use.");
 }
 
 function smtpTransporter() {
@@ -29,6 +35,14 @@ function smtpTransporter() {
   return transporter;
 }
 
+async function getResendClient() {
+  if (!resendClient) {
+    const { Resend } = await import("resend");
+    resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendClient;
+}
+
 export interface VerificationEmailData {
   to: string;
   recruiterName: string;
@@ -38,7 +52,9 @@ export interface VerificationEmailData {
 }
 
 export async function sendVerificationEmail(data: VerificationEmailData) {
-  if (deliveryMode() === "log") {
+  const provider = emailProvider();
+
+  if (provider === "log") {
     console.info(`[email preview] Recruiter verification for ${data.to}: ${data.verificationUrl}`);
     return { messageId: "local-email-preview" };
   }
@@ -58,14 +74,16 @@ export async function sendVerificationEmail(data: VerificationEmailData) {
       </main>
     </body></html>`;
   const text = `Hi ${data.recruiterName},\n\nVerify access to ${data.graduateName}'s TalentOS portfolio:\n${data.verificationUrl}\n\nThis link expires on ${expiryDate}.`;
+  const from = process.env.EMAIL_FROM || "noreply@talentos.io";
+  const subject = "Access to TalentOS Graduate Profile";
 
-  return smtpTransporter().sendMail({
-    from: process.env.EMAIL_FROM || "noreply@talentos.io",
-    to: data.to,
-    subject: "Access to TalentOS Graduate Profile",
-    html,
-    text
-  });
+  if (provider === "resend") {
+    const { data: resendData, error } = await (await getResendClient()).emails.send({ from, to: data.to, subject, html, text });
+    if (error) throw new Error(`Resend API error: ${error.message}`);
+    return { messageId: resendData?.id ?? "resend-sent" };
+  }
+
+  return smtpTransporter().sendMail({ from, to: data.to, subject, html, text });
 }
 
 export async function sendProfileViewNotification(data: {
@@ -76,7 +94,8 @@ export async function sendProfileViewNotification(data: {
   viewedAt: Date;
 }) {
   try {
-    if (deliveryMode() === "log") {
+    const provider = emailProvider();
+    if (provider === "log") {
       console.info(`[email preview] Profile-view notification for ${data.to}`);
       return;
     }
@@ -84,28 +103,38 @@ export async function sendProfileViewNotification(data: {
     const organization = data.recruiterOrganization
       ? ` from <strong>${escapeHtml(data.recruiterOrganization)}</strong>`
       : "";
-    await smtpTransporter().sendMail({
-      from: process.env.EMAIL_FROM || "noreply@talentos.io",
-      to: data.to,
-      subject: "Your TalentOS Profile Was Viewed",
-      html: `<p>Hi ${escapeHtml(data.graduateName)},</p><p><strong>${escapeHtml(data.recruiterName)}</strong>${organization} viewed your graduate profile at ${escapeHtml(data.viewedAt.toLocaleString())}.</p><p><a href="${escapeHtml(dashboardUrl)}">Open TalentOS</a></p>`
-    });
+    const from = process.env.EMAIL_FROM || "noreply@talentos.io";
+    const html = `<p>Hi ${escapeHtml(data.graduateName)},</p><p><strong>${escapeHtml(data.recruiterName)}</strong>${organization} viewed your graduate profile at ${escapeHtml(data.viewedAt.toLocaleString())}.</p><p><a href="${escapeHtml(dashboardUrl)}">Open TalentOS</a></p>`;
+    const text = `Hi ${data.graduateName},\n\n${data.recruiterName}${data.recruiterOrganization ? ` from ${data.recruiterOrganization}` : ""} viewed your graduate profile at ${data.viewedAt.toLocaleString()}.\n\nOpen TalentOS: ${dashboardUrl}`;
+    const subject = "Your TalentOS Profile Was Viewed";
+
+    if (provider === "resend") {
+      const { error } = await (await getResendClient()).emails.send({ from, to: data.to, subject, html, text });
+      if (error) throw new Error(`Resend API error: ${error.message}`);
+      return;
+    }
+    await smtpTransporter().sendMail({ from, to: data.to, subject, html, text });
   } catch (error) {
     console.error("Error sending profile view notification:", error);
   }
 }
 
 export async function sendCandidateContactEmail(data: { to: string; graduateName: string; recruiterName: string; recruiterEmail: string; organization?: string; message: string }) {
-  if (deliveryMode() === "log") {
+  const provider = emailProvider();
+  if (provider === "log") {
     console.info(`[email preview] Candidate contact from ${data.recruiterEmail} to ${data.to}: ${data.message}`);
     return { messageId: "local-email-preview" };
   }
-  return smtpTransporter().sendMail({
-    from: process.env.EMAIL_FROM || "noreply@talentos.io",
-    replyTo: data.recruiterEmail,
-    to: data.to,
-    subject: `${data.recruiterName} would like to connect through TalentOS`,
-    text: `Hi ${data.graduateName},\n\n${data.recruiterName}${data.organization ? ` from ${data.organization}` : ""} sent you this message:\n\n${data.message}\n\nReply directly to this email to contact ${data.recruiterEmail}.`,
-    html: `<p>Hi ${escapeHtml(data.graduateName)},</p><p><strong>${escapeHtml(data.recruiterName)}</strong>${data.organization ? ` from <strong>${escapeHtml(data.organization)}</strong>` : ""} sent you this message:</p><blockquote>${escapeHtml(data.message).replace(/\n/g, "<br>")}</blockquote><p>Reply to this email to contact the recruiter.</p>`
-  });
+  const from = process.env.EMAIL_FROM || "noreply@talentos.io";
+  const subject = `${data.recruiterName} would like to connect through TalentOS`;
+  const text = `Hi ${data.graduateName},\n\n${data.recruiterName}${data.organization ? ` from ${data.organization}` : ""} sent you this message:\n\n${data.message}\n\nReply directly to this email to contact ${data.recruiterEmail}.`;
+  const html = `<p>Hi ${escapeHtml(data.graduateName)},</p><p><strong>${escapeHtml(data.recruiterName)}</strong>${data.organization ? ` from <strong>${escapeHtml(data.organization)}</strong>` : ""} sent you this message:</p><blockquote>${escapeHtml(data.message).replace(/\n/g, "<br>")}</blockquote><p>Reply to this email to contact the recruiter.</p>`;
+
+  if (provider === "resend") {
+    const { data: resendData, error } = await (await getResendClient()).emails.send({ from, to: data.to, subject, html, text, replyTo: data.recruiterEmail });
+    if (error) throw new Error(`Resend API error: ${error.message}`);
+    return { messageId: resendData?.id ?? "resend-sent" };
+  }
+
+  return smtpTransporter().sendMail({ from, replyTo: data.recruiterEmail, to: data.to, subject, text, html });
 }

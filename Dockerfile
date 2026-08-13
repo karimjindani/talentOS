@@ -11,7 +11,7 @@ COPY packages/auth-web/package.json packages/auth-web/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/storage/package.json packages/storage/package.json
 COPY packages/ui/package.json packages/ui/package.json
-RUN npm ci
+RUN npm ci --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 --fetch-timeout=300000
 RUN npm install --no-save --ignore-scripts @next/swc-linux-x64-gnu@15.5.19
 
 FROM node:24-slim AS builder

@@ -10,6 +10,8 @@ export default function VerifyEmailPage() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
   const [errorTitle, setErrorTitle] = useState("Verification Failed");
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+  const [canResubmit, setCanResubmit] = useState(false);
   const token = searchParams.get("token");
 
   useEffect(() => {
@@ -27,12 +29,15 @@ export default function VerifyEmailPage() {
           body: JSON.stringify({ token }),
         });
 
+        const data = await response.json();
+
         if (!response.ok) {
-          const data = await response.json();
+          if (data.rejectionReason) {
+            setRejectionReason(data.rejectionReason);
+          }
           throw new Error(data.error || "Verification failed");
         }
 
-        const data = await response.json();
         setStatus("success");
         setMessage("Email verified! Redirecting to portfolio...");
 
@@ -44,11 +49,20 @@ export default function VerifyEmailPage() {
         setStatus("error");
         const errMsg = err instanceof Error ? err.message : "Verification failed";
         setMessage(errMsg);
-        if (errMsg.includes("expired")) setErrorTitle("Access Expired");
-        else if (errMsg.includes("revoked")) setErrorTitle("Access Revoked");
-        else if (errMsg.includes("pending")) setErrorTitle("Access Pending Review");
-        else if (errMsg.includes("rejected")) setErrorTitle("Access Rejected");
-        else setErrorTitle("Verification Failed");
+        if (errMsg.includes("expired")) {
+          setErrorTitle("Access Expired");
+          setCanResubmit(true);
+        } else if (errMsg.includes("revoked")) {
+          setErrorTitle("Access Revoked");
+          setCanResubmit(true);
+        } else if (errMsg.includes("pending")) {
+          setErrorTitle("Access Pending Review");
+        } else if (errMsg.includes("rejected")) {
+          setErrorTitle("Request Rejected");
+          setCanResubmit(true);
+        } else {
+          setErrorTitle("Verification Failed");
+        }
       }
     };
 
@@ -95,12 +109,30 @@ export default function VerifyEmailPage() {
                 {errorTitle}
               </h2>
               <p className="mt-2 text-slate-600">{message}</p>
-              <button
-                onClick={() => router.push("/graduates")}
-                className="mt-6 rounded-lg bg-brand-blue px-4 py-2 font-semibold text-white transition-colors hover:bg-blue-700"
-              >
-                Back to Directory
-              </button>
+
+              {rejectionReason && (
+                <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-4 text-left">
+                  <p className="text-sm font-semibold text-rose-800">Reason from administrator:</p>
+                  <p className="mt-1 text-sm text-rose-700">{rejectionReason}</p>
+                </div>
+              )}
+
+              <div className="mt-6 flex flex-col gap-3">
+                <button
+                  onClick={() => router.push("/graduates")}
+                  className="rounded-lg bg-brand-blue px-4 py-2 font-semibold text-white transition-colors hover:bg-blue-700"
+                >
+                  Back to Directory
+                </button>
+                {canResubmit && (
+                  <button
+                    onClick={() => router.push("/graduates")}
+                    className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    Submit a New Access Request
+                  </button>
+                )}
+              </div>
             </>
           )}
         </div>
