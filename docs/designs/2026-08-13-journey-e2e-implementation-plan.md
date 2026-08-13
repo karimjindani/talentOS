@@ -514,7 +514,10 @@ export async function sweepOrphanJourneyUsers(now: Date = new Date()): Promise<n
   let removed = 0;
   for (const user of users) {
     if (!user.email || !isJourneyEmail(user.email)) continue;
-    if ((user.createdTimestamp ?? 0) >= cutoff) continue;
+    // Unknown age must fail SAFE (preserve), not toward deletion: `?? 0` would treat a user with
+    // no createdTimestamp as epoch-old and reap an in-flight run's own user. Keycloak types this
+    // field as optional, so the absent case is real.
+    if ((user.createdTimestamp ?? Date.now()) >= cutoff) continue;
     await deleteJourneyUser(user.id);
     removed += 1;
   }
