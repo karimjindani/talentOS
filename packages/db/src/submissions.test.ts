@@ -22,6 +22,8 @@ const prismaMock = vi.hoisted(() => ({
   txSubmissionUpdate: vi.fn(),
   txSubmissionUpdateMany: vi.fn(),
   txSubmissionFindFirstOrThrow: vi.fn(),
+  txSubmissionFindMany: vi.fn(),
+  txGraduateProfileUpdateMany: vi.fn(),
   txAuditLogCreate: vi.fn(),
   txNotificationCreate: vi.fn(),
   txJournalUpdateMany: vi.fn(),
@@ -119,11 +121,13 @@ describe("submission data access", () => {
         tenantMembership: { findMany: prismaMock.txTenantMembershipFindMany },
         submission: {
           findFirst: prismaMock.txSubmissionFindFirst,
+          findMany: prismaMock.txSubmissionFindMany,
           create: prismaMock.txSubmissionCreate,
           update: prismaMock.txSubmissionUpdate,
           updateMany: prismaMock.txSubmissionUpdateMany,
           findFirstOrThrow: prismaMock.txSubmissionFindFirstOrThrow
         },
+        graduateProfile: { updateMany: prismaMock.txGraduateProfileUpdateMany },
         engineeringJournalEntry: { updateMany: prismaMock.txJournalUpdateMany },
         auditLog: { create: prismaMock.txAuditLogCreate },
         notification: { create: prismaMock.txNotificationCreate, createMany: prismaMock.txNotificationCreateMany },
@@ -136,6 +140,9 @@ describe("submission data access", () => {
     );
     prismaMock.txMissionAssignmentFindMany.mockResolvedValue([]);
     prismaMock.txSubmissionReviewFindMany.mockResolvedValue([]);
+    // Auto-publish: no prior accepted submissions by default
+    prismaMock.txSubmissionFindMany.mockResolvedValue([]);
+    prismaMock.txGraduateProfileUpdateMany.mockResolvedValue({ count: 0 });
     // Tasks 1 & 2 complete by default so existing submit-flow tests are unaffected by the gate;
     // tests for the gate itself override this.
     prismaMock.txMissionTaskCompletionFindMany.mockResolvedValue([{ taskIndex: 1 }, { taskIndex: 2 }]);
@@ -629,7 +636,8 @@ describe("submission data access", () => {
         tenantId: "tenant-1",
         status: "ACCEPTED",
         reviewerFeedback: "Great work.",
-        reviewerUserId: "lead-1"
+        reviewerUserId: "lead-1",
+        rating: 4.5
       });
 
       expect(prismaMock.txSubmissionReviewCreate).toHaveBeenCalledWith({
@@ -661,7 +669,8 @@ describe("submission data access", () => {
         tenantId: "tenant-1",
         status: "ACCEPTED",
         reviewerFeedback: "Fixed, thanks.",
-        reviewerUserId: "lead-1"
+        reviewerUserId: "lead-1",
+        rating: 4.0
       });
 
       expect(prismaMock.txSubmissionReviewCreate).toHaveBeenCalledWith({
@@ -683,7 +692,8 @@ describe("submission data access", () => {
         tenantId: "tenant-1",
         status: "NEEDS_REVISION",
         reviewerFeedback: "Journal entries predate the mission start.",
-        reviewerUserId: "lead-1"
+        reviewerUserId: "lead-1",
+        rating: null
       });
 
       expect(prismaMock.txSubmissionReviewCreate).toHaveBeenCalledWith({
@@ -711,7 +721,8 @@ describe("submission data access", () => {
         tenantId: "tenant-1",
         status: "REPEAT",
         reviewerFeedback: "Repo code and journal entries are stale.",
-        reviewerUserId: "lead-1"
+        reviewerUserId: "lead-1",
+        rating: null
       });
 
       expect(prismaMock.txSubmissionReviewCreate).toHaveBeenCalledWith({
@@ -782,7 +793,8 @@ describe("submission data access", () => {
       tenantId: "tenant-1",
       status: "REPEAT",
       reviewerFeedback: "Repeat Week 3 with a fresh attempt.",
-      reviewerUserId: "lead-1"
+      reviewerUserId: "lead-1",
+      rating: null
     });
 
     expect(prismaMock.txMissionAssignmentUpdateMany).toHaveBeenCalledWith({
@@ -832,7 +844,8 @@ describe("submission data access", () => {
       tenantId: "tenant-1",
       status: "REPEAT",
       reviewerFeedback: "n/a",
-      reviewerUserId: "lead-1"
+      reviewerUserId: "lead-1",
+      rating: null
     });
 
     // assignWeekMissionToAcceptedApplicantTx (auto-advance) is never invoked on REPEAT.
@@ -870,7 +883,8 @@ describe("submission data access", () => {
       tenantId: "tenant-1",
       status: "ACCEPTED",
       reviewerFeedback: "Nice work.",
-      reviewerUserId: "lead-1"
+      reviewerUserId: "lead-1",
+      rating: 4.5
     });
 
     expect(prismaMock.txMissionAssignmentCreate).toHaveBeenCalledWith({
@@ -902,7 +916,8 @@ describe("submission data access", () => {
       tenantId: "tenant-1",
       status: "ACCEPTED",
       reviewerFeedback: "Program complete!",
-      reviewerUserId: "lead-1"
+      reviewerUserId: "lead-1",
+      rating: 5.0
     });
 
     expect(prismaMock.txApplicationFindFirst).not.toHaveBeenCalled();

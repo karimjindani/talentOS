@@ -79,8 +79,8 @@ describe("ApplicantShell isApplicantNavActive route matching", () => {
   });
 
   describe("nav items completeness", () => {
-    it("has exactly 10 nav items", () => {
-      expect(APPLICANT_NAV_ITEMS).toHaveLength(10);
+    it("has exactly 11 nav items", () => {
+      expect(APPLICANT_NAV_ITEMS).toHaveLength(11);
     });
 
     it("includes all expected routes", () => {
@@ -95,6 +95,7 @@ describe("ApplicantShell isApplicantNavActive route matching", () => {
       expect(hrefs).toContain("/dashboard/notifications");
       expect(hrefs).toContain("/dashboard/profile");
       expect(hrefs).toContain("/dashboard/mentor");
+      expect(hrefs).toContain("/dashboard/consent");
     });
   });
 });
