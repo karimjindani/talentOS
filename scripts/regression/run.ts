@@ -3023,7 +3023,7 @@ const scenarios: Scenario[] = [
         reviewerNotes: "Accepted for graduate-profile regression"
       });
 
-      for (let weekNumber = 2; weekNumber <= 4; weekNumber += 1) {
+      for (let weekNumber = 1; weekNumber <= 4; weekNumber += 1) {
         const assignment = await assignWeekMissionToAcceptedApplicant({
           tenantId: fixture.tenant.id,
           programId: fixture.program.id,
