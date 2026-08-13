@@ -432,7 +432,8 @@ const scenarios: Scenario[] = [
         tenantId: submission.tenantId,
         status: "ACCEPTED",
         reviewerFeedback: "Reviewed with linked Engineering Journal context.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: 4
       });
       if (reviewed.status !== "ACCEPTED") {
         throw new Error("Reviewer could not complete the existing submission review action.");
@@ -841,7 +842,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "ACCEPTED",
         reviewerFeedback: "Meets the evaluation criteria.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: 4
       });
       const accepted = await getApplicantSubmission(fixture.mission.id, fixture.user.id, fixture.tenant.id);
       if (accepted?.status !== "ACCEPTED") throw new Error(`Expected ACCEPTED, got ${accepted?.status}`);
@@ -1372,7 +1374,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "ACCEPTED",
         reviewerFeedback: "Attempt 2 passed.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: 4
       });
 
       // Scoped by applicant/tenant, not a single missionId — Attempt 1's journal lives on the
@@ -1397,7 +1400,8 @@ const scenarios: Scenario[] = [
           tenantId: fixture.tenant.id,
           status: "ACCEPTED",
           reviewerFeedback: "Duplicate acceptance should fail.",
-          reviewerUserId: fixture.actor.id
+          reviewerUserId: fixture.actor.id,
+          rating: 4
         });
         throw new Error("Accepted attempt was reviewable twice.");
       } catch (error) {
@@ -2388,7 +2392,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "ACCEPTED",
         reviewerFeedback: "Accepted for regression",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: 4
       });
       const after = await getApplicantMissionProgress(fixture.tenant.id, fixture.user.id, fixture.program.id);
       if (after.overall.accepted !== 1 || after.overall.percentage !== 100) {
@@ -2571,7 +2576,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "ACCEPTED",
         reviewerFeedback: "Looks good after revision.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: 4
       });
       if (accepted.status !== "ACCEPTED") {
         throw new Error(`Expected ACCEPTED after resubmission, got ${accepted.status}`);
@@ -2703,7 +2709,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "ACCEPTED",
         reviewerFeedback: "Round 2: accepted.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: 4
       });
 
       // Verify two review history records exist
