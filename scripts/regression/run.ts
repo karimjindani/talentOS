@@ -3046,6 +3046,15 @@ const scenarios: Scenario[] = [
 
       const ratings = [4, 4.5, 5, 4.5];
       for (const [index, mission] of missions.entries()) {
+        // Accept the mission assignment (NOT_STARTED → ACCEPTED) before drafting evidence.
+        const assignment = assignments.find((a) => a.missionId === mission.id);
+        if (assignment) {
+          await acceptMissionAssignment({
+            tenantId: fixture.tenant.id,
+            applicantId: fixture.user.id,
+            missionAssignmentId: assignment.id
+          });
+        }
         const submission = await saveSubmissionDraft({
           tenantId: fixture.tenant.id,
           missionId: mission.id,
