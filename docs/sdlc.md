@@ -1,8 +1,8 @@
 # Principles of Software Development
 
-Current allocated iteration version: `v0.20.1`
+Current allocated iteration version: `v0.20.2`
 
-Documentation evidence commit: `5560ccf` (baseline commit to be set on merge; latest released baseline: `v0.20.0`)
+Documentation evidence commit: `43e7537` (baseline commit to be set on merge; latest released baseline: `v0.20.1`)
 
 0. Do what is documented. Always document what you do. Documents should be updated in docs folder in markdown format.
 1. Every iteration of development must ensure that previously committed and tested work remains functional.
