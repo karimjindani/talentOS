@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   ci:
@@ -36,6 +37,84 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  e2e-evidence:
+    name: E2E scenarios and evidence
+    runs-on: ubuntu-latest
+    # Boots the real stack, so it is far slower than the `ci` job above. Gated to pull requests and
+    # manual runs rather than every branch push; `ci` stays the fast feedback loop.
+    if: github.event_name != 'push'
+    # The stack build (two Next apps) plus Keycloak boot dominates; the cap stops a hung stack from
+    # burning the 6-hour default.
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # scripts/regression/run.ts hardcodes these hostnames (LOCAL, ~line 93) rather than reading
+      # them from the environment. lvh.me is a public wildcard onto 127.0.0.1, but pin it locally so
+      # the run never depends on the runner's DNS resolving someone else's domain.
+      - name: Pin local hostnames
+        run: |
+          echo "127.0.0.1 lvh.me demo.lvh.me keycloak.lvh.me" | sudo tee -a /etc/hosts
+          getent hosts demo.lvh.me keycloak.lvh.me
+
+      - name: Install dependencies
+        run: npm ci
+
+      # @playwright/test is already a dependency; only the browser binary and its system libs are
+      # missing on the runner. Needed by both the regression login flows and the screenshot capture.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      # One command: docker compose up --build, Keycloak realm wait, db generate/migrate/seed, and
+      # the host-run Ops console. No secrets required — repairLocalEnv() writes .env from defaults.
+      - name: Bootstrap the local stack
+        run: npm run local:bootstrap
+
+      - name: Run E2E scenarios
+        env:
+          REGRESSION_CLEANUP_ON_EXIT: "1"
+        run: npm run regression:all
+
+      # if: always() so a failing suite still yields visual evidence of the state it left behind.
+      - name: Capture portal screenshots
+        if: always()
+        run: npx tsx scripts/user-guide/capture-screenshots.ts
+
+      - name: Write run summary
+        if: always()
+        run: npx tsx scripts/ci/regression-summary.ts
+
+      # Only useful when the stack itself failed; on success it is noise.
+      - name: Collect Docker logs
+        if: failure()
+        run: |
+          mkdir -p .ops/docker-logs
+          docker compose logs --no-color --tail 400 > .ops/docker-logs/compose.log 2>&1 || true
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-evidence-${{ github.run_number }}
+          path: |
+            .ops/regression-results/*.json
+            .ops/docker-logs/*.log
+            docs/user-guides/screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v --remove-orphans || true
 
   realm-import:
     name: Validate Keycloak realm import

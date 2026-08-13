@@ -1,6 +1,6 @@
 # Deployment
 
-Code version: `v0.20.0`
+Code version: `v0.20.2`
 
 Deployment evidence commit: `2b3afce`
 
@@ -382,6 +382,27 @@ containers.
   the ECS address reachable by the browser (e.g. `http://<ECS_PUBLIC_IP>:9000`) and open `9000/tcp` for
   validation only; keep the console `9001/tcp` closed and set strong root credentials server-side
   (never commit them). The same S3 code can target Alibaba OSS by config alone if ever preferred.
+
+## Request Logging
+
+Both app containers can log one line per request to stdout, for `docker compose logs applicant admin`
+during local work (`v0.20.2`, D-102).
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `REQUEST_LOG` | `1` enables the middleware request log. Any other value, or unset, disables it. | unset (off); `docker-compose.yml` sets `1` for the local stack |
+
+Format: `[<app>] <iso-timestamp> <METHOD> <path> tenant=<slug> auth=<bool>`. Paths under `/_next/` and
+static file extensions are filtered out, so a page load produces one line rather than one per asset.
+
+Two operational notes:
+
+- **It is opt-in rather than environment-inferred.** The local stack runs the apps with
+  `NODE_ENV: production`, so a `NODE_ENV`-based default would have disabled the log in the one place it
+  is read. A deployed environment that does not set `REQUEST_LOG` emits nothing.
+- **Content is deliberately minimal** — method, path, tenant slug and a boolean auth flag. No user
+  identifiers, session tokens, query strings or request bodies. Enabling it in a shared environment
+  still puts request paths into container logs, so treat it as a debugging aid rather than a default.
 
 ## LLM / AI Mentor Environment Variables
 

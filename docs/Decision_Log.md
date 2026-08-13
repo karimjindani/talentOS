@@ -1,13 +1,13 @@
 # Decision Log
 
-Code version: `v0.20.0`
+Code version: `v0.20.2`
 
-Architecture evidence commit: `2b3afce`
+Architecture evidence commit: `5560ccf`
 
-Current documentation update: `v0.19.5`
+Current documentation update: `v0.20.1`
 
-Allocation note: `D-085` is reserved by active remote branch
-`origin/fix/v0.19.4-mission-task-checklist`; this branch therefore continues at `D-086`.
+Allocation note: `v0.20.0` was released to `origin/main` via PR #56; `v0.20.1` is the next
+available patch after `v0.20.0`.
 
 ## D-001
 
@@ -1158,8 +1158,6 @@ Full QA report at `docs/audits/v0.19.6_Applicant_Onboarding_QA_Report.md`.
 
 Date: 2026-08-07
 
-Status: Implemented; committed on `fix/applicant-journal-tenant-redirect`
-
 ## D-096: Tasks Are Authored Per Mission, Not Per Program Week (v0.20.0)
 
 **Context:** `ProgramTask` was scoped to a program week, so every mission in a week shared one task
@@ -1239,3 +1237,118 @@ thrown server action renders as a digest-only error page in production.
 
 **Consequences:** One parser instead of two. Frontmatter for week/difficulty was considered and
 rejected to avoid a second source of truth for metadata.
+
+---
+
+## D-101: Comprehensive Test Coverage Audit And Server-Action Regression Hardening (v0.19.7)
+
+**Context:** A full test-coverage audit of the TalentOS codebase identified that
+while the `packages/db` data-access layer and `packages/auth` pure logic were
+well-tested (55 files, 671 tests), the **server-action layer** — the boundary
+between UI forms and business logic — had no automated tests. Tenant CRUD,
+program CRUD, tenant resolution edge cases, and the RBAC capability matrix
+also lacked dedicated test coverage.
+
+**Decision:** Add 10 new test files (138 test cases) covering:
+
+1. **Tenant CRUD** (`packages/db/src/tenants.test.ts`, 12 tests) —
+   `getTenantBySlug`, `listTenants`, `createOrganization` (happy path, P2002
+   duplicate slug, email normalization, audit log, null actor), `updateTenantBranding`
+   (with/without/clear logo).
+
+2. **Program CRUD** (`packages/db/src/programs.test.ts`, 12 tests) —
+   `listPublishedPrograms`, `listTenantPrograms`, `getTenantProgram`, `slugify`
+   (4 cases), `createProgram` (happy, P2002), `updateProgram` (happy, not-found).
+
+3. **Tenant resolution edge cases** (`packages/auth/src/tenant.test.ts`, 25 tests) —
+   null/undefined/empty host, port stripping, protocol stripping, case
+   normalization, multi-level subdomains, localhost subdomains, apex fallback,
+   foreign domains, look-alike domains, slug validation (DNS-safe, reserved,
+   length boundaries).
+
+4. **RBAC capability matrix** (`packages/auth/src/capabilities.test.ts`, 17 tests) —
+   `canEnterAdminPortal` for all 5 roles + null/undefined, `can()` for all 8
+   capabilities × 5 roles, `assertTenantScopedAccess` (match, mismatch, null).
+
+5. **Journal validation helpers** (`packages/db/src/journal-validation.test.ts`, 33 tests) —
+   `normalizeJournalLanguage`, `parseJournalEvidenceLinks`, `validateConfidenceRating`,
+   `validateTimeSpentHours`, `normalizeJournalEntryDate` with timezone.
+
+6. **Applicant mission actions** (`apps/applicant/app/dashboard/missions/[id]/actions.test.ts`, 9 tests) —
+   `acceptMissionAction` (happy, not-assigned, not-linked, error),
+   `saveSubmissionAction` (save, submit, no-accepted-app, not-assigned, readiness error).
+
+7. **Applicant journal actions** (`apps/applicant/app/dashboard/journal/actions.test.ts`, 8 tests) —
+   `saveJournalEntryAction` (create, update, no-accepted-app, not-linked, missing
+   mission/date, `JournalEntryDateConflictError`, generic error).
+
+8. **Admin program actions** (`apps/admin/app/programs/actions.test.ts`, 7 tests) —
+   `createProgramAction` (happy, slug derivation, invalid status),
+   `updateProgramAction` (happy, not-found), `setProgramStatusAction` (happy, not-found).
+
+9. **Admin submission review** (`apps/admin/app/missions/submission-actions.test.ts`, 8 tests) —
+   `reviewSubmissionAction` (accept, needs-revision with/without feedback, repeat
+   without feedback, invalid decision, not-found, SUPER_ADMIN backfill, no DB user).
+
+10. **Admin organization actions** (`apps/admin/app/organizations/actions.test.ts`, 7 tests) —
+    `createOrganizationAction` (happy, existing user, missing name, invalid color,
+    invalid email, duplicate slug, Keycloak failure retryable).
+
+**Rationale:** Server actions are the primary attack surface for authorization
+and data-integrity bugs. Testing them at the unit level (with mocked dependencies)
+is fast, deterministic, and catches regressions before they reach the regression
+E2E suite or manual QA. No production code was modified — all 138 tests pass
+against the existing implementation, confirming the code is correct.
+
+**Alternatives considered:** Add Playwright browser E2E tests instead. Rejected —
+the existing custom regression runner already covers E2E flows; the gap was at
+the unit/server-action layer, which is better served by fast Vitest tests.
+
+**Impact:** 809 total tests (65 files), all passing. New
+`docs/REGRESSION_TEST_PLAN.md` documents the complete coverage matrix. No
+schema migrations, no production code changes, no user-facing changes.
+
+Date: 2026-08-10
+
+Status: Implemented; committed on `fix/applicant-journal-tenant-redirect`
+
+**Renumbered (v0.20.2):** This decision was originally recorded as `D-096` on the `feature/comprehensive-test-coverage` branch while `v0.20.0` independently allocated `D-096`–`D-100` on another branch. Both merged into `main`, leaving two different decisions sharing one identifier. This entry took the next free number because `D-096`–`D-100` are cited as a contiguous range from `Deployment.md` and `Product_Backlog.md`; it is listed after `D-100` so the log stays in numeric order, which is why its version is out of sequence with its neighbours. Decision identifiers are unique and permanent once merged — see `D-102`.
+
+---
+
+## D-102: Request Logging Is Opt-In, And Decision Identifiers Are Unique (v0.20.2)
+
+**Context:** Two defects surfaced when `v0.20.0` (PR #56), `v0.20.1` (PR #59) and the E2E-evidence CI
+job (PR #57) all merged into `main` within a day of each other.
+
+`v0.20.1` added request logging as an unconditional `console.log` at the top of both app middlewares.
+It had no way to be switched off, and the middleware matcher only excludes `_next/static`,
+`_next/image` and `favicon.ico` — so `/_next/data` payloads and every file served from `public/` each
+produced a line, burying real navigations in a page-load's worth of asset noise.
+
+Separately, `v0.19.7` and `v0.20.0` each allocated `D-096` on their own branch. Neither was visible to
+the other, and the merge kept both, so a citation of `D-096` resolved to two different decisions.
+
+**Decision:**
+
+1. Move the log behind `logRequest` in `packages/auth-web/src/request-log.ts`, gated on
+   `REQUEST_LOG === "1"` and filtered to paths that represent real activity. Unset means off, so a
+   deployed environment is quiet unless it asks. `docker-compose.yml` sets the flag for the local
+   stack, preserving the `docker compose logs` visibility the log was added for.
+2. Treat decision identifiers as unique and permanent once merged. The duplicate was resolved by
+   renumbering the `v0.19.7` entry to `D-101` — see the note there for why that one moved.
+
+**Rationale:** An explicit flag rather than `NODE_ENV !== "production"`, because the local Docker
+stack runs the apps with `NODE_ENV: production`; inferring the default from the environment would
+silence the log in the one place it is actually read. `logRequest` swallows console failures, since an
+observability concern must not be able to break the auth middleware hosting it.
+
+**Alternatives considered:** Duplicating a small helper in each app, rejected because the two copies
+would drift and each would need its own tests. Filtering `/api/auth/session` — next-auth polls it, so
+it is the single noisiest real path — rejected because it is a genuine request and hiding it would
+misrepresent traffic.
+
+**Consequences:** Request logging is off by default outside the local stack and must be enabled
+deliberately. Decision numbers can no longer be allocated from a branch's own view of the log alone;
+`AGENTS.md` already requires versions to be computed across all active branches, and the same applies
+to `D-0NN`.

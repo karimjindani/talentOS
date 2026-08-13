@@ -14,9 +14,9 @@ const SUBMITTED_SUBMISSION_STATUSES: SubmissionStatus[] = [
   SubmissionStatus.REPEAT
 ];
 const CREATE_DUPLICATE_ENTRY_DATE_MESSAGE =
-  "You already have a journal entry for this date. Please edit the existing entry instead.";
+  "You already have a journal entry for this mission on this date. Please edit the existing entry instead.";
 const UPDATE_DUPLICATE_ENTRY_DATE_MESSAGE =
-  "You already have a journal entry for this date. Please choose another date or edit the existing entry.";
+  "You already have a journal entry for this mission on this date. Please choose another date or edit the existing entry.";
 
 export class JournalEntryDateConflictError extends Error {
   constructor(
@@ -332,6 +332,7 @@ export async function createJournalEntry(input: CreateJournalEntryInput) {
       await assertEntryDateAvailable(tx, {
         tenantId: input.tenantId,
         applicantId: input.applicantId,
+        missionId: assignment.missionId,
         entryDate: content.entryDate,
         message: CREATE_DUPLICATE_ENTRY_DATE_MESSAGE
       });
@@ -417,6 +418,7 @@ export async function updateJournalEntry(input: UpdateJournalEntryInput) {
       await assertEntryDateAvailable(tx, {
         tenantId: input.tenantId,
         applicantId: input.applicantId,
+        missionId: assignment.missionId,
         entryDate: content.entryDate,
         excludingEntryId: input.id,
         message: UPDATE_DUPLICATE_ENTRY_DATE_MESSAGE
@@ -634,12 +636,14 @@ async function assertEntryDateAvailable(
   {
     tenantId,
     applicantId,
+    missionId,
     entryDate,
     excludingEntryId,
     message
   }: {
     tenantId: string;
     applicantId: string;
+    missionId: string;
     entryDate: Date;
     excludingEntryId?: string;
     message: string;
@@ -649,6 +653,7 @@ async function assertEntryDateAvailable(
     where: {
       tenantId,
       applicantId,
+      missionId,
       entryDate,
       ...(excludingEntryId ? { id: { not: excludingEntryId } } : {})
     },

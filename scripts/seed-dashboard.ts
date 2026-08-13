@@ -40,6 +40,15 @@ async function main() {
   console.log(`Tenant: ${tenant.name} | Applicant: ${applicant.email}`);
 
   // --- Required Week 1 tasks ---
+  // v0.20.0 made missionId required on ProgramTask, so find the Week 1 mission for this program.
+  const weekOneMission = await prisma.mission.findFirst({
+    where: { tenantId: tenant.id, programId: program.id, weekNumber: 1, status: "PUBLISHED" }
+  });
+  if (!weekOneMission) {
+    console.log("No published Week 1 mission found. Skipping task seeding.");
+    return;
+  }
+
   const taskDefs = [
     {
       aliases: ["Environment Setup"],
@@ -81,12 +90,13 @@ async function main() {
     const saved = existing
       ? await prisma.programTask.update({
           where: { id: existing.id },
-          data: { ...taskData, required: true, published: true }
+          data: { ...taskData, missionId: weekOneMission.id, required: true, published: true }
         })
       : await prisma.programTask.create({
           data: {
             tenantId: tenant.id,
             programId: program.id,
+            missionId: weekOneMission.id,
             ...taskData,
             required: true,
             published: true

@@ -1,6 +1,6 @@
 # Product Backlog
 
-Code version: `v0.20.0`
+Code version: `v0.20.2`
 
 Documentation update: `Backlog refreshed as part of the v0.16.2 vision audit (D-070): recorded the v0.15.1 four-week mission seed (D-068) and the v0.16.0 mission-driven dashboard progress + program content management (D-069) as delivered. Refreshed again during v0.18.2 (D-077): corrected the stale "Engineering Journal module" next-slice entry (delivered in v0.17.0/v0.17.1) and the pre-v0.18.0 mission-visibility wording. Refreshed again during v0.19.6 (D-094): reconciled the v0.19.0–v0.19.6 mission-lifecycle, mission-workspace/LMS, curriculum-tooling, submission-readiness and AI Mentor delivery, and recorded AI Mentor as delivered rather than an open boundary slice. Refreshed again during `v0.20.0` (D-096..D-100): recorded mission-scoped task authoring, dangling-repeat recovery, immutable submission review history with the evaluation summary, the mission-grouped journal and its mission-start date rule, and Markdown mission import as delivered. The remaining known slice is retiring the fixed 3-step mission workflow (`mission-tasks.ts`) in favour of admin-authored steps, deferred from `v0.20.0`.`
 
@@ -45,6 +45,19 @@ Documentation update: `Backlog refreshed as part of the v0.16.2 vision audit (D-
     manual `kcadm` step.
   - Next: a full Admin Portal Users/Roles management UI (list/edit/deactivate, role changes) on top of the
     `v0.11.0` Keycloak Admin REST integration.
+
+- SSDLC documentation integrity checks in CI — **not started**, raised in `v0.20.2` (D-102)
+  - Four documentation defects reached `main` in one day because CI gates on code only. Two branches
+    each allocated `D-096`; `v0.20.1` merged with no plan/test-results pair; `CI_CD_Pipeline.md` had its
+    version header bumped with no content change, leaving it asserting the opposite of what the pipeline
+    does; and `Regression_Scenarios.md` carried scenario counts of 40 and 42 against a runner with 53.
+  - Each is mechanically checkable: duplicate `## D-0NN` headings, a version in `Version_Baseline.md`
+    with no matching `docs/plans/` and `docs/testing/` pair, and the scenario-object count in
+    `scripts/regression/run.ts` versus the number stated in the docs. The scenario-coverage script
+    (`.claude/skills/ssdlc-documentation/scripts/check-scenario-coverage.js`) already covers the
+    plan→test-results link and could run in the same job.
+  - A version-header bump with no content change is the subtle one: it converts a stale document into a
+    document that *claims* to be current, so it is worth flagging rather than trusting.
 
 - Separate Admin and Applicant Portals — delivered in `v0.2.0`
   - The Admin Portal and Applicant Portal are two separate Next.js applications, each in its own Docker

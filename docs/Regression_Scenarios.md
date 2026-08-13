@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.20.0`
+Code version: `v0.20.2`
 
 ## Purpose
 
@@ -12,8 +12,10 @@ The suite can be run from the local Ops Console or from npm scripts. As of `v0.1
 shows individual scenario rows grouped by area after a run, so operators can see exactly which
 scenario passed, failed or skipped without searching the raw output.
 
-As of `v0.19.6`, `scripts/regression/run.ts` defines **42 scenario objects** (v0.19.6 adds two Missions
-scenarios: the Thursday deadline cadence and prerequisite-task persistence). Executed counts and
+As of `v0.20.1`, `scripts/regression/run.ts` defines **53 scenario objects**. `v0.20.1` added twelve
+(three Admin review-lifecycle, three Tenant cross-tenant-denial, three Missions deadline-sweep/terminal
+-state, two Auth portal-separation, one Journal) and replaced the superseded per-date journal scenario,
+taking the total from 42. Executed counts and
 environmental failures/skips are recorded in the versioned test-results artifact rather than assumed
 from source. New scenarios use the existing result envelope and Ops dashboard.
 
@@ -56,6 +58,49 @@ node/Vitest environment) is recorded as a Known Gap below.
 | S9: Admin list pages paginate and filter | `apps/admin/lib/pagination.test.ts` (10 cases) | Automated (logic); page rendering Deferred |
 | S10: Admin Overview reports live tenant counts | Manual verification over already-tested list functions | Deferred (read-only aggregation) |
 
+## v0.20.1 Plan Scenario Traceability
+
+Names match `docs/plans/v0.20.1_Request_Logging_Journal_Date_Rule_And_Scenario_Coverage.md`
+one-for-one, and the automated ones are verbatim scenario names in `scripts/regression/run.ts`.
+Verified on the runner in workflow run `31614137916` (53 total: 52 passed, 0 failed, 1 skipped).
+
+Both the plan and this section were written retroactively during `v0.20.2` — `v0.20.1` shipped without
+them. See `D-102`.
+
+| Plan scenario | Coverage | Status |
+| --- | --- | --- |
+| One journal entry per applicant per mission per calendar date is enforced | `regression:journal`; `packages/db/src/journal.test.ts` | Automated |
+| Reviewer can request revisions and applicant can resubmit (v0.20.1) | `regression:admin` | Automated |
+| Reviewer can reject with REPEAT and a new attempt is created (v0.20.1) | `regression:admin` | Automated |
+| Review writes immutable SubmissionReview history record (v0.20.1) | `regression:admin` | Automated |
+| Cross-tenant submission access is denied via getTenantSubmission (v0.20.1) | `regression:tenant` | Automated |
+| Cross-tenant journal review lookup is denied (v0.20.1) | `regression:tenant` | Automated |
+| Cross-tenant mission visibility is rejected (v0.20.1) | `regression:tenant` | Automated |
+| Deadline sweep marks overdue assignments and disqualifies after grace (v0.20.1) | `regression:missions` | Automated |
+| Deadline sweep is idempotent — running twice produces no new changes (v0.20.1) | `regression:missions` | Automated |
+| FAILED assignment rejects new submissions (v0.20.1) | `regression:missions` | Automated |
+| Applicant and admin portals use separate Keycloak clients (v0.20.1) | `regression:auth` | Automated |
+| Applicant session cookie does not grant admin portal access (v0.20.1) | `regression:auth` | Automated |
+| Request logging reaches container stdout without altering responses | `packages/auth-web/src/request-log.test.ts` (v0.20.2) | Deferred — see Known Gaps |
+
+## v0.20.2 Plan Scenario Traceability
+
+Names match `docs/plans/v0.20.2_Decision_Log_Integrity_And_Opt_In_Request_Logging.md` one-for-one.
+A correction iteration: it edits both app middlewares, so the scenarios that matter most are the
+existing authorization and tenant-isolation ones, which must stay green unchanged. Verified locally
+against the rebuilt stack (run `regression-20260813055040-db1f4b18`: 53 total, 52 passed, 0 failed,
+1 skipped).
+
+| Plan scenario | Coverage | Status |
+| --- | --- | --- |
+| Request logging is silent unless explicitly enabled | `packages/auth-web/src/request-log.test.ts`; confirmed live with `REQUEST_LOG=0` | Automated |
+| Request logging is enabled for the local Docker stack | Manual — `docker compose logs applicant admin` | Deferred — see Known Gaps |
+| Asset and Next-internal requests do not produce log lines | `packages/auth-web/src/request-log.test.ts`; confirmed live | Automated |
+| An applicant session still cannot reach the admin portal | `regression:auth` — "Applicant session cookie does not grant admin portal access (v0.20.1)" | Automated (coverage retained) |
+| Tenant resolution and the tenant response header are unchanged | `regression:tenant` (9/9) | Automated (coverage retained) |
+| A failing console cannot break a request | `packages/auth-web/src/request-log.test.ts` | Automated |
+| Every decision identifier in the log is unique | `grep -oE "^## D-[0-9]+" docs/Decision_Log.md \| sort \| uniq -d` | Deferred — documentation check; CI guard recorded in `Product_Backlog.md` |
+
 ## Execution Areas
 
 | Area | Command | Current status |
@@ -76,7 +121,7 @@ node/Vitest environment) is recorded as a Known Gap below.
 ## Scenario Matrix
 
 The matrix below is finer-grained than the runner: `scripts/regression/run.ts` currently contains
-**40 scenario objects**, and several matrix rows map onto a single combined runner scenario (for
+**53 scenario objects**, and several matrix rows map onto a single combined runner scenario (for
 example, applicant submit + duplicate block are one scenario, and the three Programs lifecycle rows
 are one scenario).
 
@@ -117,7 +162,7 @@ are one scenario).
 | Missions | A rejected (`REPEAT`) submission's replacement assignment keeps the same `weekNumber` as the failed attempt. | Automated | v0.19.1 (D-082): the "Repeat-week attempts preserve journal history without duplicate or infinite loops" and "Repeated-week history stays separate across mission variants and attempt boundaries" fixtures assert the alternate mission is created at `fixture.mission.weekNumber`, exercising the same-week correction (`createRepeatMissionForSameWeekTx`) rather than a reset to Week 1. |
 | Journal | Applicant creates and edits a daily Engineering Journal entry against their assigned mission; entries are listed and audited (`journal.created`/`journal.updated`). | Automated | v0.18.2 (D-077) closes the `v0.17.0` coverage gap. |
 | Journal | Applicant cannot create a journal entry against a published mission that is not assigned to them. | Automated | v0.18.2 (D-077). |
-| Journal | One journal entry per applicant per calendar date is enforced. | Automated | v0.18.2 (D-077) exercises the `v0.17.1` database-level unique constraint via `JournalEntryDateConflictError`. |
+| Journal | One journal entry per applicant per mission per calendar date is enforced. | Automated | v0.20.1 updates the unique constraint from `(tenantId, applicantId, entryDate)` to `(tenantId, applicantId, missionId, entryDate)`. Applicants can now write separate entries for different missions on the same day. Same mission + same date is still blocked. |
 | Journal | Journal entries lock once the mission's assignment is submitted. | Automated | v0.18.2 (D-077) exercises `isJournalMissionLockedForApplicant`/`assertJournalMissionNotLocked`. |
 | Tenant isolation | Tenant-scoped program read rejects another tenant. | Partially automated | Skips when only one local tenant exists. Needs a second marked tenant fixture. |
 | Tenant isolation | Tenant-scoped submission read rejects another tenant. | Automated | v0.15.0 (D-067): cross-tenant submission access is denied. |
@@ -189,14 +234,18 @@ Cleanup rules:
 5. Prefer deterministic regression names such as `regression-<runId>` and
    `applicant+<runId>@regression.talentos.local`.
 
-## Known Gaps (as of `v0.18.3`)
+## Known Gaps (as of `v0.20.2`)
 
 - Full browser-level Playwright coverage is not yet complete for every scenario. The runner currently
   combines OIDC HTTP login flows with DB/service-level scenario checks.
 - Storage upload/download is documented but not automated.
-- Cross-tenant route-level denial needs a second regression tenant fixture and browser route checks.
-- Admin review should expand from one accepted-path status transition to all reviewer transitions and
-  role-specific denial paths.
+- ~~Cross-tenant route-level denial needs a second regression tenant fixture and browser route
+  checks.~~ **Closed in `v0.20.1`** at the data-access layer by three `regression:tenant` scenarios
+  (submission, journal review lookup, mission visibility). Browser route-level checks remain open.
+- ~~Admin review should expand from one accepted-path status transition to all reviewer transitions
+  and role-specific denial paths.~~ **Closed in `v0.20.1`** by three `regression:admin` scenarios
+  covering the revision, REPEAT and review-history transitions. Role-specific denial is covered by the
+  two `regression:auth` portal-separation scenarios.
 - **Configuration & deployment regression (`v0.19.7`)** — the following classes of production-impacting
   issues that previously passed automated tests but failed during manual QA are now covered by unit
   tests (132 tests across 6 files): stale Prisma Client after schema changes (`schema-sync.test.ts`),
@@ -214,6 +263,14 @@ Cleanup rules:
   state), BUG-4 duplicate program entries in admin filter (LOW — deduplication by name +
   197 duplicate DB rows cleaned). Regression tests added to `middleware-redirect.test.ts`
   (40 total tests, all passing). See `docs/audits/v0.19.6_Applicant_Onboarding_QA_Report.md`.
+- **Comprehensive test coverage audit (v0.19.7, D-101):** A full audit of the codebase
+  identified that the server-action layer had no automated tests. 138 tests were added
+  in 10 new files covering: tenant CRUD (`tenants.test.ts`), program CRUD
+  (`programs.test.ts`), tenant resolution edge cases (`tenant.test.ts`), RBAC capability
+  matrix (`capabilities.test.ts`), journal validation helpers (`journal-validation.test.ts`),
+  applicant mission/journal server actions, and admin program/submission/organization
+  server actions. Total: 809 tests across 65 files, all passing. No production code was
+  modified. Complete coverage matrix documented in `docs/REGRESSION_TEST_PLAN.md`.
 - **Product decision needed:** applicants already `ACCEPTED` before Mission Assignment (`v0.18.0`)
   shipped have no `MissionAssignment` row and no automated backfill — they see zero missions until an
   admin/ops action (if any) assigns one. This was raised in PR review of the `engineering-journal-mvp`
@@ -272,3 +329,10 @@ Cleanup rules:
   file is refused. Verified in the portal (19/19) and by `mission-spec.test.ts` against the real seed
   corpus. Not automated because the regression harness has no multipart file-upload helper; adding one
   is the prerequisite for closing this gap.
+
+- **Request logging output (`v0.20.1`/`v0.20.2`, D-102)** — the middleware request log is asserted only
+  at the unit level (`packages/auth-web/src/request-log.test.ts`: the `REQUEST_LOG` enable rule, the
+  static/`_next` path filter, the line format, and the guarantee that a console failure cannot break
+  the auth middleware). No runner scenario asserts that a line actually reaches container stdout,
+  because the runner checks HTTP responses and database state and has no log-capture helper. Verified
+  manually via `docker compose logs applicant admin`.

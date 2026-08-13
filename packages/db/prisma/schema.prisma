@@ -461,7 +461,7 @@ model EngineeringJournalEntry {
   mission           Mission            @relation(fields: [missionId], references: [id], onDelete: Cascade)
   missionAssignment MissionAssignment? @relation(fields: [missionAssignmentId], references: [id], onDelete: SetNull)
 
-  @@unique([tenantId, applicantId, entryDate])
+  @@unique([tenantId, applicantId, missionId, entryDate])
   @@index([tenantId, programId, weekNumber])
   @@index([missionId])
   @@index([missionAssignmentId, entryDate])

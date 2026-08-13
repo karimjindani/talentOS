@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveTenantFromHost } from "@talentos/auth/tenant";
-import { canEnterAdminPortal } from "@talentos/auth-web";
+import { canEnterAdminPortal, logRequest } from "@talentos/auth-web";
 import { auth } from "@/auth";
 
 // Every admin route requires an authenticated session with an admin-capable role
@@ -9,6 +9,14 @@ export default auth((req) => {
   const { nextUrl } = req;
   const { pathname } = nextUrl;
   const tenant = resolveTenantFromHost(req.headers.get("host"));
+
+  logRequest({
+    app: "admin",
+    method: req.method,
+    pathname,
+    tenantSlug: tenant.tenantSlug,
+    authenticated: Boolean(req.auth)
+  });
 
   const isAuthRoute = pathname.startsWith("/api/auth");
   const isForbidden = pathname === "/forbidden";

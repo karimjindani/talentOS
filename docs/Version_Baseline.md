@@ -2,73 +2,124 @@
 
 ## Current Allocated Iteration (Review Pending)
 
-Version: `v0.20.0`
+Version: `v0.20.2`
 
-Baseline name: `Mission-Scoped Curriculum, Review History And Markdown Mission Authoring`
+Baseline name: `Decision Log Integrity And Opt-In Request Logging`
 
-Base branch and commit: `origin/main` at `c9e2228` (merged in after `origin/main` advanced
-mid-iteration; the base at the time of the feature commit was `5560ccf`)
+Base branch and commit: `origin/main` at `43e7537`
 
-Feature branch and code commit: `feature/v0.20.0-mission-scoped-curriculum` at `1c3e523`
+Feature branch and code commit: `feature/v0.20.2-doc-integrity-and-request-logging` at `7f5272c`
 
-Documentation date: `2026-08-10`
+Documentation date: `2026-08-13`
 
-Latest released baseline: `v0.19.6` at `c9e2228`
+Latest released baseline: `v0.20.1` at `9e2324b` (PR #59)
 
-Reserved active-branch version: none — `origin/main` is the only remote branch, so no other active
-unmerged branch owns a higher version.
+Reserved active-branch version: none — `git branch -r --no-merged origin/main` lists no active
+unmerged remote branch. `origin/feature/v0.20.0-mission-scoped-curriculum`,
+`origin/feature/v0.20.1-e2e-evidence-ci` and `origin/feature/comprehensive-test-coverage` have all been
+merged and deleted. `origin/main` declares `v0.20.1`, so `v0.20.2` is the next available patch.
 
-Migrations: `20260808090000_program_task_mission_scope`, `20260810120000_submission_review_history`
+Migrations: none. This iteration changes no schema, so `Data_Model.md` and `Data_Dictionary.md` are
+unchanged — recorded explicitly rather than skipped, per `docs/sdlc.md` principle 6.
 
-Repository state: `v0.20.0` application code and documentation are committed on
-`feature/v0.20.0-mission-scoped-curriculum` at `1c3e523`, with this baseline record backfilled by the
-follow-up `Record v0.20.0 baseline` commit. Not yet pushed or merged.
+Repository state: `v0.20.2` code and documentation are committed on
+`feature/v0.20.2-doc-integrity-and-request-logging` at `7f5272c`, with this baseline record backfilled
+by the follow-up `Record v0.20.2 baseline` commit. Not yet pushed or merged. It is a correction
+iteration. It resolves a duplicate `D-096` decision
+identifier created by two branches allocating it independently, supplies the plan and test-results pair
+`v0.20.1` shipped without, documents the `e2e-evidence` CI job in `CI_CD_Pipeline.md` (whose version
+header had been bumped with no content change), and makes the `v0.20.1` middleware request logging
+opt-in and filtered instead of unconditional.
 
-Upstream state: `origin/main` advanced to `c9e2228` (PR #55, a `docs/vision.md` revision) while this
-iteration was in progress. It was merged into this branch before pushing, per the AGENTS.md
-pre-push re-verification step; the merge was clean and typecheck, lint and the 729-unit-test suite
-were re-run against the merged tree. Version allocation was recomputed at the same point: the only
-other active branch, `origin/feature/comprehensive-test-coverage`, claims `v0.19.7`, so `v0.20.0`
-remains uncontested.
+Upstream state: `origin/main` is at `43e7537`, which merges PR #56 (`v0.20.0`), PR #57 (E2E evidence
+CI), PR #59 (`v0.20.1`) and PR #58 (`vision.md` revisions).
 
 ### What this iteration changes
 
-1. **Tasks are authored per mission** (migration `20260808090000_program_task_mission_scope`).
-   `ProgramTask` gains a required `missionId`; `weekNumber` is denormalized from the mission. Admins
-   pick program → mission before authoring, and submission readiness gates on the assignment's own
-   mission tasks rather than every task sharing the week.
-2. **Repeat weeks recover automatically.** Publishing a mission now serves applicants whose latest
-   attempt is a dangling `REPEAT`, including applications left `ACCEPTED`.
-3. **Immutable review history** (migration `20260810120000_submission_review_history`). New
-   `SubmissionReview` table plus `MissionAssignment.reviewOutcome` / `revisionCount`, backfilled from
-   `audit_logs`. Surfaced on the submission review page and through
-   `getApplicantEvaluationSummary` for AI evaluation.
-4. **Journal grouped by mission and bounded by mission start.** The Journal tab collapses into one
-   section per mission; entries may not pre-date the day the mission was accepted.
-5. **Collapsible admin journal.** The submission review page's journal wall became disclosures
-   (page height 5499px → 1766px in the demo data).
-6. **Enrolled-with-no-mission gaps closed.** Reviewers are notified when an acceptance cannot be
-   assigned, the backfill serves each applicant's actual next week, and applicants see an explicit
-   waiting state instead of a false "all missions accepted".
-7. **Missions can be imported from a single Markdown file**, reusing the seed corpus convention via
-   the shared `parseMissionSpecMarkdown`.
+1. **Duplicate decision identifier resolved** (`D-102`) — the `v0.19.7` entry becomes `D-101` and moves
+   after `D-100`; six inbound references repointed. `v0.20.0`'s `D-096`–`D-100` are unchanged because
+   they are cited as a contiguous range.
+2. **`v0.20.1` plan and test-results pair** — reconstructed retroactively from the merged commits and
+   that iteration's own CI artifact, plus a `v0.20.1` traceability section in
+   `Regression_Scenarios.md` covering all 13 scenarios.
+3. **`CI_CD_Pipeline.md` content sync** — the `e2e-evidence` job is documented; the claim that scenario
+   regression "is a local/Ops-Console capability, not a CI stage" is removed as untrue since PR #57.
+4. **Opt-in request logging** (`D-102`) — `packages/auth-web/src/request-log.ts`, gated on
+   `REQUEST_LOG === "1"` and filtered to real navigations. `docker-compose.yml` enables it for the
+   local stack.
+5. **Stale scenario counts corrected** — `Regression_Scenarios.md` claimed 40 and 42 scenario objects;
+   the runner has 53.
+
+## v0.20.2 Documentation Index
+
+| Artifact | Location |
+| --- | --- |
+| Plan | `docs/plans/v0.20.2_Decision_Log_Integrity_And_Opt_In_Request_Logging.md` |
+| Test results | `docs/testing/v0.20.2_Decision_Log_Integrity_And_Opt_In_Request_Logging_Test_Results.md` |
+| Decision record | `docs/Decision_Log.md` (`D-102`; renumbering note on `D-101`) |
+| CI/CD policy | `docs/CI_CD_Pipeline.md` |
+| Scenario catalog | `docs/Regression_Scenarios.md` (v0.20.1 traceability, Known Gaps) |
+| Testing strategy | `docs/Testing_Strategy.md` |
+| Deployment | `docs/Deployment.md` (`REQUEST_LOG`) |
+| Data model / dictionary | Unchanged — no schema change this iteration |
+| User guides | Unchanged — no user-facing surface change |
+
+## v0.20.1 Released Baseline
+
+Version: `v0.20.1` at `9e2324b` (PR #59, merged 2026-08-13).
+
+Migrations: `20260811000000_v0_20_1_journal_per_mission_per_date`.
+
+Shipped: request logging in both middlewares (made opt-in in `v0.20.2`), the journal
+per-mission-per-date uniqueness rule, twelve new runner scenarios taking the suite from 42 to 53, six
+new unit test files, and two CI-only screenshot-capture fixes.
+
+Its plan and test-results pair were **missing at merge** and were reconstructed during `v0.20.2`; see
+the retroactive notes in both documents and `D-102`.
+
+| Artifact | Location |
+| --- | --- |
+| Plan | `docs/plans/v0.20.1_Request_Logging_Journal_Date_Rule_And_Scenario_Coverage.md` |
+| Test results | `docs/testing/v0.20.1_Request_Logging_Journal_Date_Rule_And_Scenario_Coverage_Test_Results.md` |
+| Decision record | `docs/Decision_Log.md` (`D-101`, renumbered from `D-096`) |
 
 ## Baseline Summary
 
-`v0.19.6` is allocated after checking `origin/main` and every active unmerged remote branch. The latest
-released version is `v0.19.5` (`2fcb919`); no active branch owns a higher number, so `v0.19.6` is the
+`v0.19.7` is allocated after checking `origin/main` and every active unmerged remote branch. The latest
+released version is `v0.19.6` (`5560ccf`); `v0.20.0` is owned by an active branch, so `v0.19.7` is the
 next available patch.
 
-The iteration modernizes the applicant Mission Workspace into a tabbed LMS experience (pure view-model,
-compact navy header, in-tab YouTube playback gated at ≥90% watched, sequentially-unlocked weekly
-learning tasks, live `d h m s` countdown) while preserving every existing mission/assignment/submission
-rule. It extends admin curriculum tooling with a top-level **Tasks** page, `DOCUMENT` learning
-resources (real file upload validated to the tenant), `isPrerequisite` tasks that lock the mission's
-own steps, list pagination (10/20) + filters across Applications/Programs/Missions/Submissions, and a
-live Overview KPI dashboard. Mission scheduling moves to a Thursday deadline cadence with ≥4 working
-days, and a repeat excludes every mission the applicant already had that week. Shared `@talentos/ui`
-primitives replace duplicated markup. Two additive migrations; the submission state machine, RBAC,
-Keycloak and URL-safety checks are unchanged. See `D-091` through `D-093`.
+The iteration performs a comprehensive test-coverage audit of the entire TalentOS codebase and fills
+the highest-priority gaps: tenant CRUD, program CRUD, tenant resolution edge cases, RBAC capability
+matrix, journal validation helpers, and server actions for applicant (mission accept/save-submit,
+journal create/update) and admin (program CRUD, submission review, organization creation). No
+production code was changed — all 138 new tests pass against the existing implementation. A new
+`docs/REGRESSION_TEST_PLAN.md` documents the complete coverage matrix, known gaps, and manual-only
+scenarios. See `D-101`.
+
+## v0.19.7 Documentation Index
+
+| Artifact | Location |
+| --- | --- |
+| Regression test plan | `docs/REGRESSION_TEST_PLAN.md` |
+| Architecture/design | `docs/Architecture.md` (unchanged) |
+| Decision record | `docs/Decision_Log.md` (`D-101`) |
+| Testing strategy and scenario catalog | `docs/Testing_Strategy.md`, `docs/Regression_Scenarios.md` |
+
+## v0.19.7 SSDLC Checklist Coverage
+
+| `docs/sdlc.md` control | Evidence | Coverage |
+| --- | --- | --- |
+| Document every iteration | This baseline and documentation index | Complete |
+| Preserve committed/tested behavior | 809 unit tests (65 files) plus `regression:all` | Complete |
+| Update architecture/design | No architecture change this iteration | N/A |
+| Update testing and regression | `docs/Testing_Strategy.md`; `docs/Regression_Scenarios.md`; `docs/REGRESSION_TEST_PLAN.md` | Complete |
+| Keep Docker/deployment guidance current | No topology or deployment-step change this iteration | N/A |
+| Update data model/dictionary | No schema change this iteration | N/A |
+| Shift-left security | Tenant-scoped server-action tests, RBAC capability matrix, cross-tenant rejection tests | Complete |
+| Plan uses repository template expectations | Audit-driven scope, no production code changes | Complete |
+| Plan scenarios map to results and regression catalog | All new test files pass; coverage matrix in `REGRESSION_TEST_PLAN.md` | Complete |
+| User guidance updated | No user-facing change this iteration | N/A |
 
 ## v0.19.6 Documentation Index
 

@@ -1,6 +1,6 @@
 # TalentOS Vision
 
-Code version: `v0.19.6`
+Code version: `v0.20.1`
 
 1) # Vision Statement
 
@@ -99,6 +99,14 @@ A successful graduate of TalentOS should be able to:
 3. Manage AI-generated code responsibly
 4. Validate AI-generated outputs
 5. Use AI to accelerate delivery without compromising quality
+
+4.4) Source Control & CI/CD
+
+1. Use Git effectively
+2. Branch and merge strategies
+3. Pull request workflows
+4. CI/CD pipelines
+5. Release management
 
 4.5) Software Development
 
@@ -236,11 +244,11 @@ TalentOS is built around three pillars.
 
 ---
 
-# Pillar 1: Talent Discovery
+6.1) # Pillar 1: Talent Discovery
 
 TalentOS should ultimately help organizations discover, evaluate, and hire talent.
 
-1.1) Applicant Portal
+6.1.1) Applicant Portal
 
 The Applicant Portal currently supports:
 
@@ -256,7 +264,7 @@ The Applicant Portal currently supports:
 10. Notifications
 11. Applicant profile
 
-1.2) Admin / Back Office Portal
+6.1.2) Admin / Back Office Portal
 
 The current Back Office supports:
 
@@ -274,7 +282,7 @@ The current `HR` and `TECH_LEAD` roles provide administrative/reviewer capabilit
 
 > These capabilities should not be described as a complete recruiter marketplace.
 
-1.3) Public Talent Portal
+6.1.3) Public Talent Portal
 
 The Public Talent Portal remains future scope.
 
@@ -304,17 +312,17 @@ The Public Portal transforms TalentOS from a training platform into a talent mar
 
 ---
 
-# Pillar 2: Engineering Development
+6.2) # Pillar 2: Engineering Development
 
 This is the core of TalentOS.
 
 Participants learn by completing engineering missions.
 
-2.1) Mission Engine
+6.2.1) Mission Engine
 
 The Mission Engine is implemented and actively evolved (`v0.14.0`–`v0.19.6`).
 
-2.2) Implemented
+6.2.2) Implemented
 
 1. Mission management
 2. Mission create/edit/publish/archive lifecycle
@@ -335,13 +343,13 @@ The Mission Engine is implemented and actively evolved (`v0.14.0`–`v0.19.6`).
 17. Mission submission readiness
 18. Mission Workspace
 
-2.3) Remaining
+6.2.3) Remaining
 
 1. Assignment authoring templates
 2. Structured grading framework
 3. Controlled competency catalog
 
-2.4) AI Engineering
+6.2.4) AI Engineering
 
 Participants learn:
 
@@ -382,7 +390,7 @@ Validation
 
 ---
 
-2.5) Software Engineering
+6.2.5) Software Engineering
 
 Participants should learn:
 
@@ -392,6 +400,14 @@ Participants should learn:
 4. Database Design
 5. Version Control
 6. CI/CD
+
+---
+
+6.3) # Pillar 3: Professional Engineering Skills
+
+Technical skills alone are insufficient.
+
+Participants must develop professional habits.
 
 ---
 
@@ -436,7 +452,7 @@ Every assignment must produce documentation.
 2. Scope
 3. User Stories
 
-8.2) # Architecture Documentation
+8.2) Architecture Documentation
 
 1. UML
 2. Component Diagrams
@@ -460,7 +476,7 @@ Every assignment must produce documentation.
 
 ---
 
-9) Quality Engineering
+9) # Quality Engineering
 
 Participants must learn:
 
@@ -563,15 +579,7 @@ Participants should learn:
 
 ---
 
-# Pillar 3: Professional Engineering Skills
-
-Technical skills alone are insufficient.
-
-Participants must develop professional habits.
-
----
-
-12) ## Engineering Journal
+12) # Engineering Journal
 
 The Engineering Journal is implemented as a dedicated daily reflection module (`v0.17.0`–`v0.18.0`).
 
@@ -598,7 +606,7 @@ Entries should include:
 8. Journal locking after mission submission
 9. Preferred journal language
 
- 12.2)Remaining
+12.2) Remaining
 
 1. Weekly summaries
 2. Longitudinal reflection analytics
@@ -608,7 +616,7 @@ Entries should include:
 
 ---
 
-13) ## Written Communication
+13) # Written Communication
 
 Participants should learn:
 
@@ -618,7 +626,7 @@ Participants should learn:
 
 ---
 
-14) ## Presentation Skills
+14) # Presentation Skills
 
 Every assignment should include:
 
@@ -627,7 +635,7 @@ Every assignment should include:
 
 ---
 
-15) ## Attention to Detail
+15) # Attention to Detail
 
 Participants should verify:
 

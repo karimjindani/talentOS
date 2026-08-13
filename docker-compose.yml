@@ -115,6 +115,9 @@ services:
       # (getaddrinfo EAI_AGAIN) non-deterministically on boot.
       HOSTNAME: "0.0.0.0"
       PORT: "3000"
+      # Middleware request log to container stdout, for `docker compose logs` during local work.
+      # Opt-in by design: unset means off, so a deployed environment stays quiet (v0.20.2, D-102).
+      REQUEST_LOG: ${REQUEST_LOG:-1}
       DATABASE_URL: postgresql://${POSTGRES_USER:-talentos}:${POSTGRES_PASSWORD:-talentos_dev_password}@postgres:5432/${POSTGRES_DB:-talentos}?schema=public
       AUTH_SECRET: ${NEXTAUTH_SECRET:-replace-with-a-long-random-secret}
       # Login runs through this single canonical host; the session cookie is scoped to
@@ -177,6 +180,9 @@ services:
       # Bind the Next.js standalone server to all interfaces (see applicant note above).
       HOSTNAME: "0.0.0.0"
       PORT: "3000"
+      # Middleware request log to container stdout, for `docker compose logs` during local work.
+      # Opt-in by design: unset means off, so a deployed environment stays quiet (v0.20.2, D-102).
+      REQUEST_LOG: ${REQUEST_LOG:-1}
       DATABASE_URL: postgresql://${POSTGRES_USER:-talentos}:${POSTGRES_PASSWORD:-talentos_dev_password}@postgres:5432/${POSTGRES_DB:-talentos}?schema=public
       AUTH_SECRET: ${NEXTAUTH_SECRET:-replace-with-a-long-random-secret}
       # Canonical login host; session cookie scoped to APP_BASE_DOMAIN so an org admin signing in is
