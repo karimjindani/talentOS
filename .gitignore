@@ -28,3 +28,4 @@ Thumbs.db
 
 # Playwright journey test artifacts
 test-results/
+.playwright-browsers/

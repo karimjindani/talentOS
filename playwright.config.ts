@@ -1,3 +1,21 @@
+/**
+ * Playwright configuration for journey-level end-to-end tests against the running local deployment.
+ *
+ * Prerequisites:
+ *   - `npm run local:bootstrap` completed (all containers healthy, demo data seeded).
+ *   - Playwright Chromium installed (`npx playwright install chromium`); if the default
+ *     browser directory is not writable, set PLAYWRIGHT_BROWSERS_PATH to a writable
+ *     directory before both the install and any test run.
+ *
+ * Usage:
+ *   npx playwright test [--project=applicant-arc|docs-only] [--grep pattern]
+ *
+ * Outputs:
+ *   - .ops/playwright-report/ (HTML report)
+ *   - .ops/journey-results/playwright.json (JSON results)
+ *   - test-results/ (Playwright artifacts: traces, videos)
+ */
+
 import { defineConfig, devices } from "@playwright/test";
 
 export const JOURNEY_RESULTS_DIR = ".ops/journey-results";
