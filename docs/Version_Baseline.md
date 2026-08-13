@@ -8,7 +8,7 @@ Baseline name: `Decision Log Integrity And Opt-In Request Logging`
 
 Base branch and commit: `origin/main` at `43e7537`
 
-Feature branch and code commit: `feature/v0.20.2-doc-integrity-and-request-logging` at `pending`
+Feature branch and code commit: `feature/v0.20.2-doc-integrity-and-request-logging` at `7f5272c`
 
 Documentation date: `2026-08-13`
 
@@ -22,9 +22,10 @@ merged and deleted. `origin/main` declares `v0.20.1`, so `v0.20.2` is the next a
 Migrations: none. This iteration changes no schema, so `Data_Model.md` and `Data_Dictionary.md` are
 unchanged — recorded explicitly rather than skipped, per `docs/sdlc.md` principle 6.
 
-Repository state: `v0.20.2` code and documentation are uncommitted in the working tree at the time
-of writing; the baseline commit is recorded as `pending` here, to be backfilled by the follow-up
-`Record v0.20.2 baseline` commit. It is a correction iteration. It resolves a duplicate `D-096` decision
+Repository state: `v0.20.2` code and documentation are committed on
+`feature/v0.20.2-doc-integrity-and-request-logging` at `7f5272c`, with this baseline record backfilled
+by the follow-up `Record v0.20.2 baseline` commit. Not yet pushed or merged. It is a correction
+iteration. It resolves a duplicate `D-096` decision
 identifier created by two branches allocating it independently, supplies the plan and test-results pair
 `v0.20.1` shipped without, documents the `e2e-evidence` CI job in `CI_CD_Pipeline.md` (whose version
 header had been bumped with no content change), and makes the `v0.20.1` middleware request logging
