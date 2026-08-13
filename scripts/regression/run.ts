@@ -3061,11 +3061,15 @@ const scenarios: Scenario[] = [
           applicantId: fixture.user.id,
           repositoryUrl: `https://github.com/regression/public-portal-week-${mission.weekNumber}`,
           deploymentUrl: `https://week-${mission.weekNumber}.regression.example.com`,
-          loomUrl: null,
+          loomUrl: `https://www.loom.com/share/public-portal-week-${mission.weekNumber}`,
           journalMarkdown: `## Week ${mission.weekNumber}\nCompleted public-portal regression evidence.`
         });
         await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: submission.id });
-        await submitSubmission({ id: submission.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+        await submitRegressionSubmission(ctx.runId, {
+          id: submission.id,
+          tenantId: fixture.tenant.id,
+          applicantId: fixture.user.id
+        });
         await reviewSubmission({
           id: submission.id,
           tenantId: fixture.tenant.id,
