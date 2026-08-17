@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { LearningResourceType } from "@prisma/client";
+import { installNodeHttpCapture, setCurrentScenario, flushEvidence } from "../ci/evidence-http";
 import {
   acceptMissionAssignment,
   applyStatusTransition,
@@ -2971,6 +2972,32 @@ async function main() {
   const area = parseArea(process.argv[2] ?? "all");
   const runId = `regression-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}-${randomUUID().slice(0, 8)}`;
   const started = Date.now();
+  // Install lightweight HTTP capture for outgoing requests (non-invasive).
+  installNodeHttpCapture({ runId, outDir: ".ops/evidence" });
+  // write run-info.json with available metadata
+  try {
+    const runInfo = {
+      runId,
+      project: 'TalentOS',
+      environment: process.env.CI ? 'CI' : 'local',
+      startedAt: new Date(started).toISOString(),
+      ci: {
+        workflow: process.env.GITHUB_WORKFLOW ?? (process.env.CI ? null : 'N/A (local run)'),
+        job: process.env.GITHUB_JOB ?? (process.env.CI ? null : 'N/A (local run)'),
+        runId: process.env.GITHUB_RUN_ID ?? (process.env.CI ? null : 'N/A (local run)'),
+        ref: process.env.GITHUB_REF ?? (process.env.CI ? null : 'N/A (local run)'),
+        sha: process.env.GITHUB_SHA ?? (process.env.CI ? null : 'N/A (local run)'),
+        eventName: process.env.GITHUB_EVENT_NAME ?? (process.env.CI ? null : 'N/A (local run)'),
+        prNumber: process.env.GITHUB_REF?.match(/refs\/pull\/(\d+)\//)?.[1] ?? (process.env.CI ? null : 'N/A (local run)'),
+      },
+      nodeVersion: process.version,
+      command: `npm run regression:${area}`
+    } as const;
+    try {
+      await mkdir(resolve('.ops', 'evidence', runId), { recursive: true });
+    } catch {}
+    await writeFile(resolve('.ops', 'evidence', runId, 'run-info.json'), JSON.stringify(runInfo, null, 2), 'utf8').catch(() => undefined);
+  } catch {}
   const selected = area === "all" ? scenarios : scenarios.filter((scenario) => scenario.area === area);
   const results: ScenarioResult[] = [];
 
@@ -2981,11 +3008,35 @@ async function main() {
   for (const scenario of selected) {
     const scenarioStarted = Date.now();
     process.stdout.write(`- ${scenario.area}: ${scenario.name} ... `);
+    // Set current scenario context for evidence capture (non-invasive)
+    try {
+      // derive a stable scenario identifier from area + name
+      const scenarioId = `${scenario.area}--${scenario.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+      setCurrentScenario(scenarioId);
+    } catch {}
     try {
       const detail = await scenario.run({ runId });
       const result = { area: scenario.area, name: scenario.name, status: "passed" as const, durationMs: Date.now() - scenarioStarted, detail };
       results.push(result);
       console.log("passed");
+      // write per-scenario JSON evidence (expected left to registry)
+      try {
+        const tcId = `TC-${scenario.area.toUpperCase()}-${scenario.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+        const source = resolve('scripts', 'regression', 'run.ts');
+        const srcText = require('fs').readFileSync(source, 'utf8');
+        const line = (srcText.substring(0, srcText.indexOf(scenario.name)) || '').split('\n').length;
+        const scenarioPayload = {
+          id: tcId,
+          area: scenario.area,
+          name: scenario.name,
+          expected: null,
+          actual: detail ?? null,
+          result: 'PASS',
+          durationMs: result.durationMs,
+          sourceFile: `${source}#L${line}`
+        };
+        await writeFile(resolve('.ops', 'evidence', runId, `scenario-${tcId}.json`), JSON.stringify(scenarioPayload, null, 2), 'utf8').catch(() => undefined);
+      } catch {}
     } catch (error) {
       const status = error instanceof ScenarioSkipped ? "skipped" : "failed";
       const result = {
@@ -2997,6 +3048,31 @@ async function main() {
       } satisfies ScenarioResult;
       results.push(result);
       console.log(`${status}: ${result.error}`);
+      // write per-scenario JSON evidence for failures/skips
+      try {
+        const tcId = `TC-${scenario.area.toUpperCase()}-${scenario.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+        const source = resolve('scripts', 'regression', 'run.ts');
+        const srcText = require('fs').readFileSync(source, 'utf8');
+        const line = (srcText.substring(0, srcText.indexOf(scenario.name)) || '').split('\n').length;
+        const scenarioPayload = {
+          id: tcId,
+          area: scenario.area,
+          name: scenario.name,
+          expected: null,
+          actual: result.error ?? null,
+          result: status.toUpperCase(),
+          durationMs: result.durationMs,
+          sourceFile: `${source}#L${line}`
+        };
+        await writeFile(resolve('.ops', 'evidence', runId, `scenario-${tcId}.json`), JSON.stringify(scenarioPayload, null, 2), 'utf8').catch(() => undefined);
+      } catch {}
+    }
+    // flush captured HTTP evidence for this scenario to disk (best-effort)
+    try {
+      setCurrentScenario(null);
+      await flushEvidence();
+    } catch (e) {
+      // swallow
     }
   }
 
@@ -3007,6 +3083,14 @@ async function main() {
   await writeFile(resolve(resultsDir, `regression-${runId}.json`), `${JSON.stringify(payload, null, 2)}\n`, "utf8").catch(() => undefined);
   console.log(`REGRESSION_RESULT_JSON:${JSON.stringify(payload)}`);
   console.log(`Summary: ${summary.passed}/${summary.total} passed, ${summary.failed} failed, ${summary.skipped} skipped.`);
+
+  // write gaps.json listing skipped/blocked scenarios
+  try {
+    const gaps = results
+      .filter((r) => r.status === 'skipped')
+      .map((r) => ({ id: `TC-${r.area.toUpperCase()}-${r.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`, scenario: r.name, status: 'SKIPPED', reason: r.error ?? 'skipped' }));
+    await writeFile(resolve('.ops', 'evidence', runId, 'gaps.json'), JSON.stringify({ runId, gaps }, null, 2), 'utf8').catch(() => undefined);
+  } catch (e) {}
 
   if (summary.failed > 0) process.exit(1);
 }

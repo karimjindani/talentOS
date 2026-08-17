@@ -1,0 +1,319 @@
+# Auto-generated test case registry
+
+- id: TC-UNIT-vitest-unit-regression-suite-passes
+  area: unit
+  name: |
+    Vitest unit regression suite passes
+  file: scripts/regression/run.ts
+
+- id: TC-AUTH-keycloak-realm-discovery-is-reachable
+  area: auth
+  name: |
+    Keycloak realm discovery is reachable
+  file: scripts/regression/run.ts
+
+- id: TC-AUTH-org-admin-can-complete-admin-portal-login
+  area: auth
+  name: |
+    Org Admin can complete admin portal login
+  file: scripts/regression/run.ts
+
+- id: TC-AUTH-applicant-can-complete-applicant-portal-login
+  area: auth
+  name: |
+    Applicant can complete applicant portal login
+  file: scripts/regression/run.ts
+
+- id: TC-AUTH-accepted-applicant-can-reach-dashboard
+  area: auth
+  name: |
+    Accepted applicant can reach dashboard
+  file: scripts/regression/run.ts
+
+- id: TC-OPS-org-admin-can-complete-ops-console-login
+  area: ops
+  name: |
+    Org Admin can complete Ops Console login
+  file: scripts/regression/run.ts
+
+- id: TC-OPS-ops-session-endpoint-returns-status-envelope
+  area: ops
+  name: |
+    Ops session endpoint returns status envelope
+  file: scripts/regression/run.ts
+
+- id: TC-APPLICANT-applicant-application-lifecycle-creates-submitted-applicatio
+  area: applicant
+  name: |
+    Applicant application lifecycle creates submitted application and blocks duplicate
+  file: scripts/regression/run.ts
+
+- id: TC-APPLICANT-applicant-completes-an-assigned-week-task-and-future-journal
+  area: applicant
+  name: |
+    Applicant completes an assigned-week task and future journal dates are rejected
+  file: scripts/regression/run.ts
+
+- id: TC-APPLICANT-submitted-assignment-journals-are-read-only-and-remain-prese
+  area: applicant
+  name: |
+    Submitted assignment journals are read-only and remain preserved
+  file: scripts/regression/run.ts
+
+- id: TC-ADMIN-admin-review-lifecycle-changes-application-status-and-writes
+  area: admin
+  name: |
+    Admin review lifecycle changes application status and writes audit
+  file: scripts/regression/run.ts
+
+- id: TC-ADMIN-admin-content-path-exposes-ordered-markdown-and-youtube-reso
+  area: admin
+  name: |
+    Admin content path exposes ordered Markdown and YouTube resources for a weekly task
+  file: scripts/regression/run.ts
+
+- id: TC-ADMIN-reviewer-loads-assignment-linked-journals-and-completes-subm
+  area: admin
+  name: |
+    Reviewer loads assignment-linked journals and completes submission review
+  file: scripts/regression/run.ts
+
+- id: TC-ADMIN-reviewer-opens-read-only-previous-attempt-context-while-revi
+  area: admin
+  name: |
+    Reviewer opens read-only previous-attempt context while reviewing a later attempt
+  file: scripts/regression/run.ts
+
+- id: TC-PROGRAMS-program-lifecycle-publishes-and-archives-applicant-visible-p
+  area: programs
+  name: |
+    Program lifecycle publishes and archives applicant-visible programs
+  file: scripts/regression/run.ts
+
+- id: TC-MISSIONS-mission-lifecycle-publishes-and-archives-applicant-visible-m
+  area: missions
+  name: |
+    Mission lifecycle publishes and archives applicant-visible missions
+  file: scripts/regression/run.ts
+
+- id: TC-MISSIONS-accepting-a-mission-sets-a-thursday-deadline-with-at-least-f
+  area: missions
+  name: |
+    Accepting a mission sets a Thursday deadline with at least four working days (v0.20.0)
+  file: scripts/regression/run.ts
+
+- id: TC-MISSIONS-prerequisite-weekly-tasks-are-stored-and-surfaced-to-applica
+  area: missions
+  name: |
+    Prerequisite weekly tasks are stored and surfaced to applicants (v0.20.0)
+  file: scripts/regression/run.ts
+
+- id: TC-MISSIONS-only-org-admin-and-super-admin-can-manage-missions
+  area: missions
+  name: |
+    Only Org Admin and Super Admin can manage missions
+  file: scripts/regression/run.ts
+
+- id: TC-MISSIONS-submission-readiness-requires-weekly-tasks-four-current-atte
+  area: missions
+  name: |
+    Submission readiness requires weekly tasks, four current-attempt journals, and all evidence URLs
+  file: scripts/regression/run.ts
+
+- id: TC-MISSIONS-submission-loop-draft-submit-request-changes-resubmit-accept
+  area: missions
+  name: |
+    Submission loop: draft, submit, request changes, resubmit, accept — with notifications and audit
+  file: scripts/regression/run.ts
+
+- id: TC-MISSIONS-assignment-linked-journals-lock-selectively-and-load-safely-
+  area: missions
+  name: |
+    Assignment-linked journals lock selectively and load safely for admin review
+  file: scripts/regression/run.ts
+
+- id: TC-MISSIONS-repeat-week-attempts-preserve-journal-history-without-duplic
+  area: missions
+  name: |
+    Repeat-week attempts preserve journal history without duplicate or infinite loops
+  file: scripts/regression/run.ts
+
+- id: TC-MISSIONS-repeated-week-history-stays-separate-across-mission-variants
+  area: missions
+  name: |
+    Repeated-week history stays separate across mission variants and attempt boundaries
+  file: scripts/regression/run.ts
+
+- id: TC-MISSIONS-only-org-admin-and-tech-lead-can-review-submissions
+  area: missions
+  name: |
+    Only Org Admin and Tech Lead can review submissions
+  file: scripts/regression/run.ts
+
+- id: TC-MISSIONS-applicant-mission-visibility-detail-access-and-submission-dr
+  area: missions
+  name: |
+    Applicant mission visibility, detail access and submission drafting are limited to assigned missions
+  file: scripts/regression/run.ts
+
+- id: TC-MISSIONS-an-applicant-already-accepted-before-any-mission-assignment-
+  area: missions
+  name: |
+    An applicant already accepted before any mission assignment exists sees no missions (documented backfill gap)
+  file: scripts/regression/run.ts
+
+- id: TC-JOURNAL-applicant-creates-and-edits-a-journal-entry-against-their-as
+  area: journal
+  name: |
+    Applicant creates and edits a journal entry against their assigned mission; entries are listed and audited
+  file: scripts/regression/run.ts
+
+- id: TC-JOURNAL-applicant-cannot-create-a-journal-entry-against-a-published-
+  area: journal
+  name: |
+    Applicant cannot create a journal entry against a published mission that is not assigned to them
+  file: scripts/regression/run.ts
+
+- id: TC-JOURNAL-one-journal-entry-per-applicant-per-mission-per-calendar-dat
+  area: journal
+  name: |
+    One journal entry per applicant per mission per calendar date is enforced
+  file: scripts/regression/run.ts
+
+- id: TC-JOURNAL-journal-entries-lock-once-the-mission-s-assignment-is-submit
+  area: journal
+  name: |
+    Journal entries lock once the mission's assignment is submitted
+  file: scripts/regression/run.ts
+
+- id: TC-TENANT-tenant-scoped-submission-read-rejects-another-tenant
+  area: tenant
+  name: |
+    Tenant-scoped submission read rejects another tenant
+  file: scripts/regression/run.ts
+
+- id: TC-TENANT-submission-readiness-ignores-task-completions-from-another-t
+  area: tenant
+  name: |
+    Submission readiness ignores task completions from another tenant, applicant, or week
+  file: scripts/regression/run.ts
+
+- id: TC-TENANT-engineering-journal-review-lookup-remains-tenant-scoped
+  area: tenant
+  name: |
+    Engineering Journal review lookup remains tenant-scoped
+  file: scripts/regression/run.ts
+
+- id: TC-TENANT-previous-attempt-history-stays-tenant-applicant-program-and-
+  area: tenant
+  name: |
+    Previous-attempt history stays tenant, applicant, program, and week scoped
+  file: scripts/regression/run.ts
+
+- id: TC-TENANT-tenant-scoped-program-read-rejects-another-tenant
+  area: tenant
+  name: |
+    Tenant-scoped program read rejects another tenant
+  file: scripts/regression/run.ts
+
+- id: TC-TENANT-realm-role-alone-does-not-grant-tenant-capability-without-me
+  area: tenant
+  name: |
+    Realm role alone does not grant tenant capability without membership
+  file: scripts/regression/run.ts
+
+- id: TC-DASHBOARD-accepted-applicant-dashboard-pages-load
+  area: dashboard
+  name: |
+    Accepted applicant dashboard pages load
+  file: scripts/regression/run.ts
+
+- id: TC-DASHBOARD-dashboard-task-and-notification-persistence-helpers-update-r
+  area: dashboard
+  name: |
+    Dashboard task and notification persistence helpers update records
+  file: scripts/regression/run.ts
+
+- id: TC-DASHBOARD-accepted-mission-submission-moves-mission-driven-dashboard-p
+  area: dashboard
+  name: |
+    Accepted mission submission moves mission-driven dashboard progress
+  file: scripts/regression/run.ts
+
+- id: TC-PROGRAMS-org-admin-manages-program-content-roles-without-manageprogra
+  area: programs
+  name: |
+    Org Admin manages program content; roles without manageProgramContent are denied
+  file: scripts/regression/run.ts
+
+- id: TC-ADMIN-reviewer-can-request-revisions-and-applicant-can-resubmit-v0
+  area: admin
+  name: |
+    Reviewer can request revisions and applicant can resubmit (v0.20.1)
+  file: scripts/regression/run.ts
+
+- id: TC-ADMIN-reviewer-can-reject-with-repeat-and-a-new-attempt-is-created
+  area: admin
+  name: |
+    Reviewer can reject with REPEAT and a new attempt is created (v0.20.1)
+  file: scripts/regression/run.ts
+
+- id: TC-ADMIN-review-writes-immutable-submissionreview-history-record-v0-2
+  area: admin
+  name: |
+    Review writes immutable SubmissionReview history record (v0.20.1)
+  file: scripts/regression/run.ts
+
+- id: TC-TENANT-cross-tenant-submission-access-is-denied-via-gettenantsubmis
+  area: tenant
+  name: |
+    Cross-tenant submission access is denied via getTenantSubmission (v0.20.1)
+  file: scripts/regression/run.ts
+
+- id: TC-TENANT-cross-tenant-journal-review-lookup-is-denied-v0-20-1
+  area: tenant
+  name: |
+    Cross-tenant journal review lookup is denied (v0.20.1)
+  file: scripts/regression/run.ts
+
+- id: TC-TENANT-cross-tenant-mission-visibility-is-rejected-v0-20-1
+  area: tenant
+  name: |
+    Cross-tenant mission visibility is rejected (v0.20.1)
+  file: scripts/regression/run.ts
+
+- id: TC-MISSIONS-deadline-sweep-marks-overdue-assignments-and-disqualifies-af
+  area: missions
+  name: |
+    Deadline sweep marks overdue assignments and disqualifies after grace (v0.20.1)
+  file: scripts/regression/run.ts
+
+- id: TC-MISSIONS-deadline-sweep-is-idempotent-running-twice-produces-no-new-c
+  area: missions
+  name: |
+    Deadline sweep is idempotent — running twice produces no new changes (v0.20.1)
+  file: scripts/regression/run.ts
+
+- id: TC-MISSIONS-failed-assignment-rejects-new-submissions-v0-20-1
+  area: missions
+  name: |
+    FAILED assignment rejects new submissions (v0.20.1)
+  file: scripts/regression/run.ts
+
+- id: TC-AUTH-applicant-and-admin-portals-use-separate-keycloak-clients-v0
+  area: auth
+  name: |
+    Applicant and admin portals use separate Keycloak clients (v0.20.1)
+  file: scripts/regression/run.ts
+
+- id: TC-AUTH-applicant-session-cookie-does-not-grant-admin-portal-access-
+  area: auth
+  name: |
+    Applicant session cookie does not grant admin portal access (v0.20.1)
+  file: scripts/regression/run.ts
+
+- id: TC-STORAGE-storage-browser-upload-download-scenario
+  area: storage
+  name: |
+    Storage browser upload/download scenario
+  file: scripts/regression/run.ts

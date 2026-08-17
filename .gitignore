@@ -25,3 +25,6 @@ Thumbs.db
 .idea/
 .vscode/
 .claude/settings.local.json
+
+# Generated E2E evidence reports
+docs/reports/

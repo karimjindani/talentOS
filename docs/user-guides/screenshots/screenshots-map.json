@@ -1,0 +1,6 @@
+{
+  // Optional mapping of screenshot filename -> { testCaseId, step, caption }
+  // Populate this file when a screenshot logically maps to a regression test case.
+  // Example:
+  // "01-applicant-home.png": { "testCaseId": "TC-AUTH-001", "step": 1, "caption": "Applicant home (login entry)" }
+}

@@ -84,10 +84,22 @@ jobs:
           REGRESSION_CLEANUP_ON_EXIT: "1"
         run: npm run regression:all
 
+      - name: Export EVIDENCE_RUN_ID
+        if: always()
+        run: |
+          latest=$(ls -1 .ops/regression-results/*.json | sort -r | head -n1)
+          echo "LATEST_RESULT=$latest"
+          runId=$(basename "$latest" .json | sed 's/^regression-//')
+          echo "EVIDENCE_RUN_ID=$runId" >> $GITHUB_ENV
+
       # if: always() so a failing suite still yields visual evidence of the state it left behind.
       - name: Capture portal screenshots
         if: always()
-        run: npx tsx scripts/user-guide/capture-screenshots.ts
+        run: npx tsx scripts/user-guide/capture-screenshots.ts --evidence-run-id=${{ env.EVIDENCE_RUN_ID }}
+
+      - name: Generate E2E PDF report
+        if: always()
+        run: npx tsx scripts/ci/generate-e2e-report.ts .ops/regression-results docs/user-guides/screenshots docs/reports --pii=mask
 
       - name: Write run summary
         if: always()
@@ -107,8 +119,10 @@ jobs:
           name: e2e-evidence-${{ github.run_number }}
           path: |
             .ops/regression-results/*.json
+            .ops/evidence/**
             .ops/docker-logs/*.log
             docs/user-guides/screenshots/*.png
+            docs/reports/*.pdf
           if-no-files-found: warn
           retention-days: 30
 

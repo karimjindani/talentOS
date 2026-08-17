@@ -139,17 +139,46 @@ async function programLinkByName(page: Page, name: string): Promise<string | nul
 
 const GUIDE_PROGRAM = "AI-Native Software Engineering";
 
-async function withContext(browser: Browser, fn: (context: BrowserContext, page: Page) => Promise<void>) {
+async function withContext(browser: Browser, fn: (context: BrowserContext, page: Page) => Promise<void>, evidenceRunId?: string) {
   const context = await browser.newContext({ viewport: VIEWPORT });
   const page = await context.newPage();
+  // attach optional network capture for evidence when evidenceRunId provided
+  const uiEntries: any[] = [];
+  if (evidenceRunId) {
+    page.on('request', (req) => {
+      uiEntries.push({ type: 'request', url: req.url(), method: req.method(), headers: req.headers(), timestamp: Date.now() });
+    });
+    page.on('response', async (res) => {
+      let size = null;
+      try {
+        const buf = await res.body().catch(() => null);
+        if (buf) size = buf.length;
+      } catch {}
+      uiEntries.push({ type: 'response', url: res.url(), status: res.status(), headers: res.headers(), size, timestamp: Date.now() });
+    });
+  }
   try {
     await fn(context, page);
   } finally {
+    if (evidenceRunId) {
+      try {
+        const outDir = path.resolve('.ops', 'evidence', evidenceRunId);
+        fs.mkdirSync(outDir, { recursive: true });
+        const file = path.join(outDir, `http-evidence-ui.json`);
+        fs.writeFileSync(file, JSON.stringify({ runId: evidenceRunId, entries: uiEntries }, null, 2), 'utf8');
+        console.log(`Wrote UI network evidence to ${file}`);
+      } catch (e) {
+        console.warn('Could not write UI network evidence', e);
+      }
+    }
     await context.close();
   }
 }
 
-const requestedSections = process.argv.slice(2).map((arg) => arg.toLowerCase());
+const rawArgs = process.argv.slice(2);
+const requestedSections = rawArgs.filter((arg) => !arg.startsWith('--')).map((arg) => arg.toLowerCase());
+const evidenceRunArg = rawArgs.find((a) => a.startsWith('--evidence-run-id='));
+const EVIDENCE_RUN_ID = evidenceRunArg ? evidenceRunArg.split('=')[1] : undefined;
 function sectionEnabled(name: string) {
   return requestedSections.length === 0 || requestedSections.includes(name);
 }
@@ -165,7 +194,7 @@ async function main() {
       await shot(page, "01-applicant-home.png");
       await goTo(page, `${URLS.applicant}/login`);
       await shot(page, "02-applicant-login.png");
-    });
+    }, EVIDENCE_RUN_ID);
   }
 
   // --- New applicant: self-register, apply and track the application -----------------------
@@ -210,7 +239,7 @@ async function main() {
       await page.click('button:has-text("Submit Application")');
       await page.waitForURL("**/application", { timeout: 30000 });
       await shot(page, "05-applicant-application-status.png");
-    });
+    }, EVIDENCE_RUN_ID);
   }
 
   // --- Accepted applicant: the full dashboard ----------------------------------------------
@@ -236,7 +265,7 @@ async function main() {
     await shot(page, "13-dashboard-profile.png");
     await goTo(page, `${URLS.tenantApplicant}/dashboard/program`);
     await shot(page, "14-dashboard-program.png");
-  });
+  }, EVIDENCE_RUN_ID);
 
   // --- Accepted applicant: the working flows (v0.20.0) ---------------------------------------
   // Journal grouping, the mission workspace and the submission gate are the screens applicants
@@ -272,7 +301,7 @@ async function main() {
       "32-applicant-mission-workspace.png",
       "mission workspace"
     );
-  });
+  }, EVIDENCE_RUN_ID);
 
   // --- Org Admin: admin portal ---------------------------------------------------------------
   if (sectionEnabled("admin")) await withContext(browser, async (_context, page) => {
@@ -316,7 +345,7 @@ async function main() {
     await shot(page, "24-admin-settings.png");
     // 25-admin-operations.png retired: the admin Operations page was removed (c562e0f) in favour of
     // the standalone Ops Console below. The number is left unused so other references keep working.
-  });
+  }, EVIDENCE_RUN_ID);
 
   // --- Org Admin: authoring and review flows (v0.20.0) ---------------------------------------
   // Mission Markdown import, per-mission task authoring and the submission review timeline.
@@ -365,7 +394,7 @@ async function main() {
     } else {
       skipped.push("35-admin-review-history.png — no submission link found");
     }
-  });
+  }, EVIDENCE_RUN_ID);
 
   // --- Org Admin: local Ops Console ----------------------------------------------------------
   // The Ops Console is a standalone app not included in docker-compose, so it may not be running
@@ -380,7 +409,7 @@ async function main() {
     }
     await completeLogin(page, USERS.orgAdmin.username, USERS.orgAdmin.password);
     await shot(page, "26-ops-console.png");
-  });
+  }, EVIDENCE_RUN_ID);
 
   await browser.close();
 
