@@ -1143,6 +1143,17 @@ import { expect, test } from "./fixtures/journey";
 import { submitSubmission } from "@talentos/db";
 import { prisma } from "./fixtures/tenant";
 
+/**
+ * The smallest byte sequence the CV upload accepts. The apply form requires a PDF and the server
+ * re-checks it, so the arc has to send something real; nothing downstream reads the contents.
+ */
+const MINIMAL_PDF = Buffer.from(
+  "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n" +
+    "2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\n" +
+    "trailer<</Root 1 0 R>>\n%%EOF\n",
+  "utf8"
+);
+
 test("applicant arc", async ({ journey }) => {
   const applicantEmail = journeyEmail(journey.runId, "applicant");
 
@@ -1177,7 +1188,15 @@ test("applicant arc", async ({ journey }) => {
     actor: "applicant",
     proves: "Application is persisted as SUBMITTED against the journey tenant"
   }, async (page) => {
-    await page.getByRole("button", { name: /submit/i }).first().click();
+    // Both are `required` on the form and re-checked server-side (apply/page.tsx:74,80). The
+    // program select defaults to the tenant's only program, so it needs no interaction.
+    await page.fill('textarea[name="motivation"]', "I want to prove the end-to-end journey works.");
+    await page.setInputFiles('input[name="cv"]', {
+      name: "journey-cv.pdf",
+      mimeType: "application/pdf",
+      buffer: MINIMAL_PDF
+    });
+    await page.getByRole("button", { name: /submit application/i }).click();
     await page.waitForLoadState("networkidle");
 
     const application = await prisma.application.findFirst({
@@ -1192,8 +1211,12 @@ test("applicant arc", async ({ journey }) => {
   }, async (page) => {
     await page.goto("/applications");
     await completeLogin(page, journey.tenant.adminEmail, JOURNEY_PASSWORD);
-    await page.getByRole("link", { name: /journey applicant/i }).first().click();
-    await page.getByRole("button", { name: /accept/i }).first().click();
+    // Rows link out under the text "Review", not the applicant's name (applications/page.tsx:127).
+    // The journey tenant holds exactly one application, so the first row is the right one.
+    await page.getByRole("link", { name: /review/i }).first().click();
+    // Decision buttons render the raw status with underscores replaced (applications/[id]/page.tsx:204),
+    // so the accept control reads "ACCEPTED".
+    await page.getByRole("button", { name: /^accepted$/i }).click();
     await page.waitForLoadState("networkidle");
 
     const assignment = await prisma.missionAssignment.findFirst({
@@ -1325,8 +1348,12 @@ test("applicant arc", async ({ journey }) => {
     proves: "A NEEDS_REVISION decision appends an immutable SubmissionReview round (v0.20.0, D-098)"
   }, async (page) => {
     await page.goto("/submissions");
-    await page.getByRole("link", { name: /journey week 1 mission/i }).first().click();
-    await page.fill('textarea[name="feedback"]', "Add tests for the failure path, then resubmit.");
+    // Same pattern as the applications list: the row's link text is "Review", and the detail page
+    // lives at /missions/<missionId>/submissions/<submissionId> (submissions/page.tsx:114).
+    await page.getByRole("link", { name: /review/i }).first().click();
+    // The field is `reviewerFeedback` and it is `required` — "Request changes" cannot submit
+    // without it (missions/[id]/submissions/[submissionId]/page.tsx:353).
+    await page.fill('textarea[name="reviewerFeedback"]', "Add tests for the failure path, then resubmit.");
     await page.getByRole("button", { name: /request changes/i }).click();
     await page.waitForLoadState("networkidle");
 
