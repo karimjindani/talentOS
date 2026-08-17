@@ -48,9 +48,6 @@ export default defineConfig({
   },
   projects: [
     { name: "applicant-arc", use: { ...devices["Desktop Chrome"] }, testMatch: /applicant-arc\.spec\.ts/ },
-    { name: "docs-only", use: { ...devices["Desktop Chrome"] }, testMatch: /docs-only\.spec\.ts/ },
-    // Temporary: proves the runner works before any journey exists.
-    // Removed together with tests/journeys/smoke.spec.ts in Task 8.
-    { name: "smoke", use: { ...devices["Desktop Chrome"] }, testMatch: /smoke\.spec\.ts/ }
+    { name: "docs-only", use: { ...devices["Desktop Chrome"] }, testMatch: /docs-only\.spec\.ts/ }
   ]
 });
