@@ -1144,14 +1144,16 @@ import { submitSubmission } from "@talentos/db";
 import { prisma } from "./fixtures/tenant";
 
 /**
- * The smallest byte sequence the CV upload accepts. The apply form requires a PDF and the server
- * re-checks it, so the arc has to send something real; nothing downstream reads the contents.
+ * A minimal but valid single-page PDF for the CV upload. Lifted verbatim from
+ * scripts/user-guide/capture-screenshots.ts, which Task 8 deletes — this exact byte sequence is
+ * already proven to clear the apply form's PDF check in this app.
  */
 const MINIMAL_PDF = Buffer.from(
-  "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n" +
-    "2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\n" +
-    "trailer<</Root 1 0 R>>\n%%EOF\n",
-  "utf8"
+  "%PDF-1.4\n" +
+    "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n" +
+    "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n" +
+    "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\n" +
+    "trailer<</Root 1 0 R>>\n%%EOF\n"
 );
 
 test("applicant arc", async ({ journey }) => {
@@ -1421,7 +1423,9 @@ git commit -m "test(journeys): applicant arc end-to-end journey (v0.20.3, D-103)
 - Create: `tests/journeys/docs-only.spec.ts`
 - Delete: `scripts/user-guide/capture-screenshots.ts`
 - Delete: `tests/journeys/smoke.spec.ts`
-- Modify: `package.json` (drop any capture script)
+- Modify: `playwright.config.ts` (remove the temporary `smoke` project)
+- Check: `package.json` — verified at plan time to have **no** capture script, so expect no edit
+  here. If one appeared since, remove it.
 
 **Interfaces:**
 - Consumes: `completeLogin`, `portalUrl` (Task 5)
@@ -1448,10 +1452,12 @@ import { expect, test } from "@playwright/test";
 import { completeLogin } from "./fixtures/actors";
 
 const SHOTS = "docs/user-guides/screenshots";
+// The realm import's password for every seeded demo user (keycloak/import/talentos-realm.json).
+const SEEDED_PASSWORD = "ChangeMe123!";
 
 test("ops console screenshots", async ({ page }) => {
   await page.goto("http://127.0.0.1:3300/");
-  await completeLogin(page, "orgadmin@demo.talentos.local", "demo-password");
+  await completeLogin(page, "orgadmin@demo.talentos.local", SEEDED_PASSWORD);
   // Assert before photographing: a screenshot of an error page is worse than no screenshot.
   await expect(page.getByRole("heading", { name: /ops/i })).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/30-ops-console.png`, fullPage: true });
@@ -1467,11 +1473,20 @@ Run: `npm run journeys:docs && git status --short docs/user-guides/screenshots/`
 Expected: modified PNGs, **no deletions**. A deletion means a screenshot lost its producer — add it to
 this spec before continuing.
 
-- [ ] **Step 4: Delete the retired script and the smoke spec**
+- [ ] **Step 4: Delete the retired script, the smoke spec, and the smoke project**
 
 ```bash
 git rm scripts/user-guide/capture-screenshots.ts tests/journeys/smoke.spec.ts
 ```
+
+**Both halves, not just the file.** Task 1 added a *temporary* `smoke` project to
+`playwright.config.ts` alongside the spec, explicitly to be removed here — it is commented as such
+in the config. Deleting only the spec leaves a project whose `testMatch` resolves to nothing, and
+`npm run journeys` then fails on an empty project rather than passing. Remove the whole
+`{ name: "smoke", ... }` entry and its two comment lines.
+
+Afterwards `playwright.config.ts` must list exactly two projects: `applicant-arc` and `docs-only`.
+Verify with `npx playwright test --list`.
 
 - [ ] **Step 5: Confirm nothing else references it**
 
