@@ -28,7 +28,7 @@
     "packages/**/*.tsx",
     "vitest.config.ts",
     "tests/**/*.ts",
-    "playwright.config.ts"
+    "playwright.config.ts", "scripts/ci/**/*.ts"
   ],
   "exclude": ["node_modules"]
 }
