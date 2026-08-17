@@ -3055,6 +3055,11 @@ const scenarios: Scenario[] = [
             missionAssignmentId: assignment.id
           });
         }
+        // Complete prerequisite tasks (Review Brief, Study Tutorial) before submission.
+        if (assignment) {
+          await markMissionTaskComplete({ tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionAssignmentId: assignment.id, taskIndex: 1 });
+          await markMissionTaskComplete({ tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionAssignmentId: assignment.id, taskIndex: 2 });
+        }
         const submission = await saveSubmissionDraft({
           tenantId: fixture.tenant.id,
           missionId: mission.id,
