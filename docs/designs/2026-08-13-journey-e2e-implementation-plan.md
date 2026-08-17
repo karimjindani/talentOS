@@ -569,25 +569,24 @@ be the journey's own.
 
 - [ ] **Step 1: Allow Keycloak users to be marked**
 
-In `packages/db/src/regression.ts`, extend the union:
+In `packages/db/src/regression.ts`, **append one member to the existing union**. Do not retype the
+union from this brief — the live member order differs from the sketch below and reordering it is a
+needless diff. Add only the trailing member:
 
 ```ts
 export type RegressionEntityType =
-  | "ApplicationAnswer"
-  | "Application"
-  | "StoredFile"
-  | "Submission"
-  | "EngineeringJournalEntry"
-  | "MissionAssignment"
-  | "Mission"
-  | "Program"
-  | "TenantMembership"
-  | "User"
+  // ...existing members, unchanged and in their existing order...
   | "Tenant"
   // Reaped over Keycloak's Admin REST API after the Prisma transaction commits — it cannot
   // participate in that transaction (v0.20.3, D-103).
   | "KeycloakUser";
 ```
+
+`deleteMarkedEntities` (`packages/db/src/regression.ts:82`) switches exhaustively over
+`RegressionEntityType` with no `default`, so widening the union may make TypeScript demand a
+`"KeycloakUser"` case. It must **not** get one — there is no Prisma table to delete. If typecheck
+complains, satisfy it by narrowing the switch parameter to `REGRESSION_CLEANUP_ORDER`'s element type
+rather than by adding a case that pretends a Keycloak user is a database row.
 
 Leave `REGRESSION_CLEANUP_ORDER` unchanged: omitting `"KeycloakUser"` is what makes the Prisma pass
 skip it.
@@ -596,7 +595,14 @@ skip it.
 
 ```ts
 // tests/journeys/fixtures/tenant.ts
-import { createMission, createProgram, createOrganization, markRegressionData, prisma } from "@talentos/db";
+import {
+  createMission,
+  createOrganization,
+  createProgram,
+  markRegressionData,
+  normalizeEmail,
+  prisma
+} from "@talentos/db";
 import { journeyEmail } from "./keycloak";
 
 export type JourneyTenant = {
@@ -619,7 +625,7 @@ export async function provisionJourneyTenant(runId: string): Promise<JourneyTena
   const slug = `jrn-${runId}`.toLowerCase();
   const adminEmail = journeyEmail(runId, "admin");
 
-  const organization = await createOrganization({
+  const tenant = await createOrganization({
     name: `Journey ${runId}`,
     slug,
     primaryColor: "#1f2937",
@@ -629,8 +635,15 @@ export async function provisionJourneyTenant(runId: string): Promise<JourneyTena
     actorUserId: null
   });
 
-  const tenantId = organization.tenant.id;
-  const adminUserId = organization.adminUser.id;
+  const tenantId = tenant.id;
+
+  // createOrganization returns the Tenant only (packages/db/src/tenants.ts:33) — it upserts the
+  // admin User and their ORG_ADMIN membership inside its transaction but returns neither.
+  // Look the admin up by the same normalized email it stored.
+  const adminUser = await prisma.user.findUniqueOrThrow({
+    where: { email: normalizeEmail(adminEmail) }
+  });
+  const adminUserId = adminUser.id;
 
   const program = await createProgram({
     tenantId,
@@ -684,18 +697,31 @@ export { prisma };
 
 - [ ] **Step 3: Verify it provisions and cleans up**
 
-With the stack up:
+With the stack up. Note `npx tsx -e "..."` does **not** work in this repo — it fails module
+resolution regardless of cwd. Write the probe to a throwaway file at the repo root instead:
 
 ```bash
-npx tsx -e "import {provisionJourneyTenant} from './tests/journeys/fixtures/tenant.ts'; \
-import {cleanupRegressionData} from '@talentos/db'; \
-const t=await provisionJourneyTenant('probe1'); console.log(t); \
-console.log(await cleanupRegressionData('probe1'));"
+cat > probe-tenant.mts <<'EOF'
+import { cleanupRegressionData } from "@talentos/db";
+import { provisionJourneyTenant } from "./tests/journeys/fixtures/tenant";
+
+const tenant = await provisionJourneyTenant("probe1");
+console.log(tenant);
+console.log(JSON.stringify(await cleanupRegressionData("probe1"), null, 2));
+EOF
+npx tsx probe-tenant.mts
+rm probe-tenant.mts
 ```
 
-Expected: prints the tenant, then a cleanup summary showing `Mission`, `Program`, `User`, `Tenant`
-each deleted. If a foreign-key error appears, the entity is missing from `REGRESSION_CLEANUP_ORDER` —
-fix the order, not the fixture.
+Expected: prints the tenant, then a cleanup summary showing `Mission`, `Program`, `User` and
+`Tenant` each deleted. `TenantMembership` will be absent from the summary — that is correct, the
+membership row is not marked because `TenantMembership.user` and `.tenant` are both
+`onDelete: Cascade` (`packages/db/prisma/schema.prisma:199-200`), so deleting the `User` removes it.
+If a foreign-key error appears, the entity is missing from `REGRESSION_CLEANUP_ORDER` — fix the
+order, not the fixture.
+
+**Do not leave `probe-tenant.mts` behind** and do not commit it. Run `git status` before Step 4's
+commit to confirm.
 
 - [ ] **Step 4: Typecheck and commit**
 
