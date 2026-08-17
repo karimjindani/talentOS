@@ -1115,6 +1115,24 @@ exactly one legal journal date, so step 5 backdates acceptance. It is an `actor:
 says plainly that it is not a user action — evidence implying an applicant journaled over four real
 days would be misleading.
 
+**The reachability constraint.** `submitSubmission` (`packages/db/src/submissions.ts:279`) runs a
+live HTTP reachability check against every evidence URL before it will move a submission out of
+DRAFT, and the host allow-lists confine the walkthrough to `loom.com/share/<id>` or
+`loom.com/watch/<id>` (`packages/db/src/url-safety.ts:81-87`). No synthetic Loom URL is reachable —
+all of `/share/regression`, `/share/<random-hex>` and `/share` return 404. So the arc cannot click
+"Submit for review" and stay honest: it would fail on a third party's 404, not on anything about
+talentOS.
+
+The arc therefore splits the moment in three. The applicant fills the form and saves the draft
+through the UI, which is the real user action and still exercises the host allow-lists. A UI
+assertion then proves the "Submit for review" control is **enabled** — that is the applicant's
+actual gate, and it can only unlock once four journals, the mission tasks and three valid URLs are
+all in place. Finally a labelled `system` step performs the transition server-side with the same
+stubbed URL checker `scripts/regression/run.ts:101` injects, for the same reason.
+
+Do not "simplify" this back into one clicked step. It will pass locally on a lucky day and fail in
+CI the first time Loom rate-limits the runner.
+
 - [ ] **Step 1: Write the spec**
 
 ```ts
@@ -1122,6 +1140,7 @@ days would be misleading.
 import { createJourneyUser, journeyEmail } from "./fixtures/keycloak";
 import { JOURNEY_PASSWORD, completeLogin } from "./fixtures/actors";
 import { expect, test } from "./fixtures/journey";
+import { submitSubmission } from "@talentos/db";
 import { prisma } from "./fixtures/tenant";
 
 test("applicant arc", async ({ journey }) => {
@@ -1256,22 +1275,49 @@ test("applicant arc", async ({ journey }) => {
     await expect(page.getByRole("button", { name: /mark complete/i })).toHaveCount(0);
   });
 
-  await journey.step("Applicant submits the mission evidence", {
+  await journey.step("Applicant fills in the mission evidence and saves a draft", {
     actor: "applicant",
-    proves: "Readiness gates pass and the submission moves to SUBMITTED"
+    proves: "Evidence URLs pass the host allow-lists (github.com, loom.com share/watch) and persist as a DRAFT"
   }, async (page) => {
     await page.goto("/dashboard/missions");
     await page.getByRole("link", { name: /journey week 1 mission/i }).click();
+    // Field names verified against apps/applicant/app/dashboard/missions/[id]/SubmissionForm.tsx:
+    // the walkthrough field is `loomUrl`, not `walkthroughUrl`, and the two buttons are
+    // distinguished by `name="intent"` value, not by their labels alone.
     await page.fill('input[name="repositoryUrl"]', "https://github.com/karimjindani/talentOS");
     await page.fill('input[name="deploymentUrl"]', "https://example.com");
-    await page.fill('input[name="walkthroughUrl"]', "https://example.com/walkthrough");
-    await page.getByRole("button", { name: /^submit/i }).click();
+    await page.fill('input[name="loomUrl"]', "https://www.loom.com/share/journey-walkthrough");
+    await page.getByRole("button", { name: /save draft/i }).click();
     await page.waitForLoadState("networkidle");
 
-    const submission = await prisma.submission.findFirst({
+    const submission = await prisma.submission.findFirstOrThrow({
       where: { tenantId: journey.tenant.tenantId, missionId: journey.tenant.missionId }
     });
-    expect(submission?.status).toBe("SUBMITTED");
+    expect(submission.status).toBe("DRAFT");
+    expect(submission.loomUrl).toBe("https://www.loom.com/share/journey-walkthrough");
+  });
+
+  await journey.step("Every readiness gate is satisfied and the submit control unlocks", {
+    actor: "applicant",
+    proves: "Four journals, completed tasks and three valid evidence URLs together enable 'Submit for review' — the gate the applicant actually has to clear"
+  }, async (page) => {
+    await expect(page.getByRole("button", { name: /submit for review/i })).toBeEnabled();
+  });
+
+  await journey.step("The submission is transitioned to SUBMITTED", {
+    actor: "system",
+    proves: "Server-side transition with public-URL reachability stubbed — NOT a user action. The click is not driven because submitSubmission performs a live HTTP reachability check on every evidence URL, and no synthetic loom.com share URL is reachable; the preceding step proves the applicant's own gate was open"
+  }, async () => {
+    const submission = await prisma.submission.findFirstOrThrow({
+      where: { tenantId: journey.tenant.tenantId, missionId: journey.tenant.missionId }
+    });
+    const submitted = await submitSubmission(
+      { id: submission.id, tenantId: journey.tenant.tenantId, applicantId: submission.applicantId },
+      // The same stub scripts/regression/run.ts:101 injects, and for the same reason: a journey
+      // must not fail because a third-party site is down or rate-limiting the runner.
+      { checkEvidenceUrl: async (url) => ({ reachable: true, finalUrl: url, statusCode: 200, error: null }) }
+    );
+    expect(submitted.status).toBe("SUBMITTED");
   });
 
   await journey.step("Reviewer requests changes", {
@@ -1315,7 +1361,7 @@ cat .ops/journey-results/applicant-arc-*.json | head -40
 ls .ops/journey-evidence/applicant-arc/
 ```
 
-Expected: a `JourneyRecord` with `"status": "passed"` and 11 steps, and 11 PNGs.
+Expected: a `JourneyRecord` with `"status": "passed"` and 13 steps, and 13 PNGs.
 
 - [ ] **Step 4: Confirm cleanup left nothing behind**
 
