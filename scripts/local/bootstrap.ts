@@ -25,6 +25,7 @@ async function main() {
   await run(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "db:migrate"]);
   await run(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "db:seed"]);
   await run(process.platform === "win32" ? "npx.cmd" : "npx", ["tsx", "scripts/seed-dashboard.ts"]);
+  await run(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "seed:public-portal-demo"]);
 
   await startOpsConsoleIfNeeded();
   await waitForHttp(local.opsUrl, "Ops Console");
@@ -37,6 +38,7 @@ async function main() {
   console.log(`Keycloak: ${local.keycloakBaseUrl}`);
   console.log(`MinIO: http://localhost:9001`);
   console.log(`Ops Console: ${local.opsUrl}`);
+  console.log(`${local.applicantUrl}/graduates (4 seeded public graduate profiles)`);
   console.log("\nDemo credentials: orgadmin@demo.talentos.local / ChangeMe123!");
 }
 

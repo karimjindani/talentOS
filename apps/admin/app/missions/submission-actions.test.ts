@@ -47,6 +47,7 @@ describe("reviewSubmissionAction", () => {
     const formData = new FormData();
     formData.set("submissionId", "sub-1");
     formData.set("decision", "ACCEPTED");
+    formData.set("rating", "4");
     formData.set("reviewerFeedback", "");
 
     await reviewSubmissionAction(formData);
@@ -117,6 +118,7 @@ describe("reviewSubmissionAction", () => {
     const formData = new FormData();
     formData.set("submissionId", "sub-missing");
     formData.set("decision", "ACCEPTED");
+    formData.set("rating", "4");
 
     await expect(reviewSubmissionAction(formData)).rejects.toThrow("Submission not found");
   });
@@ -136,6 +138,7 @@ describe("reviewSubmissionAction", () => {
     const formData = new FormData();
     formData.set("submissionId", "sub-1");
     formData.set("decision", "ACCEPTED");
+    formData.set("rating", "4");
 
     await reviewSubmissionAction(formData);
 

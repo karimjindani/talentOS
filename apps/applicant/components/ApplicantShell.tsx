@@ -21,6 +21,7 @@ export const APPLICANT_NAV_ITEMS: ApplicantNavItem[] = [
   { href: "/dashboard/notifications", label: "Notifications" },
   { href: "/dashboard/profile", label: "Profile" },
   { href: "/dashboard/mentor", label: "AI Mentor" },
+  { href: "/dashboard/consent", label: "Manage Consent" },
 ];
 
 const baseLinkClass = "rounded-lg px-3 py-2 font-medium transition-colors";
