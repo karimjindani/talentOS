@@ -26,8 +26,11 @@ export default defineConfig({
   // Serial until per-tenant isolation is proven against Keycloak realm write contention.
   workers: 1,
   fullyParallel: false,
-  // A journey is long by construction: signup, Keycloak hops, a dozen steps.
-  timeout: 120_000,
+  // A journey is long by construction and this is a whole-test budget, not a per-step one: the
+  // applicant arc alone is 13 steps, two full Keycloak login hops, a four-iteration journal loop
+  // and a full-page screenshot after every step. 120s did not cover that. The CI job's own
+  // timeout-minutes still bounds a genuinely hung run.
+  timeout: 300_000,
   expect: { timeout: 10_000 },
   retries: process.env.CI ? 1 : 0,
   reporter: [
