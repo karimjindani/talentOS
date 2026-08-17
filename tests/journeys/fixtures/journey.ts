@@ -29,7 +29,11 @@ export const test = base.extend<{ journey: Journey }>({
     const tenant = await provisionJourneyTenant(runId);
 
     const journeyName = testInfo.project.name;
-    const evidenceDir = join(JOURNEY_EVIDENCE_DIR, journeyName);
+    // Namespaced by runId as well as journey: playwright.config.ts sets `retries: 1` under CI, and
+    // a retry gets a fresh runId but the same project name and the same step-indexed screenshot
+    // filenames. Without runId here, attempt 2 silently overwrites attempt 1's PNGs while
+    // attempt 1's already-written JSON still points at them.
+    const evidenceDir = join(JOURNEY_EVIDENCE_DIR, journeyName, runId);
     mkdirSync(evidenceDir, { recursive: true });
 
     const steps: JourneyStepRecord[] = [];
@@ -71,9 +75,20 @@ export const test = base.extend<{ journey: Journey }>({
             error = thrown instanceof Error ? thrown.message : String(thrown);
           }
 
+          // A failing screenshot must not delete the step from the record. If it threw here the
+          // push below would never run, the step would vanish from the JSON, and journeyStatus()
+          // would report "passed" over the remaining steps while the Playwright run had actually
+          // failed — evidence disagreeing with what happened, which is the one thing this suite
+          // must never do.
           if (error === null) {
-            const file = screenshotFilename(index, name);
-            await page.screenshot({ path: join(evidenceDir, file), fullPage: true });
+            try {
+              const file = screenshotFilename(index, name);
+              await page.screenshot({ path: join(evidenceDir, file), fullPage: true });
+            } catch (thrown) {
+              error = `Step succeeded but its screenshot failed: ${
+                thrown instanceof Error ? thrown.message : String(thrown)
+              }`;
+            }
           }
 
           steps.push(buildStepRecord({ ...meta, index, name, durationMs: Date.now() - started, error }));
@@ -85,7 +100,17 @@ export const test = base.extend<{ journey: Journey }>({
     // The tenant admin exists only as a Prisma row until now: createOrganization writes the User
     // and its ORG_ADMIN membership, but login reads roles from the Keycloak access token, so the
     // reviewer has nothing to sign in with until the realm account exists (see Task 5).
-    await journey.registerKeycloakUser(await provisionJourneyAdminIdentity(tenant));
+    //
+    // Guarded, because this runs BEFORE use(): a throw here (Keycloak unreachable, say) would skip
+    // the whole teardown block below, and provisionJourneyTenant has already created and marked a
+    // Tenant, User, Program and Mission. Nothing else would ever collect them — the 24h sweep only
+    // looks in the Keycloak realm, never in Prisma.
+    try {
+      await journey.registerKeycloakUser(await provisionJourneyAdminIdentity(tenant));
+    } catch (thrown) {
+      await cleanupRegressionData(runId).catch(() => undefined);
+      throw thrown;
+    }
 
     await use(journey);
 
@@ -100,8 +125,6 @@ export const test = base.extend<{ journey: Journey }>({
     };
     mkdirSync(JOURNEY_RESULTS_DIR, { recursive: true });
     writeFileSync(join(JOURNEY_RESULTS_DIR, `${journeyName}-${runId}.json`), JSON.stringify(record, null, 2), "utf8");
-
-    for (const page of pages.values()) await page.context().close();
 
     // Database rows first (one transaction), then Keycloak (no rollback available), then the
     // orphan sweep for users left by runs that were killed before reaching this point.
@@ -118,6 +141,12 @@ export const test = base.extend<{ journey: Journey }>({
         teardownErrors.push(`${what}: ${thrown instanceof Error ? thrown.message : String(thrown)}`);
       }
     };
+
+    // Closing contexts is a teardown stage like any other: an unguarded close() on a crashed
+    // browser would throw here and skip every cleanup below it.
+    for (const page of pages.values()) {
+      await attempt("close browser context", () => page.context().close());
+    }
 
     await attempt("database cleanup", () => cleanupRegressionData(runId));
     for (const userId of keycloakUserIds) {
