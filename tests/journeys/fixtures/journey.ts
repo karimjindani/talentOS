@@ -108,7 +108,15 @@ export const test = base.extend<{ journey: Journey }>({
     try {
       await journey.registerKeycloakUser(await provisionJourneyAdminIdentity(tenant));
     } catch (thrown) {
-      await cleanupRegressionData(runId).catch(() => undefined);
+      // Swallowed so a failing cleanup cannot replace `thrown` and hide the setup failure that
+      // actually matters — but logged, because everywhere else in this fixture a leak is loud.
+      await cleanupRegressionData(runId).catch((cleanupError: unknown) => {
+        console.error(
+          `Journey ${runId} setup failed AND its cleanup failed; rows may be orphaned: ${
+            cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+          }`
+        );
+      });
       throw thrown;
     }
 
@@ -144,8 +152,8 @@ export const test = base.extend<{ journey: Journey }>({
 
     // Closing contexts is a teardown stage like any other: an unguarded close() on a crashed
     // browser would throw here and skip every cleanup below it.
-    for (const page of pages.values()) {
-      await attempt("close browser context", () => page.context().close());
+    for (const [actor, page] of pages.entries()) {
+      await attempt(`close ${actor} browser context`, () => page.context().close());
     }
 
     await attempt("database cleanup", () => cleanupRegressionData(runId));
