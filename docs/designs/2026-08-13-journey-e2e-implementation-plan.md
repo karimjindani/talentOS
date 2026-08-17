@@ -767,13 +767,26 @@ export function portalUrl(actor: Actor, tenantSlug: string): string {
 }
 
 /**
+ * Waits until the page has stopped fetching and its client components have hydrated.
+ *
+ * `locator.count()` does not auto-wait, so the login loop below must not inspect a page that has
+ * only reached `domcontentloaded`: the portal's sign-in button is rendered by a client component,
+ * and an unhydrated page shows neither that button nor the Keycloak form — which the loop would
+ * read as "already authenticated" and return successfully from an anonymous page.
+ */
+async function settle(page: Page): Promise<void> {
+  await page.waitForLoadState("networkidle").catch(() => undefined);
+  await page.waitForTimeout(750);
+}
+
+/**
  * Drives whatever login hop the current page shows — the portal's "Sign in with Keycloak" button or
  * the Keycloak credential form — until the page is neither. Lifted from the retired
  * capture-screenshots.ts, which had to solve the same multi-hop problem.
  */
 export async function completeLogin(page: Page, email: string, password: string): Promise<void> {
   for (let hop = 0; hop < 15; hop++) {
-    await page.waitForLoadState("domcontentloaded");
+    await settle(page);
 
     if (await page.locator("#kc-form-login").count()) {
       await page.fill("#username", email);
@@ -816,7 +829,7 @@ git commit -m "test(journeys): actor portal URLs and Keycloak login hop (v0.20.3
   - `journey.tenant: JourneyTenant`
   - `journey.step(name: string, meta: StepMeta, body: (page: Page) => Promise<void>): Promise<void>`
   - `journey.pageFor(actor: Actor): Promise<Page>`
-  - `journey.registerKeycloakUser(userId: string): void`
+  - `journey.registerKeycloakUser(userId: string): Promise<void>`
 - Also re-exports `expect` so specs import both from one place.
 
 - [ ] **Step 1: Write the fixture**
@@ -839,7 +852,7 @@ export type Journey = {
   tenant: JourneyTenant;
   step(name: string, meta: StepMeta, body: (page: Page) => Promise<void>): Promise<void>;
   pageFor(actor: Actor): Promise<Page>;
-  registerKeycloakUser(userId: string): void;
+  registerKeycloakUser(userId: string): Promise<void>;
 };
 
 function newRunId(): string {
@@ -863,9 +876,12 @@ export const test = base.extend<{ journey: Journey }>({
     const journey: Journey = {
       runId,
       tenant,
-      registerKeycloakUser(userId) {
+      async registerKeycloakUser(userId) {
         keycloakUserIds.push(userId);
-        void markRegressionData({ runId, entityType: "KeycloakUser", entityId: userId });
+        // Awaited, not fire-and-forget: an unawaited marker write can land AFTER
+        // cleanupRegressionData has deleted this run's markers, leaving a permanent orphan row,
+        // and a rejection would surface as an unhandled promise rejection with no owning step.
+        await markRegressionData({ runId, entityType: "KeycloakUser", entityId: userId });
       },
       async pageFor(actor) {
         const existing = pages.get(actor);
@@ -921,9 +937,29 @@ export const test = base.extend<{ journey: Journey }>({
 
     // Database rows first (one transaction), then Keycloak (no rollback available), then the
     // orphan sweep for users left by runs that were killed before reaching this point.
-    await cleanupRegressionData(runId);
-    for (const userId of keycloakUserIds) await deleteJourneyUser(userId);
-    await sweepOrphanJourneyUsers();
+    //
+    // Each stage is independently guarded. A failing Prisma cleanup must not skip the Keycloak
+    // reap: the realm has no transaction to roll back and no marker row to find these users by
+    // later, so a skipped reap leaks identities until the 24h sweep catches them. Teardown
+    // reports every failure it hit and then throws, so a leak is loud rather than silent.
+    const teardownErrors: string[] = [];
+    const attempt = async (what: string, fn: () => Promise<unknown>) => {
+      try {
+        await fn();
+      } catch (thrown) {
+        teardownErrors.push(`${what}: ${thrown instanceof Error ? thrown.message : String(thrown)}`);
+      }
+    };
+
+    await attempt("database cleanup", () => cleanupRegressionData(runId));
+    for (const userId of keycloakUserIds) {
+      await attempt(`delete Keycloak user ${userId}`, () => deleteJourneyUser(userId));
+    }
+    await attempt("orphan sweep", () => sweepOrphanJourneyUsers());
+
+    if (teardownErrors.length > 0) {
+      throw new Error(`Journey teardown left resources behind:\n- ${teardownErrors.join("\n- ")}`);
+    }
   }
 });
 
@@ -982,7 +1018,7 @@ test("applicant arc", async ({ journey }) => {
       firstName: "Journey",
       lastName: "Applicant"
     });
-    journey.registerKeycloakUser(userId);
+    await journey.registerKeycloakUser(userId);
     expect(userId).toBeTruthy();
   });
 
