@@ -1761,7 +1761,11 @@ The existing job is extended rather than duplicated: roughly four of its five mi
 
 - [ ] **Step 1: Replace the capture step and add the renderer**
 
-In the `e2e-evidence` job, replace the `Capture portal screenshots` step:
+Two separate edits. **`Write run summary` already exists in the job** (it follows
+`Capture portal screenshots`) — leave it exactly where it is. Adding a second copy would run the
+regression summary twice and append it to the step summary twice.
+
+First, **replace** the `Capture portal screenshots` step with:
 
 ```yaml
       # Journeys drive the real UI and assert at every step; the docs-only project produces the
@@ -1770,15 +1774,18 @@ In the `e2e-evidence` job, replace the `Capture portal screenshots` step:
       - name: Run journeys
         if: always()
         run: npm run journeys
+```
 
-      - name: Write run summary
-        if: always()
-        run: npx tsx scripts/ci/regression-summary.ts
+Then, **immediately after** the existing `Write run summary` step, insert:
 
+```yaml
       - name: Write journey evidence
         if: always()
         run: npm run journeys:report
 ```
+
+Order matters: the journey run has to finish before its evidence can be rendered, and both belong
+before `Collect Docker logs` so a stack failure is still the last thing in the log.
 
 - [ ] **Step 2: Extend the artifact paths**
 
@@ -1796,9 +1803,11 @@ In the `Upload evidence` step's `path:` list, add:
 ```bash
 grep -c "capture-screenshots" .github/workflows/ci.yml || echo 0
 grep -c "journeys" .github/workflows/ci.yml
+grep -c "Write run summary" .github/workflows/ci.yml
 ```
 
-Expected: `capture-screenshots refs: 0`, `journey steps: 2` or more.
+Expected: `0` capture-screenshots references, `2` or more journeys references, and exactly `1`
+`Write run summary` — that last one catches the duplicated-step mistake.
 
 - [ ] **Step 4: Commit**
 
