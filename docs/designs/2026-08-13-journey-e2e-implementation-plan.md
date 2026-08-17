@@ -658,7 +658,7 @@ export async function provisionJourneyTenant(runId: string): Promise<JourneyTena
     tenantId,
     programId: program.id,
     title: "Journey Week 1 Mission",
-    difficulty: "FOUNDATION",
+    difficulty: "BEGINNER",
     status: "PUBLISHED",
     weekNumber: 1,
     order: 1,
@@ -738,14 +738,69 @@ git commit -m "test(journeys): per-journey tenant provisioning and KeycloakUser 
 **Files:**
 - Create: `tests/journeys/fixtures/actors.ts`
 
+**Files:**
+- Modify: `tests/journeys/fixtures/keycloak.ts` (realm-role assignment)
+
 **Interfaces:**
 - Consumes: `JourneyTenant` (Task 4), `Actor` (Task 2)
-- Produces: `portalUrl(actor: Actor, tenantSlug: string): string`, `completeLogin(page: Page, email: string, password: string): Promise<void>`, `JOURNEY_PASSWORD`
+- Produces: `portalUrl(actor: Actor, tenantSlug: string): string`, `completeLogin(page: Page, email: string, password: string): Promise<void>`, `JOURNEY_PASSWORD`, `provisionJourneyAdminIdentity(tenant: JourneyTenant): Promise<string>`
+- Extends Task 3's `createJourneyUser` with a required `realmRoles` argument
 
 `completeLogin` is lifted from `scripts/user-guide/capture-screenshots.ts:71-96`, which is deleted in
 Task 8. It is the one piece of that script worth keeping.
 
-- [ ] **Step 1: Write the module**
+**Why this task grew a Keycloak step.** Authorization in this app comes *entirely* from Keycloak
+realm roles: `auth.ts:82-86` reads `realm_access.roles` off the access token and
+`mapKeycloakRolesToTenantRoles` (`packages/auth-web/src/roles.ts:7`) keeps only the ones matching a
+`TenantRole`. `TenantMembership` rows grant nothing at login. Two consequences the plan originally
+missed:
+
+1. Task 3's `createJourneyUser` assigns **no realm roles**, so a journey applicant would authenticate
+   and then hold `orgRole: null`.
+2. `createOrganization` (Task 4) creates the tenant admin as a **Prisma row only**. There is no
+   Keycloak account behind `tenant.adminEmail`, so Task 7's reviewer steps could not log in at all.
+
+Both are fixed here, in the task that owns identity.
+
+- [ ] **Step 1: Give `createJourneyUser` realm roles**
+
+In `tests/journeys/fixtures/keycloak.ts`, add role assignment and make it part of user creation.
+`realmRoles` is a **required** parameter, not optional with a default: a journey user with no role is
+never what a caller wants, and a silent empty default reproduces exactly the defect this step fixes.
+
+```ts
+/** Realm role representations, needed by name -> {id,name} for the role-mapping endpoint. */
+async function realmRole(token: string, name: string): Promise<{ id: string; name: string }> {
+  const response = await fetch(`${realmBase()}/roles/${encodeURIComponent(name)}`, {
+    headers: { authorization: `Bearer ${token}` }
+  });
+  if (!response.ok) throw new Error(`Keycloak realm role "${name}" lookup failed: ${response.status}`);
+  const role = (await response.json()) as { id: string; name: string };
+  return { id: role.id, name: role.name };
+}
+
+export async function assignRealmRoles(userId: string, roles: readonly string[]): Promise<void> {
+  if (roles.length === 0) return;
+  const token = await adminToken();
+  const representations = await Promise.all(roles.map((role) => realmRole(token, role)));
+  const response = await fetch(`${realmBase()}/users/${userId}/role-mappings/realm`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify(representations)
+  });
+  if (!response.ok) {
+    throw new Error(`Keycloak realm role assignment failed: ${response.status} ${await response.text()}`);
+  }
+}
+```
+
+Then extend `createJourneyUser`'s input with `realmRoles: readonly string[]` and, after it has the
+new user's id and before returning it, call `await assignRealmRoles(id, input.realmRoles);`.
+
+Update `tests/journeys/fixtures/keycloak.test.ts` only if the signature change breaks it — the
+existing tests cover pure helpers, not the HTTP calls.
+
+- [ ] **Step 2: Write the actors module**
 
 ```ts
 // tests/journeys/fixtures/actors.ts
@@ -807,12 +862,71 @@ export async function completeLogin(page: Page, email: string, password: string)
 }
 ```
 
-- [ ] **Step 2: Typecheck and commit**
+- [ ] **Step 3: Give the journey tenant admin a Keycloak identity**
+
+Append to `tests/journeys/fixtures/actors.ts`:
+
+```ts
+import { assignRealmRoles, createJourneyUser } from "./keycloak";
+import type { JourneyTenant } from "./tenant";
+
+/**
+ * Creates the Keycloak account behind `tenant.adminEmail` and returns its user id.
+ *
+ * createOrganization only writes the Prisma User and its ORG_ADMIN TenantMembership; login reads
+ * roles from the access token, not from that membership, so without this the reviewer cannot sign
+ * in. The caller must register the returned id for reaping — teardown has no other handle on it.
+ */
+export async function provisionJourneyAdminIdentity(tenant: JourneyTenant): Promise<string> {
+  return createJourneyUser({
+    email: tenant.adminEmail,
+    password: JOURNEY_PASSWORD,
+    firstName: "Journey",
+    lastName: "Admin",
+    realmRoles: ["ORG_ADMIN"]
+  });
+}
+```
+
+- [ ] **Step 4: Prove a role actually lands on the token**
+
+A role assignment that silently no-ops is the failure this task exists to prevent, and typecheck
+cannot see it. With the stack up, create a user, read its role mappings back, and delete it:
+
+```bash
+cat > probe-roles.mts <<'EOF'
+import { assignRealmRoles, createJourneyUser, deleteJourneyUser, journeyEmail } from "./tests/journeys/fixtures/keycloak";
+
+const id = await createJourneyUser({
+  email: journeyEmail("proberoles", "admin"),
+  password: "JourneyPass123!",
+  firstName: "Probe",
+  lastName: "Roles",
+  realmRoles: ["ORG_ADMIN"]
+});
+console.log("created", id);
+await deleteJourneyUser(id);
+console.log("deleted");
+EOF
+npx tsx probe-roles.mts
+rm probe-roles.mts
+```
+
+Then confirm the mapping was real by reading it back **before** the delete (add a fetch of
+`GET {realmBase}/users/{id}/role-mappings/realm` to the probe and log the role names). Expected:
+the list contains `ORG_ADMIN`. If it is empty, the assignment failed silently and Task 7 will fail
+at its reviewer step with an unhelpful login loop — fix it here.
+
+`npx tsx -e "..."` does not work in this repo; use the throwaway-file form above and delete it
+afterwards.
+
+- [ ] **Step 5: Typecheck and commit**
 
 ```bash
 npm run typecheck
-git add tests/journeys/fixtures/actors.ts
-git commit -m "test(journeys): actor portal URLs and Keycloak login hop (v0.20.3, D-103)"
+npm test
+git add tests/journeys/fixtures/actors.ts tests/journeys/fixtures/keycloak.ts tests/journeys/fixtures/keycloak.test.ts
+git commit -m "test(journeys): actor portals, login hop and realm-role assignment (v0.20.3, D-103)"
 ```
 
 ---
@@ -843,7 +957,7 @@ import { cleanupRegressionData, markRegressionData } from "@talentos/db";
 import { JOURNEY_EVIDENCE_DIR, JOURNEY_RESULTS_DIR } from "../../../playwright.config";
 import { buildStepRecord, journeyStatus, screenshotFilename } from "./evidence";
 import { deleteJourneyUser, sweepOrphanJourneyUsers } from "./keycloak";
-import { portalUrl } from "./actors";
+import { portalUrl, provisionJourneyAdminIdentity } from "./actors";
 import { provisionJourneyTenant, type JourneyTenant } from "./tenant";
 import type { Actor, JourneyRecord, JourneyStepRecord, StepMeta } from "./types";
 
@@ -918,6 +1032,11 @@ export const test = base.extend<{ journey: Journey }>({
         });
       }
     };
+
+    // The tenant admin exists only as a Prisma row until now: createOrganization writes the User
+    // and its ORG_ADMIN membership, but login reads roles from the Keycloak access token, so the
+    // reviewer has nothing to sign in with until the realm account exists (see Task 5).
+    await journey.registerKeycloakUser(await provisionJourneyAdminIdentity(tenant));
 
     await use(journey);
 
@@ -1016,7 +1135,10 @@ test("applicant arc", async ({ journey }) => {
       email: applicantEmail,
       password: JOURNEY_PASSWORD,
       firstName: "Journey",
-      lastName: "Applicant"
+      lastName: "Applicant",
+      // Without this the login succeeds and the session carries orgRole: null — every portal
+      // guard then denies a user the evidence would claim is an applicant.
+      realmRoles: ["APPLICANT"]
     });
     await journey.registerKeycloakUser(userId);
     expect(userId).toBeTruthy();
