@@ -47,11 +47,44 @@ export async function adminToken(): Promise<string> {
   return ((await response.json()) as { access_token: string }).access_token;
 }
 
+/** Realm role representations, needed by name -> {id,name} for the role-mapping endpoint. */
+async function realmRole(token: string, name: string): Promise<{ id: string; name: string }> {
+  const response = await fetch(`${realmBase()}/roles/${encodeURIComponent(name)}`, {
+    headers: { authorization: `Bearer ${token}` }
+  });
+  if (!response.ok) throw new Error(`Keycloak realm role "${name}" lookup failed: ${response.status}`);
+  const role = (await response.json()) as { id: string; name: string };
+  return { id: role.id, name: role.name };
+}
+
+export async function assignRealmRoles(userId: string, roles: readonly string[]): Promise<void> {
+  if (roles.length === 0) return;
+  const token = await adminToken();
+  const representations = await Promise.all(roles.map((role) => realmRole(token, role)));
+  const response = await fetch(`${realmBase()}/users/${userId}/role-mappings/realm`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify(representations)
+  });
+  if (!response.ok) {
+    throw new Error(`Keycloak realm role assignment failed: ${response.status} ${await response.text()}`);
+  }
+}
+
+/**
+ * Creates a Keycloak user and assigns its realm roles.
+ *
+ * `realmRoles` is required, not optional with a default: a journey user with no role is never what
+ * a caller wants, and a silent empty default reproduces exactly the defect this fixes — auth.ts
+ * derives `orgRole` entirely from the token's `realm_access.roles`, so a roleless user authenticates
+ * successfully but can access nothing.
+ */
 export async function createJourneyUser(input: {
   email: string;
   password: string;
   firstName: string;
   lastName: string;
+  realmRoles: readonly string[];
 }): Promise<string> {
   const token = await adminToken();
   const response = await fetch(`${realmBase()}/users`, {
@@ -70,6 +103,7 @@ export async function createJourneyUser(input: {
   if (!response.ok) throw new Error(`Keycloak user create failed: ${response.status} ${await response.text()}`);
   const id = response.headers.get("location")?.split("/").pop();
   if (!id) throw new Error("Keycloak user create returned no Location header");
+  await assignRealmRoles(id, input.realmRoles);
   return id;
 }
 
