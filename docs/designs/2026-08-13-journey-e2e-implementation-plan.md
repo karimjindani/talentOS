@@ -1204,6 +1204,10 @@ test("applicant arc", async ({ journey }) => {
     proves: "Simulates elapsed time — NOT a user action. Four journal entries need four distinct dates on or after mission start and not in the future, so a mission accepted today has only one legal date"
   }, async () => {
     const backdated = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000);
+    // Both columns, deliberately: the journal form's minimum entry date is the mission's
+    // `startedAt`, which listAssignedProgramMissions derives as `acceptedAt ?? assignedAt`
+    // (packages/db/src/mission-assignments.ts:74). Moving only one leaves the date picker's lower
+    // bound at today and the next step's four backdated entries are rejected.
     const { count } = await prisma.missionAssignment.updateMany({
       where: { tenantId: journey.tenant.tenantId, missionId: journey.tenant.missionId },
       data: { acceptedAt: backdated, assignedAt: backdated }
@@ -1213,16 +1217,22 @@ test("applicant arc", async ({ journey }) => {
 
   await journey.step("Applicant writes four journal entries across four dates", {
     actor: "applicant",
-    proves: "Per-mission-per-date uniqueness holds and submission readiness reaches 4 of 4 journals"
+    proves: "One entry per applicant per date holds across four dates and submission readiness reaches 4 of 4 journals"
   }, async (page) => {
     for (let daysAgo = 4; daysAgo >= 1; daysAgo--) {
       const date = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       await page.goto("/dashboard/journal/new");
+      // Field names verified against apps/applicant/app/dashboard/journal/JournalEntryForm.tsx.
+      // `missionId` needs no input: with a single assigned mission the form locks it into a hidden
+      // field (new/page.tsx:44). `confidenceRating` is a radio group that arrives pre-selected.
       await page.fill('input[name="entryDate"]', date);
-      await page.fill('textarea[name="whatIDid"]', `Day ${5 - daysAgo}: implemented and tested a slice.`);
-      await page.fill('textarea[name="whatILearned"]', "Reinforced the review loop.");
+      await page.fill('textarea[name="workedOn"]', `Day ${5 - daysAgo}: implemented and tested a slice.`);
+      await page.fill('textarea[name="challenge"]', "Wiring the review loop end to end.");
+      await page.fill('textarea[name="solution"]', "Read the assignment state machine and traced the transition.");
+      await page.fill('textarea[name="learned"]', "Reinforced how the review loop closes.");
+      await page.fill('textarea[name="aiUsage"]', "None for this slice.");
       await page.fill('input[name="timeSpentHours"]', "3");
-      await page.getByRole("button", { name: /save/i }).click();
+      await page.getByRole("button", { name: /save journal entry/i }).click();
       await page.waitForLoadState("networkidle");
     }
 
@@ -1309,10 +1319,16 @@ Expected: a `JourneyRecord` with `"status": "passed"` and 11 steps, and 11 PNGs.
 
 - [ ] **Step 4: Confirm cleanup left nothing behind**
 
+`npx tsx -e "..."` does not work in this repo. Use a throwaway file:
+
 ```bash
-npx tsx -e "import {prisma} from '@talentos/db'; \
-console.log('tenants:', await prisma.tenant.count({where:{slug:{startsWith:'jrn-'}}})); \
-console.log('markers:', await prisma.regressionDataMarker.count());"
+cat > probe-cleanup.mts <<'EOF'
+import { prisma } from "@talentos/db";
+console.log("tenants:", await prisma.tenant.count({ where: { slug: { startsWith: "jrn-" } } }));
+console.log("markers:", await prisma.regressionDataMarker.count());
+EOF
+npx tsx probe-cleanup.mts
+rm probe-cleanup.mts
 ```
 
 Expected: `tenants: 0`. A non-zero count means teardown did not run — investigate before continuing.
@@ -1656,11 +1672,11 @@ In the `Upload evidence` step's `path:` list, add:
 
 - [ ] **Step 3: Validate the YAML**
 
+`npx tsx -e "..."` does not work in this repo; grep the file directly:
+
 ```bash
-npx tsx -e "import {readFileSync} from 'node:fs'; \
-const y=readFileSync('.github/workflows/ci.yml','utf8'); \
-console.log('capture-screenshots refs:', (y.match(/capture-screenshots/g)||[]).length); \
-console.log('journey steps:', (y.match(/journeys/g)||[]).length);"
+grep -c "capture-screenshots" .github/workflows/ci.yml || echo 0
+grep -c "journeys" .github/workflows/ci.yml
 ```
 
 Expected: `capture-screenshots refs: 0`, `journey steps: 2` or more.
