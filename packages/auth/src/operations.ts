@@ -33,6 +33,7 @@ export type RegressionArea =
   | "tenant"
   | "dashboard"
   | "storage"
+  | "public-portal"
   | "ops";
 
 export type RegressionSummary = {

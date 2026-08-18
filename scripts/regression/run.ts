@@ -7,9 +7,11 @@ import { installNodeHttpCapture, setCurrentScenario, flushEvidence } from "../ci
 import {
   acceptMissionAssignment,
   applyStatusTransition,
+  assignWeekMissionToAcceptedApplicant,
   buildSubmissionEvidenceLinks,
   cleanupRegressionData,
   createCalendarEvent,
+  createOrUpdateGraduateProfile,
   createJournalEntry,
   createMission,
   createProgram,
@@ -20,6 +22,7 @@ import {
   DUPLICATE_APPLICATION_ERROR_MESSAGE,
   findActiveApplication,
   getApplicantMissionProgress,
+  getGraduateEligibility,
   getApplicantProgramProgress,
   getApplicantSubmission,
   getAssignedProgramMission,
@@ -27,6 +30,7 @@ import {
   getTenantBySlug,
   getTenantSubmission,
   getTenantProgram,
+  getPublicProfile,
   isJournalMissionLockedForApplicant,
   JournalEntryDateConflictError,
   listApplicantApplications,
@@ -88,6 +92,7 @@ const AREAS: RegressionArea[] = [
   "tenant",
   "dashboard",
   "storage",
+  "public-portal",
   "ops"
 ];
 
@@ -428,7 +433,8 @@ const scenarios: Scenario[] = [
         tenantId: submission.tenantId,
         status: "ACCEPTED",
         reviewerFeedback: "Reviewed with linked Engineering Journal context.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: 4
       });
       if (reviewed.status !== "ACCEPTED") {
         throw new Error("Reviewer could not complete the existing submission review action.");
@@ -806,7 +812,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "NEEDS_REVISION",
         reviewerFeedback: "Tighten the acceptance-criteria evidence.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: null
       });
       const afterRevisionRequest = await getApplicantSubmission(fixture.mission.id, fixture.user.id, fixture.tenant.id);
       if (afterRevisionRequest?.status !== "NEEDS_REVISION") {
@@ -837,7 +844,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "ACCEPTED",
         reviewerFeedback: "Meets the evaluation criteria.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: 4
       });
       const accepted = await getApplicantSubmission(fixture.mission.id, fixture.user.id, fixture.tenant.id);
       if (accepted?.status !== "ACCEPTED") throw new Error(`Expected ACCEPTED, got ${accepted?.status}`);
@@ -1194,7 +1202,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "REPEAT",
         reviewerFeedback: "Repeat Week 1 with a fresh attempt.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: null
       });
 
       const attempts = await prisma.missionAssignment.findMany({
@@ -1318,7 +1327,8 @@ const scenarios: Scenario[] = [
           tenantId: fixture.tenant.id,
           status: "REPEAT",
           reviewerFeedback: "Duplicate repeat should fail.",
-          reviewerUserId: fixture.actor.id
+          reviewerUserId: fixture.actor.id,
+          rating: null
         });
         throw new Error("A repeated review created another assignment attempt.");
       } catch (error) {
@@ -1341,7 +1351,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "NEEDS_REVISION",
         reviewerFeedback: "Add one more reflection before resubmitting.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: null
       });
       const followUpJournal = await createTrackedJournalEntry(
         ctx.runId,
@@ -1368,7 +1379,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "ACCEPTED",
         reviewerFeedback: "Attempt 2 passed.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: 4
       });
 
       // Scoped by applicant/tenant, not a single missionId — Attempt 1's journal lives on the
@@ -1393,7 +1405,8 @@ const scenarios: Scenario[] = [
           tenantId: fixture.tenant.id,
           status: "ACCEPTED",
           reviewerFeedback: "Duplicate acceptance should fail.",
-          reviewerUserId: fixture.actor.id
+          reviewerUserId: fixture.actor.id,
+          rating: 4
         });
         throw new Error("Accepted attempt was reviewable twice.");
       } catch (error) {
@@ -2384,7 +2397,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "ACCEPTED",
         reviewerFeedback: "Accepted for regression",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: 4
       });
       const after = await getApplicantMissionProgress(fixture.tenant.id, fixture.user.id, fixture.program.id);
       if (after.overall.accepted !== 1 || after.overall.percentage !== 100) {
@@ -2533,7 +2547,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "NEEDS_REVISION",
         reviewerFeedback: "Please fix the deployment URL.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: null
       });
       if (reviewed.status !== "NEEDS_REVISION") {
         throw new Error(`Expected NEEDS_REVISION, got ${reviewed.status}`);
@@ -2567,7 +2582,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "ACCEPTED",
         reviewerFeedback: "Looks good after revision.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: 4
       });
       if (accepted.status !== "ACCEPTED") {
         throw new Error(`Expected ACCEPTED after resubmission, got ${accepted.status}`);
@@ -2620,7 +2636,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "REPEAT",
         reviewerFeedback: "Not sufficient — please repeat this week.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: null
       });
       if (repeated.status !== "REPEAT") {
         throw new Error(`Expected REPEAT, got ${repeated.status}`);
@@ -2683,7 +2700,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "NEEDS_REVISION",
         reviewerFeedback: "Round 1: fix issues.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: null
       });
 
       // Resubmit
@@ -2699,7 +2717,8 @@ const scenarios: Scenario[] = [
         tenantId: fixture.tenant.id,
         status: "ACCEPTED",
         reviewerFeedback: "Round 2: accepted.",
-        reviewerUserId: fixture.actor.id
+        reviewerUserId: fixture.actor.id,
+        rating: 4
       });
 
       // Verify two review history records exist
@@ -2953,6 +2972,142 @@ const scenarios: Scenario[] = [
       // The key isolation: they use different AUTH_SECRET-independent cookie names
       // and different Keycloak client IDs, so a session on one cannot be replayed on the other
       return `Applicant: ${applicantRes.status}, Admin: ${adminRes.status}. Separate clients verified.`;
+    }
+  },
+  {
+    area: "public-portal",
+    name: "Four weekly missions are completed before an applicant consents to publish a graduate profile",
+    run: async (ctx) => {
+      const fixture = await createApplicationFixture(ctx.runId);
+      const missions = [];
+      for (let weekNumber = 1; weekNumber <= 4; weekNumber += 1) {
+        const mission = await createMission({
+          tenantId: fixture.tenant.id,
+          programId: fixture.program.id,
+          title: `Public Portal Week ${weekNumber} Mission ${ctx.runId}`,
+          difficulty: weekNumber === 1 ? "BEGINNER" : weekNumber === 2 ? "INTERMEDIATE" : weekNumber === 3 ? "ADVANCED" : "EXPERT",
+          status: "PUBLISHED",
+          weekNumber,
+          order: 0,
+          brief: `Regression mission for public-portal week ${weekNumber}.`,
+          objective: "Complete verified weekly work before graduate profile consent.",
+          acceptanceCriteria: "- Submitted evidence is complete",
+          deliverables: "- Repository\n- Deployment\n- Journal",
+          evaluationCriteria: "Accepted with a reviewer rating from 1 to 5.",
+          competencyTags: ["Software Construction", "Communication"],
+          actorUserId: fixture.actor.id
+        });
+        missions.push(mission);
+        await markRegressionData({ runId: ctx.runId, entityType: "Mission", entityId: mission.id });
+      }
+
+      const seeded = await prisma.mission.findMany({
+        where: { programId: fixture.program.id, status: "PUBLISHED" },
+        orderBy: { weekNumber: "asc" }
+      });
+      if (seeded.length !== 4 || seeded.map((mission) => mission.weekNumber).join(",") !== "1,2,3,4") {
+        throw new Error("Expected exactly four published missions, one in each of weeks 1 through 4.");
+      }
+
+      const application = await createSubmittedApplication({
+        tenantId: fixture.tenant.id,
+        programId: fixture.program.id,
+        applicantId: fixture.user.id,
+        answers: [{ questionKey: "motivation", questionLabel: "Why do you want to join?", answer: "Graduate-profile regression" }]
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Application", entityId: application.id });
+      await applyStatusTransition({
+        id: application.id,
+        tenantId: fixture.tenant.id,
+        toStatus: "ACCEPTED",
+        actorUserId: fixture.actor.id,
+        reviewerNotes: "Accepted for graduate-profile regression"
+      });
+
+      for (let weekNumber = 1; weekNumber <= 4; weekNumber += 1) {
+        const assignment = await assignWeekMissionToAcceptedApplicant({
+          tenantId: fixture.tenant.id,
+          programId: fixture.program.id,
+          applicantId: fixture.user.id,
+          weekNumber,
+          chooseAssignmentIndex: () => 0
+        });
+        if (!assignment) throw new Error(`Week ${weekNumber} was not assigned.`);
+      }
+      const assignments = await prisma.missionAssignment.findMany({
+        where: { programId: fixture.program.id, applicantId: fixture.user.id },
+        orderBy: { weekNumber: "asc" }
+      });
+      if (assignments.length !== 4 || assignments.map((assignment) => assignment.weekNumber).join(",") !== "1,2,3,4") {
+        throw new Error("Applicant did not receive exactly one assignment for each week.");
+      }
+      for (const assignment of assignments) {
+        await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: assignment.id });
+      }
+
+      const ratings = [4, 4.5, 5, 4.5];
+      for (const [index, mission] of missions.entries()) {
+        // Accept the mission assignment (NOT_STARTED → ACCEPTED) before drafting evidence.
+        const assignment = assignments.find((a) => a.missionId === mission.id);
+        if (assignment) {
+          await acceptMissionAssignment({
+            tenantId: fixture.tenant.id,
+            applicantId: fixture.user.id,
+            missionAssignmentId: assignment.id
+          });
+        }
+        // Complete prerequisite tasks (Review Brief, Study Tutorial) before submission.
+        if (assignment) {
+          await markMissionTaskComplete({ tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionAssignmentId: assignment.id, taskIndex: 1 });
+          await markMissionTaskComplete({ tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionAssignmentId: assignment.id, taskIndex: 2 });
+        }
+        const submission = await saveSubmissionDraft({
+          tenantId: fixture.tenant.id,
+          missionId: mission.id,
+          applicantId: fixture.user.id,
+          repositoryUrl: `https://github.com/regression/public-portal-week-${mission.weekNumber}`,
+          deploymentUrl: `https://week-${mission.weekNumber}.regression.example.com`,
+          loomUrl: `https://www.loom.com/share/public-portal-week-${mission.weekNumber}`,
+          journalMarkdown: `## Week ${mission.weekNumber}\nCompleted public-portal regression evidence.`
+        });
+        await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: submission.id });
+        await submitRegressionSubmission(ctx.runId, {
+          id: submission.id,
+          tenantId: fixture.tenant.id,
+          applicantId: fixture.user.id
+        });
+        await reviewSubmission({
+          id: submission.id,
+          tenantId: fixture.tenant.id,
+          status: "ACCEPTED",
+          reviewerFeedback: `Week ${mission.weekNumber} accepted for public profile.`,
+          reviewerUserId: fixture.actor.id,
+          rating: ratings[index] ?? 4
+        });
+      }
+
+      const eligibility = await getGraduateEligibility(fixture.user.id);
+      if (!eligibility.eligible || eligibility.missionRatings.length !== 4) {
+        throw new Error("Four accepted and rated missions did not make the applicant eligible.");
+      }
+      const profile = await createOrUpdateGraduateProfile(fixture.user.id, {
+        bio: "Regression graduate who completed four verified weekly missions.",
+        country: "Pakistan",
+        skills: ["typescript", "testing"],
+        interests: ["public-interest technology"],
+        emailPublic: false
+      });
+      if (!profile.publicProfileEnabled || !profile.consentDate || profile.consentVersion !== 1) {
+        throw new Error("Graduate consent was not recorded when the profile was published.");
+      }
+      if (Math.abs(profile.overallRating - 4.5) > 0.001) {
+        throw new Error(`Expected overall rating 4.5, got ${profile.overallRating}.`);
+      }
+      const publicProfile = await getPublicProfile(profile.slug);
+      if (!publicProfile || publicProfile.program?.id !== fixture.program.id) {
+        throw new Error("Consented graduate profile was not publicly discoverable in its completed program.");
+      }
+      return "Seeded weeks 1-4, accepted four rated submissions, recorded consent, and published the graduate profile.";
     }
   },
   {
@@ -3284,7 +3439,8 @@ async function createRepeatedSubmissionFixture(runId: string) {
     tenantId: fixture.tenant.id,
     status: "REPEAT",
     reviewerFeedback: "Repeat this week with a new assignment attempt.",
-    reviewerUserId: fixture.actor.id
+    reviewerUserId: fixture.actor.id,
+    rating: null
   });
 
   const attemptTwoNotStarted = await prisma.missionAssignment.findFirst({

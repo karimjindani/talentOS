@@ -1,19 +1,20 @@
 # CI/CD & Delivery Policy
 
-Code version: `v0.20.1`
+Code version: `v0.20.2`
 
-Baseline commit: `3856f61`
+Baseline commit: `43e7537`
 
 This policy documents the Continuous Integration pipeline that **exists today** and defines the
 Continuous Delivery / deployment governance that **does not yet exist** — image versioning, a registry,
 environment promotion, and rollback. It is referenced from [`sdlc.md`](sdlc.md) and complements the
 [Source Control & Branching Policy](Source_Control_Policy.md) and [Deployment](Deployment.md) guide.
 
-> **Status (v0.16.3):** This is a **policy/design document**, first established in `v0.11.2`. The CI
-> gate below — the `ci` job plus the `realm-import` job — is implemented
-> ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) and has been stable since `v0.11.3`;
-> the **security-scan stage, image build/push, environment promotion, and CD deploy remain
-> documented targets, not yet built.** A later implementation baseline will realize them.
+> **Status (v0.20.2):** This is a **policy/design document**, first established in `v0.11.2`. The CI
+> gate below — the `ci` job, the `realm-import` job and, since `v0.20.1`, the `e2e-evidence` job — is
+> implemented ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)); `ci` and `realm-import` have
+> been stable since `v0.11.3`. The **security-scan stage, image build/push, environment promotion, and
+> CD deploy remain documented targets, not yet built.** A later implementation baseline will realize
+> them.
 
 ## Continuous Integration (implemented)
 
@@ -29,17 +30,51 @@ The CI gate runs on **every `push` and `pull_request`**
 | Test | `npm run test` | Vitest regression suite |
 | Build | `npm run build` | Production build of both apps |
 
+Note: this job runs the **unit suite** only. End-to-end scenarios are the separate `e2e-evidence`
+job below.
+
 A parallel **`realm-import`** job boots Keycloak the same way production does
 (`start-dev --import-realm`, in-memory H2) against `keycloak/import/` and fails if the realm does not
 import cleanly — a boot-level guard against a malformed realm JSON reaching `main` (added in `v0.11.3`,
 D-057).
 
-**Both jobs — all stages of `ci` plus `realm-import` — must pass** for a PR to merge (see the PR
-policy in the Source Control Policy). This is the mandatory pre-merge gate.
+### E2E scenarios and evidence (`e2e-evidence`)
 
-Note: the Vitest stage runs the **unit suite** (243 tests as of `v0.18.2`). Scenario regression
-(`npm run regression:*`, see [`Testing_Strategy.md`](Testing_Strategy.md)) needs the running Docker
-stack and is a local/Ops-Console capability, not a CI stage.
+Added in `v0.20.1`. Scenario regression (`npm run regression:*`, see
+[`Testing_Strategy.md`](Testing_Strategy.md)) needs the running Docker stack; this job boots that stack
+on the runner rather than leaving the suite as a local/Ops-Console-only capability.
+
+| Step | Command | Purpose |
+|---|---|---|
+| Pin hostnames | append to `/etc/hosts` | `scripts/regression/run.ts` hardcodes `demo.lvh.me` / `keycloak.lvh.me`; pinning avoids depending on the runner resolving a public third-party wildcard |
+| Install | `npm ci` | Clean, lockfile-exact install |
+| Browser | `npx playwright install --with-deps chromium` | `@playwright/test` is already a dependency; only the binary and system libs are missing |
+| Bootstrap | `npm run local:bootstrap` | `docker compose up --build`, Keycloak realm wait, `db:generate`/`migrate`/`seed`, host-run Ops console |
+| Scenarios | `npm run regression:all` | All scenario areas; exits non-zero on any failure |
+| Screenshots | `npx tsx scripts/user-guide/capture-screenshots.ts` | Visual evidence, `if: always()` |
+| Summary | `npx tsx scripts/ci/regression-summary.ts` | Renders the result JSON into the run's step summary |
+| Evidence | `actions/upload-artifact@v4` | `e2e-evidence-<run number>`, 30-day retention |
+
+Properties worth knowing:
+
+- **Gated to `pull_request` and `workflow_dispatch`** (`if: github.event_name != 'push'`). Booting the
+  stack makes it far slower than `ci`, which stays the fast per-push feedback loop.
+- **No secrets required** — `repairLocalEnv()` writes the whole `.env` from defaults.
+- **`timeout-minutes: 40`**, so a hung stack cannot burn the 6-hour default.
+- **Evidence is produced on failure too.** Capture, summary and upload run `if: always()`; Docker
+  Compose logs are collected `if: failure()` only, and the stack is torn down `if: always()`.
+- **The repository is public**, so the run page is a shareable evidence surface. The summary reports the
+  verdict and lists failures first with their error text, so a reviewer does not need to download the
+  artifact to learn what broke.
+- **One documented skip is expected** (`storage: Storage browser upload/download scenario`); the runner
+  exits 0 for skips, so it does not fail the job.
+
+### Merge gate
+
+**All applicable jobs must pass** for a PR to merge (see the PR policy in the Source Control Policy):
+all stages of `ci`, plus `realm-import`, plus `e2e-evidence` on pull requests. This is the mandatory
+pre-merge gate. On a plain branch `push`, `e2e-evidence` is skipped by design and the gate is `ci` +
+`realm-import`.
 
 ## Security Scanning (target — principle 7)
 

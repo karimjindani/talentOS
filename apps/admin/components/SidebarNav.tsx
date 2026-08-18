@@ -17,6 +17,8 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/missions", label: "Missions" },
   { href: "/tasks", label: "Tasks" },
   { href: "/submissions", label: "Submissions" },
+  { href: "/recruiter-requests", label: "Recruiter Access" },
+  { href: "/operations", label: "Operations" },
   { href: "/settings", label: "Settings" }
 ];
 

@@ -184,6 +184,7 @@ model User {
   notifications       Notification[]
   taskCompletions     UserTaskCompletion[]
   mentorConversations MentorConversation[]
+  graduateProfile     GraduateProfile?
 
   @@map("users")
 }
@@ -225,6 +226,7 @@ model Program {
   calendarEvents     CalendarEvent[]
   journalEntries     EngineeringJournalEntry[]
   missionAssignments MissionAssignment[]
+  graduateProfiles   GraduateProfile[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
@@ -398,6 +400,8 @@ model Submission {
   deploymentUrl       String?
   loomUrl             String?
   journalMarkdown     String?
+  // Reviewer-assigned score used by the graduate portal (1.0-5.0 when accepted).
+  rating              Float?
   submittedAt         DateTime?
   reviewerFeedback    String?
   reviewedAt          DateTime?
@@ -544,6 +548,7 @@ model StoredFile {
   owner            User?           @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
   cvForApplication Application?    @relation("ApplicationCv")
   logoForTenant    Tenant?         @relation("TenantLogo")
+  graduatePhotoFor GraduateProfile? @relation("GraduateProfilePhoto")
   videoResources   VideoResource[]
 
   @@index([tenantId, category])
@@ -712,6 +717,230 @@ model MentorMessage {
 
   @@index([conversationId, createdAt])
   @@map("mentor_messages")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// PUBLIC GRADUATE DIRECTORY MODELS
+// ─────────────────────────────────────────────────────────────────
+
+/// Graduate Profile - Published profiles visible on public portal
+/// Consent status for a graduate's public profile
+enum ConsentStatus {
+  ACKNOWLEDGED
+  DECLINED
+  SKIPPED
+}
+
+/// Recruiter access request review status
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVOKED
+  EXPIRED
+}
+
+model GraduateProfile {
+  id                      String   @id @default(cuid())
+  userId                  String   @unique
+  programId               String?
+  profilePhotoFileId      String?  @unique
+
+  // Publication status & consent
+  publicProfileEnabled    Boolean  @default(false)
+  consentDate             DateTime?
+  consentVersion          Int      @default(1)
+  consentStatus           ConsentStatus?
+
+  // Profile information
+  bio                     String?  @db.VarChar(500)
+  linkedinUrl             String?  @db.VarChar(500)
+  githubUrl               String?  @db.VarChar(500)
+  profilePhotoUrl         String?  @db.VarChar(500)
+  country                 String?  @db.VarChar(100)
+  skills                  String[] @default([])
+  interests               String[] @default([])
+  emailPublic             Boolean  @default(false)
+
+  // Computed fields
+  graduationDate          DateTime
+  overallRating           Float
+  slug                    String   @unique
+
+  // Generated evaluation summary (null until AI evaluation succeeds)
+  aiTechnicalSkills       Float?
+  aiProblemSolving        Float?
+  aiCommunication         Float?
+  aiOwnership             Float?
+  aiTeamCollaboration     Float?
+  aiSummary               String?  @db.Text
+  aiEvaluatedAt           DateTime?
+
+  // Metadata
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  program                 Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
+  profilePhotoFile        StoredFile? @relation("GraduateProfilePhoto", fields: [profilePhotoFileId], references: [id], onDelete: SetNull)
+  accessRequests          RecruiterAccessRequest[]
+  viewAudits              ProfileViewAudit[]
+  artifacts               GraduateArtifact[]
+  savedBy                 SavedCandidate[]
+  consentHistory          ConsentHistory[]
+
+  @@index([publicProfileEnabled])
+  @@index([overallRating])
+  @@index([graduationDate])
+  @@index([programId])
+  @@map("graduate_profiles")
+}
+
+/// Recruiter Access Request - Form submission to view full portfolio
+model RecruiterAccessRequest {
+  id                      String   @id @default(cuid())
+  graduateId              String
+  recruiterId             String?
+
+  // Recruiter information
+  recruiterName           String
+  recruiterOrganization   String?
+  recruiterDesignation    String?
+  recruiterEmail          String
+  recruiterPhone          String?
+  hiringRequirement       String?
+
+  // Verification token
+  token                   String   @unique
+  expiresAt               DateTime
+  approvedAt              DateTime?
+  consumedAt              DateTime?
+
+  // Admin review fields
+  status                  AccessRequestStatus @default(PENDING)
+  reviewedById            String?
+  reviewedAt              DateTime?
+  rejectionReason         String?  @db.VarChar(1000)
+  revokedAt               DateTime?
+  revokedById             String?
+
+  // Timestamps
+  createdAt               DateTime @default(now())
+
+  graduate                GraduateProfile @relation(fields: [graduateId], references: [id], onDelete: Cascade)
+  recruiter               RecruiterAccount? @relation(fields: [recruiterId], references: [id], onDelete: SetNull)
+  viewAudits              ProfileViewAudit[]
+
+  @@index([graduateId])
+  @@index([token])
+  @@index([recruiterEmail])
+  @@index([recruiterId])
+  @@index([status])
+  @@index([reviewedById])
+  @@map("recruiter_access_requests")
+}
+
+/// Profile View Audit - Track who viewed which profile
+model ProfileViewAudit {
+  id                      String   @id @default(cuid())
+  graduateId              String
+  accessRequestId         String?
+
+  // Recruiter information (captured at view time)
+  recruiterEmail          String?
+  recruiterName           String?
+  recruiterOrganization   String?
+
+  // View information
+  viewedAt                DateTime @default(now())
+  ipAddress               String?
+  userAgent               String?  @db.Text
+
+  graduate                GraduateProfile @relation(fields: [graduateId], references: [id], onDelete: Cascade)
+  accessRequest           RecruiterAccessRequest? @relation(fields: [accessRequestId], references: [id], onDelete: SetNull)
+
+  @@index([graduateId])
+  @@index([viewedAt])
+  @@index([recruiterOrganization])
+  @@map("profile_view_audits")
+}
+
+model GraduateArtifact {
+  id          String   @id @default(cuid())
+  graduateId  String
+  title       String
+  url         String   @db.VarChar(1000)
+  description String?  @db.VarChar(1000)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  graduate GraduateProfile @relation(fields: [graduateId], references: [id], onDelete: Cascade)
+
+  @@index([graduateId])
+  @@map("graduate_artifacts")
+}
+
+model RecruiterAccount {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  organization String
+  designation  String
+  phone        String?
+  verifiedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accessRequests RecruiterAccessRequest[]
+  sessions       RecruiterSession[]
+  savedCandidates SavedCandidate[]
+
+  @@map("recruiter_accounts")
+}
+
+model RecruiterSession {
+  id          String   @id @default(cuid())
+  recruiterId String
+  tokenHash   String   @unique
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  lastUsedAt  DateTime @default(now())
+
+  recruiter RecruiterAccount @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  @@index([recruiterId])
+  @@index([expiresAt])
+  @@map("recruiter_sessions")
+}
+
+model SavedCandidate {
+  id          String   @id @default(cuid())
+  recruiterId String
+  graduateId  String
+  createdAt   DateTime @default(now())
+
+  recruiter RecruiterAccount @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+  graduate  GraduateProfile  @relation(fields: [graduateId], references: [id], onDelete: Cascade)
+
+  @@unique([recruiterId, graduateId])
+  @@index([graduateId])
+  @@map("saved_candidates")
+}
+
+/// Consent History - Audit trail of all consent decisions for a graduate profile
+model ConsentHistory {
+  id                String        @id @default(cuid())
+  graduateProfileId String
+  status            ConsentStatus
+  action            String        @db.VarChar(500)
+  ipAddress         String?
+  createdAt         DateTime      @default(now())
+
+  graduateProfile   GraduateProfile @relation(fields: [graduateProfileId], references: [id], onDelete: Cascade)
+
+  @@index([graduateProfileId])
+  @@index([createdAt])
+  @@map("consent_history")
 }
 
 /// Immutable review history (v0.20.0). Because one Submission row is reused across the SEM revision

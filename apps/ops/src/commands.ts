@@ -22,6 +22,7 @@ export const REGRESSION_AREAS: RegressionArea[] = [
   "tenant",
   "dashboard",
   "storage",
+  "public-portal",
   "ops"
 ];
 

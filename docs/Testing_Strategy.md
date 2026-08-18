@@ -1,8 +1,8 @@
 # Testing Strategy
 
-Code version: `v0.20.1`
+Code version: `v0.20.2`
 
-Test evidence commit: `5560ccf`
+Test evidence commit: `43e7537`
 
 ## Goals
 
@@ -17,16 +17,19 @@ The regression suite has two layers:
 The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts plus
 individual scenario rows after each run.
 
-The `v0.20.0` runner defines **42 scenarios across 11 concrete areas plus the `all` orchestrator**.
-The current unit and executed-regression totals are recorded in the versioned test-results artifact,
-not inferred here. CI
-(`.github/workflows/ci.yml`) runs the **unit suite only**; scenario regression is a local capability
-driven from npm scripts or the Ops Console against the running Docker stack.
+The `v0.20.1` runner defines **53 scenarios across 11 concrete areas plus the `all` orchestrator**
+(up from 42 in `v0.20.0`). The current unit and executed-regression totals are recorded in the
+versioned test-results artifact, not inferred here.
 
-As of `v0.19.7`, the unit suite comprises **809 tests across 65 files** (up from 671/55 in `v0.19.6`).
+CI (`.github/workflows/ci.yml`) runs the unit suite in the `ci` job **and the full scenario suite in
+the `e2e-evidence` job**, which boots the Docker stack on the runner for every pull request
+(added in `v0.20.1`, PR #57 — see [`CI_CD_Pipeline.md`](CI_CD_Pipeline.md)). Scenario regression
+remains available locally from npm scripts or the Ops Console; it is no longer *only* local.
+
+As of `v0.20.2`, the unit suite comprises **927 tests across 72 files** (up from 809/65 in `v0.19.7`).
 The `v0.19.7` audit added 138 tests in 10 new files covering tenant CRUD, program CRUD, tenant
 resolution edge cases, the RBAC capability matrix, journal validation helpers, and server actions
-for applicant and admin portals. See `D-096` and `docs/REGRESSION_TEST_PLAN.md` for the complete
+for applicant and admin portals. See `D-101` and `docs/REGRESSION_TEST_PLAN.md` for the complete
 coverage matrix.
 
 ## Test Levels
@@ -238,7 +241,7 @@ between UI forms and business logic — had no automated tests. The `v0.19.7` it
 - `apps/admin/app/organizations/actions.test.ts` (7 tests):
   `createOrganizationAction` with validation, Keycloak provisioning, and failure recovery.
 
-All 809 tests pass. No production code was modified. See `D-096` and
+All 809 tests pass. No production code was modified. See `D-101` and
 `docs/REGRESSION_TEST_PLAN.md` for the complete coverage matrix.
 
 ### Integration Tests
@@ -596,3 +599,26 @@ are recorded in `Regression_Scenarios.md` Known Gaps: dangling-repeat rescue on 
 advancing to the next week, the grouped Journal tab, and Markdown mission import (blocked on the
 harness lacking a multipart upload helper). See `D-096` through `D-100` and the `v0.20.0`
 plan/test-results artifacts.
+
+## v0.20.2 — Decision Log Integrity And Opt-In Request Logging
+
+A correction iteration; no new product behavior. Its testing interest is that it edits both app
+middlewares, which are the authorization boundary for the two portals, so the change had to be proven
+invisible to the existing authorization and tenant-isolation scenarios rather than merely compiling.
+
+`packages/auth-web/src/request-log.test.ts` adds 13 cases: the `REQUEST_LOG` enable rule (including
+that `"0"`, `"true"`, `"yes"` and `""` are all off, and that `NODE_ENV` is deliberately ignored because
+the local Docker stack runs `NODE_ENV: production`), the `_next`/static path filter, the line format,
+and the guarantee that a throwing `console.log` cannot propagate into the middleware. Unit suite:
+**927 tests across 72 files**.
+
+Two false statements were removed from this document and `CI_CD_Pipeline.md`: that CI runs the unit
+suite only, and that scenario regression is a local-only capability. Both stopped being true when the
+`e2e-evidence` job merged in PR #57, and neither document was updated at the time — the version header
+of `CI_CD_Pipeline.md` was bumped to `v0.20.1` with no content change at all. Scenario counts of 40 and
+42 in `Regression_Scenarios.md` were likewise stale against the runner's 53.
+
+The `v0.20.1` iteration is also reconstructed here in retrospect: see
+`docs/plans/v0.20.1_Request_Logging_Journal_Date_Rule_And_Scenario_Coverage.md` and its test-results
+counterpart, whose evidence is `v0.20.1`'s own CI artifact (run `31614137916`: 53 scenarios, 52 passed,
+0 failed, 1 documented skip) rather than a local re-run.

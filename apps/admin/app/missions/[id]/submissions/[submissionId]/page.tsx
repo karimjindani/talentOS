@@ -341,6 +341,22 @@ export default async function SubmissionReviewPage({ params }: SubmissionReviewP
             </p>
             <form action={reviewSubmissionAction} className="mt-4 grid gap-4">
               <input type="hidden" name="submissionId" value={submission.id} />
+              <label className="grid max-w-xs gap-1.5 text-sm font-medium text-slate-700">
+                Rating when accepted (1-5)
+                <input
+                  name="rating"
+                  type="number"
+                  min="1"
+                  max="5"
+                  step="0.1"
+                  defaultValue={submission.rating ?? ""}
+                  placeholder="4.5"
+                  className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+                />
+                <span className="text-xs font-normal text-slate-500">
+                  Required only when you accept the submission.
+                </span>
+              </label>
               <label className="grid gap-1.5 text-sm font-medium text-slate-700">
                 Feedback for the applicant
                 <span className="text-xs font-normal text-slate-500">
