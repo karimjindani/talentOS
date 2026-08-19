@@ -13,6 +13,10 @@ export type RegressionEntityType =
   | "TenantMembership"
   | "User"
   | "Tenant"
+  // RecruiterAccount has no relation back to User/Tenant (recruiters are not applicants), so it
+  // cascades from nothing the rest of this cleanup deletes — it must be marked and swept
+  // explicitly or every regression run touching the public-portal recruiter flow leaks one row.
+  | "RecruiterAccount"
   // Reaped over Keycloak's Admin REST API after the Prisma transaction commits — it cannot
   // participate in that transaction (v0.20.3, D-103).
   | "KeycloakUser";
@@ -39,7 +43,9 @@ export const REGRESSION_CLEANUP_ORDER = [
   "Program",
   "TenantMembership",
   "User",
-  "Tenant"
+  "Tenant",
+  // Independent of the User/Tenant chain above — order relative to it doesn't matter.
+  "RecruiterAccount"
 ] as const satisfies readonly RegressionEntityType[];
 
 export function markRegressionData(input: RegressionMarkerInput) {
@@ -116,5 +122,7 @@ async function deleteMarkedEntities(
       return (await tx.user.deleteMany({ where: { id: { in: ids } } })).count;
     case "Tenant":
       return (await tx.tenant.deleteMany({ where: { id: { in: ids } } })).count;
+    case "RecruiterAccount":
+      return (await tx.recruiterAccount.deleteMany({ where: { id: { in: ids } } })).count;
   }
 }
