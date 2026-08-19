@@ -25,9 +25,20 @@ export function portalUrl(actor: Actor, tenantSlug: string): string {
  * only reached `domcontentloaded`: the portal's sign-in button is rendered by a client component,
  * and an unhydrated page shows neither that button nor the Keycloak form — which the loop would
  * read as "already authenticated" and return successfully from an anonymous page.
+ *
+ * `networkidle` is given its own short, swallowed timeout rather than Playwright's ~30s default.
+ * Root-caused live (v0.20.3): landing back on an admin page after the Keycloak redirect restores
+ * window focus, and next-auth's `SessionProvider` fires its mount-time `/api/auth/session` fetch
+ * and its refetch-on-focus fetch within the same tick. One of the two duplicate GETs never gets a
+ * completion event in Playwright's own request ledger (a Chromium/CDP dedup quirk on identical
+ * concurrent GETs, not an app bug — Postgres and the container were both idle throughout), so
+ * `networkidle` — "zero pending connections for 500ms" — was never satisfied again for that page's
+ * whole lifetime. At the old default, that stuck ledger entry cost close to 30s on every one of the
+ * login loop's up to 15 hops, some of which exceeded the whole test's 300s budget. A short bound
+ * means one miscounted request can only ever cost this function ~5s.
  */
 async function settle(page: Page): Promise<void> {
-  await page.waitForLoadState("networkidle").catch(() => undefined);
+  await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
   await page.waitForTimeout(750);
 }
 

@@ -30,10 +30,17 @@ const MINIMAL_PDF = Buffer.from(
  * failed to observe the submission 3/3 times (page stayed on /apply, no application row created),
  * while arming a response listener via Promise.all before the click — so it is watching before the
  * request fires — passed every time. Applied everywhere a step clicks a submitting control.
+ *
+ * The trailing `networkidle` wait is a courtesy settle, not the correctness check above — it is
+ * bounded and swallowed for the same reason `fixtures/actors.ts`'s `settle()` is (v0.20.3): a
+ * duplicate concurrent GET (e.g. next-auth's refetch-on-focus racing its mount-time fetch) can
+ * leave Playwright's own pending-request ledger permanently off by one, so `networkidle` never
+ * fires again for that page — and this call has no default timeout to fall back on in this
+ * environment, so an unbounded version hangs until the whole test's budget is exhausted.
  */
 async function settledClick(page: Page, locator: Locator): Promise<void> {
   await Promise.all([page.waitForResponse((response) => response.request().method() === "POST"), locator.click()]);
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
 }
 
 test("applicant arc", async ({ journey }) => {

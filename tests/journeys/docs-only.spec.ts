@@ -52,7 +52,11 @@ const MINIMAL_PDF = Buffer.from(
 test.use({ viewport: { width: 1440, height: 900 } });
 
 async function settle(page: Page): Promise<void> {
-  await page.waitForLoadState("networkidle").catch(() => undefined);
+  // Bounded (v0.20.3): a duplicate concurrent GET (e.g. next-auth's refetch-on-focus racing its
+  // mount-time fetch) can leave Playwright's pending-request ledger permanently off by one, so
+  // networkidle never fires again for that page — and this call has no effective default timeout
+  // in this environment, so it would otherwise hang until the whole test's budget is exhausted.
+  await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
   // Client components (branding, dashboards, charts) need a beat to hydrate before they photograph.
   await page.waitForTimeout(750);
 }
