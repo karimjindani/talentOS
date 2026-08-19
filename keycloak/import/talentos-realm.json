@@ -190,9 +190,8 @@
       "enabled": true,
       "emailVerified": true,
       "credentials": [
-        { "type": "password", "value": "ChangeMeSuper#1", "temporary": true }
+        { "type": "password", "value": "ChangeMeSuper#1", "temporary": false }
       ],
-      "requiredActions": ["UPDATE_PASSWORD", "CONFIGURE_TOTP"],
       "realmRoles": ["SUPER_ADMIN"]
     },
     {

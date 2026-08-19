@@ -131,6 +131,17 @@ services:
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_APPLICANT_CLIENT_SECRET:-talentos-applicant-secret}
       APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:-lvh.me}
       DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-demo}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://lvh.me:3100}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      EMAIL_DELIVERY_MODE: ${EMAIL_DELIVERY_MODE:-log}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-smtp}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_SECURE: ${EMAIL_SECURE:-false}
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@talentos.io}
       S3_ENDPOINT: ${S3_ENDPOINT:-http://minio.lvh.me:9000}
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-talentos}
@@ -189,6 +200,15 @@ services:
       APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:-lvh.me}
       DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-demo}
       NEXT_PUBLIC_APPLICANT_URL: ${NEXT_PUBLIC_APPLICANT_URL:-http://localhost:3100}
+      EMAIL_DELIVERY_MODE: ${EMAIL_DELIVERY_MODE:-log}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-smtp}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_SECURE: ${EMAIL_SECURE:-false}
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@talentos.io}
       S3_ENDPOINT: ${S3_ENDPOINT:-http://minio.lvh.me:9000}
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-talentos}

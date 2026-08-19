@@ -81,6 +81,7 @@ export function renderIndex() {
               <option value="tenant">Tenant isolation</option>
               <option value="dashboard">Dashboard</option>
               <option value="storage">Storage</option>
+              <option value="public-portal">Public portal</option>
               <option value="ops">Ops</option>
             </select>
           </label>
@@ -1204,7 +1205,7 @@ function renderRegressionAreaCards(summaries) {
 }
 
 function renderRegressionScenarioGroups(scenarios, summaries) {
-  const order = ["unit", "auth", "applicant", "admin", "programs", "missions", "journal", "tenant", "dashboard", "storage", "ops"];
+  const order = ["unit", "auth", "applicant", "admin", "programs", "missions", "journal", "tenant", "dashboard", "storage", "public-portal", "ops"];
   const summaryByArea = new Map((summaries || []).map((summary) => [summary.area, summary]));
   const grouped = new Map();
   scenarios.forEach((scenario) => {

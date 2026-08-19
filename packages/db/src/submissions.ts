@@ -398,6 +398,7 @@ export type ReviewSubmissionInput = {
   status: Extract<SubmissionStatus, "ACCEPTED" | "NEEDS_REVISION" | "REPEAT">;
   reviewerFeedback: string;
   reviewerUserId: string;
+  rating: number | null;
 };
 
 const REVIEW_DECISION_BY_STATUS = {
@@ -422,7 +423,21 @@ export function deriveReviewOutcome(decision: ReviewDecision, revisionCount: num
  * Review a SUBMITTED attempt: accept it, return the same attempt for revision, or close it as REPEAT
  * and create the next attempt. The review, assignment update and notification share one transaction.
  */
-export async function reviewSubmission({ id, tenantId, status, reviewerFeedback, reviewerUserId }: ReviewSubmissionInput) {
+export async function reviewSubmission({
+  id,
+  tenantId,
+  status,
+  reviewerFeedback,
+  reviewerUserId,
+  rating
+}: ReviewSubmissionInput) {
+  if (status === "ACCEPTED" && (rating === null || !Number.isFinite(rating) || rating < 1 || rating > 5)) {
+    throw new Error("Accepted submissions require a rating from 1 to 5.");
+  }
+  if (status !== "ACCEPTED" && rating !== null) {
+    throw new Error("Only accepted submissions can receive a rating.");
+  }
+
   return prisma.$transaction(async (tx) => {
     const submission = await tx.submission.findFirst({
       where: { id, tenantId },
@@ -444,6 +459,7 @@ export async function reviewSubmission({ id, tenantId, status, reviewerFeedback,
         status,
         reviewerFeedback,
         reviewerUserId,
+        rating,
         reviewedAt: new Date()
       }
     });
@@ -517,7 +533,8 @@ export async function reviewSubmission({ id, tenantId, status, reviewerFeedback,
         metadata: {
           missionId: submission.missionId,
           missionAssignmentId: submission.missionAssignmentId,
-          status
+          status,
+          rating
         }
       }
     });
@@ -536,6 +553,27 @@ export async function reviewSubmission({ id, tenantId, status, reviewerFeedback,
         body: reviewerFeedback || undefined
       }
     });
+
+    // Auto-publish: when a submission is accepted, check if the applicant now has
+    // 4+ accepted missions with ratings in a single program AND has acknowledged
+    // consent. If so, automatically enable their public profile on the portal.
+    if (status === "ACCEPTED") {
+      const acceptedSubmissions = await tx.submission.findMany({
+        where: { applicantId: submission.applicantId, status: "ACCEPTED", rating: { not: null } },
+        select: { mission: { select: { programId: true } } }
+      });
+      const programCounts = new Map<string, number>();
+      for (const s of acceptedSubmissions) {
+        programCounts.set(s.mission.programId, (programCounts.get(s.mission.programId) ?? 0) + 1);
+      }
+      const hasEnough = [...programCounts.values()].some((count) => count >= 4);
+      if (hasEnough) {
+        await tx.graduateProfile.updateMany({
+          where: { userId: submission.applicantId, consentStatus: "ACKNOWLEDGED", publicProfileEnabled: false },
+          data: { publicProfileEnabled: true }
+        });
+      }
+    }
 
     return updated;
   });

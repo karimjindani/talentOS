@@ -25,6 +25,7 @@ const SCENARIO_AREAS: readonly Exclude<RegressionArea, "all">[] = [
   "tenant",
   "dashboard",
   "storage",
+  "public-portal",
   "ops"
 ];
 
