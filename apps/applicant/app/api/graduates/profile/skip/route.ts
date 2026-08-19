@@ -11,14 +11,9 @@ export async function POST() {
 
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
-      include: { graduateProfile: true },
     });
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    if (!user.graduateProfile) {
-      return NextResponse.json({ success: true });
     }
 
     try {
