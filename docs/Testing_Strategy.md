@@ -1,32 +1,45 @@
 # Testing Strategy
 
-Code version: `v0.20.2`
+Code version: `v0.20.3`
 
-Test evidence commit: `43e7537`
+Test evidence commit: `43e7537` (+ `v0.20.3` uncommitted at documentation time)
 
 ## Goals
 
 Testing must preserve previously committed and tested work on every iteration.
 
-The regression suite has two layers:
+The regression suite has three layers:
 
 - Unit regression: fast Vitest coverage for utilities, server actions, guards and DB helpers.
 - Scenario regression: local-development journeys that exercise logical product areas end to end through
   OIDC login flows, portal routes and database state transitions.
+- Journey E2E evidence (`v0.20.3`): Playwright-driven, multi-actor browser sessions that exercise a
+  whole real user arc through the applicant/admin portals — not HTTP/DB-level assertions like the
+  scenario runner above, but the actual UI a reviewer would see — producing screenshot evidence, a
+  Markdown summary and a combined PDF report. See the dedicated section below and
+  `Architecture.md`'s Journey E2E Evidence Pipeline section.
 
 The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts plus
 individual scenario rows after each run.
 
-The `v0.20.1` runner defines **53 scenarios across 11 concrete areas plus the `all` orchestrator**
-(up from 42 in `v0.20.0`). The current unit and executed-regression totals are recorded in the
+The `v0.20.3` runner defines **59 scenarios across 12 concrete areas plus the `all` orchestrator**
+(up from 53 in `v0.20.1`). The current unit and executed-regression totals are recorded in the
 versioned test-results artifact, not inferred here.
 
-CI (`.github/workflows/ci.yml`) runs the unit suite in the `ci` job **and the full scenario suite in
-the `e2e-evidence` job**, which boots the Docker stack on the runner for every pull request
-(added in `v0.20.1`, PR #57 — see [`CI_CD_Pipeline.md`](CI_CD_Pipeline.md)). Scenario regression
-remains available locally from npm scripts or the Ops Console; it is no longer *only* local.
+CI (`.github/workflows/ci.yml`) runs the unit suite in the `ci` job **and the full scenario suite plus
+the journey suite in the `e2e-evidence` job**, which boots the Docker stack on the runner for every
+pull request (scenario suite added in `v0.20.1`, PR #57; journeys added in `v0.20.3` — see
+[`CI_CD_Pipeline.md`](CI_CD_Pipeline.md)). Scenario and journey regression both remain available
+locally from npm scripts (`npm run regression:*`, `npm run journeys*`) or the Ops Console for the
+scenario suite; neither is *only* local.
 
-As of `v0.20.2`, the unit suite comprises **927 tests across 72 files** (up from 809/65 in `v0.19.7`).
+As of `v0.20.3`, the unit suite comprises **1018 tests across 80 files** (up from 927/72 at `v0.20.2`).
+The `v0.20.3` growth is 91 tests in 2 new files: `packages/db/src/graduates.test.ts` (48 tests — the
+public-portal consent/eligibility/recruiter-access module had none before) and
+`scripts/ci/journey-pdf-report.test.ts` (10 tests), plus the rest from files touched incidentally by
+the merge that brought the graduate-portal feature (PR #62) into `main` ahead of this baseline. See
+`D-103` and `docs/plans/v0.20.3_Journey_E2E_Evidence_Pipeline_And_Public_Portal_Fixes.md`.
+
 The `v0.19.7` audit added 138 tests in 10 new files covering tenant CRUD, program CRUD, tenant
 resolution edge cases, the RBAC capability matrix, journal validation helpers, and server actions
 for applicant and admin portals. See `D-101` and `docs/REGRESSION_TEST_PLAN.md` for the complete
@@ -203,12 +216,45 @@ coverage matrix.
   manually in a real browser session (`accepted@demo.talentos.local`); no automated scenario yet
   asserts the dashboard stat's source field. See `docs/Regression_Scenarios.md` Known Gaps.
 
-### User-Guide Screenshot Capture (v0.16.1, manual)
+### User-Guide Screenshot Capture (v0.16.1, manual — retired v0.20.3)
 
-- `scripts/user-guide/capture-screenshots.ts` (Playwright/Chromium) drives the running local Docker
-  stack through real Keycloak OIDC flows to capture the 26 illustrated user-guide screenshots
-  (`docs/user-guide/`), with a section filter for partial re-captures. It is run manually per
-  release when user-facing screens change; it is not part of CI or scenario regression.
+- `scripts/user-guide/capture-screenshots.ts` (Playwright/Chromium) drove the running local Docker
+  stack through real Keycloak OIDC flows to capture the illustrated user-guide screenshots, with a
+  section filter for partial re-captures. It was run manually per release when user-facing screens
+  changed; it was not part of CI or scenario regression. **Deleted in `v0.20.3`**: it asserted
+  nothing — a documentation tool that photographed pages — and `tests/journeys/docs-only.spec.ts`
+  (below) covers the same screenshot set while also asserting the page actually rendered what it
+  claims to document.
+
+### Journey E2E Evidence Pipeline (v0.20.3)
+
+A Playwright-driven `tests/journeys/` suite complements the scenario runner above with real,
+multi-actor browser sessions — not HTTP/DB-level assertions, but the actual UI a reviewer or new
+team member would see, captured as evidence.
+
+- `tests/journeys/fixtures/journey.ts`: a shared fixture provisioning a fully isolated tenant per run
+  (`jrn-<runId>.lvh.me`), independent per-actor browser contexts, step-level full-page screenshots
+  (`.ops/journey-evidence/<journey>/<runId>/`), and layered teardown — a Prisma transaction, direct
+  Keycloak user deletion, and a 24h orphan sweep for runs killed before reaching teardown.
+- `tests/journeys/applicant-arc.spec.ts` (`npm run journeys:applicant`): 13 steps — applicant signup,
+  apply, org-admin acceptance, mission acceptance, mission tasks, four dated journal entries, evidence
+  submission, admin review and acceptance, and a final dashboard check.
+- `tests/journeys/docs-only.spec.ts` (`npm run journeys:docs`): 7 test blocks covering public pages,
+  the apply flow, the applicant dashboard and its working flows, the admin portal and its
+  authoring/review flows, and the Ops console — the illustrated-guide screenshot set, now with an
+  assertion behind every capture. 3 applicant work-in-progress screenshots are `test.fixme()`; see
+  `Regression_Scenarios.md` Known Gaps.
+- CI (`e2e-evidence` job) runs both after the scenario suite, renders a Markdown step summary and
+  per-journey `evidence.md` (`scripts/ci/journey-report.ts`), renders a combined PDF with every
+  journey's step table and embedded screenshots via Playwright's own Chromium
+  (`scripts/ci/journey-pdf-report.ts`), and uploads all of it as the `e2e-evidence-<run>` artifact.
+  Both report scripts are non-throwing under `if: always()`, matching `regression-summary.ts`'s
+  existing contract.
+- **A real hang was found and fixed while verifying this suite** (D-103): every
+  `page.waitForLoadState("networkidle")` call site was unbounded, and a next-auth
+  duplicate-session-fetch pattern (mount-time fetch racing refetch-on-window-focus after the Keycloak
+  redirect) could leave Playwright's own request ledger permanently off by one, hanging the affected
+  step until the whole test's budget ran out. All three call sites are now bounded to 5s.
 
 ### Server-Action & CRUD Coverage Audit Tests (v0.19.7)
 
@@ -622,3 +668,33 @@ The `v0.20.1` iteration is also reconstructed here in retrospect: see
 `docs/plans/v0.20.1_Request_Logging_Journal_Date_Rule_And_Scenario_Coverage.md` and its test-results
 counterpart, whose evidence is `v0.20.1`'s own CI artifact (run `31614137916`: 53 scenarios, 52 passed,
 0 failed, 1 documented skip) rather than a local re-run.
+
+## v0.20.3 — Journey E2E Evidence Pipeline And Public-Portal Fixes
+
+`npm run regression:all`: **58/59 passed, 0 failed, 1 skipped** (run
+`regression-20260819101751-ed270347`). `npm run journeys`: **8/9 passed, 0 failed, 1 documented
+`test.fixme()`**. Unit suite: **1018 tests across 80 files**. Full detail:
+`docs/plans/v0.20.3_Journey_E2E_Evidence_Pipeline_And_Public_Portal_Fixes.md` and its test-results
+counterpart.
+
+Two independent efforts land in this baseline. First, the Playwright journey suite described above —
+built to give this repo a real, browser-driven evidence trail instead of only HTTP/DB-level scenario
+checks. Second, hardening the public-portal graduate-consent and recruiter-access-request feature that
+had merged (PR #62) with a real bug and almost no test coverage: `declineGraduateProfilePublishing`
+and `skipGraduateConsent` silently discarded the applicant's decision whenever no `GraduateProfile` row
+existed yet — the API returned success, but nothing was written, and the consent modal reappeared on
+the next page load. Fixed to mirror the already-correct `createOrUpdateGraduateProfile` (acknowledge)
+path; `packages/db/src/graduates.ts` — previously untested — gained 48 unit tests, and the
+`public-portal` scenario area grew from 1 scenario to 6.
+
+The suite earned its keep again this iteration, the same way `v0.20.0`'s did: the first full journey
+run for this baseline's own verification evidence hung and failed 3 of 9 tests, reproducible every
+time. Root-caused live rather than shipped as a "known flaky test" — see the Journey E2E Evidence
+Pipeline section above and `D-103` for the full writeup (a next-auth duplicate-session-fetch pattern
+colliding with an unbounded `networkidle` wait, not an application defect). Fixed and reverified twice
+before this document was written.
+
+`RecruiterAccount` joins the `RegressionDataMarker`-tracked entity types
+(`packages/db/src/regression.ts`) — it has no relation back to `User`/`Tenant`, so nothing in the
+existing cleanup chain could reach it, and every regression run touching the recruiter flow would have
+leaked one row forever. See `D-103`.

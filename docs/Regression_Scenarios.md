@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.20.2`
+Code version: `v0.20.3`
 
 ## Purpose
 
@@ -8,14 +8,21 @@ This document defines the scenario-based regression suite for TalentOS. Unit tes
 they are not enough to protect product behavior. Scenario regression validates the logical product areas
 a real applicant, admin, operator or tenant would experience.
 
+A second, complementary layer exists as of `v0.20.3`: the Playwright-driven `tests/journeys/` suite
+drives real multi-actor browser sessions through the applicant/admin portals end to end (not just
+HTTP/DB-level assertions like the runner below), producing screenshot evidence, a Markdown summary and
+a combined PDF report. See `Architecture.md`'s Journey E2E Evidence Pipeline section and
+`Testing_Strategy.md`. This document covers `scripts/regression/run.ts` only.
+
 The suite can be run from the local Ops Console or from npm scripts. As of `v0.18.3`, the Ops Console
 shows individual scenario rows grouped by area after a run, so operators can see exactly which
 scenario passed, failed or skipped without searching the raw output.
 
-As of `v0.20.1`, `scripts/regression/run.ts` defines **53 scenario objects**. `v0.20.1` added twelve
-(three Admin review-lifecycle, three Tenant cross-tenant-denial, three Missions deadline-sweep/terminal
--state, two Auth portal-separation, one Journal) and replaced the superseded per-date journal scenario,
-taking the total from 42. Executed counts and
+As of `v0.20.3`, `scripts/regression/run.ts` defines **59 scenario objects** (up from 53 at `v0.20.1`).
+`v0.20.3` added five to a new `public-portal` scenario area (which previously held one scenario left
+over from the graduate-portal merge, PR #62): decline/skip consent persistence with no prior graduate
+profile, decline unpublishing an already-public profile, and the full recruiter
+approve→verify→access→revoke lifecycle including pending/rejected-token refusal. Executed counts and
 environmental failures/skips are recorded in the versioned test-results artifact rather than assumed
 from source. New scenarios use the existing result envelope and Ops dashboard.
 
@@ -101,6 +108,23 @@ against the rebuilt stack (run `regression-20260813055040-db1f4b18`: 53 total, 5
 | A failing console cannot break a request | `packages/auth-web/src/request-log.test.ts` | Automated |
 | Every decision identifier in the log is unique | `grep -oE "^## D-[0-9]+" docs/Decision_Log.md \| sort \| uniq -d` | Deferred — documentation check; CI guard recorded in `Product_Backlog.md` |
 
+## v0.20.3 Plan Scenario Traceability
+
+Names match `docs/plans/v0.20.3_Journey_E2E_Evidence_Pipeline_And_Public_Portal_Fixes.md` one-for-one.
+Verified on the rebuilt local stack: `regression:all` run `regression-20260819101751-ed270347`
+(58/59 passed, 0 failed, 1 documented skip) and `npm run journeys` (8/9 passed, 0 failed, 1 documented
+`test.fixme()`, after the `D-103` networkidle fix).
+
+| Plan scenario | Coverage | Status |
+| --- | --- | --- |
+| Applicant completes the full apprenticeship arc through a real browser session | `tests/journeys/applicant-arc.spec.ts` (`journeys:applicant`) | Automated |
+| Every reachable portal surface renders and is captured for the illustrated user guide | `tests/journeys/docs-only.spec.ts` (`journeys:docs`) | Automated (6/7 blocks; see Known Gaps for the 3 `test.fixme()` screenshots) |
+| Journey evidence (JSON, screenshots, Markdown, and a combined PDF) is produced in CI | `.github/workflows/ci.yml` `e2e-evidence` job; `scripts/ci/journey-report.ts`; `scripts/ci/journey-pdf-report.ts` | Automated |
+| Declining consent before a graduate profile ever existed still persists the decision | `regression:public-portal`; `packages/db/src/graduates.test.ts` | Automated |
+| Skipping consent before a graduate profile ever existed still persists the decision | `regression:public-portal`; `packages/db/src/graduates.test.ts` | Automated |
+| An approved recruiter access request is verified, grants access to every published graduate, and revocation removes it everywhere | `regression:public-portal`; `packages/db/src/graduates.test.ts` | Automated |
+| Pending and rejected recruiter access requests cannot be verified, and the rejection reason reaches the recruiter | `regression:public-portal`; `packages/db/src/graduates.test.ts` | Automated |
+
 ## Execution Areas
 
 | Area | Command | Current status |
@@ -115,13 +139,14 @@ against the rebuilt stack (run `regression-20260813055040-db1f4b18`: 53 total, 5
 | Tenant isolation | `npm.cmd run regression:tenant` | Partially automated |
 | Dashboard | `npm.cmd run regression:dashboard` | Automated |
 | Storage | `npm.cmd run regression:storage` | Missing |
+| Public Portal | `npm.cmd run regression:public-portal` | Automated |
 | Ops | `npm.cmd run regression:ops` | Automated |
 | All | `npm.cmd run regression:all` | Automated orchestration |
 
 ## Scenario Matrix
 
 The matrix below is finer-grained than the runner: `scripts/regression/run.ts` currently contains
-**53 scenario objects**, and several matrix rows map onto a single combined runner scenario (for
+**59 scenario objects**, and several matrix rows map onto a single combined runner scenario (for
 example, applicant submit + duplicate block are one scenario, and the three Programs lifecycle rows
 are one scenario).
 
@@ -182,6 +207,12 @@ are one scenario).
 | AI Mentor | RBSE direct answers bypass cache entirely. | Automated | `ai-cache.test.ts` — no fetch call for direct_answer patterns. |
 | Storage | CV upload/download round-trip. | Missing | `storage` area currently reports a documented skip. |
 | Storage | Cross-tenant file denial. | Missing | Should cover both metadata lookup and download URL path. |
+| Public Portal | Four weekly missions are completed before an applicant consents to publish a graduate profile. | Automated | Pre-existing scenario from the graduate-portal merge (PR #62); exercises `createOrUpdateGraduateProfile`'s acknowledge path directly. |
+| Public Portal | Declining consent before a graduate profile ever existed still persists the decision. | Automated | v0.20.3 (D-103): regression coverage for the fixed decline/skip persistence bug — see `Decision_Log.md`. |
+| Public Portal | Skipping consent before a graduate profile ever existed still persists the decision. | Automated | v0.20.3 (D-103). |
+| Public Portal | Declining consent after a profile is already public immediately removes it from public discovery. | Automated | v0.20.3 (D-103). |
+| Public Portal | An approved recruiter access request is verified, grants access to every published graduate, and revocation removes it everywhere. | Automated | v0.20.3 (D-103): full create→approve→verify→access→revoke lifecycle, including reusability within the approved window. |
+| Public Portal | Pending and rejected recruiter access requests cannot be verified, and the rejection reason reaches the recruiter. | Automated | v0.20.3 (D-103). |
 | Ops | Run full regression from Ops UI and show counts. | Automated/API + manual UI check | Unit/server coverage plus local manual validation. |
 | Ops | Run one selected area from Ops UI. | Automated/API + manual UI check | Ops API accepts `area`; UI includes selector. |
 | Ops | Regression results show individual scenario pass/fail/skipped rows. | Automated parser + manual UI check | v0.18.3: Ops stores `REGRESSION_RESULT_JSON.results` and renders scenario rows grouped by area. |
@@ -218,6 +249,13 @@ Current marker-tagged entity types:
 - `Submission`
 - `Application`
 - `ApplicationAnswer`
+- `StoredFile`
+- `Tenant`
+- `KeycloakUser` — reaped over Keycloak's Admin REST API after the Prisma transaction commits, since
+  it has no Prisma table to delete alongside the rest (`tests/journeys/fixtures/journey.ts`, v0.20.3).
+- `RecruiterAccount` — added v0.20.3 (D-103): has no relation back to `User`/`Tenant`, so nothing in
+  the rest of the cleanup chain could ever reach it; every regression run touching the recruiter flow
+  would have leaked one row without this.
 
 The cleanup command is:
 
@@ -234,10 +272,29 @@ Cleanup rules:
 5. Prefer deterministic regression names such as `regression-<runId>` and
    `applicant+<runId>@regression.talentos.local`.
 
-## Known Gaps (as of `v0.20.2`)
+## Known Gaps (as of `v0.20.3`)
 
+- **The graduate-portal/recruiter feature (PR #62) remains undocumented** in `Data_Model.md`,
+  `Data_Dictionary.md`, `Architecture.md` (beyond a pointer to the journey/regression pipelines that
+  now test parts of it) and the user guides, beyond the specific consent decline/skip behavior
+  `v0.20.3` (D-103) fixed and the recruiter-lifecycle scenarios it added. That merge landed with none
+  of the usual SSDLC artifacts; fully backfilling them is a separate, larger undertaking than a
+  bug-fix-and-evidence-pipeline iteration, and is recorded here rather than silently expanded into
+  `v0.20.3`'s scope.
+- **`feature/e2e-evidence-pipeline` (PR #67, closed unmerged 2026-08-19)** built an independent,
+  differently-architected E2E-evidence mechanism — screenshot-capture-driven rather than
+  Playwright-journey-driven, with explicit PII masking — under the same `v0.20.3`/`D-103` identifiers
+  this baseline uses. The two approaches were never reconciled; see `D-103`.
+- **3 `docs-only` screenshots remain `test.fixme()`** (applicant work-in-progress views:
+  `tests/journeys/docs-only.spec.ts`) — the seeded `accepted@demo.talentos.local` applicant has zero
+  journal entries and only one `NOT_STARTED` mission assignment, so there is no representative
+  "in progress" state to photograph without fabricating data or mutating seed state that 58 other
+  regression scenarios depend on. A seed-data fix is its own iteration.
 - Full browser-level Playwright coverage is not yet complete for every scenario. The runner currently
-  combines OIDC HTTP login flows with DB/service-level scenario checks.
+  combines OIDC HTTP login flows with DB/service-level scenario checks. The `tests/journeys/` suite
+  (v0.20.3) is a separate, complementary layer that does drive a real browser end to end for the
+  applicant/admin portals — see `Architecture.md`'s Journey E2E Evidence Pipeline section — but it
+  covers one journey (`applicant-arc`) plus documentation screenshots, not every scenario below.
 - Storage upload/download is documented but not automated.
 - ~~Cross-tenant route-level denial needs a second regression tenant fixture and browser route
   checks.~~ **Closed in `v0.20.1`** at the data-access layer by three `regression:tenant` scenarios

@@ -1,8 +1,14 @@
 # Data Dictionary
 
-Code version: `v0.20.1`
+Code version: `v0.20.3`
 
 Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
+
+> `v0.20.1`, `v0.20.2` and `v0.20.3` make no schema change. The graduate-portal/recruiter tables
+> (`graduate_profiles`, `recruiter_access_requests`, `recruiter_accounts`, `recruiter_sessions`,
+> `saved_candidates`, `graduate_artifacts`, `consent_history`, `profile_view_audits`) merged via PR
+> #62 ahead of `v0.20.2` and are not yet described here — see `Data_Model.md` and
+> `Regression_Scenarios.md` Known Gaps.
 
 > `v0.19.6` (Mission Workspace LMS, Curriculum Tooling & Thursday Scheduling, D-091–D-093) adds the
 > `DOCUMENT` value to `LearningResourceType`, a nullable `video_resources.fileId` FK→`stored_files`

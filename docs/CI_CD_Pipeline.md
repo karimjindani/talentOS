@@ -1,18 +1,19 @@
 # CI/CD & Delivery Policy
 
-Code version: `v0.20.2`
+Code version: `v0.20.3`
 
-Baseline commit: `43e7537`
+Baseline commit: `43e7537` (+ `v0.20.3` uncommitted at documentation time)
 
 This policy documents the Continuous Integration pipeline that **exists today** and defines the
 Continuous Delivery / deployment governance that **does not yet exist** — image versioning, a registry,
 environment promotion, and rollback. It is referenced from [`sdlc.md`](sdlc.md) and complements the
 [Source Control & Branching Policy](Source_Control_Policy.md) and [Deployment](Deployment.md) guide.
 
-> **Status (v0.20.2):** This is a **policy/design document**, first established in `v0.11.2`. The CI
+> **Status (v0.20.3):** This is a **policy/design document**, first established in `v0.11.2`. The CI
 > gate below — the `ci` job, the `realm-import` job and, since `v0.20.1`, the `e2e-evidence` job — is
 > implemented ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)); `ci` and `realm-import` have
-> been stable since `v0.11.3`. The **security-scan stage, image build/push, environment promotion, and
+> been stable since `v0.11.3`. The `e2e-evidence` job gained the Playwright journey suite and its PDF
+> report in `v0.20.3` (D-103). The **security-scan stage, image build/push, environment promotion, and
 > CD deploy remain documented targets, not yet built.** A later implementation baseline will realize
 > them.
 
@@ -40,19 +41,22 @@ D-057).
 
 ### E2E scenarios and evidence (`e2e-evidence`)
 
-Added in `v0.20.1`. Scenario regression (`npm run regression:*`, see
-[`Testing_Strategy.md`](Testing_Strategy.md)) needs the running Docker stack; this job boots that stack
-on the runner rather than leaving the suite as a local/Ops-Console-only capability.
+Added in `v0.20.1`; gained the Playwright journey suite and PDF report in `v0.20.3` (D-103). Scenario
+regression (`npm run regression:*`, see [`Testing_Strategy.md`](Testing_Strategy.md)) and the journey
+suite (`npm run journeys*`) both need the running Docker stack; this job boots that stack on the
+runner rather than leaving either as a local/Ops-Console-only capability.
 
 | Step | Command | Purpose |
 |---|---|---|
 | Pin hostnames | append to `/etc/hosts` | `scripts/regression/run.ts` hardcodes `demo.lvh.me` / `keycloak.lvh.me`; pinning avoids depending on the runner resolving a public third-party wildcard |
 | Install | `npm ci` | Clean, lockfile-exact install |
-| Browser | `npx playwright install --with-deps chromium` | `@playwright/test` is already a dependency; only the binary and system libs are missing |
+| Browser | `npx playwright install --with-deps chromium chromium-headless-shell` | `@playwright/test` is already a dependency; only the binaries and system libs are missing. `chromium-headless-shell` is named explicitly — the journeys run headless, which uses that separate binary, and a repo-local install once held `chromium` without it |
 | Bootstrap | `npm run local:bootstrap` | `docker compose up --build`, Keycloak realm wait, `db:generate`/`migrate`/`seed`, host-run Ops console |
 | Scenarios | `npm run regression:all` | All scenario areas; exits non-zero on any failure |
-| Screenshots | `npx tsx scripts/user-guide/capture-screenshots.ts` | Visual evidence, `if: always()` |
-| Summary | `npx tsx scripts/ci/regression-summary.ts` | Renders the result JSON into the run's step summary |
+| Journeys | `npm run journeys` | The Playwright `applicant-arc` and `docs-only` projects; drives a real browser through the applicant/admin portals. `if: always()` — a failing scenario run still shows how far a real user got |
+| Summary | `npx tsx scripts/ci/regression-summary.ts` | Renders the scenario-run result JSON into the run's step summary |
+| Journey evidence | `npm run journeys:report` | Renders each journey's steps into the step summary and a per-journey `evidence.md` |
+| Journey PDF report | `npm run journeys:report:pdf` | Combines every journey's step table and embedded screenshots into one PDF via Playwright's own Chromium; falls back to writing the HTML directly rather than failing the step if no browser is available |
 | Evidence | `actions/upload-artifact@v4` | `e2e-evidence-<run number>`, 30-day retention |
 
 Properties worth knowing:
@@ -61,13 +65,21 @@ Properties worth knowing:
   stack makes it far slower than `ci`, which stays the fast per-push feedback loop.
 - **No secrets required** — `repairLocalEnv()` writes the whole `.env` from defaults.
 - **`timeout-minutes: 40`**, so a hung stack cannot burn the 6-hour default.
-- **Evidence is produced on failure too.** Capture, summary and upload run `if: always()`; Docker
-  Compose logs are collected `if: failure()` only, and the stack is torn down `if: always()`.
+- **Evidence is produced on failure too.** Journeys, both summary steps, the PDF report and the upload
+  all run `if: always()`; Docker Compose logs are collected `if: failure()` only, and the stack is torn
+  down `if: always()`. Both report scripts are deliberately non-throwing — a crash in a *reporting*
+  script must not replace a real stack-boot or test failure with a confusing one; the scenario/journey
+  steps themselves own the job's pass/fail exit code.
 - **The repository is public**, so the run page is a shareable evidence surface. The summary reports the
   verdict and lists failures first with their error text, so a reviewer does not need to download the
   artifact to learn what broke.
-- **One documented skip is expected** (`storage: Storage browser upload/download scenario`); the runner
-  exits 0 for skips, so it does not fail the job.
+- **One documented skip is expected** in the scenario suite (`storage: Storage browser upload/download
+  scenario`) and one documented `test.fixme()` in the journey suite (3 applicant work-in-progress
+  screenshots — see `Regression_Scenarios.md` Known Gaps); the runner exits 0 for skips, so neither
+  fails the job.
+- **`scripts/user-guide/capture-screenshots.ts` was deleted in `v0.20.3`** — it asserted nothing (a
+  documentation tool that photographed pages), and `tests/journeys/docs-only.spec.ts` covers the same
+  screenshot set while also asserting the page actually rendered what it claims to document.
 
 ### Merge gate
 

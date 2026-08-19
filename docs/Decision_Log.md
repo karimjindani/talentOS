@@ -1352,3 +1352,99 @@ misrepresent traffic.
 deliberately. Decision numbers can no longer be allocated from a branch's own view of the log alone;
 `AGENTS.md` already requires versions to be computed across all active branches, and the same applies
 to `D-0NN`.
+
+---
+
+## D-103: Journey E2E Evidence Pipeline, And Consent Decisions Must Persist Even Without A Prior Profile (v0.20.3)
+
+**Context:** Two independent gaps surfaced while hardening the public-portal graduate/recruiter feature
+that shipped in PR #62 (`feat/public-graduate-portal-local`) without any SSDLC documentation or a
+dedicated end-to-end evidence mechanism.
+
+First, the existing scenario runner (`scripts/regression/run.ts`) proves logical product areas through
+HTTP/DB-level assertions, but nothing in the suite drives a real multi-step user session through an
+actual browser and captures what a reviewer would see. A live, shareable evidence trail — "this is
+what the applicant portal actually looked like on this PR" — did not exist.
+
+Second, manual testing of the public-portal consent flow (decline/skip) found that
+`declineGraduateProfilePublishing` and `skipGraduateConsent` (`packages/db/src/graduates.ts`) both
+threw `"No graduate profile exists to decline/skip"` when the applicant had never acknowledged consent
+before. The API routes calling them caught that error and returned `{success: true}` anyway — the UI
+showed a success message, but nothing was written. The decision was silently lost on the next page
+load. This is exactly the class of defect `docs/sdlc.md` principle 0 ("document what you do") exists
+to catch, and it had zero test coverage in either direction: `packages/db/src/graduates.ts` — the
+module holding all consent, eligibility, and recruiter approve/verify/revoke logic — had no unit tests
+at all, and the `public-portal` regression area had exactly one scenario.
+
+A related, unrelated-in-cause but relevant-in-time finding: a teammate (hitesh-munwani) had an
+independently-developed branch, `feature/e2e-evidence-pipeline` (PR #67), building a *different*
+architecture for E2E evidence — screenshot-capture-driven rather than Playwright-journey-driven, with
+explicit PII masking — and had already written SSDLC docs for it under the same `v0.20.3`/`D-103`
+identifiers this baseline uses. That PR was closed unmerged (2026-08-19, before this baseline was
+allocated) so the identifiers are free, but the two approaches were never reconciled; see
+`Regression_Scenarios.md` Known Gaps.
+
+**Decision:**
+
+1. **Journey E2E evidence pipeline**: a Playwright-driven `tests/journeys/` suite
+   (`applicant-arc.spec.ts`, `docs-only.spec.ts`) drives real browser sessions through the applicant
+   and admin portals, capturing a screenshot per step. CI (`e2e-evidence` job) runs it after the
+   scenario suite and renders the result three ways: a Markdown step summary
+   (`scripts/ci/journey-report.ts`), and a single combined PDF with every journey's step table and
+   embedded screenshots (`scripts/ci/journey-pdf-report.ts`, via Playwright's own already-installed
+   Chromium — deliberately not the hand-rolled dependency-free PDF writer
+   `apps/applicant/lib/candidate-report.ts` uses, because that one exists specifically for a live
+   Next.js API route with no browser available, a constraint that does not apply to a CI step). Both
+   report scripts follow the existing non-throwing `if: always()` contract: a crash here must not
+   replace a real stack-boot failure with a confusing one.
+2. **`declineGraduateProfilePublishing`/`skipGraduateConsent` now create a placeholder `GraduateProfile`
+   row when none exists**, mirroring the placeholder-creation path `createOrUpdateGraduateProfile`
+   (acknowledge) already had, instead of throwing and having the caller paper over the failure.
+3. **`RecruiterAccount` joins the tracked `RegressionDataMarker` entity types** in
+   `packages/db/src/regression.ts`. It has no relation back to `User`/`Tenant`, so nothing in the
+   existing cleanup chain could reach it — every regression run touching the recruiter flow would have
+   leaked one row forever.
+4. **5 new `public-portal` scenarios** cover the fix directly (decline/skip persistence with no prior
+   profile) and the surrounding lifecycle the module had never been tested against at all (decline
+   unpublishing an already-public profile; the full recruiter approve→verify→access→revoke chain;
+   pending/rejected-token refusal with the rejection reason surfaced) — see
+   `docs/Regression_Scenarios.md`.
+
+**Rationale:** The consent fix mirrors an existing, already-correct sibling function
+(`createOrUpdateGraduateProfile`) rather than inventing a new pattern — the placeholder-profile shape
+was already established and tested. The PDF report reuses Playwright rather than adding a new
+dependency or hand-rolling PDF generation a second time in this codebase, because the CI runner
+already pays the cost of installing Chromium for the journeys themselves.
+
+**Alternatives considered:** Reconciling this baseline with `feature/e2e-evidence-pipeline`'s
+screenshot-capture-driven approach before proceeding, rejected for this iteration — that PR was closed
+before this work reached a decision point, and merging two independently-built E2E evidence
+mechanisms is a larger cross-team scoping conversation than a single baseline should absorb
+unilaterally. Recorded as a known gap rather than resolved.
+
+**Consequences:** The `public-portal` regression area grows from 1 scenario to 6; `graduates.ts` gains
+its first 48 unit tests. The graduate-portal/recruiter feature itself (PR #62) remains otherwise
+undocumented in `Data_Model.md`, `Data_Dictionary.md`, `Architecture.md` and the user guides — this
+baseline fixes and tests a specific defect in that feature without taking on documenting all of it,
+which is recorded as an explicit gap rather than silently expanded scope.
+
+**Addendum — a real journey-suite hang found and fixed while gathering this baseline's own
+verification evidence:** running the full journey suite for the test-results doc found
+`applicant-arc` and two of `docs-only`'s admin-portal blocks hanging for the full 300s test timeout
+and failing, reproducible 3/3. Root-caused live rather than assumed: a standalone reproduction using
+the real tenant/identity-provisioning code converged correctly in an isolated browser context, which
+ruled out the login mechanism itself; the failure only appeared inside the real multi-actor fixture.
+Direct network-event instrumentation on the reviewer's page found the actual cause — landing on an
+admin page after the Keycloak redirect restores window focus, and next-auth's `SessionProvider` fires
+its mount-time `/api/auth/session` fetch and its refetch-on-focus fetch in the same tick. One of the
+two duplicate GETs never receives a completion event in Playwright's own request ledger (a
+Chromium/CDP dedup quirk on identical concurrent GETs — confirmed not an application-side hang, since
+Postgres and every container were idle throughout, per `pg_stat_activity` and `docker stats`). With
+that ledger permanently off by one, `networkidle` — "zero pending connections for 500ms" — never
+fires again for that page's remaining lifetime, and in this environment `waitForLoadState("networkidle")`
+has no effective default timeout of its own, so each of the three call sites that used it unbounded
+(`fixtures/actors.ts`'s login loop, `applicant-arc.spec.ts`'s `settledClick`, `docs-only.spec.ts`'s
+own duplicate `settle`) simply waited until the whole test's budget ran out. Fixed by bounding all
+three to a 5s timeout with the rejection swallowed, mirroring the one call site that already had this
+protection. Verified: the full suite went from a 16.6-minute run with 3 failures to 3.3 minutes with
+8 passed and 1 documented skip, 0 failed, run twice for reproducibility of the fix itself.

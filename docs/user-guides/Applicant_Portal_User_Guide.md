@@ -370,6 +370,22 @@ submission time is recorded separately after all submission checks pass.
 AI scoring columns exist in the database for future mentor/reviewer workflows, but real AI scoring is
 not active in this version.
 
+## Recruiter Visibility Consent (`v0.20.3`)
+
+Once you have four accepted, rated mission submissions in one program, you become eligible for a
+public graduate profile that verified recruiters can request access to. A consent modal ("Share Your
+Progress with Recruiters") offers three choices:
+
+- **I Agree & Continue** — publishes your profile (name, bio, GitHub links, submitted evidence,
+  ratings) to the public graduate directory once your training completes.
+- **Decline** — your profile stays private; you can return anytime to reconsider.
+- **Skip for Now** — records that you have not decided yet; you can return anytime.
+
+You can review or change your decision anytime from **Manage Consent** in the sidebar. Note: fixed in
+`v0.20.3` (D-103) — declining or skipping before you had ever acknowledged consent previously appeared
+to work but silently failed to save; the modal reappeared on your next visit as if nothing had
+happened. Both choices now persist correctly the first time.
+
 ## Troubleshooting
 
 | Issue | Likely Cause | Action |
@@ -383,5 +399,9 @@ not active in this version.
 
 ## Known Limitations
 
-- Real AI journal scoring, weekly AI summaries and portfolio publishing are not implemented yet.
+- Real AI journal scoring and weekly AI summaries are not implemented yet.
 - Evidence file attachments are not supported yet; journal and mission evidence use URL links.
+- Portfolio publishing (see Recruiter Visibility Consent above) shipped via a separate merge (PR #62)
+  that did not update this guide beyond the consent section `v0.20.3` added — the rest of the public
+  graduate directory and recruiter-facing experience is not yet documented here. See
+  `docs/Regression_Scenarios.md` Known Gaps.

@@ -1,8 +1,16 @@
 # Data Model
 
-Code version: `v0.20.1`
+Code version: `v0.20.3`
 
 Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
+
+> `v0.20.1`, `v0.20.2` and `v0.20.3` make no schema change (recorded explicitly rather than skipped,
+> per `docs/sdlc.md` principle 6). The graduate-portal/recruiter schema (`GraduateProfile`,
+> `RecruiterAccessRequest`, `RecruiterAccount`, `RecruiterSession`, `SavedCandidate`,
+> `GraduateArtifact`, `ConsentHistory`, `ProfileViewAudit`) merged into `main` via PR #62 ahead of
+> `v0.20.2` and is not yet described in this document — that merge shipped without any SSDLC
+> documentation; backfilling it is recorded as a known gap in `Regression_Scenarios.md` rather than
+> taken on incidentally by `v0.20.3`, which touches only the existing tables' data (no migration).
 
 > `v0.19.6` (Mission Workspace LMS, Curriculum Tooling & Thursday Scheduling, D-091–D-093) evolves the
 > same models rather than adding new ones: `LearningResourceType` gains `DOCUMENT`; `VideoResource`

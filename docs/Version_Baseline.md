@@ -2,39 +2,88 @@
 
 ## Current Allocated Iteration (Review Pending)
 
-Version: `v0.20.2`
+Version: `v0.20.3`
 
-Baseline name: `Decision Log Integrity And Opt-In Request Logging`
+Baseline name: `Journey E2E Evidence Pipeline And Public-Portal Fixes`
 
-Base branch and commit: `origin/main` at `43e7537`
+Base branch and commit: `origin/main` at `a37a003`
 
-Feature branch and code commit: `feature/v0.20.2-doc-integrity-and-request-logging` at `7f5272c`
+Feature branch and code commit: `feature/v0.20.3-journey-e2e-evidence` (HEAD at documentation time)
 
-Documentation date: `2026-08-13`
+Documentation date: `2026-08-19`
 
-Latest released baseline: `v0.20.1` at `9e2324b` (PR #59)
+Latest released baseline: `v0.20.2` at `d3e4c30` (PR #60, merged 2026-08-13T09:56:36Z)
 
-Reserved active-branch version: none — `git branch -r --no-merged origin/main` lists no active
-unmerged remote branch. `origin/feature/v0.20.0-mission-scoped-curriculum`,
-`origin/feature/v0.20.1-e2e-evidence-ci` and `origin/feature/comprehensive-test-coverage` have all been
-merged and deleted. `origin/main` declares `v0.20.1`, so `v0.20.2` is the next available patch.
+Reserved active-branch version: re-checked live via
+`node .claude/skills/version-allocation-and-gates/scripts/allocate-version.js` immediately before
+starting this documentation pass. `origin/main` declares `v0.20.2`. A colliding claim existed earlier
+in this same session — `feature/e2e-evidence-pipeline` (PR #67) had independently allocated
+`v0.20.3`/`D-103` for its own, differently-architected E2E-evidence work — but that PR was **closed
+unmerged** (2026-08-19T07:42:40Z, confirmed via `gh pr list --state all` and a live `git ls-remote
+--heads origin`, which returns nothing for that branch) before this baseline's version was finalized.
+`v0.20.3`/`D-103` is therefore free and this iteration's rightful claim to it, not a reused number.
+
+Migrations: none. This iteration changes no schema — `Data_Model.md` and `Data_Dictionary.md` gain a
+one-line "no schema change" note (also backfilled for `v0.20.1`/`v0.20.2`, which had been stamped
+`v0.20.1` with no such note added) rather than being silently skipped, per `docs/sdlc.md` principle 6.
+
+Repository state: `v0.20.3` code and documentation are committed on
+`feature/v0.20.3-journey-e2e-evidence`. Not yet pushed or merged.
+
+Upstream state: `origin/main` is at `a37a003`, which merges PR #62 (the public graduate-portal /
+recruiter-access feature) on top of everything `v0.20.2` already covered.
+
+### What this iteration changes
+
+1. **Journey E2E evidence pipeline** — `tests/journeys/` (Playwright), CI wiring, and a combined PDF
+   evidence report. See `Architecture.md`'s Journey E2E Evidence Pipeline section.
+2. **Public-portal consent-persistence bug fixed** (`D-103`) — `declineGraduateProfilePublishing` and
+   `skipGraduateConsent` silently discarded the applicant's decision when no `GraduateProfile` row
+   existed yet. Fixed; `packages/db/src/graduates.ts` gains 48 unit tests (previously zero); the
+   `public-portal` regression area grows from 1 scenario to 6.
+3. **Regression-harness leak fixed** — `RecruiterAccount` had no relation back to `User`/`Tenant`, so
+   nothing in the existing cleanup chain could reach it; every regression run touching the recruiter
+   flow would have leaked one row forever. Now a tracked, swept marker entity type.
+4. **A real journey-suite hang found and fixed during this iteration's own verification** (`D-103`) —
+   every `waitForLoadState("networkidle")` call site was unbounded, and a next-auth
+   duplicate-session-fetch pattern could leave Playwright's own request ledger permanently stuck. All
+   three call sites bounded to 5s. See `Decision_Log.md` and the test-results doc for the full
+   root-cause writeup.
+5. **`.claude/skills/` tracked in git**, `.gitignore` narrowed to just `.claude/settings.local.json`.
+
+## v0.20.3 Documentation Index
+
+| Artifact | Location |
+| --- | --- |
+| Plan | `docs/plans/v0.20.3_Journey_E2E_Evidence_Pipeline_And_Public_Portal_Fixes.md` |
+| Test results | `docs/testing/v0.20.3_Journey_E2E_Evidence_Pipeline_And_Public_Portal_Fixes_Test_Results.md` |
+| Decision record | `docs/Decision_Log.md` (`D-103`) |
+| CI/CD policy | `docs/CI_CD_Pipeline.md` (journeys + PDF report steps) |
+| Architecture | `docs/Architecture.md` (Journey E2E Evidence Pipeline section) |
+| Scenario catalog | `docs/Regression_Scenarios.md` (v0.20.3 traceability, `public-portal` area, Known Gaps) |
+| Testing strategy | `docs/Testing_Strategy.md` |
+| Deployment | `docs/Deployment.md` (no-change note) |
+| Data model / dictionary | No-change note added; graduate-portal schema (PR #62) remains undocumented — Known Gap |
+| User guides | `docs/user-guides/Applicant_Portal_User_Guide.md` (Recruiter Visibility Consent section) |
+
+## v0.20.2 Released Baseline
+
+Version: `v0.20.2` at `d3e4c30` (PR #60, `feature/v0.20.2-doc-integrity-and-request-logging`, merged
+2026-08-13T09:56:36Z).
 
 Migrations: none. This iteration changes no schema, so `Data_Model.md` and `Data_Dictionary.md` are
 unchanged — recorded explicitly rather than skipped, per `docs/sdlc.md` principle 6.
 
-Repository state: `v0.20.2` code and documentation are committed on
-`feature/v0.20.2-doc-integrity-and-request-logging` at `7f5272c`, with this baseline record backfilled
-by the follow-up `Record v0.20.2 baseline` commit. Not yet pushed or merged. It is a correction
-iteration. It resolves a duplicate `D-096` decision
+It is a correction iteration. It resolves a duplicate `D-096` decision
 identifier created by two branches allocating it independently, supplies the plan and test-results pair
 `v0.20.1` shipped without, documents the `e2e-evidence` CI job in `CI_CD_Pipeline.md` (whose version
 header had been bumped with no content change), and makes the `v0.20.1` middleware request logging
 opt-in and filtered instead of unconditional.
 
-Upstream state: `origin/main` is at `43e7537`, which merges PR #56 (`v0.20.0`), PR #57 (E2E evidence
-CI), PR #59 (`v0.20.1`) and PR #58 (`vision.md` revisions).
+Upstream state at the time: `origin/main` was at `43e7537`, which merges PR #56 (`v0.20.0`), PR #57
+(E2E evidence CI), PR #59 (`v0.20.1`) and PR #58 (`vision.md` revisions).
 
-### What this iteration changes
+### What this iteration changed
 
 1. **Duplicate decision identifier resolved** (`D-102`) — the `v0.19.7` entry becomes `D-101` and moves
    after `D-100`; six inbound references repointed. `v0.20.0`'s `D-096`–`D-100` are unchanged because
