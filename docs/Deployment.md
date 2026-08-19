@@ -1,8 +1,13 @@
 # Deployment
 
-Code version: `v0.20.2`
+Code version: `v0.20.3`
 
 Deployment evidence commit: `2b3afce`
+
+> `v0.20.3` (Journey E2E Evidence Pipeline And Public-Portal Fixes, D-103) requires no deployment,
+> topology, Keycloak, or environment-variable change — the journey suite and its PDF report run only
+> in CI/local development (Playwright against the already-running stack), and the consent-persistence
+> fix touches only application logic, no migration.
 
 Current deployment update: `v0.20.0` (requires two database migrations —
 `20260808090000_program_task_mission_scope` and `20260810120000_submission_review_history` — Prisma

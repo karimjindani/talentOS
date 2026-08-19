@@ -5,22 +5,30 @@ import { resolve } from "node:path";
 import { LearningResourceType } from "@prisma/client";
 import {
   acceptMissionAssignment,
+  approveAccessRequest,
   applyStatusTransition,
   assignWeekMissionToAcceptedApplicant,
   buildSubmissionEvidenceLinks,
+  calculateTokenExpiry,
   cleanupRegressionData,
+  consumeRecruiterAccessToken,
   createCalendarEvent,
   createOrUpdateGraduateProfile,
   createJournalEntry,
   createMission,
   createProgram,
   createProgramTask,
+  createRecruiterAccessRequest,
   createSubmittedApplication,
   createVideoResource,
+  declineGraduateProfilePublishing,
   deleteVideoResource,
   DUPLICATE_APPLICATION_ERROR_MESSAGE,
   findActiveApplication,
+  generateSecureToken,
+  getAllAccessibleGraduates,
   getApplicantMissionProgress,
+  getFullProfileForRecruiter,
   getGraduateEligibility,
   getApplicantProgramProgress,
   getApplicantSubmission,
@@ -47,10 +55,13 @@ import {
   markNotificationRead,
   markRegressionData,
   prisma,
+  rejectAccessRequest,
+  revokeAccessRequest,
   reviewSubmission,
   saveSubmissionDraft,
   setMissionStatus,
   setProgramStatus,
+  skipGraduateConsent,
   submitSubmission,
   sweepMissionDeadlines,
   updateJournalEntry,
@@ -3110,6 +3121,210 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    area: "public-portal",
+    name: "Declining consent before a graduate profile ever existed still persists the decision (D-consent-persist)",
+    run: async (ctx) => {
+      // Regression coverage for a bug where declining consent silently no-op'd for an applicant
+      // who had never created a graduateProfile row: the caller got a success response, but
+      // nothing was written, so the decision was lost on the very next page load.
+      const fixture = await createGraduateEligibleFixture(ctx.runId, "decline-first-ever");
+      const before = await prisma.graduateProfile.findUnique({ where: { userId: fixture.user.id } });
+      if (before) throw new Error("Test setup invariant broken: a graduate profile already existed before declining.");
+
+      const declined = await declineGraduateProfilePublishing(fixture.user.id);
+      if (declined.consentStatus !== "DECLINED" || declined.publicProfileEnabled) {
+        throw new Error("Decline did not record DECLINED / publicProfileEnabled=false on the new profile.");
+      }
+
+      // Re-read independently of the function's return value — proves the write actually landed
+      // rather than the function merely returning a success-shaped object.
+      const persisted = await prisma.graduateProfile.findUnique({ where: { userId: fixture.user.id } });
+      if (!persisted || persisted.consentStatus !== "DECLINED") {
+        throw new Error("Decline was not actually persisted to the database.");
+      }
+      if (await getPublicProfile(persisted.slug)) {
+        throw new Error("A declined profile must not be publicly discoverable.");
+      }
+      return "Declined consent with no prior profile; a DECLINED profile row now persists and stays private.";
+    }
+  },
+  {
+    area: "public-portal",
+    name: "Skipping consent before a graduate profile ever existed still persists the decision (D-consent-persist)",
+    run: async (ctx) => {
+      const fixture = await createGraduateEligibleFixture(ctx.runId, "skip-first-ever");
+      const before = await prisma.graduateProfile.findUnique({ where: { userId: fixture.user.id } });
+      if (before) throw new Error("Test setup invariant broken: a graduate profile already existed before skipping.");
+
+      const skipped = await skipGraduateConsent(fixture.user.id);
+      if (skipped.consentStatus !== "SKIPPED" || skipped.publicProfileEnabled) {
+        throw new Error("Skip did not record SKIPPED / publicProfileEnabled=false on the new profile.");
+      }
+
+      const persisted = await prisma.graduateProfile.findUnique({ where: { userId: fixture.user.id } });
+      if (!persisted || persisted.consentStatus !== "SKIPPED") {
+        throw new Error("Skip was not actually persisted to the database.");
+      }
+      if (await getPublicProfile(persisted.slug)) {
+        throw new Error("A skipped profile must not be publicly discoverable.");
+      }
+      return "Skipped consent with no prior profile; a SKIPPED profile row now persists and stays private.";
+    }
+  },
+  {
+    area: "public-portal",
+    name: "Declining consent after a profile is already public immediately removes it from public discovery",
+    run: async (ctx) => {
+      const fixture = await createGraduateEligibleFixture(ctx.runId, "decline-after-publish");
+      const published = await createOrUpdateGraduateProfile(fixture.user.id, {
+        bio: "Regression graduate whose consent will be withdrawn.",
+        skills: ["typescript"]
+      });
+      if (!published.publicProfileEnabled || !(await getPublicProfile(published.slug))) {
+        throw new Error("Test setup invariant broken: profile was not published before declining.");
+      }
+
+      const declined = await declineGraduateProfilePublishing(fixture.user.id);
+      if (declined.publicProfileEnabled) throw new Error("Declining an already-public profile must unpublish it.");
+      if (declined.consentVersion <= published.consentVersion) {
+        throw new Error("Declining must bump consentVersion so a re-consent is tracked as a new decision.");
+      }
+      if (await getPublicProfile(published.slug)) {
+        throw new Error("A profile the applicant just declined must no longer be publicly discoverable.");
+      }
+      return "Published a profile, then declined; the profile immediately dropped out of public discovery.";
+    }
+  },
+  {
+    area: "public-portal",
+    name: "An approved recruiter access request is verified, grants access to every published graduate, and revocation removes it",
+    run: async (ctx) => {
+      const fixture = await createGraduateEligibleFixture(ctx.runId, "recruiter-lifecycle");
+      const profile = await createOrUpdateGraduateProfile(fixture.user.id, {
+        bio: "Regression graduate available to verified recruiters.",
+        skills: ["typescript", "testing"],
+        artifacts: [{ title: "Portfolio", url: "https://github.com/regression/portfolio" }]
+      });
+
+      const creationToken = generateSecureToken();
+      const request = await createRecruiterAccessRequest(
+        profile.id,
+        {
+          recruiterName: "Regression Recruiter",
+          recruiterOrganization: "Regression Talent Co",
+          recruiterDesignation: "Technical Recruiter",
+          recruiterEmail: `recruiter+${ctx.runId}@regression.talentos.local`,
+          hiringRequirement: "Junior full-stack engineers."
+        },
+        creationToken,
+        calculateTokenExpiry(7)
+      );
+      if (!request.recruiterId) throw new Error("Recruiter account was not attached to the access request.");
+      await markRegressionData({ runId: ctx.runId, entityType: "RecruiterAccount", entityId: request.recruiterId });
+      const recruiterId = request.recruiterId;
+
+      // Before approval, the creation-time token must not grant access.
+      const beforeApproval = await consumeRecruiterAccessToken(creationToken);
+      if (!beforeApproval || !("error" in beforeApproval) || beforeApproval.error !== "PENDING") {
+        throw new Error("An unapproved request must not be consumable.");
+      }
+
+      const approvalToken = generateSecureToken();
+      const approved = await approveAccessRequest(request.id, fixture.actor.id, approvalToken);
+      if (approved.request.status !== "APPROVED") throw new Error("Approval did not set status to APPROVED.");
+
+      const consumed = await consumeRecruiterAccessToken(approvalToken);
+      if (!consumed || "error" in consumed) throw new Error("A freshly approved token must be consumable.");
+      if (consumed.request.graduate.slug !== profile.slug) throw new Error("Consumed token resolved to the wrong graduate.");
+
+      const accessible = await getAllAccessibleGraduates(recruiterId);
+      if (!accessible || !accessible.graduates.some((g) => g.slug === profile.slug)) {
+        throw new Error("An active grant must list every published graduate, including this one.");
+      }
+
+      const fullProfile = await getFullProfileForRecruiter(profile.slug, recruiterId);
+      if (!fullProfile || fullProfile.assignments.length !== 4) {
+        throw new Error("A verified recruiter with an active grant must see all four accepted mission assignments.");
+      }
+
+      // The link is reusable for the whole approved window: consuming it again must not error
+      // and must not re-stamp consumedAt.
+      const reconsumed = await consumeRecruiterAccessToken(approvalToken);
+      if (!reconsumed || "error" in reconsumed) throw new Error("An approved token must remain reusable within its window.");
+
+      await revokeAccessRequest(request.id, fixture.actor.id);
+      if (await getAllAccessibleGraduates(recruiterId)) {
+        throw new Error("Revoking the request must remove the recruiter's access to every graduate.");
+      }
+      if (await getFullProfileForRecruiter(profile.slug, recruiterId)) {
+        throw new Error("Revoking the request must remove access to the individual profile too.");
+      }
+      const afterRevoke = await consumeRecruiterAccessToken(approvalToken);
+      if (!afterRevoke || !("error" in afterRevoke) || afterRevoke.error !== "REVOKED") {
+        throw new Error("A revoked token must surface REVOKED, not silently grant or vaguely fail.");
+      }
+      return "Approved, verified and used a recruiter grant across the whole directory, then confirmed revocation removes it everywhere.";
+    }
+  },
+  {
+    area: "public-portal",
+    name: "Pending and rejected recruiter access requests cannot be verified, and the rejection reason reaches the recruiter",
+    run: async (ctx) => {
+      const fixture = await createGraduateEligibleFixture(ctx.runId, "recruiter-pending-rejected");
+      const profile = await createOrUpdateGraduateProfile(fixture.user.id, {
+        bio: "Regression graduate used to test refused recruiter access.",
+        skills: ["typescript"]
+      });
+
+      const pendingToken = generateSecureToken();
+      const pendingRequest = await createRecruiterAccessRequest(
+        profile.id,
+        {
+          recruiterName: "Still Pending Recruiter",
+          recruiterOrganization: "Regression Talent Co",
+          recruiterDesignation: "Recruiter",
+          recruiterEmail: `pending+${ctx.runId}@regression.talentos.local`
+        },
+        pendingToken,
+        calculateTokenExpiry(7)
+      );
+      if (pendingRequest.recruiterId) {
+        await markRegressionData({ runId: ctx.runId, entityType: "RecruiterAccount", entityId: pendingRequest.recruiterId });
+      }
+      const pendingResult = await consumeRecruiterAccessToken(pendingToken);
+      if (!pendingResult || !("error" in pendingResult) || pendingResult.error !== "PENDING") {
+        throw new Error("A never-reviewed request must surface PENDING, not grant access.");
+      }
+
+      const rejectedToken = generateSecureToken();
+      const rejectedRequest = await createRecruiterAccessRequest(
+        profile.id,
+        {
+          recruiterName: "Rejected Recruiter",
+          recruiterOrganization: "Regression Talent Co",
+          recruiterDesignation: "Recruiter",
+          recruiterEmail: `rejected+${ctx.runId}@regression.talentos.local`
+        },
+        rejectedToken,
+        calculateTokenExpiry(7)
+      );
+      if (rejectedRequest.recruiterId) {
+        await markRegressionData({ runId: ctx.runId, entityType: "RecruiterAccount", entityId: rejectedRequest.recruiterId });
+      }
+      const rejectionReason = "Could not verify the recruiter's organization.";
+      await rejectAccessRequest(rejectedRequest.id, fixture.actor.id, rejectionReason);
+
+      const rejectedResult = await consumeRecruiterAccessToken(rejectedToken);
+      if (!rejectedResult || !("error" in rejectedResult) || rejectedResult.error !== "REJECTED") {
+        throw new Error("A rejected request must surface REJECTED, not grant access.");
+      }
+      if (!("rejectionReason" in rejectedResult) || rejectedResult.rejectionReason !== rejectionReason) {
+        throw new Error("The admin's rejection reason must reach the recruiter verifying a rejected token.");
+      }
+      return "Confirmed pending and rejected recruiter tokens both refuse access, and the rejection reason surfaces correctly.";
+    }
+  },
+  {
     area: "storage",
     name: "Storage browser upload/download scenario",
     run: async () => skip("Full CV upload/download scenario is documented as missing and will be automated in the next storage-focused slice.")
@@ -3208,6 +3423,106 @@ async function createApplicationFixture(runId: string): Promise<Fixture> {
     await markRegressionData({ runId, entityType: "TenantMembership", entityId: membership.id });
   }
   return { ...base, user };
+}
+
+/**
+ * An applicant who has completed four accepted, rated missions in one program — the shared
+ * precondition every public-portal consent/recruiter scenario needs before it can exercise
+ * anything else. Consent itself is left to the caller: acknowledge, decline and skip each have
+ * their own regression coverage.
+ */
+async function createGraduateEligibleFixture(runId: string, label: string): Promise<Fixture> {
+  const fixture = await createApplicationFixture(runId);
+  const missions = [];
+  for (let weekNumber = 1; weekNumber <= 4; weekNumber += 1) {
+    const mission = await createMission({
+      tenantId: fixture.tenant.id,
+      programId: fixture.program.id,
+      title: `Graduate Fixture ${label} Week ${weekNumber} Mission ${runId}`,
+      difficulty: weekNumber === 1 ? "BEGINNER" : weekNumber === 2 ? "INTERMEDIATE" : weekNumber === 3 ? "ADVANCED" : "EXPERT",
+      status: "PUBLISHED",
+      weekNumber,
+      order: 0,
+      brief: `Regression mission for the ${label} graduate fixture, week ${weekNumber}.`,
+      objective: "Complete verified weekly work ahead of consent/recruiter scenarios.",
+      acceptanceCriteria: "- Submitted evidence is complete",
+      deliverables: "- Repository\n- Deployment\n- Journal",
+      evaluationCriteria: "Accepted with a reviewer rating from 1 to 5.",
+      competencyTags: ["Software Construction", "Communication"],
+      actorUserId: fixture.actor.id
+    });
+    missions.push(mission);
+    await markRegressionData({ runId, entityType: "Mission", entityId: mission.id });
+  }
+
+  const application = await createSubmittedApplication({
+    tenantId: fixture.tenant.id,
+    programId: fixture.program.id,
+    applicantId: fixture.user.id,
+    answers: [{ questionKey: "motivation", questionLabel: "Why do you want to join?", answer: `${label} graduate fixture regression` }]
+  });
+  await markRegressionData({ runId, entityType: "Application", entityId: application.id });
+  await applyStatusTransition({
+    id: application.id,
+    tenantId: fixture.tenant.id,
+    toStatus: "ACCEPTED",
+    actorUserId: fixture.actor.id,
+    reviewerNotes: `Accepted for ${label} graduate fixture regression`
+  });
+
+  for (let weekNumber = 1; weekNumber <= 4; weekNumber += 1) {
+    const assignment = await assignWeekMissionToAcceptedApplicant({
+      tenantId: fixture.tenant.id,
+      programId: fixture.program.id,
+      applicantId: fixture.user.id,
+      weekNumber,
+      chooseAssignmentIndex: () => 0
+    });
+    if (!assignment) throw new Error(`Week ${weekNumber} was not assigned.`);
+  }
+  const assignments = await prisma.missionAssignment.findMany({
+    where: { programId: fixture.program.id, applicantId: fixture.user.id },
+    orderBy: { weekNumber: "asc" }
+  });
+  if (assignments.length !== 4) throw new Error("Applicant did not receive exactly one assignment for each week.");
+  for (const assignment of assignments) {
+    await markRegressionData({ runId, entityType: "MissionAssignment", entityId: assignment.id });
+  }
+
+  const ratings = [4, 4.5, 5, 4.5];
+  for (const [index, mission] of missions.entries()) {
+    const assignment = assignments.find((a) => a.missionId === mission.id);
+    if (!assignment) throw new Error(`No assignment found for week ${mission.weekNumber}.`);
+    await acceptMissionAssignment({ tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionAssignmentId: assignment.id });
+    await markMissionTaskComplete({ tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionAssignmentId: assignment.id, taskIndex: 1 });
+    await markMissionTaskComplete({ tenantId: fixture.tenant.id, applicantId: fixture.user.id, missionAssignmentId: assignment.id, taskIndex: 2 });
+    const submission = await saveSubmissionDraft({
+      tenantId: fixture.tenant.id,
+      missionId: mission.id,
+      applicantId: fixture.user.id,
+      repositoryUrl: `https://github.com/regression/graduate-fixture-${label}-week-${mission.weekNumber}`,
+      deploymentUrl: `https://week-${mission.weekNumber}.graduate-fixture-${label}.regression.example.com`,
+      loomUrl: `https://www.loom.com/share/graduate-fixture-${label}-week-${mission.weekNumber}`,
+      journalMarkdown: `## Week ${mission.weekNumber}\nCompleted ${label} graduate fixture regression evidence.`
+    });
+    await markRegressionData({ runId, entityType: "Submission", entityId: submission.id });
+    await submitRegressionSubmission(runId, { id: submission.id, tenantId: fixture.tenant.id, applicantId: fixture.user.id });
+    await reviewSubmission({
+      id: submission.id,
+      tenantId: fixture.tenant.id,
+      status: "ACCEPTED",
+      reviewerFeedback: `Week ${mission.weekNumber} accepted for the ${label} graduate fixture.`,
+      reviewerUserId: fixture.actor.id,
+      rating: ratings[index] ?? 4
+    });
+  }
+
+  const eligibility = await getGraduateEligibility(fixture.user.id);
+  if (!eligibility.eligible || eligibility.missionRatings.length !== 4) {
+    throw new Error("Four accepted and rated missions did not make the applicant eligible.");
+  }
+
+  return fixture;
 }
 
 /** Applicant + published program + PUBLISHED mission — the submission-loop starting state (D-067). */

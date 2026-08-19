@@ -96,7 +96,7 @@ describe("SidebarNav isActive route matching", () => {
   });
 
   describe("NAV_ITEMS integrity", () => {
-    it("contains the nine standard admin nav items in order", () => {
+    it("contains the eight standard admin nav items in order", () => {
       expect(NAV_ITEMS.map((i) => i.label)).toEqual([
         "Overview",
         "Applications",
@@ -105,7 +105,6 @@ describe("SidebarNav isActive route matching", () => {
         "Tasks",
         "Submissions",
         "Recruiter Access",
-        "Operations",
         "Settings"
       ]);
     });

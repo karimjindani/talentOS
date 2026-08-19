@@ -69,10 +69,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # @playwright/test is already a dependency; only the browser binary and its system libs are
-      # missing on the runner. Needed by both the regression login flows and the screenshot capture.
+      # @playwright/test is already a dependency; only the browser binaries and their system libs
+      # are missing on the runner. Both journey projects need them.
+      #
+      # chromium-headless-shell is named explicitly rather than left to arrive with chromium: the
+      # journeys run headless, which uses the separate shell binary, and a repo-local install here
+      # was once found holding chromium without it — producing a launch failure that reads as if
+      # nothing were installed at all.
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium chromium-headless-shell
 
       # One command: docker compose up --build, Keycloak realm wait, db generate/migrate/seed, and
       # the host-run Ops console. No secrets required — repairLocalEnv() writes .env from defaults.
@@ -84,14 +89,27 @@ jobs:
           REGRESSION_CLEANUP_ON_EXIT: "1"
         run: npm run regression:all
 
-      # if: always() so a failing suite still yields visual evidence of the state it left behind.
-      - name: Capture portal screenshots
+      # Journeys drive the real UI and assert at every step; the docs-only project produces the
+      # user-guide screenshots. if: always() so a failing regression run still shows how far a real
+      # user got — which is usually the most useful thing to know.
+      - name: Run journeys
         if: always()
-        run: npx tsx scripts/user-guide/capture-screenshots.ts
+        run: npm run journeys
 
       - name: Write run summary
         if: always()
         run: npx tsx scripts/ci/regression-summary.ts
+
+      - name: Write journey evidence
+        if: always()
+        run: npm run journeys:report
+
+      # Renders the same evidence into a single PDF (step tables + embedded screenshots) via
+      # Playwright's already-installed Chromium. Falls back to an HTML file instead of failing
+      # the step if no browser is available, so this can never turn a passing run red.
+      - name: Write journey PDF report
+        if: always()
+        run: npm run journeys:report:pdf
 
       # Only useful when the stack itself failed; on success it is noise.
       - name: Collect Docker logs
@@ -107,6 +125,9 @@ jobs:
           name: e2e-evidence-${{ github.run_number }}
           path: |
             .ops/regression-results/*.json
+            .ops/journey-results/*.json
+            .ops/journey-evidence/**
+            .ops/journey-report/*
             .ops/docker-logs/*.log
             docs/user-guides/screenshots/*.png
           if-no-files-found: warn

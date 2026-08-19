@@ -12,7 +12,14 @@ export type RegressionEntityType =
   | "Program"
   | "TenantMembership"
   | "User"
-  | "Tenant";
+  | "Tenant"
+  // RecruiterAccount has no relation back to User/Tenant (recruiters are not applicants), so it
+  // cascades from nothing the rest of this cleanup deletes — it must be marked and swept
+  // explicitly or every regression run touching the public-portal recruiter flow leaks one row.
+  | "RecruiterAccount"
+  // Reaped over Keycloak's Admin REST API after the Prisma transaction commits — it cannot
+  // participate in that transaction (v0.20.3, D-103).
+  | "KeycloakUser";
 
 export type RegressionMarkerInput = {
   runId: string;
@@ -20,7 +27,10 @@ export type RegressionMarkerInput = {
   entityId: string;
 };
 
-export const REGRESSION_CLEANUP_ORDER: readonly RegressionEntityType[] = [
+// Not annotated as `readonly RegressionEntityType[]`: that would widen every element to the full
+// (now 12-member) union and break the exhaustiveness check in deleteMarkedEntities below.
+// `satisfies` keeps each literal narrow while still checking membership in RegressionEntityType.
+export const REGRESSION_CLEANUP_ORDER = [
   "ApplicationAnswer",
   "Application",
   "StoredFile",
@@ -33,8 +43,10 @@ export const REGRESSION_CLEANUP_ORDER: readonly RegressionEntityType[] = [
   "Program",
   "TenantMembership",
   "User",
-  "Tenant"
-];
+  "Tenant",
+  // Independent of the User/Tenant chain above — order relative to it doesn't matter.
+  "RecruiterAccount"
+] as const satisfies readonly RegressionEntityType[];
 
 export function markRegressionData(input: RegressionMarkerInput) {
   return prisma.regressionDataMarker.upsert({
@@ -81,7 +93,10 @@ export async function cleanupRegressionData(runId?: string): Promise<RegressionC
 
 async function deleteMarkedEntities(
   tx: Prisma.TransactionClient,
-  entityType: RegressionEntityType,
+  // Narrowed to the Prisma-backed subset (REGRESSION_CLEANUP_ORDER's element type) rather than the
+  // full RegressionEntityType union: "KeycloakUser" has no Prisma table, and the switch below must
+  // stay exhaustive without inventing a case that pretends otherwise.
+  entityType: (typeof REGRESSION_CLEANUP_ORDER)[number],
   ids: string[]
 ): Promise<number> {
   switch (entityType) {
@@ -107,5 +122,7 @@ async function deleteMarkedEntities(
       return (await tx.user.deleteMany({ where: { id: { in: ids } } })).count;
     case "Tenant":
       return (await tx.tenant.deleteMany({ where: { id: { in: ids } } })).count;
+    case "RecruiterAccount":
+      return (await tx.recruiterAccount.deleteMany({ where: { id: { in: ids } } })).count;
   }
 }

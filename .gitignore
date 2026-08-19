@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-.claude/
 # Build outputs
 .next/
 dist/
@@ -25,3 +24,7 @@ Thumbs.db
 .idea/
 .vscode/
 .claude/settings.local.json
+
+# Playwright journey test artifacts
+test-results/
+.playwright-browsers/
