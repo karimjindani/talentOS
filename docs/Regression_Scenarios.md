@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.20.2`
+Code version: `v0.20.3`
 
 ## Purpose
 
@@ -234,7 +234,20 @@ Cleanup rules:
 5. Prefer deterministic regression names such as `regression-<runId>` and
    `applicant+<runId>@regression.talentos.local`.
 
-## Known Gaps (as of `v0.20.2`)
+## v0.20.3 Plan Scenario Traceability
+
+Names match `docs/plans/v0.20.3_E2E_Evidence_Pipeline_And_Screenshot_Coverage.md` one-for-one.
+Verified locally against the Docker stack (run `regression-20260818120226-1e7f5b78`: 64 total,
+62 passed, 1 failed, 1 skipped, 597.8s).
+
+| Plan scenario | Coverage | Status |
+| --- | --- | --- |
+| All 44 portal routes have fresh screenshots captured by Playwright | `capture-screenshots.ts` (43 captured, 4 skipped) | Automated |
+| E2E PDF report embeds screenshots via auto-generated screenshot map | `generate-e2e-report.ts` + `screenshots-map.json` (77 images, 5.5 MB) | Automated |
+| Full regression suite runs with 64 scenarios and produces structured evidence | `regression:all` (62 passed, 1 failed, 1 skipped) | Automated |
+| Screenshot coverage gap audit — no user-facing route missing a screenshot | Manual audit this iteration | Passed — 40/44 captured, 4 seed-data gaps, 2 error pages skipped |
+
+## Known Gaps (as of `v0.20.3`)
 
 - Full browser-level Playwright coverage is not yet complete for every scenario. The runner currently
   combines OIDC HTTP login flows with DB/service-level scenario checks.

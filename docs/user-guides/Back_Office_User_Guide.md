@@ -1,8 +1,8 @@
-# Back Office User Guide
+# Back> Back Office User Guide
 
-Applies to version: `v0.19.5`
+Applies to version: `v0.20.3`
 
-Last verified: 2026-07-19
+Last verified: 2026-08-18
 
 Audience: platform super admins, organization admins, HR reviewers, and tech leads.
 
@@ -83,6 +83,8 @@ submissions:
 
 Super Admins create new tenant organizations from `http://lvh.me:3200/organizations`.
 
+![Organizations page](screenshots/45-admin-organizations.png)
+
 1. Sign in as `SUPER_ADMIN`.
 2. Open **Organizations**.
 3. Enter organization name, tenant slug, brand colors, and first Org Admin email.
@@ -120,6 +122,8 @@ Only published programs are visible to applicants.
 ![Programs](screenshots/18-admin-programs.png)
 
 ![Program detail and publishing](screenshots/19-admin-program-detail.png)
+
+![Create a new program](screenshots/48-admin-program-new.png)
 
 ### Program content (`v0.16.0`)
 
@@ -294,6 +298,19 @@ Tenant settings control white-label presentation.
 Branding changes apply to both Applicant and Admin portals for that tenant.
 
 ![Tenant settings and branding](screenshots/24-admin-settings.png)
+
+## Submission Review Queue (`v0.20.3`)
+
+The submissions list at `/submissions` shows all submissions across the tenant, filterable by status.
+
+![Submissions review queue](screenshots/44-admin-submissions.png)
+
+## Recruiter Access Requests (`v0.20.3`)
+
+The recruiter-requests page at `/recruiter-requests` lists pending, approved, rejected, and expired
+access requests from recruiters wanting to view graduate profiles.
+
+![Recruiter access requests](screenshots/46-admin-recruiter-requests.png)
 
 ## Operations
 

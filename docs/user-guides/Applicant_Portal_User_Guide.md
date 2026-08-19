@@ -1,8 +1,8 @@
 # Applicant Portal User Guide
 
-Applies to version: `v0.19.5`
+Applies to version: `v0.20.3`
 
-Last verified: 2026-07-19
+Last verified: 2026-08-18
 
 Audience: applicants and accepted program participants.
 
@@ -257,6 +257,8 @@ you only ever see the tasks authored for the mission you were actually assigned.
 The AI Mentor is a conversational assistant available to accepted applicants at
 `http://demo.lvh.me:3100/dashboard/mentor`.
 
+![AI Mentor chat interface](screenshots/40-dashboard-mentor.png)
+
 ### What the AI Mentor does
 
 The mentor answers questions about your program, tasks, missions, software engineering practices (SDLC,
@@ -369,6 +371,39 @@ submission time is recorded separately after all submission checks pass.
 
 AI scoring columns exist in the database for future mentor/reviewer workflows, but real AI scoring is
 not active in this version.
+
+## Graduate Profile and Recruiter Consent (`v0.20.3`)
+
+After completing your missions, you can publish a public graduate profile visible to verified
+recruiters. This requires explicit consent.
+
+### Graduate Profile
+
+Visit **Graduate Profile** in the dashboard sidebar at `/dashboard/graduate-profile` to review your
+verified results, bio, skills, and links.
+
+![Graduate profile page](screenshots/36-dashboard-graduate-profile.png)
+
+### Consent Form
+
+Visit **Consent Form** at `/dashboard/consent` to manage your recruiter visibility consent. You can
+acknowledge (publish), decline, or skip. Your profile only appears on the public portal after you
+acknowledge consent.
+
+![Recruiter visibility consent form](screenshots/37-dashboard-consent-form.png)
+
+### Public Graduate Portal
+
+Your published profile appears on the public graduate directory at `/graduates` and your individual
+profile at `/graduates/<slug>`.
+
+![Public graduates directory](screenshots/38-public-graduates-directory.png)
+
+### Recruiter Portal
+
+Verified recruiters can browse graduates at `/recruiter` and verify their email at `/graduates/verify`.
+
+![Recruiter portal](screenshots/42-recruiter-landing.png)
 
 ## Troubleshooting
 

@@ -2,32 +2,33 @@
 
 ## Current Allocated Iteration (Review Pending)
 
-Version: `v0.20.2`
+Version: `v0.20.3`
 
-Baseline name: `Decision Log Integrity And Opt-In Request Logging`
+Baseline name: `E2E Evidence Pipeline And Screenshot Coverage Expansion`
 
-Base branch and commit: `origin/main` at `43e7537`
+Base branch and commit: `origin/main` at `a37a003`
 
-Feature branch and code commit: `feature/v0.20.2-doc-integrity-and-request-logging` at `7f5272c`
+Feature branch and code commit: `feature/e2e-evidence-pipeline` at `598ebf7`
 
-Documentation date: `2026-08-13`
+Documentation date: `2026-08-18`
 
-Latest released baseline: `v0.20.1` at `9e2324b` (PR #59)
+Latest released baseline: `v0.20.2` at `43e7537` (PR #59)
 
 Reserved active-branch version: none — `git branch -r --no-merged origin/main` lists no active
-unmerged remote branch. `origin/feature/v0.20.0-mission-scoped-curriculum`,
-`origin/feature/v0.20.1-e2e-evidence-ci` and `origin/feature/comprehensive-test-coverage` have all been
-merged and deleted. `origin/main` declares `v0.20.1`, so `v0.20.2` is the next available patch.
+unmerged remote branch. `origin/main` declares `v0.20.2`, so `v0.20.3` is the next available patch.
 
 Migrations: none. This iteration changes no schema, so `Data_Model.md` and `Data_Dictionary.md` are
 unchanged — recorded explicitly rather than skipped, per `docs/sdlc.md` principle 6.
 
-Repository state: `v0.20.2` code and documentation are committed on
-`feature/v0.20.2-doc-integrity-and-request-logging` at `7f5272c`, with this baseline record backfilled
-by the follow-up `Record v0.20.2 baseline` commit. Not yet pushed or merged. It is a correction
-iteration. It resolves a duplicate `D-096` decision
-identifier created by two branches allocating it independently, supplies the plan and test-results pair
-`v0.20.1` shipped without, documents the `e2e-evidence` CI job in `CI_CD_Pipeline.md` (whose version
+Repository state: `v0.20.3` code and documentation are committed on
+`feature/e2e-evidence-pipeline`. Not yet pushed or merged. It is a tooling and documentation
+iteration — it expands Playwright screenshot coverage to all user-facing routes, auto-generates
+the screenshot-to-test-case mapping for the E2E evidence PDF, and runs the full 64-scenario
+regression suite with structured evidence output.
+
+## Previous Baseline
+
+Version: `v0.20.2`
 header had been bumped with no content change), and makes the `v0.20.1` middleware request logging
 opt-in and filtered instead of unconditional.
 

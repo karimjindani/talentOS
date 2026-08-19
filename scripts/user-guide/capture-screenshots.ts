@@ -265,6 +265,46 @@ async function main() {
     await shot(page, "13-dashboard-profile.png");
     await goTo(page, `${URLS.tenantApplicant}/dashboard/program`);
     await shot(page, "14-dashboard-program.png");
+
+    // Graduate profile and consent form (v0.20.x — recruiter visibility consent flow)
+    await goTo(page, `${URLS.tenantApplicant}/dashboard/graduate-profile`);
+    await shot(page, "36-dashboard-graduate-profile.png");
+
+    await goTo(page, `${URLS.tenantApplicant}/dashboard/consent`);
+    await shot(page, "37-dashboard-consent-form.png");
+
+    // AI Mentor page (v0.15.x — chat-based mentor interface)
+    await goTo(page, `${URLS.tenantApplicant}/dashboard/mentor`);
+    await shot(page, "40-dashboard-mentor.png");
+  }, EVIDENCE_RUN_ID);
+
+  // --- Public graduate portal & recruiter flows (v0.20.x) ----------------------------------
+  // The /graduates directory, per-graduate detail, portfolio, recruiter landing and verification.
+  if (sectionEnabled("public")) await withContext(browser, async (_context, page) => {
+    await goTo(page, `${URLS.tenantApplicant}/graduates`);
+    await shot(page, "38-public-graduates-directory.png");
+
+    const gradDetail = await firstDetailLink(page, "/graduates/");
+    if (gradDetail) {
+      await goTo(page, gradDetail);
+      await shot(page, "39-public-graduate-profile.png");
+
+      // Graduate portfolio page (separate route from the profile)
+      const portfolioUrl = gradDetail.replace(/\/$/, "") + "/portfolio";
+      await goTo(page, portfolioUrl);
+      await shot(page, "41-public-graduate-portfolio.png");
+    } else {
+      skipped.push("39-public-graduate-profile.png — no graduate detail link found");
+      skipped.push("41-public-graduate-portfolio.png — no graduate detail link found");
+    }
+
+    // Recruiter landing page (recruiter dashboard with saved candidates)
+    await goTo(page, `${URLS.tenantApplicant}/recruiter`);
+    await shot(page, "42-recruiter-landing.png");
+
+    // Recruiter email verification page
+    await goTo(page, `${URLS.tenantApplicant}/graduates/verify`);
+    await shot(page, "43-recruiter-verify.png");
   }, EVIDENCE_RUN_ID);
 
   // --- Accepted applicant: the working flows (v0.20.0) ---------------------------------------
@@ -345,6 +385,23 @@ async function main() {
     await shot(page, "24-admin-settings.png");
     // 25-admin-operations.png retired: the admin Operations page was removed (c562e0f) in favour of
     // the standalone Ops Console below. The number is left unused so other references keep working.
+
+    // Submissions list page (v0.20.x — the review queue)
+    await goTo(page, `${URLS.tenantAdmin}/submissions`);
+    await shot(page, "44-admin-submissions.png");
+
+    // Organizations page (v0.10.x — tenant management)
+    await goTo(page, `${URLS.tenantAdmin}/organizations`);
+    await shot(page, "45-admin-organizations.png");
+
+    // Recruiter access requests list (v0.20.x)
+    await goTo(page, `${URLS.tenantAdmin}/recruiter-requests`);
+    await shot(page, "46-admin-recruiter-requests.png");
+    await optionalShot(page, await firstDetailLink(page, "/recruiter-requests/"), "47-admin-recruiter-request-detail.png", "recruiter request detail");
+
+    // Program creation form
+    await goTo(page, `${URLS.tenantAdmin}/programs/new`);
+    await shot(page, "48-admin-program-new.png");
   }, EVIDENCE_RUN_ID);
 
   // --- Org Admin: authoring and review flows (v0.20.0) ---------------------------------------

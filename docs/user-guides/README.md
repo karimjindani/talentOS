@@ -1,8 +1,8 @@
 # TalentOS User Guides
 
-Applies to version: `v0.19.5`
+Applies to version: `v0.20.3`
 
-Last verified: 2026-07-19
+Last verified: 2026-08-18
 
 These guides are the role-facing operating manuals for TalentOS. They explain how real users work with
 the Applicant Portal and Back Office/Admin Portal, illustrated with screenshots.

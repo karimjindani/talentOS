@@ -1,13 +1,13 @@
 # Decision Log
 
-Code version: `v0.20.2`
+Code version: `v0.20.3`
 
 Architecture evidence commit: `5560ccf`
 
-Current documentation update: `v0.20.1`
+Current documentation update: `v0.20.3`
 
-Allocation note: `v0.20.0` was released to `origin/main` via PR #56; `v0.20.1` is the next
-available patch after `v0.20.0`.
+Allocation note: `v0.20.2` was released to `origin/main` via PR #59; `v0.20.3` is the next
+available patch after `v0.20.2`.
 
 ## D-001
 
@@ -1352,3 +1352,36 @@ misrepresent traffic.
 deliberately. Decision numbers can no longer be allocated from a branch's own view of the log alone;
 `AGENTS.md` already requires versions to be computed across all active branches, and the same applies
 to `D-0NN`.
+
+## D-103: E2E Evidence Pipeline Screenshot Coverage Is Complete And Auto-Mapped (v0.20.3)
+
+**Context:** The E2E evidence pipeline (`v0.20.2`, D-102) added a PDF report generator
+(`generate-e2e-report.ts`) that embeds Playwright-captured screenshots. However, the screenshot
+capture script (`capture-screenshots.ts`) only covered 33 of 44 user-facing routes, and it did not
+write the `screenshots-map.json` the report generator needs to embed images — so CI-produced PDFs
+contained zero screenshots.
+
+**Decision:**
+
+1. Expand `capture-screenshots.ts` to cover 11 additional routes: graduate profile, consent form,
+   AI mentor, public graduates directory, recruiter landing, recruiter verification, graduate
+   portfolio, admin submissions list, organizations, recruiter-requests, and program creation form.
+2. Auto-generate `screenshots-map.json` in the evidence directory so the report generator embeds
+   screenshots without manual mapping. The map groups screenshots into logical user journeys and
+   maps each to its regression test-case ID.
+3. PII masking (`--pii=mask`) is enforced in the report generator — cookies, tokens, JWTs, OAuth
+   codes, and emails are redacted before embedding.
+
+**Rationale:** User guides reference screenshots directly via Markdown image syntax, so they must
+be tracked in git and kept current. The screenshot map is metadata only (filenames + TC IDs +
+captions) — it contains no images and no sensitive data. Auto-generating it in the capture script
+rather than the report generator keeps the report generator a pure consumer.
+
+**Alternatives considered:** Hardcoding the map in the report generator, rejected because it would
+drift from the capture script. Generating it as a separate CI step, rejected because the capture
+script already knows which screenshots it produced and which TC IDs they map to.
+
+**Consequences:** Every CI run now produces a PDF with real browser-captured screenshots embedded.
+The 4 unmapped screenshots (no seed data for graduate profile detail, journal entry, recruiter
+request detail) are documented as data gaps, not code gaps — the routes exist and work, but the
+seed data doesn't have records to navigate to.
