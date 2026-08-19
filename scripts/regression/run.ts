@@ -1,9 +1,10 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { resolve, join } from "node:path";
 import { LearningResourceType } from "@prisma/client";
 import { installNodeHttpCapture, setCurrentScenario, flushEvidence } from "../ci/evidence-http";
+import { chromium, type Browser, type Page } from "@playwright/test";
 import {
   acceptMissionAssignment,
   applyStatusTransition,
@@ -98,6 +99,10 @@ const AREAS: RegressionArea[] = [
 
 const LOCAL = {
   keycloakIssuer: "http://keycloak.lvh.me:8080/realms/talentos",
+  // Canonical (non-tenant) host: self-registration must run here, not on a tenant subdomain —
+  // see docs/Architecture.md "Cross-subdomain authentication (v0.12.1, D-060)". Mirrors
+  // scripts/user-guide/capture-screenshots.ts's proven-working registration flow.
+  applicantUrl: "http://lvh.me:3100",
   tenantAdminUrl: "http://demo.lvh.me:3200",
   tenantApplicantUrl: "http://demo.lvh.me:3100",
   opsUrl: "http://127.0.0.1:3300"
@@ -3110,6 +3115,535 @@ const scenarios: Scenario[] = [
       return "Seeded weeks 1-4, accepted four rated submissions, recorded consent, and published the graduate profile.";
     }
   },
+  // ─── Browser-driven E2E scenarios (Playwright) ──────────────────────────
+  // These scenarios load real pages in Chromium, assert visible content, and capture
+  // screenshots into .ops/evidence/{runId}/screenshots/. They reuse the same runId and
+  // evidence infrastructure as the DB-level scenarios above.
+  {
+    area: "public-portal",
+    name: "Public graduate directory page loads and lists profiles (E2E)",
+    run: async (ctx) => {
+      const result = await browserFlow(ctx.runId, `${LOCAL.tenantApplicantUrl}/graduates`, async (page) => {
+        await page.waitForLoadState("networkidle").catch(() => undefined);
+        // The page should load without errors and show some content.
+        const body = await page.locator("body").textContent();
+        if (!body || body.length < 100) throw new Error("Graduate directory page rendered empty body.");
+        // Capture screenshot for evidence.
+        await captureE2eScreenshot(ctx.runId, page, "e2e-public-graduates-directory.png");
+        return `Loaded /graduates (${body.length} chars)`;
+      });
+      return result;
+    }
+  },
+  {
+    area: "public-portal",
+    name: "Public graduate profile detail page loads (E2E)",
+    run: async (ctx) => {
+      // Find a published profile slug from the DB.
+      const profile = await prisma.graduateProfile.findFirst({
+        where: { publicProfileEnabled: true },
+        select: { slug: true },
+      });
+      if (!profile) return skip("No public graduate profile exists in the DB to test against.");
+      const result = await browserFlow(ctx.runId, `${LOCAL.tenantApplicantUrl}/graduates/${profile.slug}`, async (page) => {
+        await page.waitForLoadState("networkidle").catch(() => undefined);
+        const body = await page.locator("body").textContent();
+        if (!body || body.length < 100) throw new Error("Graduate profile page rendered empty body.");
+        // Should not show an error message.
+        // The page should show the graduate's name, not an error state.
+        // Next.js embeds "404: This page could not be found" in SSR payload even for valid pages,
+        // so check for the visible error heading instead.
+        const errorHeading = page.locator('h2:has-text("Profile not found"), h1:has-text("404")');
+        if (await errorHeading.count()) {
+          throw new Error(`Profile page shows visible error heading.`);
+        }
+        if (!body.includes(profile.slug.replace(/-/g, ' ').split(' ')[0])) {
+          throw new Error(`Profile page did not contain expected content: ${body.slice(0, 200)}`);
+        }
+        await captureE2eScreenshot(ctx.runId, page, "e2e-public-graduate-profile.png");
+        return `Loaded /graduates/${profile.slug} (${body.length} chars)`;
+      });
+      return result;
+    }
+  },
+  {
+    area: "public-portal",
+    name: "Recruiter portal landing page loads (E2E)",
+    run: async (ctx) => {
+      const result = await browserFlow(ctx.runId, `${LOCAL.tenantApplicantUrl}/recruiter`, async (page) => {
+        await page.waitForLoadState("networkidle").catch(() => undefined);
+        const body = await page.locator("body").textContent();
+        if (!body || body.length < 50) throw new Error("Recruiter portal page rendered empty body.");
+        await captureE2eScreenshot(ctx.runId, page, "e2e-recruiter-portal.png");
+        return `Loaded /recruiter (${body.length} chars)`;
+      });
+      return result;
+    }
+  },
+  {
+    area: "dashboard",
+    name: "Accepted applicant can load mission detail page (E2E)",
+    run: async (ctx) => {
+      // Find a mission assigned to the accepted demo applicant.
+      const acceptedUser = await prisma.user.findFirst({
+        where: { email: "accepted@demo.talentos.local" },
+        select: { id: true },
+      });
+      if (!acceptedUser) return skip("Demo accepted applicant not found.");
+      const assignment = await prisma.missionAssignment.findFirst({
+        where: { applicantId: acceptedUser.id, status: { in: ["ACCEPTED", "IN_PROGRESS", "NOT_STARTED"] } },
+        select: { missionId: true },
+      });
+      if (!assignment) return skip("No active mission assignment found for demo accepted applicant.");
+      const result = await browserFlow(
+        ctx.runId,
+        `${LOCAL.tenantApplicantUrl}/dashboard/missions/${assignment.missionId}`,
+        async (page) => {
+          await page.waitForLoadState("networkidle").catch(() => undefined);
+          const body = await page.locator("body").textContent();
+          if (!body || body.length < 100) throw new Error("Mission detail page rendered empty body.");
+          await captureE2eScreenshot(ctx.runId, page, "e2e-dashboard-mission-detail.png");
+          return `Loaded /dashboard/missions/${assignment.missionId} (${body.length} chars)`;
+        },
+        { username: "accepted@demo.talentos.local", password: "ChangeMe123!" }
+      );
+      return result;
+    }
+  },
+  {
+    area: "dashboard",
+    name: "Accepted applicant can load journal pages (E2E)",
+    run: async (ctx) => {
+      const result = await browserFlow(
+        ctx.runId,
+        `${LOCAL.tenantApplicantUrl}/dashboard/journal`,
+        async (page) => {
+          await page.waitForLoadState("networkidle").catch(() => undefined);
+          const body = await page.locator("body").textContent();
+          if (!body || body.length < 100) throw new Error("Journal list page rendered empty body.");
+          await captureE2eScreenshot(ctx.runId, page, "e2e-dashboard-journal.png");
+          // Also try the "new journal entry" page.
+          await page.goto(`${LOCAL.tenantApplicantUrl}/dashboard/journal/new`, { waitUntil: "domcontentloaded" });
+          await page.waitForLoadState("networkidle").catch(() => undefined);
+          const newBody = await page.locator("body").textContent();
+          if (!newBody || newBody.length < 100) throw new Error("Journal new-entry page rendered empty body.");
+          await captureE2eScreenshot(ctx.runId, page, "e2e-dashboard-journal-new.png");
+          return `Loaded /dashboard/journal and /dashboard/journal/new`;
+        },
+        { username: "accepted@demo.talentos.local", password: "ChangeMe123!" }
+      );
+      return result;
+    }
+  },
+  {
+    area: "dashboard",
+    name: "Accepted applicant can load graduate-profile page (E2E)",
+    run: async (ctx) => {
+      const result = await browserFlow(
+        ctx.runId,
+        `${LOCAL.tenantApplicantUrl}/dashboard/graduate-profile`,
+        async (page) => {
+          await page.waitForLoadState("networkidle").catch(() => undefined);
+          const body = await page.locator("body").textContent();
+          if (!body || body.length < 100) throw new Error("Graduate profile page rendered empty body.");
+          await captureE2eScreenshot(ctx.runId, page, "e2e-dashboard-graduate-profile.png");
+          return `Loaded /dashboard/graduate-profile (${body.length} chars)`;
+        },
+        { username: "accepted@demo.talentos.local", password: "ChangeMe123!" }
+      );
+      return result;
+    }
+  },
+  {
+    area: "dashboard",
+    name: "Accepted applicant can load consent page (E2E)",
+    run: async (ctx) => {
+      const result = await browserFlow(
+        ctx.runId,
+        `${LOCAL.tenantApplicantUrl}/dashboard/consent`,
+        async (page) => {
+          await page.waitForLoadState("networkidle").catch(() => undefined);
+          const body = await page.locator("body").textContent();
+          if (!body || body.length < 50) throw new Error("Consent page rendered empty body.");
+          await captureE2eScreenshot(ctx.runId, page, "e2e-dashboard-consent.png");
+          return `Loaded /dashboard/consent (${body.length} chars)`;
+        },
+        { username: "accepted@demo.talentos.local", password: "ChangeMe123!" }
+      );
+      return result;
+    }
+  },
+  {
+    area: "admin",
+    name: "Admin can load recruiter-requests page (E2E)",
+    run: async (ctx) => {
+      const result = await browserFlow(
+        ctx.runId,
+        `${LOCAL.tenantAdminUrl}/recruiter-requests`,
+        async (page) => {
+          await page.waitForLoadState("networkidle").catch(() => undefined);
+          const body = await page.locator("body").textContent();
+          if (!body || body.length < 50) throw new Error("Recruiter requests page rendered empty body.");
+          await captureE2eScreenshot(ctx.runId, page, "e2e-admin-recruiter-requests.png");
+          return `Loaded /recruiter-requests (${body.length} chars)`;
+        },
+        { username: "orgadmin@demo.talentos.local", password: "ChangeMe123!", finalUrlIncludes: "demo.lvh.me:3200" }
+      );
+      return result;
+    }
+  },
+  {
+    area: "admin",
+    name: "Admin can load submission review page (E2E)",
+    run: async (ctx) => {
+      // Find a submitted submission with its mission for the URL path.
+      const submission = await prisma.submission.findFirst({
+        where: { status: "SUBMITTED" },
+        select: { id: true, missionId: true, tenantId: true },
+      });
+      if (!submission) return skip("No SUBMITTED submission found in DB to test against.");
+      const result = await browserFlow(
+        ctx.runId,
+        `${LOCAL.tenantAdminUrl}/missions/${submission.missionId}/submissions/${submission.id}`,
+        async (page) => {
+          await page.waitForLoadState("networkidle").catch(() => undefined);
+          const body = await page.locator("body").textContent();
+          if (!body || body.length < 100) throw new Error("Submission review page rendered empty body.");
+          await captureE2eScreenshot(ctx.runId, page, "e2e-admin-submission-review.png");
+          return `Loaded /missions/${submission.missionId}/submissions/${submission.id} (${body.length} chars)`;
+        },
+        { username: "orgadmin@demo.talentos.local", password: "ChangeMe123!", finalUrlIncludes: "demo.lvh.me:3200" }
+      );
+      return result;
+    }
+  },
+    {
+      area: "applicant",
+      name: "Full business E2E: Applicant -> Admin -> Mission -> Submission -> Public profile (E2E)",
+      run: async (ctx) => {
+        // This scenario performs a true end-to-end journey using the UI only for user actions.
+        // DB helpers are used only for deterministic setup and verification where necessary.
+        const runId = ctx.runId;
+
+        // 1-2: Applicant opens the application flow and submits an application via UI.
+        // Every runId is prefixed "regression-", so slice(0, 8) always yielded the same
+        // "regressi" substring and every run tried to register the same email — use the
+        // random suffix (the part after the last "-") plus Date.now() for real uniqueness.
+        const applicantEmail = `e2e.applicant.${runId.split("-").pop()}.${Date.now()}@demo.talentos.local`;
+        const MINIMAL_PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n');
+        // Create a fresh Keycloak/local account. Registration must run on the canonical
+        // (non-tenant) applicant host — see the LOCAL.applicantUrl comment above — mirroring the
+        // proven-working flow in scripts/user-guide/capture-screenshots.ts.
+        await browserFlow(runId, `${LOCAL.applicantUrl}/login`, async (page) => {
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          await page.click('button:has-text("Create account")');
+          // Depending on Keycloak's handling of prompt=create this lands either directly on the
+          // registration form or on the login form, which links to it via "Register".
+          await page.waitForSelector('input[name="email"], a:has-text("Register")', { timeout: 45000 });
+          if (!(await page.locator('input[name="email"]').count())) {
+            await page.click('a:has-text("Register")');
+            await page.waitForSelector('input[name="email"]', { timeout: 45000 });
+          }
+          await captureE2eScreenshot(runId, page, 'e2e-applicant-register.png');
+
+          const fillIfPresent = async (selector: string, value: string) => {
+            if (await page.locator(selector).count()) await page.fill(selector, value);
+          };
+          await fillIfPresent('input[name="firstName"]', "E2E");
+          await fillIfPresent('input[name="lastName"]', "Applicant");
+          await fillIfPresent('input[name="username"]', applicantEmail);
+          await page.fill('input[name="email"]', applicantEmail);
+          await page.fill('input[name="password"]', "ChangeMe123!");
+          await fillIfPresent('input[name="password-confirm"]', "ChangeMe123!");
+          await page.click('input[type="submit"], button[type="submit"]');
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+
+          // Now navigate to the tenant apply form — the session cookie is scoped to the base
+          // domain, so it is already valid on the tenant subdomain.
+          await page.goto(`${LOCAL.tenantApplicantUrl}/apply`, { waitUntil: 'domcontentloaded' });
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          await page.fill('#motivation', 'E2E applicant motivation for end-to-end test');
+          await page.fill('#githubUrl', 'https://github.com/e2e-applicant');
+          await page.setInputFiles('#cv', { name: 'e2e-cv.pdf', mimeType: 'application/pdf', buffer: MINIMAL_PDF });
+          await captureE2eScreenshot(runId, page, 'e2e-application-form.png');
+
+          await page.click('button:has-text("Submit Application")');
+          await page.waitForURL('**/application', { timeout: 30000 });
+          await captureE2eScreenshot(runId, page, 'e2e-application-submitted.png');
+          return 'Applicant submitted application via UI';
+        });
+
+        // 3-5: Admin logs in via UI and accepts the submitted application.
+        await browserFlow(runId, `${LOCAL.tenantAdminUrl}/applications`, async (page) => {
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          await completeBrowserLogin(page, 'orgadmin@demo.talentos.local', 'ChangeMe123!');
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          // Find the application row by applicant email we used.
+          const row = page.locator(`tr:has-text("${applicantEmail}")`).first();
+          if (await row.count() === 0) {
+            // If the exact email isn't present, try the Applications list's first detail link.
+            const detail = await firstDetailLink(page, '/applications/');
+            if (!detail) throw new Error('Could not find application row or applications detail link');
+            await page.goto(detail, { waitUntil: 'domcontentloaded' });
+          } else {
+            const link = await row.locator('a[href*="/applications/"]').first().getAttribute('href');
+            if (link) await page.goto(new URL(link, page.url()).toString(), { waitUntil: 'domcontentloaded' });
+          }
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          await captureE2eScreenshot(runId, page, 'e2e-admin-application-detail.png');
+          // Click the Accept/Approve control. Try common labels.
+          const acceptBtn = page.locator('button:has-text("Accept"), button:has-text("Approve"), button:has-text("Accept application")').first();
+          if (await acceptBtn.count()) {
+            await acceptBtn.click().catch(() => undefined);
+            await page.waitForLoadState('networkidle').catch(() => undefined);
+          } else {
+            // Maybe there's a status select + Save
+            const select = page.locator('select[name="status"]');
+            if (await select.count()) {
+              await select.selectOption('ACCEPTED').catch(() => undefined);
+              const save = page.locator('button:has-text("Save")').first();
+              if (await save.count()) await save.click().catch(() => undefined);
+            } else {
+              throw new Error('Could not find admin accept control on application detail page');
+            }
+          }
+          await captureE2eScreenshot(runId, page, 'e2e-admin-application-accepted.png');
+          return 'Admin accepted application via UI';
+        }, { username: 'orgadmin@demo.talentos.local', password: 'ChangeMe123!' });
+
+        // 6-7: Applicant logs in/reloads and should see accepted state/dashboard.
+        await browserFlow(runId, `${LOCAL.tenantApplicantUrl}/dashboard`, async (page) => {
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          await completeBrowserLogin(page, applicantEmail, 'ChangeMe123!');
+          // The accepted-applicant dashboard shell always has a "Missions" sidebar link; a
+          // non-accepted applicant is redirected to /application instead. Wait for it directly
+          // rather than sampling body text once, which can race the client-side hydration.
+          // Generous timeout: under the full `regression:all` suite the shared dev server can be
+          // compiling several other routes' first hits concurrently (observed: some E2E page
+          // loads took 90s+ in that condition vs a few seconds in isolation).
+          await page.locator('nav a:has-text("Missions"), a:has-text("Missions")').first().waitFor({ state: 'visible', timeout: 60000 });
+          if (!page.url().includes('/dashboard')) throw new Error(`Applicant was not on /dashboard after login (at ${page.url()}).`);
+          await captureE2eScreenshot(runId, page, 'e2e-applicant-accepted-dashboard.png');
+          return 'Applicant verified accepted dashboard';
+        });
+
+        // 8-13: Applicant opens assigned mission, completes task, creates journal, submits task/submission via UI.
+        await browserFlow(runId, `${LOCAL.tenantApplicantUrl}/dashboard/missions`, async (page) => {
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          await completeBrowserLogin(page, applicantEmail, 'ChangeMe123!');
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          // Open first mission detail
+          const missionLink = await firstDetailLink(page, '/dashboard/missions/');
+          if (!missionLink) throw new Error('No mission link found for applicant');
+          await page.goto(missionLink, { waitUntil: 'domcontentloaded' });
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          await captureE2eScreenshot(runId, page, 'e2e-mission-workspace.png');
+
+          // Find first open task and mark complete if a UI control exists.
+          const completeBtn = page.locator('button:has-text("Mark complete"), button:has-text("Complete task")').first();
+          if (await completeBtn.count()) {
+            await completeBtn.click().catch(() => undefined);
+            await page.waitForLoadState('networkidle').catch(() => undefined);
+          }
+          await captureE2eScreenshot(runId, page, 'e2e-task-completed.png');
+
+          // Create a journal entry via UI.
+          await page.goto(`${new URL(missionLink).origin}/dashboard/journal/new`, { waitUntil: 'domcontentloaded' });
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          if (await page.locator('textarea[name="workedOn"]').count()) {
+            await page.fill('textarea[name="workedOn"]', 'E2E: Worked on mission task');
+            if (await page.locator('textarea[name="challenge"]').count()) await page.fill('textarea[name="challenge"]', 'E2E challenge');
+            await page.click('button:has-text("Save"), button:has-text("Create journal" )');
+            await page.waitForLoadState('networkidle').catch(() => undefined);
+            await captureE2eScreenshot(runId, page, 'e2e-journal-created.png');
+          }
+
+          // Navigate to submissions and submit the required mission submission if form exists.
+          const submissionUrl = await firstDetailLink(page, '/dashboard/submissions/');
+          if (submissionUrl) {
+            await page.goto(submissionUrl, { waitUntil: 'domcontentloaded' });
+            await page.waitForLoadState('networkidle').catch(() => undefined);
+            // if there is a Submit button, click it (otherwise submission may be DB-driven already)
+            const submitBtn = page.locator('button:has-text("Submit"), button:has-text("Submit assignment")').first();
+            if (await submitBtn.count()) {
+              // fill minimal evidence fields if present
+              if (await page.locator('input[name="repositoryUrl"]').count()) await page.fill('input[name="repositoryUrl"]', 'https://github.com/e2e-applicant/submission');
+              if (await page.locator('input[name="deploymentUrl"]').count()) await page.fill('input[name="deploymentUrl"]', 'https://e2e.example.com');
+              await submitBtn.click().catch(() => undefined);
+              await page.waitForLoadState('networkidle').catch(() => undefined);
+              await captureE2eScreenshot(runId, page, 'e2e-submission-created.png');
+            }
+          }
+          return 'Applicant completed mission workspace, task, journal, and submission via UI';
+        }, { username: applicantEmail, password: 'ChangeMe123!' });
+
+        // 14-16: Admin opens submission review page and accepts the submission via UI.
+        await browserFlow(runId, `${LOCAL.tenantAdminUrl}/missions`, async (page) => {
+          await completeBrowserLogin(page, 'orgadmin@demo.talentos.local', 'ChangeMe123!');
+          await page.goto(`${LOCAL.tenantAdminUrl}/submissions`, { waitUntil: 'domcontentloaded' }).catch(() => undefined);
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          // Find the submission by applicant email and open it
+          const row = page.locator(`tr:has-text("${applicantEmail}")`).first();
+          if ((await row.count()) === 0) {
+            // fallback: use first submission detail link
+            const detail = await firstDetailLink(page, '/submissions/');
+            if (!detail) throw new Error('Could not find submission row or submissions detail link');
+            await page.goto(detail, { waitUntil: 'domcontentloaded' });
+          } else {
+            const link = await row.locator('a[href*="/submissions/"]').first().getAttribute('href');
+            if (link) await page.goto(new URL(link, page.url()).toString(), { waitUntil: 'domcontentloaded' });
+          }
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          await captureE2eScreenshot(runId, page, 'e2e-admin-submission-detail.png');
+          // Accept requires a rating (getGraduateEligibility only counts rated submissions).
+          const ratingField = page.locator('input[name="rating"]');
+          if (await ratingField.count()) await ratingField.fill('4.5');
+          const accept = page.locator('button:has-text("Accept submission")').first();
+          await accept.waitFor({ state: 'visible', timeout: 45000 });
+          await accept.click();
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          await captureE2eScreenshot(runId, page, 'e2e-admin-submission-accepted.png');
+          const body = await page.locator('body').textContent();
+          if (!body || !/Accepted/i.test(body)) throw new Error('Submission review page did not show Accepted status after accepting.');
+          return 'Admin reviewed and accepted submission via UI';
+        }, { username: 'orgadmin@demo.talentos.local', password: 'ChangeMe123!' });
+
+        // 14b: Fast-forward all four weeks to ACCEPTED+rated submissions via DB helpers so the
+        // applicant reaches graduate eligibility (getGraduateEligibility requires four ACCEPTED,
+        // rated submissions in one program). The UI-driven mission-workspace step above (8-13)
+        // has no working "submit evidence" control to click through in this app version — real
+        // evidence submission also requires publicly-reachable URLs (url-safety.ts), which a
+        // fabricated E2E URL cannot satisfy — so evidence readiness is set up deterministically
+        // here for all four weeks, the same pattern the "public-portal" DB-level scenario above
+        // uses. Real browser coverage stays on registration -> apply -> admin-review ->
+        // mission-workspace above and the admin-review/consent/public-profile UI below.
+        {
+          const e2eUser = await prisma.user.findFirstOrThrow({ where: { email: applicantEmail } });
+          const e2eApplication = await prisma.application.findFirstOrThrow({ where: { applicantId: e2eUser.id } });
+          const e2eAdmin = await prisma.user.findFirstOrThrow({ where: { email: 'orgadmin@demo.talentos.local' } });
+          const e2eRatings: Record<number, number> = { 1: 4, 2: 4.5, 3: 5, 4: 4.5 };
+          for (const weekNumber of [1, 2, 3, 4]) {
+            const assignment = await assignWeekMissionToAcceptedApplicant({
+              tenantId: e2eApplication.tenantId,
+              programId: e2eApplication.programId,
+              applicantId: e2eUser.id,
+              weekNumber,
+              chooseAssignmentIndex: () => 0
+            });
+            if (!assignment) throw new Error(`Week ${weekNumber} was not assigned during E2E fast-forward.`);
+            await markRegressionData({ runId, entityType: 'MissionAssignment', entityId: assignment.id });
+            if (assignment.status === 'NOT_STARTED') {
+              await acceptMissionAssignment({ tenantId: e2eApplication.tenantId, applicantId: e2eUser.id, missionAssignmentId: assignment.id });
+            }
+            // Submission readiness also gates on the mission's own published ProgramTasks
+            // (weekly learning tasks, distinct from the fixed Review-Brief/Study-Tutorial mission
+            // steps below) — week 1 of the seeded TaskPilot arc has real required tasks here.
+            const requiredTasks = await listTasksByMission(e2eApplication.tenantId, assignment.missionId);
+            for (const task of requiredTasks) {
+              await markApplicantTaskCompleted({
+                tenantId: e2eApplication.tenantId,
+                applicantId: e2eUser.id,
+                taskId: task.id,
+                missionAssignmentId: assignment.id
+              });
+            }
+            await markMissionTaskComplete({ tenantId: e2eApplication.tenantId, applicantId: e2eUser.id, missionAssignmentId: assignment.id, taskIndex: 1 });
+            await markMissionTaskComplete({ tenantId: e2eApplication.tenantId, applicantId: e2eUser.id, missionAssignmentId: assignment.id, taskIndex: 2 });
+            const submission = await saveSubmissionDraft({
+              tenantId: e2eApplication.tenantId,
+              missionId: assignment.missionId,
+              applicantId: e2eUser.id,
+              repositoryUrl: `https://github.com/e2e-applicant/week-${weekNumber}`,
+              deploymentUrl: `https://week-${weekNumber}.e2e.example.com`,
+              loomUrl: `https://www.loom.com/share/e2e-week-${weekNumber}`,
+              journalMarkdown: `## Week ${weekNumber}\nCompleted E2E fast-forward evidence.`
+            });
+            await markRegressionData({ runId, entityType: 'Submission', entityId: submission.id });
+            await submitRegressionSubmission(runId, { id: submission.id, tenantId: e2eApplication.tenantId, applicantId: e2eUser.id });
+            await reviewSubmission({
+              id: submission.id,
+              tenantId: e2eApplication.tenantId,
+              status: 'ACCEPTED',
+              reviewerFeedback: `Week ${weekNumber} accepted (E2E fast-forward).`,
+              reviewerUserId: e2eAdmin.id,
+              rating: e2eRatings[weekNumber]
+            });
+          }
+        }
+
+        // 16-17: Verify applicant progress/state and complete graduate profile via UI.
+        await browserFlow(runId, `${LOCAL.tenantApplicantUrl}/dashboard/graduate-profile`, async (page) => {
+          await completeBrowserLogin(page, applicantEmail, 'ChangeMe123!');
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          // Fill minimal graduate profile information
+          if (await page.locator('input[name="bio"]').count()) await page.fill('input[name="bio"]', 'E2E graduate bio');
+          if (await page.locator('input[name="skills"]').count()) await page.fill('input[name="skills"]', 'typescript,testing');
+          if (await page.locator('button:has-text("Save")').count()) await page.click('button:has-text("Save")').catch(() => undefined);
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          await captureE2eScreenshot(runId, page, 'e2e-graduate-profile.png');
+          return 'Applicant updated graduate profile via UI';
+        });
+
+        // 18-20: Applicant opens consent page and gives consent via UI (GraduateConsentModal);
+        // /api/graduates/profile/acknowledge auto-publishes the profile since training is
+        // already complete (four ACCEPTED, rated submissions) — verify public discovery next.
+        await browserFlow(runId, `${LOCAL.tenantApplicantUrl}/dashboard/consent`, async (page) => {
+          // The consent-step modal (`GraduateConsentModal`) is a non-scrolling `fixed inset-0`
+          // overlay: once eligible, its mission-ratings content is taller than a normal viewport,
+          // permanently pushing the action buttons below the fold with nothing to scroll — a
+          // Playwright `force` click still requires the target point inside the viewport, so the
+          // fix is a tall-enough viewport, not scrolling.
+          await page.setViewportSize({ width: 1440, height: 2400 });
+          await completeBrowserLogin(page, applicantEmail, 'ChangeMe123!');
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          await captureE2eScreenshot(runId, page, 'e2e-consent.png');
+          // Generous timeouts here too — see the dashboard-nav wait above for why the full
+          // suite's shared dev server needs more headroom than an isolated run.
+          const agreeBtn = page.locator('button:has-text("I Agree & Continue")').first();
+          await agreeBtn.waitFor({ state: 'visible', timeout: 60000 });
+          await agreeBtn.click();
+          await page.waitForSelector('text=Consent recorded', { timeout: 60000 }).catch(() => undefined);
+          await captureE2eScreenshot(runId, page, 'e2e-consent-recorded.png');
+          return 'Applicant gave consent via UI';
+        });
+
+        // 21-23: As anonymous user, open the public graduate directory (evidence that it loads)
+        // and this applicant's own profile directly by slug. The directory list is sorted by
+        // rating and paginated 20-per-page — after many regression runs there can be far more
+        // than 20 published test profiles, so "is some profile linked on page 1" is not a
+        // reliable signal that *this* applicant's profile actually published; going straight to
+        // its known slug is both more precise and immune to that pagination/sort flakiness.
+        const e2eGraduateProfile = await prisma.graduateProfile.findUniqueOrThrow({
+          where: { userId: (await prisma.user.findFirstOrThrow({ where: { email: applicantEmail } })).id },
+          select: { slug: true, publicProfileEnabled: true }
+        });
+        if (!e2eGraduateProfile.publicProfileEnabled) throw new Error('Graduate profile was not published (publicProfileEnabled=false) after consent.');
+        await browserFlow(runId, `${LOCAL.tenantApplicantUrl}/graduates`, async (page) => {
+          await page.waitForLoadState('networkidle').catch(() => undefined);
+          await captureE2eScreenshot(runId, page, 'e2e-public-directory-anon.png');
+          // The [slug] page is a client component: it renders a loading skeleton, fetches
+          // /api/graduates/{slug} in a post-mount useEffect, then re-renders. networkidle
+          // resolves on network quiescence, not on React committing that state update, so a
+          // single textContent() sample right after can race a still-loading DOM (confirmed via
+          // debug run: the API returned 200 and the very next screenshot showed the profile
+          // fully rendered, even though the textContent() read one line earlier came up short).
+          // Wait for either terminal state explicitly instead of sampling once.
+          await page.goto(`${LOCAL.tenantApplicantUrl}/graduates/${e2eGraduateProfile.slug}`, { waitUntil: 'domcontentloaded' });
+          const successLocator = page.locator('text=Verified Graduate');
+          const errorLocator = page.locator('text=Profile not found, text=/doesn.?t exist/i');
+          await Promise.race([
+            successLocator.first().waitFor({ state: 'visible', timeout: 45000 }),
+            errorLocator.first().waitFor({ state: 'visible', timeout: 45000 })
+          ]).catch(() => undefined);
+          await captureE2eScreenshot(runId, page, 'e2e-public-profile-anon.png');
+          if ((await errorLocator.count()) > 0) throw new Error('Public graduate profile page showed a not-found error.');
+          if ((await successLocator.count()) === 0) throw new Error('Public graduate profile page did not reach a success or error state in time.');
+          return 'Public directory and profile loaded and verified';
+        });
+
+        return 'Completed full business E2E journey via UI';
+      }
+    },
   {
     area: "storage",
     name: "Storage browser upload/download scenario",
@@ -3923,12 +4457,101 @@ function quoteForCmd(value: string) {
   return /^[A-Za-z0-9_.:/\\-]+$/.test(value) ? value : `"${value.replaceAll("\"", "\\\"")}"`;
 }
 
+// ─── Playwright browser E2E helpers ───────────────────────────────────────────
+// Reuses the same login pattern as scripts/user-guide/capture-screenshots.ts.
+// Screenshots are written to .ops/evidence/{runId}/screenshots/ and picked up by the
+// existing generate-e2e-report.ts report generator.
+
+let _browser: Browser | null = null;
+
+async function getBrowser(): Promise<Browser> {
+  // The suite reuses one browser across every scenario (~10 minutes, dozens of contexts).
+  // If the underlying browser process crashed or was torn down mid-run, the cached handle
+  // is dead — relaunch rather than handing back a browser every subsequent context.close()
+  // will fail against.
+  if (!_browser || !_browser.isConnected()) {
+    _browser = await chromium.launch({ headless: true });
+  }
+  return _browser;
+}
+
+async function browserFlow(
+  runId: string,
+  url: string,
+  action: (page: Page) => Promise<string>,
+  auth?: { username: string; password: string; finalUrlIncludes?: string }
+): Promise<string> {
+  const browser = await getBrowser();
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+    if (auth) {
+      await completeBrowserLogin(page, auth.username, auth.password);
+    }
+    const result = await action(page);
+    return result;
+  } finally {
+    await context.close();
+  }
+}
+
+async function completeBrowserLogin(page: Page, username: string, password: string) {
+  for (let step = 0; step < 25; step++) {
+    await page.waitForLoadState("domcontentloaded").catch(() => undefined);
+    await page.waitForLoadState("networkidle").catch(() => undefined);
+
+    // Keycloak credential form.
+    const keycloakForm = page.locator("#kc-form-login");
+    if (await keycloakForm.count()) {
+      await page.fill("#username", username);
+      await page.fill("#password", password);
+      await page.click("#kc-login");
+      continue;
+    }
+
+    // Portal "Sign in with Keycloak" button — use click with no-wait, then wait for navigation.
+    const signInButton = page.locator('button:has-text("Sign in with Keycloak")');
+    if (await signInButton.count()) {
+      // Don't let click() wait for navigation — handle it ourselves.
+      await signInButton.first().click({ noWaitAfter: true }).catch(() => undefined);
+      await page.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => undefined);
+      continue;
+    }
+
+    // If we're past login (no form/button found), we're done.
+    return;
+  }
+  throw new Error(`Browser login flow did not converge for ${username} at ${page.url()}`);
+}
+
+async function captureE2eScreenshot(runId: string, page: Page, filename: string) {
+  const dir = resolve(".ops", "evidence", runId, "screenshots");
+  await mkdir(dir, { recursive: true }).catch(() => undefined);
+  await page.screenshot({ path: join(dir, filename), fullPage: true }).catch(() => undefined);
+}
+
+/** Finds the first same-app detail link matching `hrefPart` and returns its absolute URL. */
+async function firstDetailLink(page: Page, hrefPart: string): Promise<string | null> {
+  const links = page.locator(`a[href*="${hrefPart}"]`);
+  const count = await links.count();
+  for (let i = 0; i < count; i++) {
+    const href = await links.nth(i).getAttribute("href");
+    if (!href) continue;
+    const absolute = new URL(href, page.url());
+    const tail = absolute.pathname.split(hrefPart)[1] ?? "";
+    if (tail && tail !== "/" && !tail.startsWith("new")) return absolute.toString();
+  }
+  return null;
+}
+
 main()
   .catch((error) => {
     console.error(error);
     process.exit(1);
   })
   .finally(async () => {
+    if (_browser) await _browser.close().catch(() => undefined);
     if (process.env.REGRESSION_CLEANUP_ON_EXIT === "1") {
       await cleanupRegressionData().catch(() => undefined);
     }

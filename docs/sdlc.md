@@ -34,6 +34,22 @@ Documentation evidence commit: `598ebf7` (baseline commit to be set on merge; la
    Engineering Journal shipped with strong unit coverage but zero scenario-level regression coverage,
    because nothing required the plan to name the scenarios in the first place.)
 
+## Evidence Files + SHA256 Checksums
+
+Every E2E evidence run must produce verifiable artifacts with recorded SHA256 checksums so reviewers
+can confirm the report and screenshots were not tampered with after generation.
+
+1. **Report artifacts** — the HTML and PDF reports in `docs/reports/` are the canonical evidence of a
+   regression run. Their SHA256 checksums are recorded in
+   `docs/reports/evidence-checksums-<run-id>.md`.
+2. **Screenshot checksums** — every PNG in `docs/user-guides/screenshots/` is checksummed into
+   `docs/reports/screenshot-checksums.txt`.
+3. **Verification** — a reviewer can re-run `Get-FileHash` on any artifact and compare against the
+   recorded checksum to verify integrity.
+
+Current evidence run: `regression-20260819064505-8183d879` (63/64 passed, 1 skipped). Checksums in
+[`docs/reports/evidence-checksums-regression-20260819064505-8183d879.md`](reports/evidence-checksums-regression-20260819064505-8183d879.md).
+
 ## Source Control, Branching & Code Review
 
 Source control is operated under a documented policy (`v0.11.2`, D-055) — see

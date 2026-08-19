@@ -10,7 +10,10 @@ Base branch and commit: `origin/main` at `a37a003`
 
 Feature branch and code commit: `feature/e2e-evidence-pipeline` at `598ebf7`
 
-Documentation date: `2026-08-18`
+Documentation date: `2026-08-19`
+
+Latest evidence run: `regression-20260819064505-8183d879` (63/64 passed, 0 failed, 1 skipped, 720.9s).
+Evidence checksums: `docs/reports/evidence-checksums-regression-20260819064505-8183d879.md`.
 
 Latest released baseline: `v0.20.2` at `43e7537` (PR #59)
 
