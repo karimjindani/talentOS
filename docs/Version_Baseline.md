@@ -50,6 +50,7 @@ recruiter-access feature) on top of everything `v0.20.2` already covered.
    three call sites bounded to 5s. See `Decision_Log.md` and the test-results doc for the full
    root-cause writeup.
 5. **`.claude/skills/` tracked in git**, `.gitignore` narrowed to just `.claude/settings.local.json`.
+6. **Dead admin nav item removed** — the `/operations` sidebar link outlived its page.
 
 ## v0.20.3 Documentation Index
 
