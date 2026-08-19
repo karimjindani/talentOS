@@ -104,6 +104,13 @@ jobs:
         if: always()
         run: npm run journeys:report
 
+      # Renders the same evidence into a single PDF (step tables + embedded screenshots) via
+      # Playwright's already-installed Chromium. Falls back to an HTML file instead of failing
+      # the step if no browser is available, so this can never turn a passing run red.
+      - name: Write journey PDF report
+        if: always()
+        run: npm run journeys:report:pdf
+
       # Only useful when the stack itself failed; on success it is noise.
       - name: Collect Docker logs
         if: failure()
@@ -120,6 +127,7 @@ jobs:
             .ops/regression-results/*.json
             .ops/journey-results/*.json
             .ops/journey-evidence/**
+            .ops/journey-report/*
             .ops/docker-logs/*.log
             docs/user-guides/screenshots/*.png
           if-no-files-found: warn
