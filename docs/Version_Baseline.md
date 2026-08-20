@@ -9,10 +9,9 @@ Baseline name: `Full Apprenticeship Arc And Per-Process Evidence Reports`
 Base branch and commit: `origin/main` at `7e2bd14` (merges PR #68, the `v0.20.3` baseline below;
 `v0.20.4` and this iteration are both still local-only, stacked on the same feature branch)
 
-Feature branch and code commit: `feature/v0.20.4-recruiter-access-journey` at `pending` — this
+Feature branch and code commit: `feature/v0.20.4-recruiter-access-journey` at `ae79b8b` — this
 branch now carries both the `v0.20.4` and `v0.20.5` baselines, since neither had been pushed or
-merged before `v0.20.5`'s scope was requested; to be backfilled by the follow-up `Record v0.20.5
-baseline` commit
+merged before `v0.20.5`'s scope was requested
 
 Documentation date: `2026-08-20`
 
