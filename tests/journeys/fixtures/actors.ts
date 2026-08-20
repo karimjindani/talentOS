@@ -12,9 +12,13 @@ export const JOURNEY_PASSWORD = "JourneyPass123!";
 const APPLICANT_PORT = 3100;
 const ADMIN_PORT = 3200;
 
-/** Applicant actors browse the applicant portal; every other actor browses the admin portal. */
+/**
+ * Applicant and recruiter actors browse the applicant portal (the public graduate directory and
+ * `/recruiter` dashboard are both served from that app); every other actor browses the admin
+ * portal.
+ */
 export function portalUrl(actor: Actor, tenantSlug: string): string {
-  const port = actor === "applicant" ? APPLICANT_PORT : ADMIN_PORT;
+  const port = actor === "applicant" || actor === "recruiter" ? APPLICANT_PORT : ADMIN_PORT;
   return `http://${tenantSlug}.lvh.me:${port}`;
 }
 

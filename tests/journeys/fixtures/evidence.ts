@@ -1,4 +1,4 @@
-import type { Actor, JourneyStepRecord } from "./types";
+import type { Actor, JourneyStepRecord, Process } from "./types";
 
 const MAX_FILENAME_LENGTH = 64;
 
@@ -17,6 +17,7 @@ export function buildStepRecord(input: {
   index: number;
   name: string;
   actor: Actor;
+  process: Process;
   proves: string;
   durationMs: number;
   error: string | null;
@@ -26,6 +27,7 @@ export function buildStepRecord(input: {
     index: input.index,
     name: input.name,
     actor: input.actor,
+    process: input.process,
     proves: input.proves,
     status: failed ? "failed" : "passed",
     durationMs: input.durationMs,

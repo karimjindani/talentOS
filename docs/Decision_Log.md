@@ -1448,3 +1448,147 @@ own duplicate `settle`) simply waited until the whole test's budget ran out. Fix
 three to a 5s timeout with the rejection swallowed, mirroring the one call site that already had this
 protection. Verified: the full suite went from a 16.6-minute run with 3 failures to 3.3 minutes with
 8 passed and 1 documented skip, 0 failed, run twice for reproducibility of the fix itself.
+
+## D-104: Recruiter Access Browser Journey, And Injected Tokens Where None Can Be Observed (v0.20.4)
+
+**Context:** `v0.20.3` (D-103) proved the recruiter access-request lifecycle correct at the
+regression/integration level (`packages/db/src/graduates.test.ts`, `regression:public-portal`
+scenarios 6–7), but the `tests/journeys/` browser suite it built covered only the applicant/reviewer
+arc. The original design doc (`docs/designs/2026-08-13-journey-e2e-evidence-design.md`) scoped exactly
+three journeys, none of them recruiter-facing — the graduate-portal/recruiter feature (PR #62) shipped
+through a separate, undocumented path entirely. A user question ("is the recruiter journey covered
+like the others?") surfaced this as a real gap rather than deferred scope: recruiter coverage existed,
+but never through a real browser.
+
+A genuine technical obstacle stood in the way of a naive implementation: `RecruiterAccessRequest.token`
+is stored as `hashToken(rawToken)` only (`packages/db/src/graduates.ts`) and the raw value is never
+returned by any API response, at creation or at approval — the real email route embeds it directly
+inside `approveAccessRequest`'s own request/response cycle. A browser-only journey clicking the real
+"Approve & Send Email" button has no way to discover what token the recruiter would have received,
+and this repo has no mailbox-capture harness (e.g. MailHog) to intercept the actual email.
+
+**Decision:**
+
+1. **`tests/journeys/recruiter-access.spec.ts`** adds a fourth journey: `recruiter` submits the
+   directory's "Access Full Profiles" modal (`RecruiterAccessModal.tsx`, posting to
+   `/api/graduates/request-access` — a single global request, not per-graduate; the older
+   slug-specific `RecruiterAccessForm.tsx` component is dead code, unused by any page), the
+   still-PENDING request is refused, `ORG_ADMIN` approves via a real `/recruiter-requests/[id]`
+   browser session, the recruiter verifies and reaches the full portfolio (`/graduates/verify`'s own
+   client-side redirect, not a followed link), saves the candidate, the admin revokes access, and the
+   same token is refused again. A second test proves the pending/rejected refusal UI states render
+   correctly, including the admin's stated rejection reason.
+2. **Known-token injection, not email capture.** Immediately after each real state transition
+   (PENDING creation, APPROVED via the real browser click), a `system`-labeled step generates its own
+   raw token and overwrites `RecruiterAccessRequest.token` with its hash directly via Prisma — the
+   same "bypass the UI for what a browser genuinely cannot observe" pattern `applicant-arc.spec.ts`
+   already established for its own `system` steps (Keycloak user creation, the final submission
+   transition). This proves the verification endpoint and its UI, not email delivery; documented
+   explicitly in the plan and inline so it isn't mistaken for a weaker guarantee than it is.
+3. **`recruiter` joins the journey harness's `Actor` union** (`tests/journeys/fixtures/types.ts`) as
+   the one actor that never authenticates via Keycloak SSO; `portalUrl()` (`fixtures/actors.ts`)
+   routes it to the applicant app's port, since the public graduate directory and `/recruiter`
+   dashboard are both served from there, not the admin app every other non-applicant actor uses.
+4. **`tests/journeys/fixtures/graduate.ts`** seeds the one published, consented graduate every step
+   needs, built directly against the same `@talentos/db` business-logic functions the applicant
+   portal itself calls (a dedicated program, four missions, four accepted+rated submissions,
+   `createOrUpdateGraduateProfile`) rather than by driving a second full browser arc through mission
+   completion — `applicant-arc.spec.ts` already proves that end-to-end, and re-proving it here would
+   only slow this journey down without adding coverage.
+
+**Rationale:** Injecting a known token is the only approach that lets a real browser session drive
+`/graduates/verify` at all, given the token is a one-way hash by design (correctly — the alternative,
+returning the raw token from an API response so a test could read it, would be a real security
+regression for a test-only convenience). Building a mailbox-capture harness to intercept the actual
+email was rejected as disproportionate: it would prove email delivery, not the recruiter-facing UI
+this journey exists to cover, and no other part of this repo has that infrastructure yet.
+
+**Alternatives considered:** Bypassing the admin's browser click entirely and calling
+`approveAccessRequest` directly (as a `system` step) was considered and rejected — unlike the token
+problem, nothing prevents the real "Approve & Send Email" button from being clicked and observed, and
+doing so proves the button's own state transition, not just the underlying function. The token
+injection is scoped as narrowly as the actual constraint requires: only the unobservable value is
+harness-supplied, not the transition itself.
+
+**Consequences:** Two real fixture bugs were found and fixed by running this journey against the live
+local stack rather than trusting `scripts/regression/run.ts`'s analogous fixture read alone:
+`assignWeekMissionToAcceptedApplicant` requires an `ACCEPTED` `Application` row, not just a
+`TenantMembership`; and `submitSubmission`'s readiness gate requires 4 journal entries per assignment
+attempt server-side (`getMissionSubmissionReadiness`), not only enforced by the applicant portal's own
+date-picker UI. `docs/designs/2026-08-13-journey-e2e-evidence-design.md`'s journey list grows from
+three to four. The graduate-portal/recruiter feature (PR #62) remains otherwise undocumented in
+`Data_Model.md`, `Data_Dictionary.md`, `Architecture.md` (beyond the journey/regression pointers) and
+the user guides — unchanged from the gap `v0.20.3` (D-103) already recorded, not newly introduced or
+newly closed by this iteration.
+
+## D-105: Full Apprenticeship Arc Through Publishing, And Per-Process Evidence Reports (v0.20.5)
+
+**Context:** `applicant-arc.spec.ts` (`v0.20.3`) proved only the Week 1 slice of the apprenticeship
+arc through a real browser — sign up, apply, accept, journal, submit, and the revision loop — then
+stopped. Nothing ever drove an applicant through all four missions to graduation, and nothing ever
+proved the consent-and-publish flow (the mechanism that actually puts a graduate on the public
+portal) through a browser at all; that flow existed only as DB-level regression coverage
+(`v0.20.3`, D-103). Separately, the combined evidence PDF (one file, one section per journey/spec
+file) didn't map onto how the business actually thinks about this product: five distinct
+processes — signup/approval, mission acceptance, submission/acceptance, the final mission plus
+publishing, and the recruiter journey — that a reviewer would want to hand someone as five separate
+documents, not one file to page through.
+
+**Decision:**
+
+1. **`applicant-arc.spec.ts` now drives all four missions to graduation.** Weeks 2-4 accept on the
+   first submission; week 1 alone keeps the `NEEDS_REVISION` → feedback → resubmit → accepted
+   sequence, so that existing proof isn't lost, and its acceptance still auto-advances week 2 the
+   same way every other week's acceptance auto-advances the next
+   (`reviewSubmission`'s existing `weekNumber < FINAL_PROGRAM_WEEK` branch — no new assignment
+   logic was added; this journey proves existing behavior end-to-end for the first time). After
+   week 4's acceptance, the applicant reaches `/dashboard`, the consent gate now shows
+   (`isGraduateConsentRequired`), agreeing auto-publishes because training is complete
+   (`/api/graduates/profile/acknowledge`), and a final step confirms the graduate is now
+   findable in the public, unauthenticated `/graduates` directory.
+2. **`tests/journeys/fixtures/tenant.ts` publishes all four weekly missions up front** instead of
+   one; `JourneyTenant.missionId` becomes `missionIds: string[]`.
+3. **Every journey step now carries a `process` tag** (`tests/journeys/fixtures/types.ts`'s new
+   `PROCESSES` list — the 5 names above, in report order) instead of being grouped only by which
+   spec file produced it.
+4. **`scripts/ci/journey-pdf-report.ts` renders one PDF per process** (5 files) instead of one
+   combined report with a page-break per journey, redesigned to match a reference test-report's
+   structural language — eyebrow header, stat tiles, a note callout, numbered/badged step
+   cards — using talentOS's own brand blue/navy rather than the reference's own unrelated color
+   scheme (a layout guide, not a brand asset to copy literally).
+
+**Rationale:** Reusing the single continuous `applicant-arc` Playwright test (rather than splitting
+it into 4 independent specs, one per process) avoids each later process needing to fast-forward
+through everything before it via direct database calls just to reach its own starting state — which
+would mean the "submission & acceptance" process, say, never actually proves signup or mission
+acceptance through a browser at all, undermining the entire point of a browser journey for that
+slice. Tagging steps with a `process` field and grouping in the *report* layer gets both: one
+continuous, realistic browser session, and reporting organized the way the business actually
+thinks about the product.
+
+**Alternatives considered:** Matching the reference report's exact section types (a tabular
+test-case sheet, a separate screenshot gallery distinct from the request/response detail view) was
+rejected — that reference mixes genuinely different content types per section (API pairs, UI
+screens, a test-case table); this report has exactly one content type (an E2E step), so forcing an
+artificial detail/gallery split of the same screenshots would be visual complexity without a
+matching difference in the underlying data.
+
+**Consequences:** Six real issues were found and fixed by running both journeys against the live
+stack rather than trusting the code read alone — none of them application bugs (see the
+test-results doc for the full list): the submission-review page's actual accept-button text and
+required rating field; `DashboardConsentGate`'s transient success text being replaced by an
+immediate redirect; the public directory's pagination/sort making a bare visibility assertion
+fragile once more than one graduate exists in the database; `/api/graduates/request-access`
+attaching every request to "the first public graduate profile" rather than the requesting run's
+own, making `recruiter-access.spec.ts`'s redirect-target assertion fragile the same way; and the
+applicant's Prisma `User` row never having been marked for regression cleanup at all (harmless
+before this iteration, since no journey ever published a profile from it — 28 orphaned applicant
+`User` rows, several already carrying a published `GraduateProfile`, had accumulated in the local
+database from this session's own testing before the fix landed). `RecruiterAccessRequest` joins
+`RegressionDataMarker`'s tracked entity types (`packages/db/src/regression.ts`) for the same
+reason `RecruiterAccount` did in `v0.20.3` (D-103) — a resource this run creates but does not
+reliably own the cleanup cascade for. `/api/graduates/profile/acknowledge`'s placeholder profile
+sets `overallRating: 0` unconditionally (unlike `createOrUpdateGraduateProfile`, which computes the
+real average) — now visible in this journey's own PDF evidence for the first time; recorded in
+`Regression_Scenarios.md` Known Gaps as observed, not fixed, since changing it is an app-behavior
+decision outside this iteration's scope.

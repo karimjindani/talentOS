@@ -53,10 +53,10 @@ runner rather than leaving either as a local/Ops-Console-only capability.
 | Browser | `npx playwright install --with-deps chromium chromium-headless-shell` | `@playwright/test` is already a dependency; only the binaries and system libs are missing. `chromium-headless-shell` is named explicitly — the journeys run headless, which uses that separate binary, and a repo-local install once held `chromium` without it |
 | Bootstrap | `npm run local:bootstrap` | `docker compose up --build`, Keycloak realm wait, `db:generate`/`migrate`/`seed`, host-run Ops console |
 | Scenarios | `npm run regression:all` | All scenario areas; exits non-zero on any failure |
-| Journeys | `npm run journeys` | The Playwright `applicant-arc` and `docs-only` projects; drives a real browser through the applicant/admin portals. `if: always()` — a failing scenario run still shows how far a real user got |
+| Journeys | `npm run journeys` | The Playwright `applicant-arc`, `recruiter-access` (`v0.20.4`) and `docs-only` projects; drives a real browser through the applicant/admin portals. `if: always()` — a failing scenario run still shows how far a real user got |
 | Summary | `npx tsx scripts/ci/regression-summary.ts` | Renders the scenario-run result JSON into the run's step summary |
 | Journey evidence | `npm run journeys:report` | Renders each journey's steps into the step summary and a per-journey `evidence.md` |
-| Journey PDF report | `npm run journeys:report:pdf` | Combines every journey's step table and embedded screenshots into one PDF via Playwright's own Chromium; falls back to writing the HTML directly rather than failing the step if no browser is available |
+| Journey PDF report | `npm run journeys:report:pdf` | Groups every journey step by its `process` tag and renders one PDF per named business process (`v0.20.5`; 5 files) via Playwright's own Chromium; falls back to one HTML file per process rather than failing the step if no browser is available |
 | Evidence | `actions/upload-artifact@v4` | `e2e-evidence-<run number>`, 30-day retention |
 
 Properties worth knowing:

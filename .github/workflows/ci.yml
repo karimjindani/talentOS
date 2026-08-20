@@ -104,9 +104,10 @@ jobs:
         if: always()
         run: npm run journeys:report
 
-      # Renders the same evidence into a single PDF (step tables + embedded screenshots) via
-      # Playwright's already-installed Chromium. Falls back to an HTML file instead of failing
-      # the step if no browser is available, so this can never turn a passing run red.
+      # Renders the same evidence into one PDF per named business process (v0.20.5) rather than a
+      # single combined report, via Playwright's already-installed Chromium. Falls back to one
+      # HTML file per process instead of failing the step if no browser is available, so this can
+      # never turn a passing run red.
       - name: Write journey PDF report
         if: always()
         run: npm run journeys:report:pdf

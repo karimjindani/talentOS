@@ -17,6 +17,13 @@ export type RegressionEntityType =
   // cascades from nothing the rest of this cleanup deletes — it must be marked and swept
   // explicitly or every regression run touching the public-portal recruiter flow leaks one row.
   | "RecruiterAccount"
+  // RecruiterAccessRequest.graduate cascades from GraduateProfile/User (Prisma onDelete: Cascade)
+  // — but only when the request happens to be attached to a graduate *this run itself created*.
+  // The real request-access route attaches every submission to "the first public graduate
+  // profile" in the whole database (apps/applicant/app/api/graduates/request-access/route.ts),
+  // not necessarily one this run owns, so relying on that cascade alone leaves the row orphaned
+  // forever whenever some other fixture's graduate happens to be "first" (found live, v0.20.5).
+  | "RecruiterAccessRequest"
   // Reaped over Keycloak's Admin REST API after the Prisma transaction commits — it cannot
   // participate in that transaction (v0.20.3, D-103).
   | "KeycloakUser";
@@ -44,8 +51,11 @@ export const REGRESSION_CLEANUP_ORDER = [
   "TenantMembership",
   "User",
   "Tenant",
-  // Independent of the User/Tenant chain above — order relative to it doesn't matter.
-  "RecruiterAccount"
+  // Independent of the User/Tenant chain above — order relative to it doesn't matter. Deleted by
+  // explicit marked ID, not cascade, so its own order relative to RecruiterAccount doesn't matter
+  // either (RecruiterAccessRequest.recruiter is onDelete: SetNull, not a blocking FK either way).
+  "RecruiterAccount",
+  "RecruiterAccessRequest"
 ] as const satisfies readonly RegressionEntityType[];
 
 export function markRegressionData(input: RegressionMarkerInput) {
@@ -124,5 +134,7 @@ async function deleteMarkedEntities(
       return (await tx.tenant.deleteMany({ where: { id: { in: ids } } })).count;
     case "RecruiterAccount":
       return (await tx.recruiterAccount.deleteMany({ where: { id: { in: ids } } })).count;
+    case "RecruiterAccessRequest":
+      return (await tx.recruiterAccessRequest.deleteMany({ where: { id: { in: ids } } })).count;
   }
 }

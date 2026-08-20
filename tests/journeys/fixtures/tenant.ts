@@ -13,13 +13,19 @@ export type JourneyTenant = {
   tenantId: string;
   tenantSlug: string;
   programId: string;
-  missionId: string;
+  /** Index 0 = week 1 … index 3 = week 4 (`FINAL_PROGRAM_WEEK`). */
+  missionIds: string[];
   adminUserId: string;
   adminEmail: string;
 };
 
+const FINAL_PROGRAM_WEEK = 4;
+const DIFFICULTIES = ["BEGINNER", "INTERMEDIATE", "ADVANCED", "EXPERT"] as const;
+
 /**
- * Creates a tenant owned by this run, with one published program and one published Week 1 mission.
+ * Creates a tenant owned by this run, with one published program and all four weekly missions
+ * published (v0.20.5: `applicant-arc.spec.ts` drives the full apprenticeship arc through to
+ * graduation, not just week 1).
  *
  * Journeys do not share the seeded `demo` tenant: publishing a mission resumes every applicant stuck
  * on a dangling REPEAT across the whole program (D-097), so a journey publishing into `demo` would
@@ -58,27 +64,31 @@ export async function provisionJourneyTenant(runId: string): Promise<JourneyTena
     actorUserId: adminUserId
   });
 
-  const mission = await createMission({
-    tenantId,
-    programId: program.id,
-    title: "Journey Week 1 Mission",
-    difficulty: "BEGINNER",
-    status: "PUBLISHED",
-    weekNumber: 1,
-    order: 1,
-    brief: "Build and ship the Week 1 deliverable.",
-    objective: "Demonstrate the end-to-end submission workflow.",
-    acceptanceCriteria: "A deployed URL, a repository URL and a walkthrough recording.",
-    deliverables: "Repository, deployment, recording.",
-    evaluationCriteria: "Completeness, clarity, working deployment.",
-    competencyTags: ["delivery"],
-    tutorialUrl: null,
-    actorUserId: adminUserId
-  });
+  const missionIds: string[] = [];
+  for (let weekNumber = 1; weekNumber <= FINAL_PROGRAM_WEEK; weekNumber += 1) {
+    const mission = await createMission({
+      tenantId,
+      programId: program.id,
+      title: `Journey Week ${weekNumber} Mission`,
+      difficulty: DIFFICULTIES[weekNumber - 1],
+      status: "PUBLISHED",
+      weekNumber,
+      order: 1,
+      brief: `Build and ship the Week ${weekNumber} deliverable.`,
+      objective: "Demonstrate the end-to-end submission workflow.",
+      acceptanceCriteria: "A deployed URL, a repository URL and a walkthrough recording.",
+      deliverables: "Repository, deployment, recording.",
+      evaluationCriteria: "Completeness, clarity, working deployment.",
+      competencyTags: ["delivery"],
+      tutorialUrl: null,
+      actorUserId: adminUserId
+    });
+    missionIds.push(mission.id);
+    await markRegressionData({ runId, entityType: "Mission", entityId: mission.id });
+  }
 
   // Registered newest-first is unnecessary: cleanup walks REGRESSION_CLEANUP_ORDER, not insert order.
   for (const [entityType, entityId] of [
-    ["Mission", mission.id],
     ["Program", program.id],
     ["User", adminUserId],
     ["Tenant", tenantId]
@@ -90,7 +100,7 @@ export async function provisionJourneyTenant(runId: string): Promise<JourneyTena
     tenantId,
     tenantSlug: slug,
     programId: program.id,
-    missionId: mission.id,
+    missionIds,
     adminUserId,
     adminEmail
   };
