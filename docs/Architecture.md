@@ -1,16 +1,19 @@
 # TalentOS Architecture
 
-Code version: `v0.20.3`
+Code version: `v0.20.5`
 
-Architecture evidence commit: `5560ccf` (+ `v0.20.3` uncommitted at documentation time)
+Architecture evidence commit: `5560ccf` (+ `v0.20.3`/`v0.20.4`/`v0.20.5` uncommitted at documentation time)
 
-Current documentation update: `v0.20.3`
+Current documentation update: `v0.20.5`
 
 > Note: the public graduate-portal/recruiter-access feature (PR #62) is not yet reflected in the
 > Portal Layout or Multi-Tenancy sections below — it merged without SSDLC documentation. `v0.20.3`
 > (D-103) adds the Journey E2E Evidence Pipeline section beneath Scenario Regression Architecture and
-> a `public-portal` regression area entry, but does not backfill the feature's own architecture
-> description; see `Regression_Scenarios.md` Known Gaps.
+> a `public-portal` regression area entry; `v0.20.4` (D-104) extends that pipeline with a second,
+> recruiter-facing journey; `v0.20.5` (D-105) extends `applicant-arc` into the full apprenticeship
+> arc through publishing and reorganizes the pipeline's PDF evidence by business process. None of
+> these backfill the feature's own architecture description; see `Regression_Scenarios.md` Known
+> Gaps.
 
 ## Overview
 
@@ -529,7 +532,7 @@ Scenario-generated records must be tagged through `RegressionDataMarker` before 
 The cleanup path deletes only marker-tagged records in dependency order and must not touch seeded demo
 data or user-created records.
 
-## Journey E2E Evidence Pipeline (`v0.20.3`)
+## Journey E2E Evidence Pipeline (`v0.20.3`, extended `v0.20.4`/`v0.20.5`)
 
 A second, complementary regression layer: where the scenario runner above proves logical product
 areas through HTTP/DB-level assertions, `tests/journeys/` drives real multi-actor browser sessions
@@ -537,25 +540,57 @@ through the applicant and admin portals end to end, producing evidence a human r
 look at rather than a pass/fail count.
 
 - **`fixtures/journey.ts`** provisions a fully isolated tenant per run (`jrn-<runId>.lvh.me`), hands
-  each actor (applicant, reviewer, …) its own independent `BrowserContext` so simultaneous sessions are
-  genuinely separate, captures a full-page screenshot after every step
+  each actor (applicant, reviewer, recruiter, …) its own independent `BrowserContext` so simultaneous
+  sessions are genuinely separate, captures a full-page screenshot after every step
   (`.ops/journey-evidence/<journey>/<runId>/`), and writes a `JourneyRecord` JSON
   (`.ops/journey-results/`). Teardown is layered — a Prisma transaction, direct Keycloak user
   deletion, then a 24h orphan sweep for runs killed before reaching teardown — because a leaked
   Keycloak identity has no marker row to find it by later.
-- **`applicant-arc.spec.ts`** is a 13-step journey covering signup through admin acceptance, mission
-  work, and submission review. **`docs-only.spec.ts`** is 7 screenshot-and-assert blocks covering
-  every other portal surface, replacing the retired `scripts/user-guide/capture-screenshots.ts` (which
-  photographed pages but asserted nothing).
-- CI (`e2e-evidence` job) runs both after the scenario suite and renders the result three ways: a
-  Markdown step summary, a per-journey `evidence.md`, and a single combined PDF with every journey's
-  step table and embedded screenshots (`scripts/ci/journey-pdf-report.ts`, via Playwright's own
-  already-installed Chromium — a deliberate departure from `apps/applicant/lib/candidate-report.ts`'s
-  hand-rolled dependency-free PDF writer, which exists specifically for a live Next.js API route with
-  no browser available, a constraint that does not apply to a CI step).
-- `KeycloakUser` and `RecruiterAccount` extend the `RegressionDataMarker` cleanup entity types this
-  layer and the public-portal work introduced — see `Regression_Scenarios.md` Data Ownership and
-  Cleanup.
+- **`applicant-arc.spec.ts`** (`v0.20.5`, D-105) is a 38-step journey covering the full four-week
+  apprenticeship arc: signup, application, admin acceptance, then per week — acceptance, journal,
+  mission tasks, evidence submission and admin review — with week 1 alone still proving the
+  `NEEDS_REVISION` → feedback → resubmit → accepted revision loop `v0.20.3` added; every week's
+  acceptance auto-advances to the next via `reviewSubmission`'s existing behavior
+  (`packages/db/src/submissions.ts`, `weekNumber < FINAL_PROGRAM_WEEK`). Week 4's acceptance is
+  followed by the applicant agreeing to `DashboardConsentGate`'s consent gate, which auto-publishes
+  the profile immediately (training is already complete), and a final step confirming the graduate
+  is now findable in the public, unauthenticated `/graduates` directory — the loop this journey
+  exists to prove, closed end to end rather than stopping at a DB flag.
+  **`recruiter-access.spec.ts`** (`v0.20.4`, D-104) is two journeys
+  covering the recruiter access-request lifecycle (submit → PENDING refused → admin approves →
+  verify → portfolio → save candidate → admin revokes → refused again) and the pending/rejected
+  refusal states, across both the applicant portal's public surface and the admin portal's
+  `/recruiter-requests` review UI. `recruiter` is the one actor in this suite that never
+  authenticates via Keycloak SSO (`fixtures/actors.ts`'s `portalUrl()` routes it to the applicant
+  app's port like `applicant`, not the admin port every other actor uses), and its access token is
+  architecturally unrecoverable from any browser-observable response (`RecruiterAccessRequest.token`
+  is a one-way hash — see `packages/db/src/graduates.ts`), so the fixture injects a known raw token
+  directly via Prisma immediately after each real state transition rather than parsing an email.
+  **`docs-only.spec.ts`** is 7 screenshot-and-assert blocks covering every other portal surface,
+  replacing the retired `scripts/user-guide/capture-screenshots.ts` (which photographed pages but
+  asserted nothing).
+- **`fixtures/graduate.ts`** (`v0.20.4`) seeds the one published, consented graduate every
+  `recruiter-access` step needs, built directly against the same `@talentos/db` business-logic
+  functions the applicant portal calls (four missions, four accepted+rated submissions,
+  `createOrUpdateGraduateProfile`) rather than by driving a real browser through that arc a second
+  time — `applicant-arc.spec.ts` already proves that end-to-end.
+- **Every step carries a `process` tag** (`v0.20.5`; `tests/journeys/fixtures/types.ts`'s
+  `PROCESSES`, a fixed 5-name list: Applicant Signup & Approval, Mission Acceptance & Journal,
+  Submission & Mission Acceptance, Final Mission & Public Profile, Recruiter Journey) naming which
+  named business process it belongs to, independent of which spec file produced it — the report
+  layer below groups by this, not by journey name.
+- CI (`e2e-evidence` job) runs all three specs after the scenario suite and renders the result three
+  ways: a Markdown step summary, a per-journey `evidence.md`, and **one PDF per named business
+  process** (`v0.20.5`; previously a single combined PDF) with that process's step cards and
+  embedded screenshots (`scripts/ci/journey-pdf-report.ts` — `flattenSteps`/`groupByProcess`/
+  `buildProcessReportHtml` — via Playwright's own already-installed Chromium, a deliberate
+  departure from `apps/applicant/lib/candidate-report.ts`'s hand-rolled dependency-free PDF writer,
+  which exists specifically for a live Next.js API route with no browser available, a constraint
+  that does not apply to a CI step). `docs-only.spec.ts` has no natural process and keeps its own
+  screenshot set, unaffected.
+- `KeycloakUser`, `RecruiterAccount` and `RecruiterAccessRequest` (`v0.20.5`) extend the
+  `RegressionDataMarker` cleanup entity types this layer and the public-portal work introduced —
+  see `Regression_Scenarios.md` Data Ownership and Cleanup.
 
 ## Engineering To-Do List
 

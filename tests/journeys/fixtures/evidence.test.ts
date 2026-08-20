@@ -18,11 +18,14 @@ describe("screenshotFilename", () => {
 });
 
 describe("buildStepRecord", () => {
-  const base = { index: 1, name: "Signs up", actor: "applicant" as const, proves: "Creates a user", durationMs: 1200 };
+  const base = {
+    index: 1, name: "Signs up", actor: "applicant" as const,
+    process: "Applicant Signup & Approval" as const, proves: "Creates a user", durationMs: 1200
+  };
 
   it("records a passing step with its screenshot", () => {
     expect(buildStepRecord({ ...base, error: null })).toEqual({
-      index: 1, name: "Signs up", actor: "applicant", proves: "Creates a user",
+      index: 1, name: "Signs up", actor: "applicant", process: "Applicant Signup & Approval", proves: "Creates a user",
       status: "passed", durationMs: 1200, screenshot: "01-signs-up.png"
     });
   });
@@ -37,7 +40,10 @@ describe("buildStepRecord", () => {
 });
 
 describe("journeyStatus", () => {
-  const passing = { index: 1, name: "a", actor: "applicant" as const, proves: "p", status: "passed" as const, durationMs: 1, screenshot: "01-a.png" };
+  const passing = {
+    index: 1, name: "a", actor: "applicant" as const, process: "Applicant Signup & Approval" as const,
+    proves: "p", status: "passed" as const, durationMs: 1, screenshot: "01-a.png"
+  };
 
   it("passes only when every step passed", () => {
     expect(journeyStatus([passing, { ...passing, index: 2 }])).toBe("passed");

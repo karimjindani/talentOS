@@ -1,8 +1,18 @@
 # Deployment
 
-Code version: `v0.20.3`
+Code version: `v0.20.5`
 
 Deployment evidence commit: `2b3afce`
+
+> `v0.20.5` (Full Apprenticeship Arc And Per-Process Evidence Reports, D-105) requires no
+> deployment, topology, Keycloak, or environment-variable change — an expanded journey spec and a
+> restructured PDF report generator run only in CI/local development against the already-running
+> stack, no application source changed.
+
+> `v0.20.4` (Recruiter Access Browser Journey, D-104) requires no deployment, topology, Keycloak, or
+> environment-variable change — a fourth Playwright project (`recruiter-access`) added to an existing
+> config runs only in CI/local development against the already-running stack, no application source
+> changed.
 
 > `v0.20.3` (Journey E2E Evidence Pipeline And Public-Portal Fixes, D-103) requires no deployment,
 > topology, Keycloak, or environment-variable change — the journey suite and its PDF report run only

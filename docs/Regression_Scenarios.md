@@ -125,6 +125,30 @@ Verified on the rebuilt local stack: `regression:all` run `regression-2026081910
 | An approved recruiter access request is verified, grants access to every published graduate, and revocation removes it everywhere | `regression:public-portal`; `packages/db/src/graduates.test.ts` | Automated |
 | Pending and rejected recruiter access requests cannot be verified, and the rejection reason reaches the recruiter | `regression:public-portal`; `packages/db/src/graduates.test.ts` | Automated |
 
+## v0.20.4 Plan Scenario Traceability
+
+Names match `docs/plans/v0.20.4_Recruiter_Access_Browser_Journey.md` one-for-one. Verified on the
+rebuilt local stack: `npm run journeys:recruiter` (2/2 passed) and `npm run journeys:applicant`
+(1/1 passed, regression check for the shared `Actor`/`portalUrl` fixture changes both journeys use).
+
+| Plan scenario | Coverage | Status |
+| --- | --- | --- |
+| Recruiter completes the full access-request lifecycle through real browser sessions on both portals | `tests/journeys/recruiter-access.spec.ts` (`journeys:recruiter`) | Automated |
+| Pending and rejected recruiter access requests are refused in the browser, with the rejection reason shown on-page | `tests/journeys/recruiter-access.spec.ts` (`journeys:recruiter`) | Automated |
+
+## v0.20.5 Plan Scenario Traceability
+
+Names match `docs/plans/v0.20.5_Full_Apprenticeship_Arc_And_Per_Process_Evidence_Reports.md`
+one-for-one. Verified on the rebuilt local stack: `npm run journeys:applicant` (1/1, 38 steps) and
+`npm run journeys:recruiter` (2/2) run together, `npm run journeys:report:pdf` (5 PDFs, one per
+process), and `npm run regression:all` (58/59 passed, 0 failed, 1 documented skip, run
+`regression-20260820070848-83fcda66`).
+
+| Plan scenario | Coverage | Status |
+| --- | --- | --- |
+| An applicant completes all four apprenticeship missions through a real browser session and their profile publishes to the public portal | `tests/journeys/applicant-arc.spec.ts` (`journeys:applicant`) | Automated |
+| Journey evidence is produced as one PDF per named business process, not one combined report | `scripts/ci/journey-pdf-report.ts` (`journeys:report:pdf`) | Automated |
+
 ## Execution Areas
 
 | Area | Command | Current status |
@@ -256,6 +280,11 @@ Current marker-tagged entity types:
 - `RecruiterAccount` — added v0.20.3 (D-103): has no relation back to `User`/`Tenant`, so nothing in
   the rest of the cleanup chain could ever reach it; every regression run touching the recruiter flow
   would have leaked one row without this.
+- `RecruiterAccessRequest` — added v0.20.5 (D-105): `graduate` cascades from `GraduateProfile`/`User`
+  in principle (Prisma `onDelete: Cascade`), but `/api/graduates/request-access` attaches every
+  request to "the first public graduate profile" in the whole database, not necessarily one the
+  requesting run owns — so that cascade only fires when the attached graduate happens to belong to
+  the same run. Found live once the local database held more than one published graduate.
 
 The cleanup command is:
 
@@ -272,8 +301,15 @@ Cleanup rules:
 5. Prefer deterministic regression names such as `regression-<runId>` and
    `applicant+<runId>@regression.talentos.local`.
 
-## Known Gaps (as of `v0.20.3`)
+## Known Gaps (as of `v0.20.5`)
 
+- **`/api/graduates/profile/acknowledge`'s placeholder-profile path sets `overallRating: 0`
+  unconditionally**, unlike `createOrUpdateGraduateProfile` (which computes the real average from
+  `getCompletionSnapshot`). A profile published through the dashboard consent gate alone (no
+  `GraduateProfileForm` submission — the path `applicant-arc.spec.ts` exercises, matching what a
+  real applicant does from `/dashboard`) shows "0.0" in the public directory even with four real
+  reviewer ratings behind it. Observed via this iteration's own PDF evidence, not fixed —
+  changing it is an app-behavior decision outside a test-coverage iteration's scope. See `D-105`.
 - **The graduate-portal/recruiter feature (PR #62) remains undocumented** in `Data_Model.md`,
   `Data_Dictionary.md`, `Architecture.md` (beyond a pointer to the journey/regression pipelines that
   now test parts of it) and the user guides, beyond the specific consent decline/skip behavior
@@ -292,9 +328,12 @@ Cleanup rules:
   regression scenarios depend on. A seed-data fix is its own iteration.
 - Full browser-level Playwright coverage is not yet complete for every scenario. The runner currently
   combines OIDC HTTP login flows with DB/service-level scenario checks. The `tests/journeys/` suite
-  (v0.20.3) is a separate, complementary layer that does drive a real browser end to end for the
-  applicant/admin portals — see `Architecture.md`'s Journey E2E Evidence Pipeline section — but it
-  covers one journey (`applicant-arc`) plus documentation screenshots, not every scenario below.
+  (v0.20.3, extended v0.20.4/v0.20.5) is a separate, complementary layer that does drive a real
+  browser end to end — see `Architecture.md`'s Journey E2E Evidence Pipeline section — but it covers
+  two journeys (`applicant-arc`, now the full four-week apprenticeship arc through publishing;
+  `recruiter-access`) plus documentation screenshots, not every scenario below. Journeys 2 (admin
+  authoring) and 3 (org onboarding + team collaboration) from the original design doc remain
+  deferred.
 - Storage upload/download is documented but not automated.
 - ~~Cross-tenant route-level denial needs a second regression tenant fixture and browser route
   checks.~~ **Closed in `v0.20.1`** at the data-access layer by three `regression:tenant` scenarios

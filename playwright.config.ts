@@ -8,7 +8,7 @@
  *     directory before both the install and any test run.
  *
  * Usage:
- *   npx playwright test [--project=applicant-arc|docs-only] [--grep pattern]
+ *   npx playwright test [--project=applicant-arc|recruiter-access|docs-only] [--grep pattern]
  *
  * Outputs:
  *   - .ops/playwright-report/ (HTML report)
@@ -48,6 +48,7 @@ export default defineConfig({
   },
   projects: [
     { name: "applicant-arc", use: { ...devices["Desktop Chrome"] }, testMatch: /applicant-arc\.spec\.ts/ },
+    { name: "recruiter-access", use: { ...devices["Desktop Chrome"] }, testMatch: /recruiter-access\.spec\.ts/ },
     { name: "docs-only", use: { ...devices["Desktop Chrome"] }, testMatch: /docs-only\.spec\.ts/ }
   ]
 });

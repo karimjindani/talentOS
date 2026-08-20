@@ -31,6 +31,7 @@
     "regression:all": "tsx scripts/regression/run.ts all",
     "journeys": "playwright test",
     "journeys:applicant": "playwright test --project=applicant-arc",
+    "journeys:recruiter": "playwright test --project=recruiter-access",
     "journeys:docs": "playwright test --project=docs-only",
     "journeys:report": "tsx scripts/ci/journey-report.ts",
     "journeys:report:pdf": "tsx scripts/ci/journey-pdf-report.ts",

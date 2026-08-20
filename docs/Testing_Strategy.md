@@ -1,8 +1,8 @@
 # Testing Strategy
 
-Code version: `v0.20.3`
+Code version: `v0.20.5`
 
-Test evidence commit: `43e7537` (+ `v0.20.3` uncommitted at documentation time)
+Test evidence commit: `43e7537` (+ `v0.20.3`/`v0.20.4`/`v0.20.5` uncommitted at documentation time)
 
 ## Goals
 
@@ -13,11 +13,12 @@ The regression suite has three layers:
 - Unit regression: fast Vitest coverage for utilities, server actions, guards and DB helpers.
 - Scenario regression: local-development journeys that exercise logical product areas end to end through
   OIDC login flows, portal routes and database state transitions.
-- Journey E2E evidence (`v0.20.3`): Playwright-driven, multi-actor browser sessions that exercise a
-  whole real user arc through the applicant/admin portals — not HTTP/DB-level assertions like the
-  scenario runner above, but the actual UI a reviewer would see — producing screenshot evidence, a
-  Markdown summary and a combined PDF report. See the dedicated section below and
-  `Architecture.md`'s Journey E2E Evidence Pipeline section.
+- Journey E2E evidence (`v0.20.3`, extended `v0.20.4`/`v0.20.5`): Playwright-driven, multi-actor
+  browser sessions that exercise a whole real user arc through the applicant/admin portals — not
+  HTTP/DB-level assertions like the scenario runner above, but the actual UI a reviewer would see —
+  producing screenshot evidence, a Markdown summary, and one PDF report per named business process
+  (`v0.20.5`). See the dedicated section below and `Architecture.md`'s Journey E2E Evidence Pipeline
+  section.
 
 The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts plus
 individual scenario rows after each run.
@@ -226,7 +227,7 @@ coverage matrix.
   (below) covers the same screenshot set while also asserting the page actually rendered what it
   claims to document.
 
-### Journey E2E Evidence Pipeline (v0.20.3)
+### Journey E2E Evidence Pipeline (v0.20.3, extended v0.20.4/v0.20.5)
 
 A Playwright-driven `tests/journeys/` suite complements the scenario runner above with real,
 multi-actor browser sessions — not HTTP/DB-level assertions, but the actual UI a reviewer or new
@@ -236,18 +237,45 @@ team member would see, captured as evidence.
   (`jrn-<runId>.lvh.me`), independent per-actor browser contexts, step-level full-page screenshots
   (`.ops/journey-evidence/<journey>/<runId>/`), and layered teardown — a Prisma transaction, direct
   Keycloak user deletion, and a 24h orphan sweep for runs killed before reaching teardown.
-- `tests/journeys/applicant-arc.spec.ts` (`npm run journeys:applicant`): 13 steps — applicant signup,
-  apply, org-admin acceptance, mission acceptance, mission tasks, four dated journal entries, evidence
-  submission, admin review and acceptance, and a final dashboard check.
+- `tests/journeys/applicant-arc.spec.ts` (`npm run journeys:applicant`, `v0.20.5`, D-105): 38 steps
+  — the full four-week apprenticeship arc, not just week 1. Signup, apply, org-admin acceptance;
+  then per week, mission acceptance, four dated journal entries, mission tasks, evidence submission
+  and admin review — week 1 alone still proves the revision loop (`NEEDS_REVISION` → feedback →
+  resubmit → accepted) `v0.20.3` added, with every other week accepted on the first submission and
+  `reviewSubmission`'s existing auto-advance carrying the applicant into the next week. After week
+  4's acceptance, the applicant reaches `/dashboard`, agrees to the consent gate, and — because
+  training is now complete — the profile auto-publishes; a final step confirms it is findable in
+  the public, unauthenticated `/graduates` directory, closing the loop this journey exists to
+  prove. `tests/journeys/fixtures/tenant.ts` now publishes all four weekly missions up front
+  (`JourneyTenant.missionIds: string[]`, index 0 = week 1).
+- `tests/journeys/recruiter-access.spec.ts` (`npm run journeys:recruiter`, `v0.20.4`, D-104): two
+  tests. The first drives the full recruiter access-request lifecycle across both portals — submit
+  the directory's "Access Full Profiles" modal, confirm the still-PENDING request is refused, admin
+  approves via a real `/recruiter-requests/[id]` session, recruiter verifies and reaches the full
+  portfolio, saves the candidate, admin revokes, and the same token is refused again. The second
+  proves the pending/rejected refusal states render correctly, including the admin's stated
+  rejection reason. `recruiter` is the one actor here that never authenticates via Keycloak — its
+  access token is architecturally unrecoverable from any response the browser can see
+  (`RecruiterAccessRequest.token` is a one-way hash), so the fixture injects a known raw token
+  directly via Prisma right after each real state transition, rather than parsing an email; no
+  mailbox-capture harness exists in this repo. `tests/journeys/fixtures/graduate.ts` seeds the one
+  published, consented graduate every step needs, built directly against the same `@talentos/db`
+  functions the applicant portal itself calls rather than by driving a second full browser arc
+  through mission completion — `applicant-arc.spec.ts` already proves that end-to-end.
 - `tests/journeys/docs-only.spec.ts` (`npm run journeys:docs`): 7 test blocks covering public pages,
   the apply flow, the applicant dashboard and its working flows, the admin portal and its
   authoring/review flows, and the Ops console — the illustrated-guide screenshot set, now with an
   assertion behind every capture. 3 applicant work-in-progress screenshots are `test.fixme()`; see
   `Regression_Scenarios.md` Known Gaps.
-- CI (`e2e-evidence` job) runs both after the scenario suite, renders a Markdown step summary and
-  per-journey `evidence.md` (`scripts/ci/journey-report.ts`), renders a combined PDF with every
-  journey's step table and embedded screenshots via Playwright's own Chromium
-  (`scripts/ci/journey-pdf-report.ts`), and uploads all of it as the `e2e-evidence-<run>` artifact.
+- CI (`e2e-evidence` job) runs all three specs after the scenario suite, renders a Markdown step summary and
+  per-journey `evidence.md` (`scripts/ci/journey-report.ts`), renders **one PDF per named business
+  process** (`v0.20.5`; previously one combined PDF) via Playwright's own Chromium
+  (`scripts/ci/journey-pdf-report.ts` — `flattenSteps`/`groupByProcess`/`buildProcessReportHtml`),
+  and uploads all of it as the `e2e-evidence-<run>` artifact. Every journey step carries a
+  `process` tag (`tests/journeys/fixtures/types.ts`'s `PROCESSES`: Applicant Signup & Approval,
+  Mission Acceptance & Journal, Submission & Mission Acceptance, Final Mission & Public Profile,
+  Recruiter Journey) that the report groups by, independent of which spec file produced the step —
+  `docs-only.spec.ts` has no natural process and is unaffected, keeping its own screenshot set.
   Both report scripts are non-throwing under `if: always()`, matching `regression-summary.ts`'s
   existing contract.
 - **A real hang was found and fixed while verifying this suite** (D-103): every
@@ -698,3 +726,55 @@ before this document was written.
 (`packages/db/src/regression.ts`) — it has no relation back to `User`/`Tenant`, so nothing in the
 existing cleanup chain could reach it, and every regression run touching the recruiter flow would have
 leaked one row forever. See `D-103`.
+
+## v0.20.4 — Recruiter Access Browser Journey
+
+`npm run journeys:recruiter`: **2/2 passed**, verified on the already-running local Docker stack (no
+rebuild needed — this iteration touches only host-run test fixtures/spec files, not application
+source). `npm run journeys:applicant`: **1/1 passed** — a regression check, since this iteration edits
+the shared `Actor` type and `portalUrl()` routing every journey depends on
+(`tests/journeys/fixtures/types.ts`, `fixtures/actors.ts`). `npm run typecheck`, `npm run lint`,
+`npm test` (**1018/1018**, unchanged from `v0.20.3`) all pass. Full detail:
+`docs/plans/v0.20.4_Recruiter_Access_Browser_Journey.md` and its test-results counterpart.
+
+Adds a fourth journey (per the original design doc's journey list) to the suite `v0.20.3` built: the
+recruiter access-request lifecycle, proven through real browser sessions on both portals rather than
+only at the regression/integration level `v0.20.3` already covered
+(`packages/db/src/graduates.test.ts`, `regression:public-portal` scenarios 6–7). Two engineering
+findings drove the fixture design, both recorded in `D-104`: `assignWeekMissionToAcceptedApplicant`
+requires an `ACCEPTED` `Application` row, not just a `TenantMembership` (missing on the first run);
+and `submitSubmission`'s readiness gate requires 4 journal entries per assignment attempt server-side,
+not only enforced by the applicant portal's own date-picker UI (missing on the second run) — both
+found by actually running the journey against the live stack rather than assumed from reading
+`scripts/regression/run.ts`'s equivalent fixture alone.
+
+## v0.20.5 — Full Apprenticeship Arc And Per-Process Evidence Reports
+
+`npm run journeys:applicant`: **1/1 passed** (38 steps, ~58s). `npm run journeys:recruiter`: **2/2
+passed** (~26s combined), run together with `applicant-arc` on the already-running local Docker
+stack — no rebuild needed. `npm run journeys:report:pdf`: **5 PDFs written**, one per process.
+`npm run typecheck`, `npm run lint`, `npm test` (**1018/1018**, unchanged from `v0.20.4`), `npm run
+build`, and `npm run regression:all` (**58/59 passed, 0 failed, 1 documented skip**, run
+`regression-20260820070848-83fcda66`) all pass. Full detail:
+`docs/plans/v0.20.5_Full_Apprenticeship_Arc_And_Per_Process_Evidence_Reports.md` and its
+test-results counterpart.
+
+Extends `applicant-arc.spec.ts` from proving one week to proving the whole apprenticeship arc
+through to graduation, and replaces the combined evidence PDF with five, one per named business
+process, matching how the business actually thinks about the product rather than how the test
+suite happens to be split into spec files. Six real issues were found and fixed by running both
+journeys together against the live stack, none of them application bugs, all recorded in `D-105`:
+the submission-review page's actual accept-button text/required rating field (the original
+single-week arc never exercised acceptance, so there was no working precedent to copy);
+`DashboardConsentGate`'s transient success text being replaced by an immediate redirect; the
+public directory's rating-sorted pagination making a bare visibility assertion fragile once more
+than one graduate exists in the database (it affected `recruiter-access.spec.ts` too, exposed by
+running both journeys together for the first time); `/api/graduates/request-access` attaching
+every request to "the first public graduate profile" rather than the requesting run's own,
+breaking `recruiter-access.spec.ts`'s redirect-target assertion the same way; and the applicant's
+Prisma `User` row never having been marked for regression cleanup at all — harmless before this
+iteration since no journey ever published a profile from it, but a real leak now, with 28 orphaned
+applicant `User` rows (several already carrying a published `GraduateProfile`) found accumulated
+in the local database before the fix landed. `RecruiterAccessRequest` joins the tracked
+`RegressionDataMarker` entity types for the same underlying reason `RecruiterAccount` did in
+`v0.20.3` — a resource this run creates but does not reliably own the cleanup cascade for.

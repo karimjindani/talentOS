@@ -27,7 +27,7 @@ Three journeys, each a Playwright spec that drives the real UI and asserts at ev
 per-journey evidence document as a by-product of passing assertions. A screenshot exists only if its
 step's assertions held.
 
-## Scope — three journeys
+## Scope — four journeys
 
 1. **Applicant arc** — sign up → apply → accepted → mission → journal → submit → reviewed → next
    mission. Built first, to prove the pattern.
@@ -37,6 +37,13 @@ step's assertions held.
 3. **Org onboarding and isolation arc** — `SUPER_ADMIN` creates an organization, Keycloak
    auto-provisions its first `ORG_ADMIN`, branding is set, that admin reaches their own subdomain
    (positive path) **and** a user of another tenant is refused at the route (negative path).
+4. **Recruiter access arc** — an unauthenticated recruiter browses the public graduate directory,
+   requests portfolio access, is refused while PENDING, is granted access once an `ORG_ADMIN`
+   approves and the recruiter verifies the resulting token, saves a candidate, and loses access
+   again once the admin revokes it. Added in `v0.20.4`, per
+   `docs/plans/v0.20.4_Recruiter_Access_Browser_Journey.md`; the recruiter is never a Keycloak
+   actor, so this journey is the one exception to every other actor authenticating via the
+   `completeLogin` SSO flow.
 
 Review-of-a-submission is not a separate journey; it sits inside the applicant arc, because the
 applicant arc contains a review step.

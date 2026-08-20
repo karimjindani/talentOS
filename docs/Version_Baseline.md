@@ -2,6 +2,98 @@
 
 ## Current Allocated Iteration (Review Pending)
 
+Version: `v0.20.5`
+
+Baseline name: `Full Apprenticeship Arc And Per-Process Evidence Reports`
+
+Base branch and commit: `origin/main` at `7e2bd14` (merges PR #68, the `v0.20.3` baseline below;
+`v0.20.4` and this iteration are both still local-only, stacked on the same feature branch)
+
+Feature branch and code commit: `feature/v0.20.4-recruiter-access-journey` at `pending` — this
+branch now carries both the `v0.20.4` and `v0.20.5` baselines, since neither had been pushed or
+merged before `v0.20.5`'s scope was requested; to be backfilled by the follow-up `Record v0.20.5
+baseline` commit
+
+Documentation date: `2026-08-20`
+
+Latest released baseline: `v0.20.3` at `7e2bd14` (PR #68, merged 2026-08-19T17:49:50+05:00)
+
+Reserved active-branch version: re-checked live via
+`node .claude/skills/version-allocation-and-gates/scripts/allocate-version.js` before starting this
+documentation pass. `origin/main` declares `v0.20.3`; no other active remote branch declared a
+higher version. `v0.20.4` was already this session's own (unpushed) claim, so `v0.20.5` — not
+`v0.20.4` again — is the next available version for this new, larger scope.
+
+Migrations: none. This iteration changes no schema — `RegressionDataMarker.entityType` gains a new
+TypeScript union member (`"RecruiterAccessRequest"`) but that column is a plain `String` in
+`schema.prisma`, not a Prisma enum, so there is nothing to migrate. `Data_Model.md` and
+`Data_Dictionary.md` gain a one-line "no schema change" note rather than being silently skipped,
+per `docs/sdlc.md` principle 6.
+
+Repository state: `v0.20.5` code and documentation are committed on
+`feature/v0.20.4-recruiter-access-journey`, alongside `v0.20.4`. Not yet pushed or merged.
+
+### What this iteration changes
+
+1. **`applicant-arc.spec.ts` now drives the full four-week apprenticeship arc**, not just week 1 —
+   every week accepted, journaled, submitted and reviewed through a real browser (week 1 alone
+   still proving the `v0.20.3` revision loop), culminating in the applicant agreeing to the
+   consent gate and their profile auto-publishing to the public portal. See `Architecture.md`'s
+   Journey E2E Evidence Pipeline section and `Decision_Log.md` `D-105`.
+2. **`tests/journeys/fixtures/tenant.ts`** now publishes all four weekly missions up front;
+   `JourneyTenant.missionId` becomes `missionIds: string[]`.
+3. **Every journey step carries a `process` tag** (`tests/journeys/fixtures/types.ts`'s new
+   `PROCESSES` list, 5 names in report order), and **`scripts/ci/journey-pdf-report.ts`** now
+   renders one PDF per process (5 files) instead of one combined report, redesigned to match a
+   reference test-report's structural language using talentOS's own brand colors.
+4. **Six real issues found and fixed by running both journeys together against the live stack**
+   (none application bugs) — the submission-review page's actual accept control and required
+   rating field, a transient success-text assertion racing a client-side redirect, the public
+   directory's pagination making a bare visibility assertion fragile once more than one graduate
+   exists, the same fragility in `recruiter-access.spec.ts`'s redirect-target assertion (exposed
+   for the first time by running both journeys together), and the applicant's Prisma `User` row
+   never having been marked for regression cleanup at all. See the test-results doc and `D-105`.
+5. **`RecruiterAccessRequest` joins `RegressionDataMarker`'s tracked cleanup entity types**
+   (`packages/db/src/regression.ts`), for the same class of reason `RecruiterAccount` did in
+   `v0.20.3`.
+
+## v0.20.5 Documentation Index
+
+| Artifact | Location |
+| --- | --- |
+| Plan | `docs/plans/v0.20.5_Full_Apprenticeship_Arc_And_Per_Process_Evidence_Reports.md` |
+| Test results | `docs/testing/v0.20.5_Full_Apprenticeship_Arc_And_Per_Process_Evidence_Reports_Test_Results.md` |
+| Decision record | `docs/Decision_Log.md` (`D-105`) |
+| CI/CD policy | `docs/CI_CD_Pipeline.md` (journeys row, journey PDF report row) |
+| Architecture | `docs/Architecture.md` (Journey E2E Evidence Pipeline section) |
+| Scenario catalog | `docs/Regression_Scenarios.md` (v0.20.5 traceability, Data Ownership and Cleanup, Known Gaps) |
+| Testing strategy | `docs/Testing_Strategy.md` |
+| Deployment | `docs/Deployment.md` (no-change note) |
+| Data model / dictionary | No-change note added; no schema touched (see Migrations above) |
+| User guides | Unchanged — no user-facing surface change (test infrastructure only) |
+
+## v0.20.4 Documentation Index
+
+Recruiter Access Browser Journey. Still unpushed/unmerged at the time `v0.20.5` was allocated on
+top of it (same feature branch) — see the `v0.20.5` entry above for why this iteration didn't
+reopen it instead.
+
+| Artifact | Location |
+| --- | --- |
+| Plan | `docs/plans/v0.20.4_Recruiter_Access_Browser_Journey.md` |
+| Test results | `docs/testing/v0.20.4_Recruiter_Access_Browser_Journey_Test_Results.md` |
+| Decision record | `docs/Decision_Log.md` (`D-104`) |
+| CI/CD policy | `docs/CI_CD_Pipeline.md` (journeys row: `recruiter-access` project) |
+| Architecture | `docs/Architecture.md` (Journey E2E Evidence Pipeline section) |
+| Design doc | `docs/designs/2026-08-13-journey-e2e-evidence-design.md` (journey list: three → four) |
+| Scenario catalog | `docs/Regression_Scenarios.md` (v0.20.4 traceability, Known Gaps) |
+| Testing strategy | `docs/Testing_Strategy.md` |
+| Deployment | `docs/Deployment.md` (no-change note) |
+| Data model / dictionary | No-change note added; no schema touched |
+| User guides | Unchanged — no user-facing surface change (test infrastructure only) |
+
+## v0.20.3 Released Baseline
+
 Version: `v0.20.3`
 
 Baseline name: `Journey E2E Evidence Pipeline And Public-Portal Fixes`
@@ -27,8 +119,9 @@ Migrations: none. This iteration changes no schema — `Data_Model.md` and `Data
 one-line "no schema change" note (also backfilled for `v0.20.1`/`v0.20.2`, which had been stamped
 `v0.20.1` with no such note added) rather than being silently skipped, per `docs/sdlc.md` principle 6.
 
-Repository state: `v0.20.3` code and documentation are committed on
-`feature/v0.20.3-journey-e2e-evidence`. Not yet pushed or merged.
+Repository state: merged to `origin/main` via PR #68 (`7e2bd14`, 2026-08-19T17:49:50+05:00). This
+baseline was originally documented as "not yet pushed or merged"; corrected here as part of the
+`v0.20.4` documentation pass, which found the merge had already happened.
 
 Upstream state: `origin/main` is at `a37a003`, which merges PR #62 (the public graduate-portal /
 recruiter-access feature) on top of everything `v0.20.2` already covered.
