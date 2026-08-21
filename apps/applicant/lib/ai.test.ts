@@ -118,6 +118,7 @@ const sampleContext: ApplicantContext = {
   missions: [],
   assignments: [],
   submissions: [],
+  missionStatus: [],
   daysRemaining: 30,
 };
 
@@ -239,7 +240,7 @@ describe("AI Integration — requestAIInteraction", () => {
     expect(result.status).toBe("stubbed");
     expect(result.message).toContain("TalentOS");
     expect(result.cards).toBeDefined();
-    expect(result.cards!.some((c) => c.kind === "tips")).toBe(true);
+    expect(result.cards!.some((c) => c.kind === "badge")).toBe(true);
   });
 });
 

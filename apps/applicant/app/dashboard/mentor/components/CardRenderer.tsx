@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { MentorCard } from "@/lib/ai";
 import {
   CheckCircle,
@@ -30,6 +32,10 @@ export function CardRenderer({ card }: CardRendererProps) {
       return <TipsCard card={card} />;
     case "badge":
       return <BadgeCard card={card} />;
+    case "code":
+      return <CodeCard title={card.title} code={card.code} language={card.language} />;
+    case "resource":
+      return <ResourceCard title={card.title} description={card.description} type={card.type} link={card.link} />;
     default:
       return null;
   }
@@ -37,7 +43,8 @@ export function CardRenderer({ card }: CardRendererProps) {
 
 function TaskCard({ card }: { card: Extract<MentorCard, { kind: "task" }> }) {
   const isOverdue = card.dueDate && new Date(card.dueDate) < new Date();
-  
+  const router = useRouter();
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-blue-50 shadow-sm">
       <div className="border-b border-slate-100 bg-gradient-to-r from-blue-50 to-white px-4 py-3">
@@ -76,7 +83,10 @@ function TaskCard({ card }: { card: Extract<MentorCard, { kind: "task" }> }) {
         
         <div className="mt-4 flex items-center justify-between">
           <span className="text-xs text-slate-500">Task assigned</span>
-          <button className="rounded-lg bg-brand-blue px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-600 transition-colors">
+          <button
+            onClick={() => router.push(card.link ?? "/dashboard")}
+            className="rounded-lg bg-brand-blue px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-600 transition-colors"
+          >
             Start Task
           </button>
         </div>
@@ -129,6 +139,7 @@ function ProgressCard({ card }: { card: Extract<MentorCard, { kind: "progress" }
 }
 
 function TimelineCard({ card }: { card: Extract<MentorCard, { kind: "timeline" }> }) {
+  const router = useRouter();
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-purple-50 shadow-sm">
       <div className="border-b border-slate-100 bg-gradient-to-r from-purple-50 to-white px-4 py-3">
@@ -174,7 +185,10 @@ function TimelineCard({ card }: { card: Extract<MentorCard, { kind: "timeline" }
         
         <div className="mt-4 flex items-center justify-between">
           <span className="text-xs text-slate-500">{card.items.length} steps total</span>
-          <button className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-purple-700 transition-colors">
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-purple-700 transition-colors"
+          >
             View Timeline
           </button>
         </div>
@@ -184,6 +198,24 @@ function TimelineCard({ card }: { card: Extract<MentorCard, { kind: "timeline" }
 }
 
 function TipsCard({ card }: { card: Extract<MentorCard, { kind: "tips" }> }) {
+  const [saved, setSaved] = useState(false);
+
+  if (card.items.length === 0) return null;
+
+  function handleSave() {
+    try {
+      const key = "talentos:mentor-saved-tips";
+      const existing = JSON.parse(localStorage.getItem(key) ?? "[]") as Array<{ title: string; items: string[]; savedAt: number }>;
+      existing.push({ title: card.title, items: card.items, savedAt: Date.now() });
+      localStorage.setItem(key, JSON.stringify(existing));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
+  }
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-amber-50 shadow-sm">
       <div className="border-b border-slate-100 bg-gradient-to-r from-amber-50 to-white px-4 py-3">
@@ -206,8 +238,12 @@ function TipsCard({ card }: { card: Extract<MentorCard, { kind: "tips" }> }) {
         
         <div className="mt-4 flex items-center justify-between">
           <span className="text-xs text-slate-500">{card.items.length} tips</span>
-          <button className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors">
-            Save Tips
+          <button
+            onClick={handleSave}
+            disabled={saved}
+            className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors disabled:opacity-70"
+          >
+            {saved ? "Saved!" : "Save Tips"}
           </button>
         </div>
       </div>
@@ -216,6 +252,23 @@ function TipsCard({ card }: { card: Extract<MentorCard, { kind: "tips" }> }) {
 }
 
 function BadgeCard({ card }: { card: Extract<MentorCard, { kind: "badge" }> }) {
+  const [shared, setShared] = useState(false);
+
+  async function handleShare() {
+    const text = `${card.label}: ${card.value}`;
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({ title: "TalentOS Achievement", text });
+      } else {
+        await navigator.clipboard.writeText(text);
+      }
+      setShared(true);
+      setTimeout(() => setShared(false), 2000);
+    } catch {
+      // user cancelled or clipboard unavailable — stay silent
+    }
+  }
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 shadow-sm">
       <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-4 py-3">
@@ -239,8 +292,11 @@ function BadgeCard({ card }: { card: Extract<MentorCard, { kind: "badge" }> }) {
         
         <div className="mt-4 flex items-center justify-between">
           <span className="text-xs text-slate-500">Verified achievement</span>
-          <button className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-900 transition-colors">
-            Share
+          <button
+            onClick={handleShare}
+            className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-900 transition-colors"
+          >
+            {shared ? "Copied!" : "Share"}
           </button>
         </div>
       </div>

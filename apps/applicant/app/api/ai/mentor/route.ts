@@ -30,6 +30,24 @@ export async function GET(request: Request) {
     if (url.searchParams.get("list") === "1") {
       return NextResponse.json({ conversations: await listConversations(tenant.id, actorUserId) });
     }
+    if (url.searchParams.get("context") === "1") {
+      const ctx = await buildApplicantContext(tenant.id, actorUserId);
+      const nextTask = ctx.upcomingTasks[0];
+      return NextResponse.json({
+        context: {
+          programName: ctx.program?.name ?? null,
+          overallPercentage: ctx.progress?.overallPercentage ?? null,
+          completedTasks: ctx.progress?.completedTasks ?? null,
+          totalTasks: ctx.progress?.totalTasks ?? null,
+          daysRemaining: ctx.daysRemaining,
+          missionCount: ctx.missions.length,
+          nextTask: nextTask
+            ? { title: nextTask.title, weekNumber: nextTask.weekNumber, overdue: nextTask.overdue, dueAt: nextTask.dueAt }
+            : null,
+          submissions: ctx.submissions.map((s) => ({ missionTitle: s.missionTitle, status: s.status })),
+        },
+      });
+    }
     const conversationId = url.searchParams.get("conversationId") ?? undefined;
     const history = await loadConversationHistory(tenant.id, actorUserId, conversationId);
 

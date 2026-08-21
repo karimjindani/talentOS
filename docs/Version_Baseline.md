@@ -2,6 +2,63 @@
 
 ## Current Allocated Iteration (Review Pending)
 
+Version: `v0.20.6`
+
+Baseline name: `AI Mentor UI, RAG, Context Fix, And RBSE Unblock`
+
+Base branch and commit: `origin/main` at `69178a1` (merges PR #69, the `v0.20.4`/`v0.20.5` baseline)
+
+Feature branch: local `main` (not yet pushed or merged)
+
+Documentation date: `2026-08-21`
+
+Latest released baseline: `v0.20.3` at `7e2bd14` (PR #68, merged 2026-08-19)
+
+Reserved active-branch version: re-checked live via
+`node .claude/skills/version-allocation-and-gates/scripts/allocate-version.js` before starting this
+documentation pass. `origin/main` declares `v0.20.5`; no other active remote branch declared a
+higher version. `v0.20.6` is the next available version.
+
+Migrations: none. This iteration changes no schema. `Data_Model.md` and `Data_Dictionary.md` gain
+a "no schema change" note rather than being silently skipped, per `docs/sdlc.md` principle 6.
+
+Repository state: `v0.20.6` code and documentation are local on `main`. Not yet pushed or merged.
+
+### What this iteration changes
+
+1. **Applicant context accuracy fix** (`lib/ai-context.ts`): adds `missionStatus` field with
+   per-mission readiness (assignment status, submission, journal count, task completion) and
+   rewrites `contextToPromptSection` with unambiguous labels — prevents the LLM from misreading
+   "ACCEPTED" assignment as mission completion or task % as mission %. See `Decision_Log.md` D-106.
+2. **RBSE unblock** (`lib/ai-rbse.ts`): removes broad `"tell me about "` and `"explain about"`
+   from `BLOCKED_TOPICS` — the precise `PERSONAL_NAME_PATTERNS` + `NAME_PATTERN_ALLOWLIST` already
+   handle personal-name blocking.
+3. **System prompt fix** (`lib/ai.ts`): removes "Next step" / follow-up question instructions.
+4. **Two-layer RAG** (`lib/knowledge-base.ts` + `scripts/build-docs-index.mjs` +
+   `data/docs-index.ts`): curated KB (17 entries) + auto-generated docs index (347 sections from
+   `docs/*.md`); build-time indexer added to Dockerfile and `npm run build`.
+5. **Chat UI overhaul** (`page.tsx`, `MessageBubble.tsx`, `CardRenderer.tsx`): streaming-safe
+   markdown, per-message actions, mobile drawer, conversation search/rename/pin, personalized
+   welcome, context disclosure, live clock, real maxLength, streaming perf fix, card CTA wiring.
+6. **MentorCard type** (`lib/ai.ts`): adds `code` + `resource` kinds, `link` on task cards.
+7. **Architecture doc** (`docs/AI_Mentor_Architecture_and_Concepts.md`): comprehensive reference.
+
+## v0.20.6 Documentation Index
+
+| Artifact | Location |
+| --- | --- |
+| Plan | `docs/plans/v0.20.6_AI_Mentor_UI_RAG_Context_Fix.md` |
+| Test results | `docs/testing/v0.20.6_AI_Mentor_UI_RAG_Context_Fix_Test_Results.md` |
+| Decision record | `docs/Decision_Log.md` (`D-106`) |
+| Architecture | `docs/Architecture.md` (code version updated; `docs/AI_Mentor_Architecture_and_Concepts.md` added) |
+| Scenario catalog | `docs/Regression_Scenarios.md` (v0.20.6 traceability) |
+| Testing strategy | `docs/Testing_Strategy.md` (code version updated) |
+| Deployment | `docs/Deployment.md` (Dockerfile `build:docs-index` step noted) |
+| Data model / dictionary | No-change note added; no schema touched (see Migrations above) |
+| User guides | Not required — the mentor UI changes are applicant-facing but the existing user guide does not cover the mentor page; deferred to a future iteration |
+
+## Previous: v0.20.5
+
 Version: `v0.20.5`
 
 Baseline name: `Full Apprenticeship Arc And Per-Process Evidence Reports`

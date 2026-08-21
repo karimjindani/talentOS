@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.20.3`
+Code version: `v0.20.6`
 
 ## Purpose
 
@@ -135,6 +135,36 @@ rebuilt local stack: `npm run journeys:recruiter` (2/2 passed) and `npm run jour
 | --- | --- | --- |
 | Recruiter completes the full access-request lifecycle through real browser sessions on both portals | `tests/journeys/recruiter-access.spec.ts` (`journeys:recruiter`) | Automated |
 | Pending and rejected recruiter access requests are refused in the browser, with the rejection reason shown on-page | `tests/journeys/recruiter-access.spec.ts` (`journeys:recruiter`) | Automated |
+
+## v0.20.6 Plan Scenario Traceability
+
+Names match `docs/plans/v0.20.6_AI_Mentor_UI_RAG_Context_Fix.md` one-for-one. Verified via unit
+tests (1020 pass) and manual testing against the running Docker container with a LiteLLM proxy.
+
+| Plan scenario | Coverage | Status |
+| --- | --- | --- |
+| S1: Mentor answers "tell me about mission 1" with correct status | Manual verification (LLM + seeded data) | Deferred — verified manually; context unit tests assert `missionStatus` fields |
+| S2: "tell me about mission 1" is not blocked by RBSE | `apps/applicant/lib/ai-rbse.test.ts` | Automated — `classifyQuestion` returns `allow_llm` |
+| S3: "tell me about John" is still blocked by RBSE | `apps/applicant/lib/ai-rbse.test.ts` | Automated — personal-name patterns still block |
+| S4: Mentor does not append "Next step" follow-up questions | Manual verification (system prompt review) | Deferred — `buildSystemPrompt` rule verified by code review |
+| S5: Suggested questions send immediately | Manual verification (UI) | Deferred — UI interaction |
+| S6: Card CTAs are functional | Manual verification (UI) | Deferred — UI interaction |
+| S7: Per-message actions work | Manual verification (UI) | Deferred — UI interaction |
+| S8: Mobile drawer opens and closes | Manual verification (UI) | Deferred — responsive UI |
+| S9: Conversation search, rename, and pin | Manual verification (UI) | Deferred — UI interaction |
+| S10: Context shows correct per-mission journal count and task completion | `apps/applicant/lib/ai-context.test.ts` | Automated — `missionStatus` fields + `contextToPromptSection` labels asserted |
+| S11: RAG retrieves from docs index for documented topics | `apps/applicant/lib/knowledge-base.test.ts` | Automated — `retrieveKnowledge` returns docs-index snippets |
+| S12: Off-topic questions are still blocked | `apps/applicant/lib/ai-rbse.test.ts` | Automated — off-topic blocked |
+
+### Known Gaps (as of `v0.20.6`)
+
+- **S1, S4–S9 deferred to manual**: these scenarios require either a running LLM endpoint with
+  seeded applicant data (S1, S4) or browser-level UI interaction (S5–S9). They are verified
+  manually in this iteration; automating them would require a Playwright journey for the mentor
+  page with a mocked or real LLM endpoint, which is a future enhancement.
+- The mentor page has no Playwright journey coverage — all existing journeys
+  (`applicant-arc.spec.ts`, `recruiter-access.spec.ts`) skip the `/dashboard/mentor` route. Adding
+  a mentor journey is recorded as a future gap.
 
 ## v0.20.5 Plan Scenario Traceability
 

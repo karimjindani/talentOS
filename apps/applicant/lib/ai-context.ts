@@ -50,6 +50,22 @@ export type ContextSubmission = {
   submittedAt: string | null;
 };
 
+/** Per-mission readiness summary — the unambiguous status the LLM needs. */
+export type ContextMissionStatus = {
+  missionId: string;
+  title: string;
+  weekNumber: number;
+  difficulty: string;
+  /** null = not assigned to this applicant. "ACCEPTED" = they accepted the assignment (started), NOT completed. */
+  assignmentStatus: string | null;
+  deadlineAt: string | null;
+  hasSubmission: boolean;
+  submissionStatus: string | null;
+  journalEntryCount: number;
+  requiredTaskTotal: number;
+  requiredTaskCompleted: number;
+};
+
 /** The full applicant context passed to the AI mentor. */
 export type ApplicantContext = {
   tenantId: string;
@@ -97,6 +113,9 @@ export type ApplicantContext = {
   /** Submission statuses for missions the applicant has started. */
   submissions: ContextSubmission[];
 
+  /** Unambiguous per-mission readiness summary (assignment, submission, journal, tasks). */
+  missionStatus: ContextMissionStatus[];
+
   /** Days remaining in the program (null if no end date). */
   daysRemaining: number | null;
 };
@@ -125,6 +144,7 @@ export async function buildApplicantContext(
     missions: [],
     assignments: [],
     submissions: [],
+    missionStatus: [],
     daysRemaining: null,
   };
 
@@ -140,7 +160,7 @@ export async function buildApplicantContext(
     const program = acceptedApp.program;
 
     // 2. Gather tasks, completions, missions, and progress in parallel
-    const [tasks, completedTaskIds, missions, weekProgress, submissions, assignmentStatuses] = await Promise.all([
+    const [tasks, completedTaskIds, missions, weekProgress, submissions, assignmentStatuses, journalEntries] = await Promise.all([
       listProgramTasks(tenantId, program.id),
       listCompletedTaskIds(tenantId, userId, program.id),
       listPublishedProgramMissions(tenantId, program.id),
@@ -153,6 +173,11 @@ export async function buildApplicantContext(
       }),
       // Fetch assignment statuses so the mentor knows which missions are assigned and their state
       listApplicantMissionAssignmentStatuses(tenantId, userId, program.id),
+      // Fetch journal entry missionIds so we can count entries per mission
+      prisma.engineeringJournalEntry.findMany({
+        where: { tenantId, applicantId: userId, mission: { tenantId, programId: program.id } },
+        select: { missionId: true },
+      }),
     ]);
 
     // Build assignment list from the mission list + assignment status map
@@ -229,6 +254,33 @@ export async function buildApplicantContext(
         )
       : null;
 
+    // 8. Per-mission readiness summary — the unambiguous status the LLM needs to avoid
+    //    misreading "ACCEPTED" assignment as mission completion, or task % as mission %.
+    const journalCountByMission = new Map<string, number>();
+    for (const je of journalEntries) {
+      journalCountByMission.set(je.missionId, (journalCountByMission.get(je.missionId) ?? 0) + 1);
+    }
+    const missionStatusList: ContextMissionStatus[] = missionList.map((m) => {
+      const assignment = assignmentList.find((a) => a.missionId === m.id);
+      const submission = submissionList.find((s) => s.missionId === m.id);
+      const missionTasks = tasks.filter((t) => t.missionId === m.id && t.required && t.published);
+      const requiredTaskTotal = missionTasks.length;
+      const requiredTaskCompleted = missionTasks.filter((t) => completedTaskIds.includes(t.id)).length;
+      return {
+        missionId: m.id,
+        title: m.title,
+        weekNumber: m.weekNumber,
+        difficulty: m.difficulty,
+        assignmentStatus: assignment?.status ?? null,
+        deadlineAt: assignment?.deadlineAt ?? null,
+        hasSubmission: !!submission,
+        submissionStatus: submission?.status ?? null,
+        journalEntryCount: journalCountByMission.get(m.id) ?? 0,
+        requiredTaskTotal,
+        requiredTaskCompleted,
+      };
+    });
+
     return {
       tenantId,
       userId,
@@ -256,6 +308,7 @@ export async function buildApplicantContext(
       missions: missionList,
       assignments: assignmentList,
       submissions: submissionList,
+      missionStatus: missionStatusList,
       daysRemaining,
     };
   } catch {
@@ -324,6 +377,14 @@ export function buildContextSignature(ctx: ApplicantContext): string {
     .join(",");
   parts.push(`a:${assignSig}`);
 
+  // Per-mission readiness (submission, journal count, task completion) — invalidates when
+  // the applicant submits, writes a journal entry, or completes a required task.
+  const msSig = ctx.missionStatus
+    .map((m) => `${m.missionId}:${m.hasSubmission ? 1 : 0}:${m.submissionStatus ?? "none"}:${m.journalEntryCount}:${m.requiredTaskCompleted}/${m.requiredTaskTotal}`)
+    .sort()
+    .join(",");
+  parts.push(`ms:${msSig}`);
+
   // Days remaining
   parts.push(`d:${ctx.daysRemaining ?? "none"}`);
 
@@ -352,7 +413,7 @@ export function contextToPromptSection(ctx: ApplicantContext): string {
 
   if (ctx.progress) {
     lines.push(
-      `Overall Progress: ${ctx.progress.overallPercentage}% (${ctx.progress.completedTasks}/${ctx.progress.totalTasks} tasks completed)`
+      `Task Completion: ${ctx.progress.overallPercentage}% (${ctx.progress.completedTasks}/${ctx.progress.totalTasks} program tasks done). NOTE: this is TASK completion, NOT mission completion. A mission is only complete when it has a PASSED submission.`
     );
     for (const w of ctx.progress.weeks) {
       lines.push(`  Week ${w.weekNumber}: ${w.completedTasks}/${w.totalTasks} tasks (${w.percentage}%)`);
@@ -368,26 +429,42 @@ export function contextToPromptSection(ctx: ApplicantContext): string {
     }
   }
 
-  if (ctx.missions.length > 0) {
-    lines.push("Missions:");
-    for (const m of ctx.missions) {
-      const assignment = ctx.assignments.find((a) => a.missionId === m.id);
-      const submission = ctx.submissions.find((s) => s.missionId === m.id);
-      const statusLabel = assignment
-        ? `assigned=${assignment.status}`
-        : "not assigned";
-      const submissionLabel = submission ? `, submission=${submission.status}` : "";
-      const deadlineLabel = assignment?.deadlineAt
-        ? `, deadline=${new Date(assignment.deadlineAt).toLocaleDateString()}`
+  if (ctx.missionStatus.length > 0) {
+    lines.push("Missions (authoritative status — use THIS, do not infer completion from task %):");
+    for (const m of ctx.missionStatus) {
+      const assignLabel =
+        m.assignmentStatus == null
+          ? "not assigned"
+          : m.assignmentStatus === "ACCEPTED"
+            ? "you accepted the assignment (started; NOT yet completed)"
+            : m.assignmentStatus === "IN_PROGRESS"
+              ? "in progress"
+              : m.assignmentStatus === "PASSED"
+                ? "PASSED (mission complete)"
+                : m.assignmentStatus === "OVERDUE"
+                  ? "OVERDUE — submit now"
+                  : m.assignmentStatus === "REJECTED"
+                    ? "REJECTED — retry needed"
+                    : m.assignmentStatus;
+      const deadlineLabel = m.deadlineAt
+        ? `, deadline ${new Date(m.deadlineAt).toLocaleDateString()}`
         : "";
-      lines.push(`  - Week ${m.weekNumber}: ${m.title} (${m.difficulty}) — ${statusLabel}${submissionLabel}${deadlineLabel}`);
-    }
-  }
-
-  if (ctx.submissions.length > 0) {
-    lines.push("Submissions:");
-    for (const s of ctx.submissions) {
-      lines.push(`  - ${s.missionTitle}: ${s.status}`);
+      const submissionLabel = m.hasSubmission
+        ? `submitted (status=${m.submissionStatus})`
+        : "NOT YET SUBMITTED";
+      const taskLabel = `${m.requiredTaskCompleted}/${m.requiredTaskTotal} required tasks done`;
+      const journalLabel = `${m.journalEntryCount} journal entries (4 required before submission)`;
+      const completeLabel = m.hasSubmission && m.submissionStatus === "PASSED"
+        ? "COMPLETE"
+        : m.hasSubmission
+          ? `submitted (${m.submissionStatus}) — awaiting review`
+          : "IN PROGRESS — not yet submitted";
+      lines.push(`  Mission ${m.weekNumber}: ${m.title} (${m.difficulty})`);
+      lines.push(`    - Assignment: ${assignLabel}${deadlineLabel}`);
+      lines.push(`    - Submission: ${submissionLabel}`);
+      lines.push(`    - Tasks: ${taskLabel}`);
+      lines.push(`    - Journal: ${journalLabel}`);
+      lines.push(`    - Status: ${completeLabel}`);
     }
   }
 

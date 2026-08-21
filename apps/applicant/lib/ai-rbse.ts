@@ -234,11 +234,12 @@ const BLOCKED_TOPICS = [
   "puzzle",
 
   // Personal identity / name questions
+  // NOTE: "tell me about <name>" and "explain about <name>" are handled precisely by
+  // PERSONAL_NAME_PATTERNS + NAME_PATTERN_ALLOWLIST below — a broad substring here would
+  // wrongly block "tell me about mission 1", "tell me about SDLC", etc.
   "who is ",
   "who am i",
   "who are you",
-  "tell me about ",
-  "explain about",
   "my name",
   "your name",
   "what is your name",
