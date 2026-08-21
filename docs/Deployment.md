@@ -1,8 +1,14 @@
 # Deployment
 
-Code version: `v0.20.5`
+Code version: `v0.20.6`
 
 Deployment evidence commit: `2b3afce`
+
+> `v0.20.6` (AI Mentor UI, RAG, Context Fix, And RBSE Unblock, D-106) adds a `RUN npm run build:docs-index`
+> step to the Dockerfile build stage — this generates `apps/applicant/data/docs-index.ts` from
+> `docs/*.md` before the Next.js build so the RAG docs index is bundled into the standalone output.
+> No topology, Keycloak, or environment-variable change beyond the `GLM_Z_API_KEY` / `AI_BASE_URL` /
+> `AI_MODEL` variables already documented (set in `.env`, gitignored, passed via Docker Compose).
 
 > `v0.20.5` (Full Apprenticeship Arc And Per-Process Evidence Reports, D-105) requires no
 > deployment, topology, Keycloak, or environment-variable change — an expanded journey spec and a

@@ -26,11 +26,13 @@ export type AIInteractionRequest = {
 
 /** A rich content block that the mentor can return inside a response. */
 export type MentorCard =
-  | { kind: "task"; title: string; description: string; dueDate?: string; estimatedTime?: string }
+  | { kind: "task"; title: string; description: string; dueDate?: string; estimatedTime?: string; link?: string }
   | { kind: "progress"; title: string; percentage: number }
   | { kind: "timeline"; title: string; items: string[] }
   | { kind: "tips"; title: string; items: string[] }
-  | { kind: "badge"; label: string; value: string };
+  | { kind: "badge"; label: string; value: string }
+  | { kind: "code"; title: string; code: string; language?: string }
+  | { kind: "resource"; title: string; description: string; type?: "document" | "video" | "guide" | "example"; link?: string };
 
 export type AIInteractionResponse = {
   status: "stubbed" | "ok" | "error";
@@ -148,9 +150,8 @@ function buildSystemPrompt(
     "- Continue naturally from recent turns. Treat short replies such as yes, no, done, not yet, an error message, or a platform name as answers to your previous question.",
     "- Match the applicant's language and tone. If they use Roman Urdu mixed with English, reply naturally in the same mix while keeping technical terms in English.",
     "- Briefly acknowledge progress or frustration when it is relevant; never restart with a generic introduction during an active conversation.",
-    "- Give exactly one small, concrete next action tailored to the applicant's current progress when relevant.",
-    "- End with at most one short, purposeful follow-up question only when it helps the learner move forward.",
-    "- For simple questions, use only: **What to do now** and **Next step**. Use a detailed guide only when explicitly requested.",
+    "- Do NOT end with a follow-up question, a 'Next step' prompt, or a 'What to do now' nudge. Answer the question fully and stop.",
+    "- For simple questions, keep it concise. Use a detailed guide only when explicitly requested.",
     "- Finish every sentence and section; do not begin an extra section if there is not enough room to complete it.",
     "- Keep normal responses under 220 words unless the user explicitly asks for a detailed explanation.",
     "- NEVER complete assignments for the intern — guide and explain only.",
@@ -433,11 +434,10 @@ async function generateStubResponse(
       status: "stubbed",
       message: topSnippet.content,
       cards: [
-        {
-          kind: "tips",
-          title: topSnippet.title,
-          items: additionalSnippets.map((s) => `📚 ${s.title} (${s.source})`),
-        },
+        // Only show a "related" tips card when there are additional snippets.
+        ...(additionalSnippets.length > 0
+          ? [{ kind: "tips" as const, title: "Related Resources", items: additionalSnippets.map((s) => `📚 ${s.title} (${s.source})`) }]
+          : []),
         ...(topSnippet.source
           ? [{ kind: "badge" as const, label: "Source", value: topSnippet.source }]
           : []),

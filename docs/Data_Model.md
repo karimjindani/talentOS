@@ -1,10 +1,10 @@
 # Data Model
 
-Code version: `v0.20.5`
+Code version: `v0.20.6`
 
 Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
 
-> `v0.20.1`, `v0.20.2`, `v0.20.3`, `v0.20.4` and `v0.20.5` make no schema change (recorded explicitly rather than skipped,
+> `v0.20.1` through `v0.20.6` make no schema change (recorded explicitly rather than skipped,
 > per `docs/sdlc.md` principle 6). The graduate-portal/recruiter schema (`GraduateProfile`,
 > `RecruiterAccessRequest`, `RecruiterAccount`, `RecruiterSession`, `SavedCandidate`,
 > `GraduateArtifact`, `ConsentHistory`, `ProfileViewAudit`) merged into `main` via PR #62 ahead of

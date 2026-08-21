@@ -1,8 +1,8 @@
 # Testing Strategy
 
-Code version: `v0.20.5`
+Code version: `v0.20.6`
 
-Test evidence commit: `43e7537` (+ `v0.20.3`/`v0.20.4`/`v0.20.5` uncommitted at documentation time)
+Test evidence commit: `43e7537` (+ `v0.20.3`/`v0.20.4`/`v0.20.5`/`v0.20.6` uncommitted at documentation time)
 
 ## Goals
 

@@ -23,6 +23,8 @@
 // Types
 // ---------------------------------------------------------------------------
 
+import { docsIndex } from "../data/docs-index";
+
 /** A single knowledge entry with keywords for matching. */
 type KnowledgeEntry = {
   /** Unique identifier for the entry. */
@@ -253,6 +255,161 @@ Rollback: redeploy the previous known-good image tag. Never hand-reverse a live 
 
 The product runs on Docker containers so deployment is easy. Deployment steps are documented in markdown.`,
   },
+  {
+    id: "journal-rules",
+    title: "Engineering Journal Rules",
+    source: "docs/Mission_Framework.md + platform enforcement",
+    keywords: ["journal", "journal entry", "entry per day", "one per day", "per day", "daily", "reflection", "how many journal", "journal required", "journal count", "journal lock", "can i enter"],
+    content: `Engineering Journal — rules and requirements:
+
+ENTRY FREQUENCY:
+- You can write ONE journal entry per mission per day. This is enforced — if you already have an entry for a mission on a given date, you must edit that existing entry, not create a new one.
+- The entry date cannot be in the future.
+- The entry date cannot be before the mission became workable (the date you accepted the assignment).
+
+SUBMISSION READINESS:
+- You need at least 4 journal entries on 4 distinct dates for a mission before you can submit it. This is a hard gate — the Submit button stays disabled until you have 4.
+- Completing tasks alone does NOT complete a mission. You must write 4 journal entries AND submit.
+
+LOCKING:
+- Once you submit a mission, all journal entries for that attempt lock — you can no longer edit them.
+
+EACH ENTRY CAPTURES:
+- What you worked on
+- The challenge you faced
+- How you solved it
+- What you learned
+- Your AI usage
+- Confidence rating (1–5)
+- Time spent (hours)
+- Evidence links (up to 10 valid URLs)
+- Language: you can write in any language that helps you explain clearly (English, Roman Urdu, Hindi, etc.)
+
+The journal is your daily engineering reflection — write one each day you work on the mission.`,
+  },
+  {
+    id: "mission-lifecycle",
+    title: "Mission Lifecycle, Deadlines & Repeat",
+    source: "docs/Mission_Framework.md + platform enforcement",
+    keywords: ["mission lifecycle", "deadline", "grace period", "repeat", "retry", "attempt", "assigned", "accepted", "passed", "rejected", "overdue", "mission status", "resubmit", "same week"],
+    content: `Mission Lifecycle & Deadlines:
+
+ASSIGNMENT STATES (per mission, per applicant):
+- Not assigned — the mission isn't assigned to you yet.
+- Assigned — the mission has been assigned; you need to accept it.
+- Accepted — you accepted the assignment and can start working. This means "started", NOT "completed".
+- In Progress — you are actively working on the mission.
+- Overdue — the deadline has passed without a passing submission.
+- Passed — your submission was accepted by the reviewer. The mission is complete.
+- Rejected — your submission was rejected; you can retry.
+
+DEADLINES:
+- Each mission has a deadline (deadlineHours from when you accept the assignment).
+- A grace period (gracePeriodHours) may extend the deadline slightly.
+- After the grace period ends, the mission is Overdue if not passed.
+
+REPEAT / RETRY:
+- If a mission is rejected, you can retry it (a new attempt with a new assignment).
+- Repeat attempts get a new attempt number. Previous attempts' journal entries and submissions are preserved for review.
+- Same-week repeat: if you fail a mission, you may be reassigned a new mission in the same week.
+
+A mission is ONLY complete when its submission status is PASSED. Accepting an assignment or completing tasks does not complete it.`,
+  },
+  {
+    id: "tasks-and-completion",
+    title: "Tasks & Weekly Tasks",
+    source: "docs/Mission_Framework.md + platform enforcement",
+    keywords: ["task", "tasks", "weekly task", "required task", "task completion", "complete task", "prerequisite", "mark task", "finish task"],
+    content: `Tasks & Weekly Tasks:
+
+- Tasks are mission-scoped: each task belongs to a specific mission. You see only the tasks for the mission you are assigned.
+- Tasks can be Required or Optional. Required tasks must be completed.
+- Some tasks are Prerequisites — they must be done before others unlock.
+- Tasks are published by the program coordinator; unpublished tasks are not visible to applicants.
+- You mark a task complete from your dashboard. Completion is tracked per user.
+- Completing all tasks does NOT complete the mission — you still need 4 journal entries and a submission.
+- Task completion contributes to your progress percentage, but progress % is task completion, not mission completion.
+
+Check your Tasks page for the current mission's tasks and their status.`,
+  },
+  {
+    id: "submission-workflow",
+    title: "Submission & Review Workflow",
+    source: "docs/Mission_Framework.md + platform enforcement",
+    keywords: ["submission", "submit", "submitted", "review", "reviewed", "needs revision", "resubmit", "submission status", "submission readiness", "reviewer", "feedback", "rating"],
+    content: `Submission & Review Workflow:
+
+SUBMISSION STATUSES:
+- Draft — you are preparing your submission (not yet sent for review).
+- Submitted — you submitted; it is pending review.
+- Reviewed — a reviewer has looked at it.
+- Needs Revision — the reviewer requests changes; fix and resubmit.
+- Accepted (Passed) — the reviewer accepted it. Mission complete.
+- Repeat — the mission is reassigned for another attempt.
+
+SUBMISSION READINESS GATE (all required before you can submit):
+1. At least 4 engineering journal entries on 4 distinct dates for the mission.
+2. All required tasks completed.
+3. Valid repository URL, deployment URL, and Loom video URL (publicly accessible).
+
+REVIEW:
+- A reviewer (admin) reviews your submission and leaves feedback + a rating.
+- You can see the reviewer's feedback on your submission page.
+- If rejected or needs revision, address the feedback and resubmit.
+
+You cannot submit until the readiness gate is fully met — the Submit button stays disabled.`,
+  },
+  {
+    id: "applications-enrollment",
+    title: "Applications & Program Enrollment",
+    source: "docs/Mission_Framework.md + platform enforcement",
+    keywords: ["application", "apply", "enroll", "enrollment", "accepted", "rejected", "pending", "program enrollment", "admission", "how to apply"],
+    content: `Applications & Program Enrollment:
+
+- You apply to a program from the Apply page with your CV, GitHub URL, and LinkedIn URL.
+- Application statuses: Pending → Reviewed → Accepted / Rejected.
+- Pending: your application is awaiting review.
+- Reviewed: an admin has reviewed it (decision pending or made).
+- Accepted: you are enrolled in the program. Missions are assigned to you, and the dashboard, journal, tasks, and mentor become available.
+- Rejected: your application was not accepted.
+
+After acceptance:
+- You are assigned missions week by week.
+- You can write engineering journal entries, complete tasks, and submit missions.
+- Your progress is tracked across the program.
+
+Only accepted applicants can access the dashboard, journal, missions, and AI Mentor.`,
+  },
+  {
+    id: "recruiter-portal",
+    title: "Recruiter Access & Public Portfolio",
+    source: "docs/Graduate_Profile.md + platform enforcement",
+    keywords: ["recruiter", "portfolio", "public profile", "graduate profile", "recruiter access", "verify", "contact candidate", "save candidate"],
+    content: `Recruiter Access & Public Portfolio:
+
+- As a graduate, you have a public portfolio page that recruiters can view.
+- Recruiters request access to your portfolio; an admin approves the request.
+- After approval, the recruiter gets a verification link (valid for 7 days).
+- Once verified, the recruiter gets a 30-day session to browse your portfolio.
+- Recruiters can view your profile, projects, submissions, and contact you via email.
+- Recruiters can save your profile as a candidate for later.
+
+Your graduate profile includes your portfolio artifacts, CV, projects, and achievements. Keep it updated so recruiters see your best work.`,
+  },
+  {
+    id: "calendar-scheduling",
+    title: "Calendar & Scheduling",
+    source: "platform enforcement",
+    keywords: ["calendar", "schedule", "event", "deadline calendar", "upcoming", "reminder"],
+    content: `Calendar & Scheduling:
+
+- The Calendar page shows your mission deadlines, task due dates, and program events.
+- Mission deadlines appear on the calendar based on your assignment's deadline.
+- Use the calendar to plan your work and avoid missing deadlines.
+- Notifications remind you of upcoming deadlines and pending tasks.
+
+Check the Calendar page regularly to stay on top of your schedule.`,
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -262,17 +419,23 @@ The product runs on Docker containers so deployment is easy. Deployment steps ar
 /**
  * Retrieve relevant knowledge snippets for a given prompt.
  *
- * Uses simple keyword matching: for each knowledge entry, count how many
- * of its keywords appear in the prompt. Return entries with ≥1 match,
- * sorted by score (descending). Max 3 results.
+ * Two-layer RAG:
+ * 1. Curated KNOWLEDGE_BASE — hand-written entries for platform-enforced rules
+ *    (journal, mission lifecycle, submissions, etc.). High precision.
+ * 2. Auto-generated docs index — sections extracted from docs/*.md at build time.
+ *    Broad coverage, auto-stays-current as docs change. No manual updates needed.
  *
- * This is a placeholder for future semantic retrieval (pgvector + embeddings).
+ * Curated matches are returned first (they're precise). Docs sections are then
+ * added if their source file isn't already covered by a curated match (avoids
+ * redundancy). Returns up to maxResults total.
  */
 export function retrieveKnowledge(prompt: string, maxResults = 3): KnowledgeSnippet[] {
   const lower = prompt.toLowerCase();
 
   const scored: KnowledgeSnippet[] = [];
+  const coveredSources = new Set<string>();
 
+  // Layer 1: curated knowledge base (high precision, platform-enforced rules)
   for (const entry of KNOWLEDGE_BASE) {
     let score = 0;
     for (const keyword of entry.keywords) {
@@ -284,6 +447,33 @@ export function retrieveKnowledge(prompt: string, maxResults = 3): KnowledgeSnip
     if (score > 0) {
       scored.push({
         id: entry.id,
+        title: entry.title,
+        source: entry.source,
+        content: entry.content,
+        score: score + 10, // boost curated entries — they're hand-verified
+      });
+      // Track which docs files this curated entry covers (for dedup)
+      for (const word of entry.source.split(/[\s+]+/)) {
+        if (word.startsWith("docs/")) coveredSources.add(word);
+      }
+    }
+  }
+
+  // Layer 2: auto-generated docs index (broad coverage, RAG over docs/*.md)
+  for (const entry of docsIndex) {
+    // Skip if a curated entry already covers this source file
+    if (coveredSources.has(entry.source)) continue;
+
+    let score = 0;
+    for (const keyword of entry.keywords) {
+      if (lower.includes(keyword)) {
+        score += 1;
+      }
+    }
+
+    if (score > 0) {
+      scored.push({
+        id: `docs:${entry.source}:${entry.title}`,
         title: entry.title,
         source: entry.source,
         content: entry.content,

@@ -45,7 +45,7 @@ describe("Knowledge Base — retrieveKnowledge", () => {
 
   // UT-KB-02: No match returns empty array
   it("returns empty array when no keywords match", () => {
-    const results = retrieveKnowledge("xyz random unrelated query zzz");
+    const results = retrieveKnowledge("zzzqqqxxxyyy asdfqwerty");
     expect(results).toEqual([]);
   });
 

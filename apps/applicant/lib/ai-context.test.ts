@@ -12,12 +12,16 @@ const dbMock = vi.hoisted(() => ({
   getApplicantProgramProgress: vi.fn(),
   listApplicantMissionAssignmentStatuses: vi.fn(),
   prismaSubmissionFindMany: vi.fn(),
+  prismaEngineeringJournalEntryFindMany: vi.fn(),
 }));
 
 vi.mock("@talentos/db", () => ({
   prisma: {
     submission: {
       findMany: dbMock.prismaSubmissionFindMany,
+    },
+    engineeringJournalEntry: {
+      findMany: dbMock.prismaEngineeringJournalEntryFindMany,
     },
   },
   listApplicantApplications: dbMock.listApplicantApplications,
@@ -74,6 +78,7 @@ describe("AI Context — buildApplicantContext", () => {
     for (const mock of Object.values(dbMock)) {
       mock.mockReset();
     }
+    dbMock.prismaEngineeringJournalEntryFindMany.mockResolvedValue([]);
   });
 
   // UT-CTX-01: Build context with accepted application
@@ -239,6 +244,7 @@ describe("AI Context — contextToPromptSection", () => {
       missions: [],
       assignments: [],
       submissions: [],
+      missionStatus: [],
       daysRemaining: 30,
     };
 
@@ -262,6 +268,7 @@ describe("AI Context — contextToPromptSection", () => {
       missions: [],
       assignments: [],
       submissions: [],
+      missionStatus: [],
       daysRemaining: null,
     };
 
@@ -282,6 +289,7 @@ describe("AI Context — contextToPromptSection", () => {
       missions: [],
       assignments: [],
       submissions: [],
+      missionStatus: [],
       daysRemaining: null,
     };
 
@@ -301,6 +309,7 @@ describe("AI Context — contextToPromptSection", () => {
       missions: [{ id: "m1", title: "API Development", weekNumber: 3, difficulty: "Intermediate" }],
       assignments: [],
       submissions: [],
+      missionStatus: [{ missionId: "m1", title: "API Development", weekNumber: 3, difficulty: "Intermediate", assignmentStatus: null, deadlineAt: null, hasSubmission: false, submissionStatus: null, journalEntryCount: 0, requiredTaskTotal: 0, requiredTaskCompleted: 0 }],
       daysRemaining: null,
     };
 

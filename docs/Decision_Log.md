@@ -1592,3 +1592,78 @@ sets `overallRating: 0` unconditionally (unlike `createOrUpdateGraduateProfile`,
 real average) — now visible in this journey's own PDF evidence for the first time; recorded in
 `Regression_Scenarios.md` Known Gaps as observed, not fixed, since changing it is an app-behavior
 decision outside this iteration's scope.
+
+## D-106: AI Mentor UI, RAG, Context Fix, And RBSE Unblock (v0.20.6)
+
+**Context:** The AI Mentor was giving materially wrong answers — it told an applicant who had
+never submitted Mission 1 that the mission was "Completed (100%)" and "Accepted", because the
+applicant context fed the LLM `assigned=ACCEPTED` (meaning the applicant *accepted the
+assignment*, i.e. started it) which the LLM misread as *mission accepted/passed*, and
+`overallPercentage: 100` (task completion) which the LLM conflated with mission completion.
+Separately, `"tell me about "` was in `BLOCKED_TOPICS` (intended to block "tell me about
+yourself") but as a substring match it blocked every "tell me about mission 1", "tell me about
+SDLC" etc. — so legitimate questions never reached the LLM and got a canned stub refusal. The
+mentor also appended "Next step:" follow-up questions (instructed by the system prompt) and said
+"I'm not sure" for any topic not in the hand-curated 11-entry knowledge base.
+
+**Decision:**
+
+1. **Per-mission readiness summary in applicant context** (`ai-context.ts`): add a `missionStatus`
+   field with unambiguous per-mission status — assignment status rendered as "you accepted the
+   assignment (started; NOT yet completed)" (not bare "ACCEPTED"), explicit "NOT YET SUBMITTED"
+   when no submission exists, journal entry count with "(4 required before submission)", required
+   task completion (X/Y), and a derived status label ("IN PROGRESS — not yet submitted" vs
+   "COMPLETE"). The progress line is renamed "Task Completion" with an explicit note: "this is
+   TASK completion, NOT mission completion. A mission is only complete when it has a PASSED
+   submission." The context signature includes `missionStatus` so the LLM cache invalidates when
+   the applicant submits, writes a journal entry, or completes a task.
+2. **Remove broad RBSE blocked topics** (`ai-rbse.ts`): remove `"tell me about "` and
+   `"explain about"` from `BLOCKED_TOPICS`. The precise `PERSONAL_NAME_PATTERNS` regexes +
+   `NAME_PATTERN_ALLOWLIST` (which already includes "mission", "task", "SDLC", etc.) handle
+   personal-name blocking correctly — "tell me about John" is blocked, "tell me about mission 1"
+   is allowed.
+3. **Remove follow-up question instructions** (`ai.ts`): the system prompt no longer instructs
+   the LLM to "End with at most one short, purposeful follow-up question" or "Give exactly one
+   small, concrete next action". Instead: "Do NOT end with a follow-up question, a 'Next step'
+   prompt, or a 'What to do now' nudge. Answer the question fully and stop."
+4. **Two-layer RAG** (`knowledge-base.ts` + `scripts/build-docs-index.mjs`): Layer 1 is the
+   curated knowledge base (now 17 entries — 6 new: journal rules, mission lifecycle, tasks,
+   submission workflow, applications, recruiter portal, calendar). Layer 2 is an auto-generated
+   docs index — a build-time script reads all `docs/*.md` files, splits into 347 sections by
+   markdown headers, extracts keywords, and writes `apps/applicant/data/docs-index.ts`. At query
+   time, `retrieveKnowledge` searches both layers: curated entries get a +10 score boost, docs
+   sections are skipped if their source file is already covered by a curated match (dedup). The
+   Dockerfile runs the indexer before `next build` so the index is bundled into the standalone
+   output. New features documented in `docs/` are auto-discovered on the next build — no manual
+   KB update needed.
+5. **Chat UI overhaul** (`page.tsx`, `MessageBubble.tsx`, `CardRenderer.tsx`): streaming-safe
+   markdown (plain text + cursor while streaming, full markdown after); per-message hover actions
+   (copy, regenerate, edit-and-resend, thumbs up/down); suggested questions send immediately;
+   personalized welcome from applicant context + "What I know about you" disclosure panel; mobile
+   hamburger drawer; live clock; real `maxLength=2000`; "Thinking…/Online" status badge; streaming
+   perf fix (token updates skip sort + localStorage); conversation search/rename/pin; `MentorCard`
+   type extended with `code` + `resource` kinds; all card CTAs wired (Start Task navigates, Save
+   Tips persists, Share uses Web Share API).
+
+**Rationale:** The wrong mission-status answer was the most damaging — an applicant told their
+mission is "completed" when they haven't submitted it would stop working. The root cause was
+ambiguous context labels, not an LLM bug; fixing the context (not patching the prompt) ensures
+every future question gets correct status. The RBSE broad-filter removal is safe because the
+precise regex + allowlist already handle the intended case. The RAG docs index eliminates the
+entire class of "I'm not sure" answers for documented features — the knowledge base can no longer
+go stale as the codebase grows, because it auto-indexes the docs on every build.
+
+**Alternatives considered:** A CI gate that fails PRs when a dashboard page has no knowledge-base
+entry was considered but rejected by the user in favor of the RAG approach — the RAG layer is
+self-maintaining (developers just document in `docs/` as they already do) rather than requiring
+an extra manual step per feature. Full pgvector + embeddings for semantic retrieval was deferred
+— the keyword-based RAG is the MVP stepping stone, consistent with the knowledge-base module's
+own "Phase 5+" comments.
+
+**Consequences:** 6 test fixtures updated to add `missionStatus: []` (the new required
+`ApplicantContext` field). One stub-response test assertion changed from `tips` card to `badge`
+card (the stub no longer creates an empty tips card for a single knowledge snippet). One
+knowledge-base test prompt changed from "xyz random unrelated query zzz" to pure nonsense
+("zzzqqqxxxyyy asdfqwerty") because "query" now matches docs-index sections. The
+`AI_Mentor_Architecture_and_Concepts.md` document was created as a comprehensive reference for
+the mentor's architecture and concepts.

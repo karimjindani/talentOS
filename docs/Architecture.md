@@ -1,10 +1,10 @@
 # TalentOS Architecture
 
-Code version: `v0.20.5`
+Code version: `v0.20.6`
 
-Architecture evidence commit: `5560ccf` (+ `v0.20.3`/`v0.20.4`/`v0.20.5` uncommitted at documentation time)
+Architecture evidence commit: `5560ccf` (+ `v0.20.3`/`v0.20.4`/`v0.20.5`/`v0.20.6` uncommitted at documentation time)
 
-Current documentation update: `v0.20.5`
+Current documentation update: `v0.20.6`
 
 > Note: the public graduate-portal/recruiter-access feature (PR #62) is not yet reflected in the
 > Portal Layout or Multi-Tenancy sections below — it merged without SSDLC documentation. `v0.20.3`

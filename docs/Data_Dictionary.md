@@ -1,10 +1,10 @@
 # Data Dictionary
 
-Code version: `v0.20.5`
+Code version: `v0.20.6`
 
 Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
 
-> `v0.20.1`, `v0.20.2`, `v0.20.3`, `v0.20.4` and `v0.20.5` make no schema change (`v0.20.5` adds
+> `v0.20.1` through `v0.20.6` make no schema change (`v0.20.5` adds
 > `"RecruiterAccessRequest"` to the `RegressionDataMarker.entityType` TypeScript union, but that
 > column is a plain `String` in `schema.prisma`, not a Prisma enum — no migration). The graduate-portal/recruiter tables
 > (`graduate_profiles`, `recruiter_access_requests`, `recruiter_accounts`, `recruiter_sessions`,

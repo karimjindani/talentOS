@@ -93,6 +93,7 @@ const contextBefore: ApplicantContext = {
   missions: [{ id: "m-1", title: "API Development", weekNumber: 3, difficulty: "Intermediate" }],
   assignments: [],
   submissions: [],
+  missionStatus: [],
   daysRemaining: 30,
 };
 

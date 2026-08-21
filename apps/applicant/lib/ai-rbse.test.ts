@@ -12,6 +12,7 @@ const emptyContext: ApplicantContext = {
   missions: [],
   assignments: [],
   submissions: [],
+  missionStatus: [],
   daysRemaining: null,
 };
 
@@ -39,6 +40,7 @@ const fullContext: ApplicantContext = {
     { missionId: "m2", status: "PASSED", deadlineAt: "2026-07-10T23:59:59Z" },
   ],
   submissions: [],
+  missionStatus: [],
   daysRemaining: 30,
 };
 
