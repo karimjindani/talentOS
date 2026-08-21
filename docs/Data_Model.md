@@ -1,9 +1,15 @@
 # Data Model
 
-Code version: `v0.20.6`
+Code version: `v0.20.7`
 
 Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
 
+> `v0.20.7` (D-107) adds `User.avatarFileId` — a nullable, unique `String` foreign key to
+> `StoredFile` (named relation `UserAvatar`, `onDelete: SetNull`), following the same pattern as
+> `GraduateProfile.profilePhotoFileId`/`GraduateProfilePhoto`. Migration:
+> `20260821190000_v0_20_7_user_avatar`. Lets an in-program applicant have a profile photo before a
+> `GraduateProfile` row exists (which only happens at consent time). No other schema change.
+>
 > `v0.20.1` through `v0.20.6` make no schema change (recorded explicitly rather than skipped,
 > per `docs/sdlc.md` principle 6). The graduate-portal/recruiter schema (`GraduateProfile`,
 > `RecruiterAccessRequest`, `RecruiterAccount`, `RecruiterSession`, `SavedCandidate`,

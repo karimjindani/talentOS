@@ -1,9 +1,14 @@
 # Data Dictionary
 
-Code version: `v0.20.6`
+Code version: `v0.20.7`
 
 Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
 
+> `v0.20.7` (D-107) adds `User.avatarFileId` (see `User` and `StoredFile` entries below) and a new
+> `StoredFile.category` value, `"profile-photo"`, used for the new apply-time avatar upload —
+> distinct from the pre-existing `"graduate-photo"` category used by
+> `graduates/profile/photo/route.ts`. Migration: `20260821190000_v0_20_7_user_avatar`.
+>
 > `v0.20.1` through `v0.20.6` make no schema change (`v0.20.5` adds
 > `"RecruiterAccessRequest"` to the `RegressionDataMarker.entityType` TypeScript union, but that
 > column is a plain `String` in `schema.prisma`, not a Prisma enum — no migration). The graduate-portal/recruiter tables
@@ -195,6 +200,7 @@ Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
 | `totpEnabledAt` | Legacy 2FA enablement timestamp. |
 | `lastLoginAt` | Timestamp of the user's most recent login, when recorded. |
 | `preferredJournalLanguage` | Applicant's preferred Engineering Journal entry language; defaults to `"English"` (`v0.17.0`). |
+| `avatarFileId` | Optional profile photo, uploaded at apply time (`v0.20.7`, D-107). Distinct from `GraduateProfile.profilePhotoFileId`, which only exists once a graduate profile is created; `getGraduateProfileDefaults` copies this into that field the first time one is. |
 
 ## TenantMembership
 
@@ -449,7 +455,7 @@ to `MissionAssignment`, so a repeat attempt in the same week retains learning-ta
 | `originalName` | Original filename supplied by the uploader. |
 | `contentType` | MIME type. |
 | `size` | Size in bytes. |
-| `category` | Logical grouping (e.g. `cv`, `program-material`). |
+| `category` | Logical grouping (e.g. `cv`, `program-material`, `profile-photo` — the apply-time avatar upload, `v0.20.7` — distinct from the pre-existing `graduate-photo`). |
 | `status` | `PENDING` until the upload is confirmed, then `READY`. |
 
 ## Schema Stubs (migrated, not yet used by application code)

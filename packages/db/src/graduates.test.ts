@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const prismaMock = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
+  applicationFindFirst: vi.fn(),
   storedFileFindFirst: vi.fn(),
   submissionFindMany: vi.fn(),
   graduateProfileFindFirst: vi.fn(),
@@ -42,6 +43,7 @@ const prismaMock = vi.hoisted(() => ({
 vi.mock("./client", () => ({
   prisma: {
     user: { findUnique: prismaMock.userFindUnique },
+    application: { findFirst: prismaMock.applicationFindFirst },
     storedFile: { findFirst: prismaMock.storedFileFindFirst },
     submission: { findMany: prismaMock.submissionFindMany },
     graduateProfile: {
@@ -92,6 +94,7 @@ import {
   getAllAccessibleGraduates,
   getFullProfileForRecruiter,
   getGraduateEligibility,
+  getGraduateProfileDefaults,
   getPublicProfile,
   getPublicProfiles,
   isGraduateConsentRequired,
@@ -299,12 +302,45 @@ describe("getGraduateEligibility / isGraduateConsentRequired", () => {
   });
 });
 
+describe("getGraduateProfileDefaults", () => {
+  it("carries github/linkedin from the applicant's accepted application and their avatar as the default photo", async () => {
+    prismaMock.applicationFindFirst.mockResolvedValue({
+      githubUrl: "https://github.com/amina",
+      linkedinUrl: "https://www.linkedin.com/in/amina"
+    });
+    prismaMock.userFindUnique.mockResolvedValue({ avatarFileId: "file-avatar-1" });
+
+    const result = await getGraduateProfileDefaults("user-1");
+
+    expect(prismaMock.applicationFindFirst).toHaveBeenCalledWith({
+      where: { applicantId: "user-1", status: "ACCEPTED" },
+      orderBy: { createdAt: "desc" },
+      select: { githubUrl: true, linkedinUrl: true }
+    });
+    expect(result).toEqual({
+      githubUrl: "https://github.com/amina",
+      linkedinUrl: "https://www.linkedin.com/in/amina",
+      profilePhotoFileId: "file-avatar-1"
+    });
+  });
+
+  it("returns nulls when there is no accepted application or avatar", async () => {
+    prismaMock.applicationFindFirst.mockResolvedValue(null);
+    prismaMock.userFindUnique.mockResolvedValue({ avatarFileId: null });
+
+    const result = await getGraduateProfileDefaults("user-1");
+
+    expect(result).toEqual({ githubUrl: null, linkedinUrl: null, profilePhotoFileId: null });
+  });
+});
+
 describe("declineGraduateProfilePublishing / skipGraduateConsent (D-consent-persist fix)", () => {
   // Regression coverage for the bug where declining/skipping consent silently no-op'd
   // for an applicant who had never created a graduateProfile row: the route returned
   // {success:true} without persisting anything, so the choice was lost on reload.
   it("decline creates a placeholder profile and consent-history row when none exists yet", async () => {
-    prismaMock.userFindUnique.mockResolvedValue({ name: "New Grad", email: "newgrad@example.com", graduateProfile: null });
+    prismaMock.userFindUnique.mockResolvedValue({ name: "New Grad", email: "newgrad@example.com", graduateProfile: null, avatarFileId: "file-avatar-1" });
+    prismaMock.applicationFindFirst.mockResolvedValue({ githubUrl: "https://github.com/newgrad", linkedinUrl: null });
     prismaMock.txGraduateProfileCreate.mockResolvedValue({ id: "profile-new", consentStatus: "DECLINED" });
 
     const result = await declineGraduateProfilePublishing("user-1");
@@ -314,7 +350,10 @@ describe("declineGraduateProfilePublishing / skipGraduateConsent (D-consent-pers
         userId: "user-1",
         slug: "new-grad-slug",
         publicProfileEnabled: false,
-        consentStatus: "DECLINED"
+        consentStatus: "DECLINED",
+        githubUrl: "https://github.com/newgrad",
+        linkedinUrl: null,
+        profilePhotoFileId: "file-avatar-1"
       })
     });
     expect(prismaMock.txGraduateProfileUpdate).not.toHaveBeenCalled();
@@ -343,13 +382,21 @@ describe("declineGraduateProfilePublishing / skipGraduateConsent (D-consent-pers
   });
 
   it("skip creates a placeholder profile and consent-history row when none exists yet", async () => {
-    prismaMock.userFindUnique.mockResolvedValue({ name: "New Grad", email: "newgrad@example.com", graduateProfile: null });
+    prismaMock.userFindUnique.mockResolvedValue({ name: "New Grad", email: "newgrad@example.com", graduateProfile: null, avatarFileId: null });
+    prismaMock.applicationFindFirst.mockResolvedValue(null);
     prismaMock.txGraduateProfileCreate.mockResolvedValue({ id: "profile-new", consentStatus: "SKIPPED" });
 
     await skipGraduateConsent("user-1");
 
     expect(prismaMock.txGraduateProfileCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ userId: "user-1", publicProfileEnabled: false, consentStatus: "SKIPPED" })
+      data: expect.objectContaining({
+        userId: "user-1",
+        publicProfileEnabled: false,
+        consentStatus: "SKIPPED",
+        githubUrl: null,
+        linkedinUrl: null,
+        profilePhotoFileId: null
+      })
     });
     expect(prismaMock.txConsentHistoryCreate).toHaveBeenCalledWith({
       data: { graduateProfileId: "profile-new", status: "SKIPPED", action: "Applicant chose to decide later" }

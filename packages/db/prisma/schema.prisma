@@ -168,9 +168,11 @@ model User {
   totpEnabledAt            DateTime?
   lastLoginAt              DateTime?
   preferredJournalLanguage String        @default("English")
+  avatarFileId             String?       @unique
   createdAt                DateTime      @default(now())
   updatedAt                DateTime      @updatedAt
 
+  avatarFile          StoredFile?        @relation("UserAvatar", fields: [avatarFileId], references: [id], onDelete: SetNull)
   memberships         TenantMembership[]
   applications        Application[]             @relation("ApplicantApplications")
   auditLogs           AuditLog[]
@@ -549,6 +551,7 @@ model StoredFile {
   cvForApplication Application?    @relation("ApplicationCv")
   logoForTenant    Tenant?         @relation("TenantLogo")
   graduatePhotoFor GraduateProfile? @relation("GraduateProfilePhoto")
+  avatarForUser    User?           @relation("UserAvatar")
   videoResources   VideoResource[]
 
   @@index([tenantId, category])

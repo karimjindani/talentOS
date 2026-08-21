@@ -1,8 +1,8 @@
 # Applicant Portal User Guide
 
-Applies to version: `v0.19.5`
+Applies to version: `v0.20.7`
 
-Last verified: 2026-07-19
+Last verified: 2026-08-21
 
 Audience: applicants and accepted program participants.
 
@@ -76,14 +76,20 @@ The portal delegates authentication to Keycloak; new applicants use **Create acc
 
 1. Open `http://demo.lvh.me:3100/apply`.
 2. Sign in if redirected to login.
-3. Select a published program.
-4. Enter the motivation/application answer.
-5. Upload a CV if requested by the form.
-6. Add GitHub and LinkedIn profile URLs when available.
-7. Submit the application.
+3. Optionally, add a profile photo — click the circular avatar next to your name and choose a
+   JPG, PNG, or WebP image (2 MB max). This is not required to apply.
+4. Select a published program.
+5. Enter the motivation/application answer.
+6. Upload a CV (PDF, 5 MB max) — drag and drop it onto the Documents section, or click to browse.
+7. Add GitHub and LinkedIn profile URLs when available.
+8. Submit the application.
 
 After submission, TalentOS records the application as `SUBMITTED`. Duplicate active applications for the
 same program are blocked.
+
+If you added a profile photo and later graduate the program, that same photo (along with your GitHub
+and LinkedIn URLs) automatically becomes the starting point for your public graduate profile — you
+won't need to upload it again, though you can still change it before publishing.
 
 ![Application form](screenshots/04-applicant-apply.png)
 

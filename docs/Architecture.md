@@ -1,6 +1,6 @@
 # TalentOS Architecture
 
-Code version: `v0.20.6`
+Code version: `v0.20.7`
 
 Architecture evidence commit: `5560ccf` (+ `v0.20.3`/`v0.20.4`/`v0.20.5`/`v0.20.6` uncommitted at documentation time)
 
@@ -283,6 +283,18 @@ As of `v0.11.4` the admin portal sidebar is rendered by a client component
 (`bg-brand-blue text-white`), and the application review page (`/applications/[id]`) includes a
 "← Back to Applications" link. The applicant `/apply` page uses a professional card-based layout with
 branded header, sectioned form, and styled inputs.
+
+As of `v0.20.7` (D-107), `/apply` also accepts an optional profile photo alongside the required CV,
+via a client component (`ApplyUploadFields.tsx`) with a circular avatar-upload preview and a
+drag-and-drop CV dropzone, replacing plain native file inputs; emoji glyphs throughout the page were
+replaced with `lucide-react` icons. Both stay within the existing per-tenant brand token system
+(`brand-blue`/`brand-navy`/`brand-mist`, set via `brandStyleBlock`) rather than introducing a fixed
+palette. The uploaded photo is stored as a `StoredFile` (category `profile-photo`) and linked via
+the new `User.avatarFileId` — distinct from `GraduateProfile.profilePhotoFileId`, which only exists
+once a graduate profile is created at consent time. `getGraduateProfileDefaults`
+(`packages/db/src/graduates.ts`; see `Decision_Log.md` D-107) carries that photo, plus the
+applicant's accepted-application GitHub/LinkedIn URLs, into a `GraduateProfile` the first time one
+is created — not on later updates.
 
 ```mermaid
 flowchart TD

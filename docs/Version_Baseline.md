@@ -2,29 +2,85 @@
 
 ## Current Allocated Iteration (Review Pending)
 
+Version: `v0.20.7`
+
+Baseline name: `Applicant Profile Photo, Apply Page Redesign, And Graduate-Profile Defaults Carry-Through`
+
+Base branch and commit: `origin/main` at `a825371` (merges PR #70, the `v0.20.6` AI Mentor baseline)
+
+Feature branch: local `main` (not yet pushed or merged)
+
+Documentation date: `2026-08-21`
+
+Latest released baseline: `v0.20.6` at `a825371` (PR #70, merged 2026-08-21)
+
+Reserved active-branch version: re-checked live via
+`node .claude/skills/version-allocation-and-gates/scripts/allocate-version.js` immediately before
+starting this documentation pass. This iteration was informally tracked as `v0.20.6` for most of
+the session; the live re-check caught that `origin/main` had since gained an *unrelated* `v0.20.6`
+(PR #70, AI Mentor UI/RAG/context fix, D-106) while this work was in progress. `v0.20.7` is the
+next available version after that collision — see `Decision_Log.md` D-107 "Version note" and
+[[version-allocation-and-gates]]. The one migration folder and its `_prisma_migrations` DB record
+created under the stale `v0.20.6` name were renamed to `20260821190000_v0_20_7_user_avatar` before
+this documentation pass, so disk and DB agree.
+
+Migrations: `20260821190000_v0_20_7_user_avatar` — adds `users.avatarFileId` (nullable, unique,
+FK to `stored_files`). See `Data_Model.md` and `Data_Dictionary.md`.
+
+Repository state: `v0.20.7` code and documentation are local on `main`. Not yet pushed or merged.
+
+### What this iteration changes
+
+1. **`User.avatarFileId`** (schema): optional profile photo, uploaded at apply time — exists
+   before any `GraduateProfile` row does. See `Decision_Log.md` D-107.
+2. **Apply-time photo upload** (`apps/applicant/app/apply/page.tsx`): `submitApplication` accepts
+   an optional `photo` field, validated identically to the existing graduate-photo route
+   (JPEG/PNG/WebP, 2 MB cap, magic-byte signature check), linked via new `setUserAvatar()`.
+3. **Apply page redesign** (`ApplyUploadFields.tsx` new; `page.tsx` updated): circular avatar
+   upload with live preview, drag-and-drop CV dropzone, `lucide-react` icons replacing emoji —
+   all within the existing per-tenant brand token system.
+4. **Graduate-profile defaults carry-through** (`packages/db/src/graduates.ts`): new
+   `getGraduateProfileDefaults(userId)`, wired into `declineGraduateProfilePublishing`,
+   `skipGraduateConsent`, and the `acknowledge` route — a brand-new `GraduateProfile` now inherits
+   the applicant's accepted-application GitHub/LinkedIn URLs and avatar, applied only on creation
+   (never overwriting an existing profile's own edits).
+5. **3 new regression scenarios** (`scripts/regression/run.ts`, `public-portal` area) covering the
+   defaults-present, defaults-absent, and no-overwrite-on-update cases.
+
+## v0.20.7 Documentation Index
+
+| Artifact | Location |
+| --- | --- |
+| Plan | `docs/plans/v0.20.7_Applicant_Profile_Photo_And_Graduate_Defaults.md` |
+| Test results | `docs/testing/v0.20.7_Applicant_Profile_Photo_And_Graduate_Defaults_Test_Results.md` |
+| Decision record | `docs/Decision_Log.md` (`D-107`) |
+| Architecture | `docs/Architecture.md` (Portal Layout section updated; code version updated) |
+| Scenario catalog | `docs/Regression_Scenarios.md` (v0.20.7 traceability + Scenario Matrix rows + Known Gaps) |
+| Testing strategy | `docs/Testing_Strategy.md` (scenario count + testing-boundary note added) |
+| Deployment | No change — no new services, env vars, or deployment steps |
+| Data model / dictionary | `User.avatarFileId`, `StoredFile.category = "profile-photo"` documented; migration noted |
+| User guides | `docs/user-guides/Applicant_Portal_User_Guide.md` updated — "Apply to a Program" section covers the new optional photo step and its carry-through to the graduate profile |
+
+## Previous: v0.20.6
+
 Version: `v0.20.6`
 
 Baseline name: `AI Mentor UI, RAG, Context Fix, And RBSE Unblock`
 
 Base branch and commit: `origin/main` at `69178a1` (merges PR #69, the `v0.20.4`/`v0.20.5` baseline)
 
-Feature branch: local `main` (not yet pushed or merged)
+Feature branch and code commit: `feature/v0.20.6-mentor-ui-rag-context-fix` at `4b94042`, merged to
+`origin/main` via PR #70 at `a825371`
 
 Documentation date: `2026-08-21`
 
-Latest released baseline: `v0.20.3` at `7e2bd14` (PR #68, merged 2026-08-19)
+Latest released baseline (at the time): `v0.20.3` at `7e2bd14` (PR #68, merged 2026-08-19)
 
-Reserved active-branch version: re-checked live via
-`node .claude/skills/version-allocation-and-gates/scripts/allocate-version.js` before starting this
-documentation pass. `origin/main` declares `v0.20.5`; no other active remote branch declared a
-higher version. `v0.20.6` is the next available version.
+Migrations: none. This iteration changed no schema.
 
-Migrations: none. This iteration changes no schema. `Data_Model.md` and `Data_Dictionary.md` gain
-a "no schema change" note rather than being silently skipped, per `docs/sdlc.md` principle 6.
+Repository state: released — merged to `origin/main` via PR #70.
 
-Repository state: `v0.20.6` code and documentation are local on `main`. Not yet pushed or merged.
-
-### What this iteration changes
+### What this iteration changed
 
 1. **Applicant context accuracy fix** (`lib/ai-context.ts`): adds `missionStatus` field with
    per-mission readiness (assignment status, submission, journal count, task completion) and
@@ -54,7 +110,7 @@ Repository state: `v0.20.6` code and documentation are local on `main`. Not yet 
 | Scenario catalog | `docs/Regression_Scenarios.md` (v0.20.6 traceability) |
 | Testing strategy | `docs/Testing_Strategy.md` (code version updated) |
 | Deployment | `docs/Deployment.md` (Dockerfile `build:docs-index` step noted) |
-| Data model / dictionary | No-change note added; no schema touched (see Migrations above) |
+| Data model / dictionary | No-change note added; no schema touched |
 | User guides | Not required — the mentor UI changes are applicant-facing but the existing user guide does not cover the mentor page; deferred to a future iteration |
 
 ## Previous: v0.20.5
