@@ -17,7 +17,8 @@ const prismaMock = vi.hoisted(() => ({
   txEntryUpdateMany: vi.fn(),
   txEntryFindFirstOrThrow: vi.fn(),
   txAuditLogCreate: vi.fn(),
-  txQueryRaw: vi.fn()
+  txQueryRaw: vi.fn(),
+  featureFlagFindUnique: vi.fn()
 }));
 
 vi.mock("./client", () => ({
@@ -36,6 +37,7 @@ vi.mock("./client", () => ({
     user: {
       update: prismaMock.userUpdate
     },
+    featureFlag: { findUnique: prismaMock.featureFlagFindUnique },
     $transaction: prismaMock.transaction
   }
 }));
@@ -165,6 +167,7 @@ describe("engineering journal data access", () => {
     for (const mock of Object.values(prismaMock)) {
       mock.mockReset();
     }
+    prismaMock.featureFlagFindUnique.mockResolvedValue({ enabled: false });
     prismaMock.transaction.mockImplementation(async (callback) =>
       callback({
         mission: { findFirst: prismaMock.txMissionFindFirst },

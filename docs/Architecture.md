@@ -1,6 +1,6 @@
 # TalentOS Architecture
 
-Code version: `v0.20.8`
+Code version: `v0.20.10`
 
 Architecture evidence commit: `5560ccf` (+ `v0.20.3`/`v0.20.4`/`v0.20.5`/`v0.20.6` uncommitted at documentation time)
 

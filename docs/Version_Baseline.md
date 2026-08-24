@@ -2,6 +2,57 @@
 
 ## Current Allocated Iteration (Review Pending)
 
+Version: `v0.20.10`
+
+Baseline name: `Feature Flags And Journal Testing Mode`
+
+Base branch and commit: `origin/main` at `c8bb34f` (merges PR #72, the `v0.20.8` baseline)
+
+Feature branch: local `main` (not yet pushed or merged)
+
+Documentation date: `2026-08-24`
+
+Latest released baseline: `v0.20.3` at `7e2bd14` (PR #68)
+
+Reserved active-branch version: `origin/main` declares `v0.20.8`; `v0.20.9` is claimed by D-108
+for a future timezone-fix iteration; `v0.20.10` is the next available version.
+
+Migrations: one — `20260824000000_feature_flags_and_journal_testing` creates the `feature_flags`
+table and drops the `engineering_journal_entries_tenantId_applicantId_missionId_entryDate_key`
+unique index.
+
+Repository state: `v0.20.10` code and documentation are local on `main`. Not yet pushed or merged.
+
+### What this iteration changes
+
+1. **FeatureFlag model** (`schema.prisma`): new `feature_flags` table (key, enabled, description,
+   timestamps). Migration also drops the journal unique constraint.
+2. **DB functions** (`packages/db/src/feature-flags.ts`): `isFeatureFlagEnabled`,
+   `listFeatureFlags`, `setFeatureFlag`, `deleteFeatureFlag`, `KNOWN_FEATURE_FLAGS`,
+   `JOURNAL_TESTING_MODE_FLAG`.
+3. **Journal gating** (`packages/db/src/journal.ts`): create/update skip date-conflict,
+   future-date, before-mission-start, and locked checks when `journal.testing_mode` is on.
+4. **Readiness gating** (`packages/db/src/submission-readiness.ts`): 4-entry gate skipped when
+   flag is on (`requiredJournalCount` = 0).
+5. **Ops console** (`apps/ops/src/server.ts`, `apps/ops/src/ui.ts`): flags API endpoints + UI
+   toggle panel.
+
+## v0.20.10 Documentation Index
+
+| Artifact | Location |
+| --- | --- |
+| Plan | `docs/plans/v0.20.10_Feature_Flags_And_Journal_Testing_Mode.md` |
+| Test results | `docs/testing/v0.20.10_Feature_Flags_And_Journal_Testing_Mode_Test_Results.md` |
+| Decision record | `docs/Decision_Log.md` (`D-109`) |
+| Architecture | `docs/Architecture.md` (code version updated) |
+| Scenario catalog | `docs/Regression_Scenarios.md` (v0.20.10 traceability) |
+| Testing strategy | `docs/Testing_Strategy.md` (code version updated) |
+| Deployment | `docs/Deployment.md` (code version updated) |
+| Data model / dictionary | Updated — new `feature_flags` table, dropped journal unique constraint |
+| User guides | Not required — Ops console internal tool, not a user-facing portal change |
+
+## Previous: v0.20.8
+
 Version: `v0.20.8`
 
 Baseline name: `Submission Review Double-Action Guard`

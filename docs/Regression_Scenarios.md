@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.20.8`
+Code version: `v0.20.10`
 
 ## Purpose
 
@@ -140,6 +140,28 @@ rebuilt local stack: `npm run journeys:recruiter` (2/2 passed) and `npm run jour
 | --- | --- | --- |
 | Recruiter completes the full access-request lifecycle through real browser sessions on both portals | `tests/journeys/recruiter-access.spec.ts` (`journeys:recruiter`) | Automated |
 | Pending and rejected recruiter access requests are refused in the browser, with the rejection reason shown on-page | `tests/journeys/recruiter-access.spec.ts` (`journeys:recruiter`) | Automated |
+
+## v0.20.10 Plan Scenario Traceability
+
+Names match `docs/plans/v0.20.10_Feature_Flags_And_Journal_Testing_Mode.md` one-for-one. Verified
+via unit tests (1024 pass) and manual testing.
+
+| Plan scenario | Coverage | Status |
+| --- | --- | --- |
+| S1: Journal testing mode off — normal restrictions enforced | `packages/db/src/journal.test.ts` | Automated — `featureFlagFindUnique` mocked to `{ enabled: false }` |
+| S2: Journal testing mode on — duplicate date allowed | Manual verification | Deferred — requires real DB with flag set |
+| S3: Journal testing mode on — future date allowed | Manual verification | Deferred — requires real DB with flag set |
+| S4: Journal testing mode on — locked entry editable | Manual verification | Deferred — requires real DB with flag set |
+| S5: Submission readiness — 4-entry gate skipped in testing mode | `packages/db/src/submission-readiness.test.ts` | Automated — `requiredJournalCount` = 0 when flag on |
+| S6: Ops console flag toggle — live, no restart | Manual verification | Deferred — requires both services running |
+| S7: Ops console flag API — list, set, delete | Manual verification | Deferred — requires ops console auth session |
+| S8: Flag defaults to off when no row exists | All test files | Automated — `featureFlagFindUnique` defaults to `{ enabled: false }` |
+
+### Known Gaps (as of `v0.20.10`)
+
+- **S2–S4, S6–S7 deferred to manual**: these require a running DB with the flag set and/or an ops
+  console auth session. Automating them would require an integration test that sets the flag in the
+  DB, calls the journal/readiness functions, and verifies the relaxed behavior — a future enhancement.
 
 ## v0.20.8 Plan Scenario Traceability
 

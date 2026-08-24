@@ -6,7 +6,8 @@ const prismaMock = vi.hoisted(() => ({
   submissionFindFirst: vi.fn(),
   taskFindMany: vi.fn(),
   completionFindMany: vi.fn(),
-  journalCount: vi.fn()
+  journalCount: vi.fn(),
+  featureFlagFindUnique: vi.fn()
 }));
 
 vi.mock("./client", () => ({
@@ -16,7 +17,8 @@ vi.mock("./client", () => ({
     submission: { findFirst: prismaMock.submissionFindFirst },
     programTask: { findMany: prismaMock.taskFindMany },
     userTaskCompletion: { findMany: prismaMock.completionFindMany },
-    engineeringJournalEntry: { count: prismaMock.journalCount }
+    engineeringJournalEntry: { count: prismaMock.journalCount },
+    featureFlag: { findUnique: prismaMock.featureFlagFindUnique }
   }
 }));
 
@@ -29,6 +31,7 @@ import {
 describe("mission submission readiness", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.featureFlagFindUnique.mockResolvedValue({ enabled: false });
     prismaMock.assignmentFindFirst.mockResolvedValue({
       id: "assignment-2",
       tenantId: "tenant-1",

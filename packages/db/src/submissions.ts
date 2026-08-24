@@ -11,8 +11,10 @@ import {
   checkMissionSubmissionUrlReachability,
   getMissionSubmissionReadiness,
   getMissionSubmissionReadinessWithClient,
+  REQUIRED_JOURNAL_ENTRY_COUNT,
   SubmissionReadinessError
 } from "./submission-readiness";
+import { isFeatureFlagEnabled, JOURNAL_TESTING_MODE_FLAG } from "./feature-flags";
 import {
   checkPublicEvidenceUrl,
   normalizeDeploymentUrls,
@@ -266,6 +268,12 @@ export async function submitSubmission(
   }
   const missionAssignmentId = submission.missionAssignmentId;
 
+  // Keep the in-transaction re-check consistent with the preflight: when journal.testing_mode is
+  // on, neither requires 4 journal entries.
+  const requiredJournalCount = (await isFeatureFlagEnabled(JOURNAL_TESTING_MODE_FLAG))
+    ? 0
+    : REQUIRED_JOURNAL_ENTRY_COUNT;
+
   const preflight = await getMissionSubmissionReadiness({
     tenantId,
     applicantId,
@@ -289,11 +297,16 @@ export async function submitSubmission(
   };
 
   return prisma.$transaction(async (tx) => {
-    const current = await getMissionSubmissionReadinessWithClient(tx, {
-      tenantId,
-      applicantId,
-      missionAssignmentId
-    });
+    const current = await getMissionSubmissionReadinessWithClient(
+      tx,
+      {
+        tenantId,
+        applicantId,
+        missionAssignmentId
+      },
+      new Date(),
+      requiredJournalCount
+    );
     assertMissionSubmissionReady(current);
     if (current.submission?.id !== submission.id) {
       throw new Error("Submission does not belong to the current assignment attempt.");

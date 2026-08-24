@@ -20,6 +20,7 @@ import {
   readSession,
   sessionCookie
 } from "./auth";
+import { deleteFeatureFlag, listFeatureFlags, setFeatureFlag } from "@talentos/db";
 
 loadDotEnv();
 
@@ -129,6 +130,32 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     if (req.method === "POST" && url.pathname === "/api/ops/health") {
       return sendJson(res, 200, await runHealthChecks());
     }
+
+    // Feature flags — runtime toggles (e.g. journal.testing_mode) the applicant portal reads live.
+    if (req.method === "GET" && url.pathname === "/api/ops/flags") {
+      return sendJson(res, 200, { flags: await listFeatureFlags() });
+    }
+    if (req.method === "POST" && url.pathname === "/api/ops/flags") {
+      const body = await readJson(req);
+      const key = typeof body.key === "string" ? body.key.trim() : "";
+      if (!key) {
+        return sendJson(res, 400, { error: "Feature flag key is required." });
+      }
+      const enabled = body.enabled === true;
+      const description = typeof body.description === "string" ? body.description : undefined;
+      const flag = await setFeatureFlag(key, enabled, description);
+      return sendJson(res, 200, flag);
+    }
+    const flagMatch = /^\/api\/ops\/flags\/([^/]+)$/.exec(url.pathname);
+    if (req.method === "DELETE" && flagMatch) {
+      try {
+        await deleteFeatureFlag(decodeURIComponent(flagMatch[1]));
+        return sendJson(res, 200, { deleted: true });
+      } catch {
+        return sendJson(res, 404, { error: "Feature flag not found." });
+      }
+    }
+
     if (req.method === "POST" && url.pathname === "/api/ops/jobs") {
       const body = await readJson(req);
       const kind = body.kind as OpsJobKind;

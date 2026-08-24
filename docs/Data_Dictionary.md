@@ -1,6 +1,6 @@
 # Data Dictionary
 
-Code version: `v0.20.7`
+Code version: `v0.20.10`
 
 Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
 
