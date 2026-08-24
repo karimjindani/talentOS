@@ -1,8 +1,8 @@
 # Testing Strategy
 
-Code version: `v0.20.8`
+Code version: `v0.20.9`
 
-Test evidence commit: `43e7537` (+ `v0.20.3`/`v0.20.4`/`v0.20.5`/`v0.20.6`/`v0.20.7`/`v0.20.8` uncommitted at documentation time)
+Test evidence commit: `43e7537` (+ `v0.20.3`/`v0.20.4`/`v0.20.5`/`v0.20.6`/`v0.20.7`/`v0.20.8`/`v0.20.9` uncommitted at documentation time)
 
 ## Goals
 
@@ -23,13 +23,23 @@ The regression suite has three layers:
 The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts plus
 individual scenario rows after each run.
 
-As of `v0.20.8`, the runner defines **63 scenarios across 12 concrete areas plus the `all`
+As of `v0.20.9`, the runner defines **64 scenarios across 12 concrete areas plus the `all`
 orchestrator** (up from 59 in `v0.20.3`). `v0.20.7` (D-107) added three `public-portal` scenarios
 covering `getGraduateProfileDefaults` — the apply-time GitHub/LinkedIn/avatar defaults that now
 carry into a brand-new `GraduateProfile` on decline/skip/acknowledge, the null-defaults edge case,
 and the no-overwrite-on-update case. `v0.20.8` (D-108) added one `missions` scenario proving an
-admin cannot act twice on the same submission. The current unit and executed-regression totals are
-recorded in the versioned test-results artifact, not inferred here.
+admin cannot act twice on the same submission. `v0.20.9` (D-109) added one `public-portal` scenario
+proving the graduate directory and recruiter access grants stay isolated across two genuinely
+separate tenants. The current unit and executed-regression totals are recorded in the versioned
+test-results artifact, not inferred here.
+
+`v0.20.9` relies on a unit-level-only testing boundary for two of its five scenarios: the
+cross-tenant admin-approval denial (`approveAccessRequest`/`rejectAccessRequest`/
+`revokeAccessRequest` given another tenant's request id) and the competency-tags/revision-history
+surfacing are both proven in `packages/db/src/graduates.test.ts`, not in
+`scripts/regression/run.ts` — consistent with this suite's existing pattern of unit-testing pure
+data-shaping logic rather than adding a scenario per field. See
+`docs/plans/v0.20.9_Deadline_Timezone_Tenant_Isolation_And_Recruiter_Data.md`.
 
 `v0.20.8` also relies on a unit-level-only testing boundary worth naming: the fix's concurrent-write
 race guard (`reviewSubmission`'s status-scoped `updateMany`) is proven by a unit test that mocks a

@@ -2,33 +2,88 @@
 
 ## Current Allocated Iteration (Review Pending)
 
+Version: `v0.20.9`
+
+Baseline name: `Deadline Timezone Fix, Graduate Portal Tenant Isolation, And Recruiter Portfolio Data`
+
+Base branch and commit: `origin/main` at `c8bb34f` (merges PR #72, the `v0.20.8` baseline)
+
+Feature branch: `fix/v0.20.9-tenant-isolation-and-deadline` (not yet pushed or merged)
+
+Documentation date: `2026-08-24`
+
+Latest released baseline: `v0.20.8` at `c8bb34f` (PR #72, merged 2026-08-24)
+
+Reserved active-branch version: re-checked live via
+`node .claude/skills/version-allocation-and-gates/scripts/allocate-version.js` immediately before
+starting this documentation pass — `v0.20.9` is the next available version, no collision.
+
+Migrations: `20260824090000_v0_20_9_graduate_portal_tenant_isolation` — adds
+`graduate_profiles.tenantId` and `recruiter_access_requests.tenantId` (both required, FK to
+`tenants`). See `Data_Model.md` and `Data_Dictionary.md`.
+
+Repository state: `v0.20.9` code and documentation are local on
+`fix/v0.20.9-tenant-isolation-and-deadline`. Not yet pushed or merged.
+
+### What this iteration changes
+
+1. **Deadline timezone fix** (`packages/db/src/mission-assignments.ts`): `computeMissionDeadline`
+   now stores the Thursday cutoff as 18:59:59.999 UTC (== 23:59:59.999 Pakistan Standard Time),
+   which previously landed on Thursday 23:59:59.999 UTC — already Friday morning locally.
+2. **`GraduateProfile.tenantId` / `RecruiterAccessRequest.tenantId`** (schema): the public graduate
+   directory and every recruiter-facing route/DB function now takes and enforces a `tenantId`,
+   closing a gap where every tenant's published graduates were pooled into one shared,
+   unauthenticated directory and a single admin approval granted a recruiter access to every
+   tenant's graduates. See `Decision_Log.md` D-109.
+3. **Recruiter access grants are tenant-scoped** — `recruiterHasActiveAccess` now checks
+   `{ recruiterId, tenantId, status: "APPROVED" }`, reversing the previous platform-wide-grant
+   behavior by explicit decision. Admin-side recruiter-request review
+   (`apps/admin/app/recruiter-requests/**`) is scoped the same way.
+4. **Recruiter portfolio data gaps closed**: `getFullProfileForRecruiter` now selects
+   `Mission.competencyTags` and each assignment's `SubmissionReview` revision history, rendered on
+   `apps/applicant/app/graduates/[slug]/portfolio/page.tsx` as competency-tag chips and an
+   expandable review-history panel.
+5. **1 new regression scenario** (`scripts/regression/run.ts`, `public-portal` area) creating a
+   genuine second tenant to prove both the directory and recruiter grants stay isolated.
+
+## v0.20.9 Documentation Index
+
+| Artifact | Location |
+| --- | --- |
+| Plan | `docs/plans/v0.20.9_Deadline_Timezone_Tenant_Isolation_And_Recruiter_Data.md` |
+| Test results | `docs/testing/v0.20.9_Deadline_Timezone_Tenant_Isolation_And_Recruiter_Data_Test_Results.md` |
+| Decision record | `docs/Decision_Log.md` (`D-109`) |
+| Architecture | `docs/Architecture.md` (new Multi-Tenancy subsection; code version updated) |
+| Scenario catalog | `docs/Regression_Scenarios.md` (v0.20.9 traceability + Scenario Matrix row + Known Gaps) |
+| Testing strategy | `docs/Testing_Strategy.md` (scenario count + testing-boundary note added) |
+| Deployment | No change — no new services, env vars, or deployment steps |
+| Data model / dictionary | `GraduateProfile.tenantId`, `RecruiterAccessRequest.tenantId` documented; migration noted |
+| User guides | No change — no route/navigation/role-visible change; the recruiter portfolio's added fields are additive display only |
+
+## Previous: v0.20.8
+
 Version: `v0.20.8`
 
 Baseline name: `Submission Review Double-Action Guard`
 
 Base branch and commit: `origin/main` at `c79f99c` (merges PR #71, the `v0.20.7` baseline)
 
-Feature branch: `fix/v0.20.8-submission-review-double-action` (not yet pushed or merged)
+Feature branch and code commit: `fix/v0.20.8-submission-review-double-action` at `0342073`, merged
+to `origin/main` via PR #72 at `c8bb34f`
 
 Documentation date: `2026-08-24`
 
-Latest released baseline: `v0.20.7` at `c79f99c` (PR #71, merged 2026-08-24)
+Latest released baseline (at the time): `v0.20.7` at `c79f99c` (PR #71, merged 2026-08-24)
 
 Reserved active-branch version: re-checked live via
 `node .claude/skills/version-allocation-and-gates/scripts/allocate-version.js` immediately before
-starting this documentation pass — `v0.20.8` is the next available version, no collision.
+starting this documentation pass — `v0.20.8` was the next available version, no collision.
 
 Migrations: none. This iteration changed no schema.
 
-Repository state: `v0.20.8` code and documentation are local on
-`fix/v0.20.8-submission-review-double-action`. Not yet pushed or merged.
+Repository state: released — merged to `origin/main` via PR #72.
 
-A related but separate fix — `computeMissionDeadline` (`packages/db/src/mission-assignments.ts`)
-landing on Thursday 23:59:59.999 UTC, which is already Friday morning in a UTC+5 timezone — was
-found in the same review session and is deliberately tracked and shipped as its own iteration,
-`v0.20.9`, per explicit direction to keep the two fixes independently versioned.
-
-### What this iteration changes
+### What this iteration changed
 
 1. **`nextReviewerDecisions(status)`** (new, `packages/auth/src/workflow.ts`): a reviewer-only view
    of the submission state machine, excluding the applicant's `NEEDS_REVISION → SUBMITTED`

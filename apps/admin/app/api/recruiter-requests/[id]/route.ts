@@ -27,7 +27,7 @@ export async function GET(
   }
 
   const { id } = await params;
-  const request = await getAccessRequestDetail(id);
+  const request = await getAccessRequestDetail(id, access.tenant.id);
   if (!request) return NextResponse.json({ error: "Request not found" }, { status: 404 });
 
   return NextResponse.json({ request });
@@ -53,7 +53,7 @@ export async function PATCH(
     if (action === "approve") {
       // Generate a new secure token on approval — this is the token the recruiter receives
       const rawToken = generateSecureToken();
-      const result = await approveAccessRequest(id, reviewerId, rawToken);
+      const result = await approveAccessRequest(id, access.tenant.id, reviewerId, rawToken);
 
       // Send the verification email to the recruiter
       const baseUrl = process.env.NEXT_PUBLIC_APPLICANT_URL || process.env.AUTH_URL || "http://localhost:3100";
@@ -81,7 +81,7 @@ export async function PATCH(
     }
 
     if (action === "reject") {
-      await rejectAccessRequest(id, reviewerId, rejectionReason);
+      await rejectAccessRequest(id, access.tenant.id, reviewerId, rejectionReason);
       return NextResponse.json({
         success: true,
         message: "Request rejected.",
@@ -90,7 +90,7 @@ export async function PATCH(
     }
 
     if (action === "revoke") {
-      await revokeAccessRequest(id, reviewerId);
+      await revokeAccessRequest(id, access.tenant.id, reviewerId);
       return NextResponse.json({
         success: true,
         message: "Access revoked. Recruiter can no longer view the profile.",
@@ -101,8 +101,8 @@ export async function PATCH(
     if (action === "resend") {
       // Resend the approval email for an already-approved request.
       // Reuses the existing token — does not generate a new one or change expiresAt.
-      const request = await prisma.recruiterAccessRequest.findUnique({
-        where: { id },
+      const request = await prisma.recruiterAccessRequest.findFirst({
+        where: { id, tenantId: access.tenant.id },
         include: { graduate: { include: { user: { select: { name: true } } } } }
       });
       if (!request) return NextResponse.json({ error: "Request not found." }, { status: 404 });

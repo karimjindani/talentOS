@@ -5,10 +5,15 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getPublicProfiles } from "@talentos/db";
+import { getTenantContext } from "@talentos/ui";
+import { getPublicProfiles, getTenantBySlug } from "@talentos/db";
 
 export async function GET(request: NextRequest) {
   try {
+    const { tenantSlug } = await getTenantContext();
+    const tenant = await getTenantBySlug(tenantSlug);
+    if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+
     const searchParams = request.nextUrl.searchParams;
 
     // Parse query parameters
@@ -34,7 +39,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch profiles
-    const result = await getPublicProfiles({
+    const result = await getPublicProfiles(tenant.id, {
       page,
       limit,
       sort,

@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRecruiterDashboard, getRecruiterSession, updateRecruiterAccount } from "@talentos/db";
+import { getTenantContext } from "@talentos/ui";
+import { getRecruiterDashboard, getRecruiterSession, getTenantBySlug, updateRecruiterAccount } from "@talentos/db";
 
 async function sessionFor(request: NextRequest) { return getRecruiterSession(request.cookies.get("talentos_recruiter_session")?.value); }
 
 export async function GET(request: NextRequest) {
   const session = await sessionFor(request);
   if (!session) return NextResponse.json({ error: "Recruiter sign-in required." }, { status: 401 });
-  return NextResponse.json({ success: true, dashboard: await getRecruiterDashboard(session.recruiterId) });
+  const { tenantSlug } = await getTenantContext();
+  const tenant = await getTenantBySlug(tenantSlug);
+  if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+  return NextResponse.json({ success: true, dashboard: await getRecruiterDashboard(session.recruiterId, tenant.id) });
 }
 
 export async function PATCH(request: NextRequest) {

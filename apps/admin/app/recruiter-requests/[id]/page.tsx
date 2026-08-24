@@ -21,9 +21,9 @@ export default async function RecruiterRequestDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireTenantAccess();
+  const { tenant } = await requireTenantAccess();
   const { id } = await params;
-  const request = await getAccessRequestDetail(id);
+  const request = await getAccessRequestDetail(id, tenant.id);
 
   if (!request) notFound();
 

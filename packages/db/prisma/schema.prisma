@@ -150,6 +150,8 @@ model Tenant {
   missionAssignments     MissionAssignment[]
   missionTaskCompletions MissionTaskCompletion[]
   mentorConversations    MentorConversation[]
+  graduateProfiles       GraduateProfile[]
+  recruiterAccessRequests RecruiterAccessRequest[]
 
   @@map("tenants")
 }
@@ -746,6 +748,7 @@ enum AccessRequestStatus {
 model GraduateProfile {
   id                      String   @id @default(cuid())
   userId                  String   @unique
+  tenantId                String
   programId               String?
   profilePhotoFileId      String?  @unique
 
@@ -784,6 +787,7 @@ model GraduateProfile {
   updatedAt               DateTime @updatedAt
 
   user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant                  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   program                 Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
   profilePhotoFile        StoredFile? @relation("GraduateProfilePhoto", fields: [profilePhotoFileId], references: [id], onDelete: SetNull)
   accessRequests          RecruiterAccessRequest[]
@@ -792,6 +796,7 @@ model GraduateProfile {
   savedBy                 SavedCandidate[]
   consentHistory          ConsentHistory[]
 
+  @@index([tenantId])
   @@index([publicProfileEnabled])
   @@index([overallRating])
   @@index([graduationDate])
@@ -803,6 +808,7 @@ model GraduateProfile {
 model RecruiterAccessRequest {
   id                      String   @id @default(cuid())
   graduateId              String
+  tenantId                String
   recruiterId             String?
 
   // Recruiter information
@@ -831,10 +837,12 @@ model RecruiterAccessRequest {
   createdAt               DateTime @default(now())
 
   graduate                GraduateProfile @relation(fields: [graduateId], references: [id], onDelete: Cascade)
+  tenant                  Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   recruiter               RecruiterAccount? @relation(fields: [recruiterId], references: [id], onDelete: SetNull)
   viewAudits              ProfileViewAudit[]
 
   @@index([graduateId])
+  @@index([tenantId])
   @@index([token])
   @@index([recruiterEmail])
   @@index([recruiterId])

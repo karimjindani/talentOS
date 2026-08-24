@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.20.8`
+Code version: `v0.20.9`
 
 ## Purpose
 
@@ -18,7 +18,7 @@ The suite can be run from the local Ops Console or from npm scripts. As of `v0.1
 shows individual scenario rows grouped by area after a run, so operators can see exactly which
 scenario passed, failed or skipped without searching the raw output.
 
-As of `v0.20.8`, `scripts/regression/run.ts` defines **63 scenario objects** (up from 59 at
+As of `v0.20.9`, `scripts/regression/run.ts` defines **64 scenario objects** (up from 59 at
 `v0.20.3`). `v0.20.3` added five to a new `public-portal` scenario area (which previously held one
 scenario left over from the graduate-portal merge, PR #62): decline/skip consent persistence with
 no prior graduate profile, decline unpublishing an already-public profile, and the full recruiter
@@ -27,6 +27,8 @@ added three more to `public-portal`: apply-time GitHub/LinkedIn/avatar defaults 
 brand-new graduate profile, the null-defaults edge case, and the no-overwrite-on-update case.
 `v0.20.8` (D-108) added one to `missions`: an admin cannot act twice on the same submission
 (covers both the `NEEDS_REVISION` and `ACCEPTED` terminal-state cases in a single scenario).
+`v0.20.9` (D-109) added one to `public-portal`: the graduate directory and recruiter access grants
+stay tenant-isolated across two genuinely separate tenants created within the scenario.
 Executed counts and environmental failures/skips are recorded in the versioned test-results
 artifact rather than assumed from source. New scenarios use the existing result envelope and Ops
 dashboard.
@@ -140,6 +142,32 @@ rebuilt local stack: `npm run journeys:recruiter` (2/2 passed) and `npm run jour
 | --- | --- | --- |
 | Recruiter completes the full access-request lifecycle through real browser sessions on both portals | `tests/journeys/recruiter-access.spec.ts` (`journeys:recruiter`) | Automated |
 | Pending and rejected recruiter access requests are refused in the browser, with the rejection reason shown on-page | `tests/journeys/recruiter-access.spec.ts` (`journeys:recruiter`) | Automated |
+
+## v0.20.9 Plan Scenario Traceability
+
+Names match `docs/plans/v0.20.9_Deadline_Timezone_Tenant_Isolation_And_Recruiter_Data.md`
+one-for-one. Verified via unit tests (1028 pass), `regression:public-portal` (10/10 pass),
+`regression:missions` (16/16 pass), and `regression:all` (63/64 pass, 1 pre-existing documented
+skip), against a rebuilt Docker stack with the new migration applied.
+
+| Plan scenario | Coverage | Status |
+| --- | --- | --- |
+| A mission deadline lands before Friday starts in the tenant's local time | `regression:missions` — "Accepting a mission sets a Thursday deadline with at least four working days (v0.20.0)"; `mission-assignments.test.ts` | Automated |
+| The public graduate directory is tenant-isolated | `regression:public-portal` — "The graduate directory and recruiter access grants are tenant-isolated (v0.20.9, D-109)" | Automated |
+| An approved recruiter access grant does not cross tenants | Same `regression:public-portal` scenario, second half | Automated |
+| A tenant admin cannot approve, reject, or revoke another tenant's recruiter access request | `packages/db/src/graduates.test.ts` | Automated (unit-level) |
+| The recruiter portfolio surfaces competency tags and revision-round history | `packages/db/src/graduates.test.ts` | Automated (unit-level) |
+
+### Known Gaps (as of `v0.20.9`)
+
+- **`toggleSavedCandidate` never calls `recruiterHasActiveAccess`** — any recruiter session (even
+  without an approved grant for the current tenant) can save/unsave a public candidate. This is
+  pre-existing and platform-wide (unrelated to tenant isolation specifically — it was equally true
+  before this iteration), not introduced by `v0.20.9`, and not fixed here to keep this iteration
+  scoped to tenant isolation and the two named data gaps. Left open for a future iteration.
+- **The graduate portal's general Portal Layout description is still missing** from
+  `Architecture.md` (see the top-of-file note there) — `v0.20.9` only backfills the Multi-Tenancy
+  section for this feature, not its full architecture description. Carried forward from `v0.20.3`.
 
 ## v0.20.8 Plan Scenario Traceability
 
@@ -330,6 +358,7 @@ are one scenario).
 | Public Portal | A brand-new graduate profile inherits GitHub/LinkedIn and avatar from the applicant's accepted application. | Automated | v0.20.7 (D-107): `getGraduateProfileDefaults` wired into decline/skip/acknowledge. |
 | Public Portal | A graduate profile created with no accepted application or avatar gets null defaults, not a crash. | Automated | v0.20.7 (D-107). |
 | Public Portal | Apply-time defaults are only applied on first creation — an existing profile's photo and links are never overwritten. | Automated | v0.20.7 (D-107): defaults only apply on the create branch, protecting a graduate's own later edits. |
+| Public Portal | The graduate directory and recruiter access grants are tenant-isolated. | Automated | v0.20.9 (D-109): creates a genuine second tenant and proves neither the directory nor an approved recruiter grant crosses into it. |
 | Ops | Run full regression from Ops UI and show counts. | Automated/API + manual UI check | Unit/server coverage plus local manual validation. |
 | Ops | Run one selected area from Ops UI. | Automated/API + manual UI check | Ops API accepts `area`; UI includes selector. |
 | Ops | Regression results show individual scenario pass/fail/skipped rows. | Automated parser + manual UI check | v0.18.3: Ops stores `REGRESSION_RESULT_JSON.results` and renders scenario rows grouped by area. |

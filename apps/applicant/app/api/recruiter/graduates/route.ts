@@ -5,7 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getAllAccessibleGraduates, getRecruiterSession } from "@talentos/db";
+import { getTenantContext } from "@talentos/ui";
+import { getAllAccessibleGraduates, getRecruiterSession, getTenantBySlug } from "@talentos/db";
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +18,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const result = await getAllAccessibleGraduates(session.recruiterId);
+    const { tenantSlug } = await getTenantContext();
+    const tenant = await getTenantBySlug(tenantSlug);
+    if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+
+    const result = await getAllAccessibleGraduates(session.recruiterId, tenant.id);
     if (!result) {
       return NextResponse.json(
         { error: "Your access has expired or been revoked." },

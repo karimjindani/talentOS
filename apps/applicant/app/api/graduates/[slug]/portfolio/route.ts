@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFullProfileForRecruiter, getRecruiterSession, logProfileView, prisma } from "@talentos/db";
+import { getTenantContext } from "@talentos/ui";
+import { getFullProfileForRecruiter, getRecruiterSession, getTenantBySlug, logProfileView, prisma } from "@talentos/db";
 import { sendProfileViewNotification } from "@/lib/email-service";
 
 export async function GET(
@@ -10,7 +11,10 @@ export async function GET(
     const { slug } = await params;
     const session = await getRecruiterSession(request.cookies.get("talentos_recruiter_session")?.value);
     if (!session) return NextResponse.json({ error: "Please verify your recruiter email to continue." }, { status: 401 });
-    const profile = await getFullProfileForRecruiter(slug, session.recruiterId);
+    const { tenantSlug } = await getTenantContext();
+    const tenant = await getTenantBySlug(tenantSlug);
+    if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    const profile = await getFullProfileForRecruiter(slug, session.recruiterId, tenant.id);
     if (!profile) return NextResponse.json({ error: "Your access to this portfolio is unavailable or has expired." }, { status: 403 });
 
     const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
