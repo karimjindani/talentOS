@@ -1719,3 +1719,47 @@ does not close, noted explicitly so it isn't mistaken for newly introduced.
 D-106, PR #70) while this iteration was in progress. Re-running the version-allocation check
 caught the collision before any doc was committed; this iteration is `v0.20.7`, and its one
 migration folder/DB record were renamed from the `v0.20.6` placeholder to match before deploying.
+
+## D-108: Submission Review Double-Action Guard (v0.20.8)
+
+**Context:** Once an admin reviewed a mission submission (Request changes or Repeat week), the
+admin portal's review page (`apps/admin/app/missions/[id]/submissions/[submissionId]/page.tsx`)
+kept showing the Accept / Request changes / Repeat week form, letting the admin act again on the
+same submission and silently overwrite the prior decision — status, feedback, and rating — while
+re-triggering side effects (repeat-week mission creation, next-week auto-assignment, applicant
+notification).
+
+**Decision:**
+
+1. **`nextReviewerDecisions(status)`** (new, `packages/auth/src/workflow.ts`): the button-visibility
+   gate was reusing `nextSubmissionStatuses`, a table that mixes both actors' transitions —
+   `SUBMITTED → {ACCEPTED, NEEDS_REVISION, REPEAT}` (admin) and `NEEDS_REVISION → SUBMITTED`
+   (applicant resubmission) — so a `NEEDS_REVISION` submission had a non-empty "next statuses" list
+   and the review form wrongly reappeared. `nextReviewerDecisions` returns the admin's three
+   decisions only for `SUBMITTED`, `[]` otherwise, mirroring the existing applicant-side
+   `isSubmissionEditable` helper's pattern of a narrow, actor-specific view over the same table.
+2. **Atomic write in `reviewSubmission`** (`packages/db/src/submissions.ts`): the DB layer did a
+   read-then-write — check `submission.status !== "SUBMITTED"` inside the transaction, then an
+   unconditional `tx.submission.update({ where: { id } })` — so two concurrent review attempts
+   (double-click, or two admin tabs) could both pass the read-time check and both write, the second
+   silently clobbering the first. Replaced with the status-scoped `updateMany` + row-count guard
+   already used by its sibling `submitSubmission` for the identical class of race, which is
+   race-safe under Postgres read-committed isolation because the `WHERE status = …` is re-evaluated
+   at write time, not read time.
+3. **Fallback UI message:** once `reviewable` is `false` for a reason other than a permissions
+   denial, the page now shows "Changes were requested. This section reopens once the applicant
+   resubmits their evidence." instead of rendering nothing, so the disappearance of the form reads
+   as an explained state, not a UI bug.
+
+**Consequences:** No schema change. One new regression scenario ("Admin cannot re-review a
+submission after already requesting changes or a repeat week") covers both the `NEEDS_REVISION` and
+`ACCEPTED` terminal-state cases end to end; the concurrent-write race guard is proven at the unit
+level (`packages/db/src/submissions.test.ts`) rather than via a true two-transaction DB race, which
+isn't practical in the single-threaded regression runner — recorded as a Known Gap in
+`docs/Regression_Scenarios.md`. See
+`docs/plans/v0.20.8_Submission_Review_Double_Action_Guard.md`.
+
+**Scope note:** a separate, unrelated bug found in the same review session —
+`computeMissionDeadline` (`packages/db/src/mission-assignments.ts`) landing on Thursday
+23:59:59.999 **UTC**, which is already Friday morning in a UTC+5 timezone — is deliberately tracked
+and shipped as its own iteration, `v0.20.9`, rather than bundled into this one.

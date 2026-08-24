@@ -892,6 +892,107 @@ const scenarios: Scenario[] = [
   },
   {
     area: "missions",
+    name: "Admin cannot re-review a submission after already requesting changes or a repeat week",
+    run: async (ctx) => {
+      const fixture = await createSubmissionFixture(ctx.runId);
+
+      const draft = await saveSubmissionDraft({
+        tenantId: fixture.tenant.id,
+        missionId: fixture.mission.id,
+        applicantId: fixture.user.id,
+        repositoryUrl: "https://github.com/regression/double-review",
+        deploymentUrl: "https://regression-double-review.example.com/",
+        loomUrl: "https://www.loom.com/share/regression-double-review",
+        journalMarkdown: "## Week 1\nRegression journal entry."
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: draft.id });
+      await submitRegressionSubmission(ctx.runId, {
+        id: draft.id,
+        tenantId: fixture.tenant.id,
+        applicantId: fixture.user.id
+      });
+
+      // First review decision: request changes.
+      await reviewSubmission({
+        id: draft.id,
+        tenantId: fixture.tenant.id,
+        status: "NEEDS_REVISION",
+        reviewerFeedback: "Tighten the acceptance-criteria evidence.",
+        reviewerUserId: fixture.actor.id,
+        rating: null
+      });
+
+      // The DB layer itself (not just the admin UI) must refuse a second action on the same
+      // submission, and must not overwrite the first decision's feedback/rating.
+      try {
+        await reviewSubmission({
+          id: draft.id,
+          tenantId: fixture.tenant.id,
+          status: "REPEAT",
+          reviewerFeedback: "Second reviewer action should not be allowed.",
+          reviewerUserId: fixture.actor.id,
+          rating: null
+        });
+        throw new Error("A second review decision on a NEEDS_REVISION submission was allowed.");
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("Invalid submission status transition")) {
+          throw error;
+        }
+      }
+
+      const afterSecondAttempt = await getApplicantSubmission(fixture.mission.id, fixture.user.id, fixture.tenant.id);
+      if (afterSecondAttempt?.status !== "NEEDS_REVISION") {
+        throw new Error(`Expected status to remain NEEDS_REVISION, got ${afterSecondAttempt?.status}`);
+      }
+      if (afterSecondAttempt.reviewerFeedback !== "Tighten the acceptance-criteria evidence.") {
+        throw new Error("The second (rejected) review call overwrote the first decision's feedback.");
+      }
+
+      // ACCEPTED is also terminal: a second decision (even a different one) on an already-accepted
+      // submission must be refused the same way, on a fresh fixture so the two checks don't interact.
+      const acceptedFixture = await createSubmissionFixture(ctx.runId);
+      const acceptedDraft = await saveSubmissionDraft({
+        tenantId: acceptedFixture.tenant.id,
+        missionId: acceptedFixture.mission.id,
+        applicantId: acceptedFixture.user.id,
+        repositoryUrl: "https://github.com/regression/double-review-accepted",
+        deploymentUrl: "https://regression-double-review-accepted.example.com/",
+        loomUrl: "https://www.loom.com/share/regression-double-review-accepted",
+        journalMarkdown: "## Week 1\nRegression journal entry."
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Submission", entityId: acceptedDraft.id });
+      await submitRegressionSubmission(ctx.runId, {
+        id: acceptedDraft.id,
+        tenantId: acceptedFixture.tenant.id,
+        applicantId: acceptedFixture.user.id
+      });
+      await reviewSubmission({
+        id: acceptedDraft.id,
+        tenantId: acceptedFixture.tenant.id,
+        status: "ACCEPTED",
+        reviewerFeedback: "Meets the evaluation criteria.",
+        reviewerUserId: acceptedFixture.actor.id,
+        rating: 4.5
+      });
+      try {
+        await reviewSubmission({
+          id: acceptedDraft.id,
+          tenantId: acceptedFixture.tenant.id,
+          status: "NEEDS_REVISION",
+          reviewerFeedback: "Second reviewer action should not be allowed.",
+          reviewerUserId: acceptedFixture.actor.id,
+          rating: null
+        });
+        throw new Error("A second review decision on an ACCEPTED submission was allowed.");
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("Invalid submission status transition")) {
+          throw error;
+        }
+      }
+    }
+  },
+  {
+    area: "missions",
     name: "Assignment-linked journals lock selectively and load safely for admin review",
     run: async (ctx) => {
       const fixture = await createSubmissionFixture(ctx.runId);

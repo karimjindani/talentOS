@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.20.7`
+Code version: `v0.20.8`
 
 ## Purpose
 
@@ -18,13 +18,15 @@ The suite can be run from the local Ops Console or from npm scripts. As of `v0.1
 shows individual scenario rows grouped by area after a run, so operators can see exactly which
 scenario passed, failed or skipped without searching the raw output.
 
-As of `v0.20.7`, `scripts/regression/run.ts` defines **62 scenario objects** (up from 59 at
+As of `v0.20.8`, `scripts/regression/run.ts` defines **63 scenario objects** (up from 59 at
 `v0.20.3`). `v0.20.3` added five to a new `public-portal` scenario area (which previously held one
 scenario left over from the graduate-portal merge, PR #62): decline/skip consent persistence with
 no prior graduate profile, decline unpublishing an already-public profile, and the full recruiter
 approve→verify→access→revoke lifecycle including pending/rejected-token refusal. `v0.20.7` (D-107)
 added three more to `public-portal`: apply-time GitHub/LinkedIn/avatar defaults carrying into a
 brand-new graduate profile, the null-defaults edge case, and the no-overwrite-on-update case.
+`v0.20.8` (D-108) added one to `missions`: an admin cannot act twice on the same submission
+(covers both the `NEEDS_REVISION` and `ACCEPTED` terminal-state cases in a single scenario).
 Executed counts and environmental failures/skips are recorded in the versioned test-results
 artifact rather than assumed from source. New scenarios use the existing result envelope and Ops
 dashboard.
@@ -138,6 +140,31 @@ rebuilt local stack: `npm run journeys:recruiter` (2/2 passed) and `npm run jour
 | --- | --- | --- |
 | Recruiter completes the full access-request lifecycle through real browser sessions on both portals | `tests/journeys/recruiter-access.spec.ts` (`journeys:recruiter`) | Automated |
 | Pending and rejected recruiter access requests are refused in the browser, with the rejection reason shown on-page | `tests/journeys/recruiter-access.spec.ts` (`journeys:recruiter`) | Automated |
+
+## v0.20.8 Plan Scenario Traceability
+
+Names match `docs/plans/v0.20.8_Submission_Review_Double_Action_Guard.md` one-for-one. Verified via
+unit tests (1024 pass), `regression:missions` (16/16 pass), and `regression:all` (62/63 pass, 1
+pre-existing documented skip).
+
+| Plan scenario | Coverage | Status |
+| --- | --- | --- |
+| Admin cannot re-review a submission after requesting changes | `regression:missions` — "Admin cannot re-review a submission after already requesting changes or a repeat week" | Automated |
+| Accepting a submission is also terminal for further review | Same `regression:missions` scenario, second half | Automated |
+| Concurrent review attempts (double-click / two admin tabs) cannot both commit | `packages/db/src/submissions.test.ts` — "guards concurrent review attempts with a status-scoped update (double-click / two tabs)" | Automated (unit-level) |
+| A legitimate resubmission still reopens the review form | `packages/auth/src/workflow.test.ts` — "only a SUBMITTED submission offers reviewer decisions"; end-to-end loop covered by the pre-existing "Submission loop…" scenario | Automated |
+
+### Known Gaps (as of `v0.20.8`)
+
+- **The concurrent-review race guard has no true two-transaction regression coverage** — the
+  `scripts/regression/run.ts` runner executes scenarios sequentially, so it cannot exercise two
+  actually-overlapping Postgres transactions racing on the same `Submission` row. The guard clause
+  (`reviewSubmission`'s status-scoped `updateMany` + row-count check) is proven at the unit level
+  instead, and its race-safety follows from the same read-committed-isolation reasoning already
+  relied on for `submitSubmission`'s identical pattern (in production since `v0.15.0`/D-067 with no
+  known lost-update incident). Automating a genuine concurrent-transaction test would need two
+  parallel DB connections driven from the regression harness — deferred as a future enhancement
+  rather than taken on incidentally here.
 
 ## v0.20.7 Plan Scenario Traceability
 
@@ -264,6 +291,7 @@ are one scenario).
 | Missions | Archived mission is removed from applicant-visible mission list. | Automated | Validates published-only visibility. |
 | Missions | HR, Tech Lead and Applicant cannot manage missions. | Automated | Validates `manageMissions` capability. |
 | Missions | Submission loop: draft, submit, request changes, resubmit, accept — with notifications and audit. | Automated | v0.15.0 (D-067): full SEM review loop; acceptance is terminal and notifies the applicant. |
+| Missions | Admin cannot re-review a submission after already requesting changes or a repeat week. | Automated | v0.20.8 (D-108): a second review decision is rejected and the first decision's status/feedback are unchanged, for both the `NEEDS_REVISION` and `ACCEPTED` terminal states. |
 | Missions | Submission readiness requires weekly tasks, four current-attempt journals, and all evidence URLs. | Automated | Proves incomplete readiness cannot submit/lock and a complete assignment locks exactly its four attempt journals. Network checks use a deterministic stub. |
 | Missions | Repeat-week attempts preserve journal history without duplicate or infinite loops. | Automated | Also proves week-level task completion carries forward while new-attempt journal progress starts at zero. |
 | Missions | Only Org Admin and Tech Lead can review submissions. | Automated | v0.15.0 (D-067): validates the `reviewSubmissions` capability (HR read-only, applicants denied). |
