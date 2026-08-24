@@ -1,6 +1,6 @@
 # Deployment
 
-Code version: `v0.20.6`
+Code version: `v0.20.10`
 
 Deployment evidence commit: `2b3afce`
 

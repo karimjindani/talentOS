@@ -463,7 +463,9 @@ model EngineeringJournalEntry {
   mission           Mission            @relation(fields: [missionId], references: [id], onDelete: Cascade)
   missionAssignment MissionAssignment? @relation(fields: [missionAssignmentId], references: [id], onDelete: SetNull)
 
-  @@unique([tenantId, applicantId, missionId, entryDate])
+  // NOTE: the one-entry-per-mission-per-date constraint was dropped in v0.20.8 to let the Ops
+  // console's `journal.testing_mode` feature flag relax it for local testing. Production integrity
+  // is now enforced by the application-layer `assertEntryDateAvailable` check in journal.ts.
   @@index([tenantId, programId, weekNumber])
   @@index([missionId])
   @@index([missionAssignmentId, entryDate])
@@ -976,4 +978,18 @@ model SubmissionReview {
   @@index([tenantId, weekNumber])
   @@index([submissionId])
   @@map("submission_reviews")
+}
+
+/// Runtime feature toggles controllable from the Ops console (e.g. `journal.testing_mode` to relax
+/// journal restrictions for local testing). Keys are globally unique; a flag can be scoped to a
+/// tenant later by adding a nullable tenantId column with a partial unique index.
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  enabled     Boolean  @default(false)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("feature_flags")
 }

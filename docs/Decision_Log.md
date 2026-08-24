@@ -1763,3 +1763,21 @@ isn't practical in the single-threaded regression runner — recorded as a Known
 `computeMissionDeadline` (`packages/db/src/mission-assignments.ts`) landing on Thursday
 23:59:59.999 **UTC**, which is already Friday morning in a UTC+5 timezone — is deliberately tracked
 and shipped as its own iteration, `v0.20.9`, rather than bundled into this one.
+
+## D-109: Feature Flags And Journal Testing Mode (v0.20.10)
+
+**Context:** Testing the full mission submission flow locally requires creating 4 journal entries on 4 distinct dates, waiting for real calendar dates, and respecting the one-entry-per-mission-per-date and no-future-date restrictions. This makes end-to-end testing slow and painful. The team needed a way to relax these restrictions for local testing, controllable from the Ops console without restarting services.
+
+**Decision:**
+
+1. **DB-backed `FeatureFlag` model** (`schema.prisma`): a global key-value flag table (`key`, `enabled`, `description`, timestamps). The Ops console can toggle flags live; the applicant portal reads them from the DB on every call (no caching, no restart). The first flag is `journal.testing_mode`.
+2. **Drop the journal unique constraint**: the `@@unique([tenantId, applicantId, missionId, entryDate])` on `EngineeringJournalEntry` was dropped via migration so testing mode can allow duplicate dates. Production integrity for one-per-mission-per-date is now enforced by the application-layer `assertEntryDateAvailable` check in `journal.ts` (active when the flag is off).
+3. **Journal gating** (`journal.ts`): `createJournalEntry` and `updateJournalEntry` read the flag at the start. When enabled, they skip the date-conflict check (`assertEntryDateAvailable`), the future-date check (`normalizeJournalEntryDate` with `allowFuture`), the before-mission-start check (`assertJournalEntryOnOrAfterMissionStart`), and the locked-after-submission check (`lockedAt` / legacy lock). The assignment-must-exist and ownership checks remain.
+4. **Readiness gating** (`submission-readiness.ts`): `getMissionSubmissionReadiness` reads the flag; when enabled, `requiredJournalCount` = 0 (the 4-entry gate is skipped). `getMissionSubmissionReadinessWithClient` accepts a `requiredJournalCount` parameter. `submitSubmission` reads the flag once and passes the count to both the preflight and the in-transaction re-check for consistency.
+5. **Ops console** (`server.ts`, `ui.ts`): `GET /api/ops/flags` (list), `POST /api/ops/flags` (set), `DELETE /api/ops/flags/:key` (delete) endpoints, plus a "Feature Flags" panel in the UI with toggle switches for known flags.
+
+**Rationale:** A DB-backed flag read on every call is the simplest design that meets the requirement (live toggle, no restart, no caching). Dropping the DB unique constraint is the necessary trade-off — a DB constraint cannot be toggled at runtime. The application-layer check remains the primary enforcement in normal mode, and the audit found it is already a robust pre-check within a transaction. The flag is global (not tenant-scoped) because it is a local-testing tool; tenant scoping can be added later with a nullable `tenantId` column and a partial unique index.
+
+**Alternatives considered:** An environment variable (`JOURNAL_TESTING_MODE=true`) was rejected because it requires a container restart to toggle and cannot be controlled from the Ops console live. An Ops-console in-memory flag with a cross-container API call was rejected because it adds a network dependency (applicant → ops) on every journal write. Reusing the `Tenant` table's branding columns was rejected because it conflates testing flags with tenant configuration.
+
+**Consequences:** The `engineering_journal_entries` unique constraint is gone — the application-layer `assertEntryDateAvailable` is now the sole enforcement of one-per-mission-per-date in normal mode. Three test files (`journal.test.ts`, `submission-readiness.test.ts`, `submissions.test.ts`) were updated to add a `featureFlagFindUnique` mock defaulting to `{ enabled: false }` so existing tests pass unchanged. The `feature_flags` table is created by migration `20260824000000_feature_flags_and_journal_testing`.

@@ -30,7 +30,8 @@ const prismaMock = vi.hoisted(() => ({
   txMissionTaskCompletionFindMany: vi.fn(),
   txSubmissionReviewFindMany: vi.fn(),
   txSubmissionReviewCreate: vi.fn(),
-  submissionReviewFindMany: vi.fn()
+  submissionReviewFindMany: vi.fn(),
+  featureFlagFindUnique: vi.fn()
 }));
 
 const readinessMock = vi.hoisted(() => ({
@@ -51,6 +52,7 @@ vi.mock("./client", () => ({
       findMany: prismaMock.missionAssignmentFindMany
     },
     submissionReview: { findMany: prismaMock.submissionReviewFindMany },
+    featureFlag: { findUnique: prismaMock.featureFlagFindUnique },
     $transaction: prismaMock.transaction
   }
 }));
@@ -171,6 +173,7 @@ describe("submission data access", () => {
     prismaMock.txMissionAssignmentUpdateMany.mockResolvedValue({ count: 1 });
     prismaMock.txMissionAssignmentCreate.mockResolvedValue({ id: "assignment-2", attemptNumber: 2 });
     prismaMock.txJournalUpdateMany.mockResolvedValue({ count: 1 });
+    prismaMock.featureFlagFindUnique.mockResolvedValue({ enabled: false });
     readinessMock.getReadiness.mockReset();
     readinessMock.getReadinessWithClient.mockReset();
     readinessMock.getReadiness.mockResolvedValue(readyReadiness());

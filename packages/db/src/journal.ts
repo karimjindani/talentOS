@@ -1,6 +1,7 @@
 import { Prisma, SubmissionStatus } from "@prisma/client";
 import { prisma } from "./client";
 import { getActiveMissionAssignmentForMissionTx } from "./mission-assignments";
+import { isFeatureFlagEnabled, JOURNAL_TESTING_MODE_FLAG } from "./feature-flags";
 
 const MAX_LANGUAGE_LENGTH = 64;
 const MAX_EVIDENCE_LINKS = 10;
@@ -313,7 +314,8 @@ export async function getJournalCreateAvailability(
 }
 
 export async function createJournalEntry(input: CreateJournalEntryInput) {
-  const content = normalizeJournalEntryContent(input);
+  const testingMode = await isFeatureFlagEnabled(JOURNAL_TESTING_MODE_FLAG);
+  const content = normalizeJournalEntryContent(input, testingMode);
 
   try {
     return await prisma.$transaction(async (tx) => {
@@ -323,19 +325,21 @@ export async function createJournalEntry(input: CreateJournalEntryInput) {
         missionId: input.missionId
       });
 
-      assertJournalEntryOnOrAfterMissionStart(
-        content.entryDate,
-        assignment.acceptedAt ?? assignment.assignedAt,
-        input.calendarTimeZone
-      );
+      if (!testingMode) {
+        assertJournalEntryOnOrAfterMissionStart(
+          content.entryDate,
+          assignment.acceptedAt ?? assignment.assignedAt,
+          input.calendarTimeZone
+        );
 
-      await assertEntryDateAvailable(tx, {
-        tenantId: input.tenantId,
-        applicantId: input.applicantId,
-        missionId: assignment.missionId,
-        entryDate: content.entryDate,
-        message: CREATE_DUPLICATE_ENTRY_DATE_MESSAGE
-      });
+        await assertEntryDateAvailable(tx, {
+          tenantId: input.tenantId,
+          applicantId: input.applicantId,
+          missionId: assignment.missionId,
+          entryDate: content.entryDate,
+          message: CREATE_DUPLICATE_ENTRY_DATE_MESSAGE
+        });
+      }
 
       const entry = await tx.engineeringJournalEntry.create({
         data: {
@@ -375,7 +379,8 @@ export async function createJournalEntry(input: CreateJournalEntryInput) {
 }
 
 export async function updateJournalEntry(input: UpdateJournalEntryInput) {
-  const content = normalizeJournalEntryContent(input);
+  const testingMode = await isFeatureFlagEnabled(JOURNAL_TESTING_MODE_FLAG);
+  const content = normalizeJournalEntryContent(input, testingMode);
 
   return prisma.$transaction(async (tx) => {
     const existing = await tx.engineeringJournalEntry.findFirst({
@@ -385,15 +390,17 @@ export async function updateJournalEntry(input: UpdateJournalEntryInput) {
     if (!existing) {
       throw new Error("Journal entry not found for this applicant.");
     }
-    if (existing.lockedAt) {
-      throw new Error(JOURNAL_LOCKED_AFTER_SUBMISSION_MESSAGE);
-    }
-    if (!existing.missionAssignmentId) {
-      await assertLegacyJournalMissionNotLocked(tx, {
-        tenantId: input.tenantId,
-        applicantId: input.applicantId,
-        missionId: existing.missionId
-      });
+    if (!testingMode) {
+      if (existing.lockedAt) {
+        throw new Error(JOURNAL_LOCKED_AFTER_SUBMISSION_MESSAGE);
+      }
+      if (!existing.missionAssignmentId) {
+        await assertLegacyJournalMissionNotLocked(tx, {
+          tenantId: input.tenantId,
+          applicantId: input.applicantId,
+          missionId: existing.missionId
+        });
+      }
     }
 
     const assignment = await assertActiveAssignmentForAcceptedProgram(tx, {
@@ -405,24 +412,26 @@ export async function updateJournalEntry(input: UpdateJournalEntryInput) {
       throw new Error("A saved journal entry cannot be moved to another assignment attempt.");
     }
 
-    // Also enforced on update so an edit cannot move a date back past the mission start. Entries
-    // created before this rule existed keep their out-of-range dates until edited, at which point
-    // the date must be corrected -- the form's `min` shows the applicant the earliest valid day.
-    assertJournalEntryOnOrAfterMissionStart(
-      content.entryDate,
-      assignment.acceptedAt ?? assignment.assignedAt,
-      input.calendarTimeZone
-    );
-
     try {
-      await assertEntryDateAvailable(tx, {
-        tenantId: input.tenantId,
-        applicantId: input.applicantId,
-        missionId: assignment.missionId,
-        entryDate: content.entryDate,
-        excludingEntryId: input.id,
-        message: UPDATE_DUPLICATE_ENTRY_DATE_MESSAGE
-      });
+      if (!testingMode) {
+        // Also enforced on update so an edit cannot move a date back past the mission start. Entries
+        // created before this rule existed keep their out-of-range dates until edited, at which point
+        // the date must be corrected -- the form's `min` shows the applicant the earliest valid day.
+        assertJournalEntryOnOrAfterMissionStart(
+          content.entryDate,
+          assignment.acceptedAt ?? assignment.assignedAt,
+          input.calendarTimeZone
+        );
+
+        await assertEntryDateAvailable(tx, {
+          tenantId: input.tenantId,
+          applicantId: input.applicantId,
+          missionId: assignment.missionId,
+          entryDate: content.entryDate,
+          excludingEntryId: input.id,
+          message: UPDATE_DUPLICATE_ENTRY_DATE_MESSAGE
+        });
+      }
 
       const result = await tx.engineeringJournalEntry.updateMany({
         where: { id: input.id, tenantId: input.tenantId, applicantId: input.applicantId },
@@ -483,9 +492,9 @@ export function getJournalCreateAvailabilityFromLatest(
   };
 }
 
-function normalizeJournalEntryContent(input: JournalEntryContentInput) {
+function normalizeJournalEntryContent(input: JournalEntryContentInput, testingMode = false) {
   return {
-    entryDate: normalizeJournalEntryDate(input.entryDate, new Date(), input.calendarTimeZone),
+    entryDate: normalizeJournalEntryDate(input.entryDate, new Date(), input.calendarTimeZone, testingMode),
     language: normalizeJournalLanguage(input.language),
     workedOn: requiredText(input.workedOn, "What you worked on today"),
     challenge: requiredText(input.challenge, "Challenge faced"),
@@ -498,14 +507,21 @@ function normalizeJournalEntryContent(input: JournalEntryContentInput) {
   };
 }
 
-export function normalizeJournalEntryDate(value: Date, now = new Date(), timeZone = "UTC"): Date {
+export function normalizeJournalEntryDate(
+  value: Date,
+  now = new Date(),
+  timeZone = "UTC",
+  allowFuture = false
+): Date {
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
     throw new Error("Entry date is required.");
   }
   const normalized = new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
-  const today = calendarDateInTimeZone(now, timeZone);
-  if (normalized > today) {
-    throw new Error("Journal entry date cannot be in the future.");
+  if (!allowFuture) {
+    const today = calendarDateInTimeZone(now, timeZone);
+    if (normalized > today) {
+      throw new Error("Journal entry date cannot be in the future.");
+    }
   }
   return normalized;
 }

@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./client";
+import { isFeatureFlagEnabled, JOURNAL_TESTING_MODE_FLAG } from "./feature-flags";
 import {
   normalizeDeploymentUrls,
   parseDeploymentUrls,
@@ -94,13 +95,28 @@ export function getMissionSubmissionReadiness(
   input: MissionSubmissionReadinessInput,
   now = new Date()
 ): Promise<MissionSubmissionReadiness> {
-  return getMissionSubmissionReadinessWithClient(prisma, input, now);
+  return getMissionSubmissionReadinessWithTestingCheck(input, now);
+}
+
+/** Readiness wrapper that relaxes the journal-entry requirement when `journal.testing_mode` is on. */
+async function getMissionSubmissionReadinessWithTestingCheck(
+  input: MissionSubmissionReadinessInput,
+  now = new Date()
+): Promise<MissionSubmissionReadiness> {
+  const testingMode = await isFeatureFlagEnabled(JOURNAL_TESTING_MODE_FLAG);
+  return getMissionSubmissionReadinessWithClient(
+    prisma,
+    input,
+    now,
+    testingMode ? 0 : REQUIRED_JOURNAL_ENTRY_COUNT
+  );
 }
 
 export async function getMissionSubmissionReadinessWithClient(
   client: ReadinessClient,
   input: MissionSubmissionReadinessInput,
-  now = new Date()
+  now = new Date(),
+  requiredJournalCount: number = REQUIRED_JOURNAL_ENTRY_COUNT
 ): Promise<MissionSubmissionReadiness> {
   const assignment = await client.missionAssignment.findFirst({
     where: {
@@ -211,9 +227,9 @@ export async function getMissionSubmissionReadinessWithClient(
       `Complete all required Week ${assignment.weekNumber} tasks: ${incompleteTasks.map((task) => task.title).join(", ")}.`
     );
   }
-  if (journalCount < REQUIRED_JOURNAL_ENTRY_COUNT) {
+  if (journalCount < requiredJournalCount) {
     blockers.push(
-      `Add at least ${REQUIRED_JOURNAL_ENTRY_COUNT} Engineering Journal entries for this assignment attempt (${journalCount} of ${REQUIRED_JOURNAL_ENTRY_COUNT} completed).`
+      `Add at least ${requiredJournalCount} Engineering Journal entries for this assignment attempt (${journalCount} of ${requiredJournalCount} completed).`
     );
   }
   for (const urlStatus of Object.values(urls)) {
@@ -238,7 +254,7 @@ export async function getMissionSubmissionReadinessWithClient(
       completed: tasks.length - incompleteTasks.length,
       incomplete: incompleteTasks
     },
-    journals: { required: REQUIRED_JOURNAL_ENTRY_COUNT, completed: journalCount },
+    journals: { required: requiredJournalCount, completed: journalCount },
     urls,
     blockers
   };

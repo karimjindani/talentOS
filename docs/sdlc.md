@@ -1,6 +1,6 @@
 # Principles of Software Development
 
-Current allocated iteration version: `v0.20.8`
+Current allocated iteration version: `v0.20.10`
 
 Documentation evidence commit: `c79f99c` (baseline commit to be set on merge; latest released baseline: `v0.20.7`)
 

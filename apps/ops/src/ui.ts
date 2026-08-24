@@ -125,6 +125,16 @@ export function renderIndex() {
       <div id="browserChecks" class="grid three"></div>
     </section>
 
+    <section class="panel">
+      <div class="section-head">
+        <h2>Feature Flags</h2>
+        <p>Runtime toggles the applicant portal reads live — e.g. relax journal restrictions for testing.</p>
+      </div>
+      <div id="featureFlags" class="flag-list">
+        <p class="muted">Loading feature flags…</p>
+      </div>
+    </section>
+
     <div id="resultsRegion" class="lower-grid">
       <section id="jobPanel" class="panel job-panel">
         <div class="section-head inline job-head">
@@ -478,6 +488,31 @@ time { font-variant-numeric: tabular-nums; }
 .auth-button:focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
+}
+.flag-list {
+  display: grid;
+  gap: 8px;
+}
+.flag-row {
+  align-items: center;
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: var(--chip-bg);
+  justify-content: space-between;
+}
+.flag-row strong {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.flag-row small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: none;
+  line-height: 1.45;
 }
 .auth-button {
   display: inline-flex;
@@ -932,6 +967,7 @@ const jobCopy = {
 setTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light", false);
 setBusy(false);
 loadOpsState();
+loadFlags();
 
 function tickClock() {
   document.getElementById("clock").textContent = new Date().toLocaleString();
@@ -1083,6 +1119,66 @@ async function api(path, options) {
     throw new Error(data.error || "Request failed with HTTP " + response.status);
   }
   return data;
+}
+
+const featureFlagsEl = document.getElementById("featureFlags");
+
+// Known flags surfaced by the Ops console (mirrors @talentos/db KNOWN_FEATURE_FLAGS).
+const KNOWN_FLAGS = [
+  {
+    key: "journal.testing_mode",
+    label: "Journal testing mode",
+    description: "Relax journal entry restrictions: multiple entries per mission per day, future and pre-mission dates, editing locked entries, skip the 4-entry submission gate."
+  }
+];
+
+async function loadFlags() {
+  try {
+    const data = await api("/api/ops/flags", { method: "GET" });
+    renderFlags(data.flags || []);
+  } catch (error) {
+    featureFlagsEl.innerHTML = '<p class="muted">Failed to load feature flags: ' + error.message + "</p>";
+  }
+}
+
+function renderFlags(flags) {
+  const enabledMap = new Map(flags.map((f) => [f.key, f.enabled === true]));
+  if (KNOWN_FLAGS.length === 0) {
+    featureFlagsEl.innerHTML = '<p class="muted">No feature flags available.</p>';
+    return;
+  }
+  featureFlagsEl.innerHTML = KNOWN_FLAGS.map((known) => {
+    const enabled = enabledMap.get(known.key) === true;
+    return (
+      '<label class="switch-row flag-row" data-key="' + known.key + '">' +
+      "<span>" +
+      "<strong>" + known.label + "</strong>" +
+      "<small>" + known.description + "</small>" +
+      "</span>" +
+      '<input type="checkbox" role="switch"' + (enabled ? " checked" : "") + " />" +
+      "</label>"
+    );
+  }).join("");
+  featureFlagsEl.querySelectorAll("input[type=checkbox]").forEach((input) => {
+    input.addEventListener("change", async () => {
+      const row = input.closest(".flag-row");
+      const key = row ? row.dataset.key : "";
+      const enabled = input.checked;
+      input.disabled = true;
+      try {
+        await api("/api/ops/flags", {
+          method: "POST",
+          body: JSON.stringify({ key, enabled })
+        });
+        setSummary("Feature flag '" + key + "' " + (enabled ? "enabled" : "disabled") + ".", "ok");
+      } catch (error) {
+        input.checked = !enabled;
+        setSummary(error.message, "error");
+      } finally {
+        input.disabled = false;
+      }
+    });
+  });
 }
 
 function renderHealth(health) {

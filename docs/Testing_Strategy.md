@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Code version: `v0.20.8`
+Code version: `v0.20.10`
 
 Test evidence commit: `43e7537` (+ `v0.20.3`/`v0.20.4`/`v0.20.5`/`v0.20.6`/`v0.20.7`/`v0.20.8` uncommitted at documentation time)
 
