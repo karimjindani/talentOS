@@ -1,6 +1,6 @@
 # TalentOS Architecture
 
-Code version: `v0.20.7`
+Code version: `v0.20.8`
 
 Architecture evidence commit: `5560ccf` (+ `v0.20.3`/`v0.20.4`/`v0.20.5`/`v0.20.6` uncommitted at documentation time)
 
@@ -295,6 +295,15 @@ once a graduate profile is created at consent time. `getGraduateProfileDefaults`
 (`packages/db/src/graduates.ts`; see `Decision_Log.md` D-107) carries that photo, plus the
 applicant's accepted-application GitHub/LinkedIn URLs, into a `GraduateProfile` the first time one
 is created — not on later updates.
+
+As of `v0.20.8` (D-108), the admin submission review page
+(`apps/admin/app/missions/[id]/submissions/[submissionId]/page.tsx`) gates its Accept / Request
+changes / Repeat week form on `nextReviewerDecisions(submission.status)` (`packages/auth/src/workflow.ts`)
+rather than the mixed-actor `nextSubmissionStatuses`, so the form only shows for a `SUBMITTED`
+submission — never again once a decision has been made — and shows an explanatory message instead
+of disappearing silently. `reviewSubmission` (`packages/db/src/submissions.ts`) writes with the
+same status-scoped `updateMany` + row-count guard `submitSubmission` already used, closing a
+lost-update race where two concurrent review attempts could otherwise both commit.
 
 ```mermaid
 flowchart TD

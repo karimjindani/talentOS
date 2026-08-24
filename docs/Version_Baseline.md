@@ -2,17 +2,75 @@
 
 ## Current Allocated Iteration (Review Pending)
 
+Version: `v0.20.8`
+
+Baseline name: `Submission Review Double-Action Guard`
+
+Base branch and commit: `origin/main` at `c79f99c` (merges PR #71, the `v0.20.7` baseline)
+
+Feature branch: `fix/v0.20.8-submission-review-double-action` (not yet pushed or merged)
+
+Documentation date: `2026-08-24`
+
+Latest released baseline: `v0.20.7` at `c79f99c` (PR #71, merged 2026-08-24)
+
+Reserved active-branch version: re-checked live via
+`node .claude/skills/version-allocation-and-gates/scripts/allocate-version.js` immediately before
+starting this documentation pass — `v0.20.8` is the next available version, no collision.
+
+Migrations: none. This iteration changed no schema.
+
+Repository state: `v0.20.8` code and documentation are local on
+`fix/v0.20.8-submission-review-double-action`. Not yet pushed or merged.
+
+A related but separate fix — `computeMissionDeadline` (`packages/db/src/mission-assignments.ts`)
+landing on Thursday 23:59:59.999 UTC, which is already Friday morning in a UTC+5 timezone — was
+found in the same review session and is deliberately tracked and shipped as its own iteration,
+`v0.20.9`, per explicit direction to keep the two fixes independently versioned.
+
+### What this iteration changes
+
+1. **`nextReviewerDecisions(status)`** (new, `packages/auth/src/workflow.ts`): a reviewer-only view
+   of the submission state machine, excluding the applicant's `NEEDS_REVISION → SUBMITTED`
+   resubmission transition. See `Decision_Log.md` D-108.
+2. **Admin review page gate** (`apps/admin/app/missions/[id]/submissions/[submissionId]/page.tsx`):
+   the Accept / Request changes / Repeat week form now shows only when
+   `nextReviewerDecisions(submission.status)` is non-empty (i.e. `SUBMITTED`), with an explanatory
+   message shown once it isn't.
+3. **Atomic write in `reviewSubmission`** (`packages/db/src/submissions.ts`): replaced a
+   read-then-write with the same status-scoped `updateMany` + row-count guard `submitSubmission`
+   already uses, closing a lost-update race between concurrent review attempts.
+4. **1 new regression scenario** (`scripts/regression/run.ts`, `missions` area) covering both the
+   `NEEDS_REVISION` and `ACCEPTED` terminal-state double-review cases.
+
+## v0.20.8 Documentation Index
+
+| Artifact | Location |
+| --- | --- |
+| Plan | `docs/plans/v0.20.8_Submission_Review_Double_Action_Guard.md` |
+| Test results | `docs/testing/v0.20.8_Submission_Review_Double_Action_Guard_Test_Results.md` |
+| Decision record | `docs/Decision_Log.md` (`D-108`) |
+| Architecture | `docs/Architecture.md` (Portal Layout section updated; code version updated) |
+| Scenario catalog | `docs/Regression_Scenarios.md` (v0.20.8 traceability + Scenario Matrix row + Known Gaps) |
+| Testing strategy | `docs/Testing_Strategy.md` (scenario count + testing-boundary note added) |
+| Deployment | No change — no new services, env vars, or deployment steps |
+| Data model / dictionary | No change — no schema change this iteration |
+| User guides | `docs/user-guides/Back_Office_User_Guide.md` updated — "Reviewing mission submissions" section notes the form no longer reappears after a decision |
+
+## Previous: v0.20.7
+
 Version: `v0.20.7`
 
 Baseline name: `Applicant Profile Photo, Apply Page Redesign, And Graduate-Profile Defaults Carry-Through`
 
 Base branch and commit: `origin/main` at `a825371` (merges PR #70, the `v0.20.6` AI Mentor baseline)
 
-Feature branch: local `main` (not yet pushed or merged)
+Feature branch and code commit: `feature/v0.20.7-applicant-profile-photo` at `c8bba82`, merged to
+`origin/main` via PR #71 at `c79f99c`
 
 Documentation date: `2026-08-21`
 
-Latest released baseline: `v0.20.6` at `a825371` (PR #70, merged 2026-08-21)
+Latest released baseline (at the time): `v0.20.6` at `a825371` (PR #70, merged 2026-08-21)
 
 Reserved active-branch version: re-checked live via
 `node .claude/skills/version-allocation-and-gates/scripts/allocate-version.js` immediately before
@@ -27,9 +85,9 @@ this documentation pass, so disk and DB agree.
 Migrations: `20260821190000_v0_20_7_user_avatar` — adds `users.avatarFileId` (nullable, unique,
 FK to `stored_files`). See `Data_Model.md` and `Data_Dictionary.md`.
 
-Repository state: `v0.20.7` code and documentation are local on `main`. Not yet pushed or merged.
+Repository state: released — merged to `origin/main` via PR #71.
 
-### What this iteration changes
+### What this iteration changed
 
 1. **`User.avatarFileId`** (schema): optional profile photo, uploaded at apply time — exists
    before any `GraduateProfile` row does. See `Decision_Log.md` D-107.

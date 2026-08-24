@@ -108,6 +108,13 @@ export function nextSubmissionStatuses(status: SubmissionStatus): SubmissionStat
   return [...ALLOWED_SUBMISSION_TRANSITIONS[status]];
 }
 
+/** Valid reviewer decisions for a submission (drives the admin's review-form visibility). Unlike
+ * nextSubmissionStatuses, this excludes the applicant's NEEDS_REVISION -> SUBMITTED resubmission
+ * transition — that's not something the admin can act on. */
+export function nextReviewerDecisions(status: SubmissionStatus): SubmissionStatus[] {
+  return status === "SUBMITTED" ? ["ACCEPTED", "NEEDS_REVISION", "REPEAT"] : [];
+}
+
 export function assertSubmissionStatusTransition(from: SubmissionStatus, to: SubmissionStatus): void {
   if (!canTransitionSubmissionStatus(from, to)) {
     throw new Error(`Invalid submission status transition from ${from} to ${to}.`);

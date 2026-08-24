@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
-import { can, nextSubmissionStatuses } from "@talentos/auth";
+import { can, nextReviewerDecisions } from "@talentos/auth";
 import { getTenantContext, StatusBadge } from "@talentos/ui";
 import {
   buildSubmissionEvidenceLinks,
@@ -68,7 +68,7 @@ export default async function SubmissionReviewPage({ params }: SubmissionReviewP
 
   const evidence = buildSubmissionEvidenceLinks(submission);
 
-  const reviewable = canReview && nextSubmissionStatuses(submission.status).length > 0;
+  const reviewable = canReview && nextReviewerDecisions(submission.status).length > 0;
 
   return (
     <>
@@ -402,6 +402,10 @@ export default async function SubmissionReviewPage({ params }: SubmissionReviewP
               </div>
             </form>
           </section>
+        ) : submission.status === "NEEDS_REVISION" ? (
+          <p className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+            Changes were requested. This section reopens once the applicant resubmits their evidence.
+          </p>
         ) : !canReview ? (
           <p className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
             Your role can view submissions but cannot review them.

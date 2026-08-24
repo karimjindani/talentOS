@@ -11,7 +11,8 @@ import {
   nextSubmissionStatuses,
   canTransitionSubmissionStatus,
   assertSubmissionStatusTransition,
-  isSubmissionEditable
+  isSubmissionEditable,
+  nextReviewerDecisions
 } from "./workflow";
 
 describe("nextStatusesFor", () => {
@@ -128,5 +129,17 @@ describe("submission status transitions", () => {
     expect(isSubmissionEditable("SUBMITTED")).toBe(false);
     expect(isSubmissionEditable("ACCEPTED")).toBe(false);
     expect(isSubmissionEditable("REPEAT")).toBe(false);
+  });
+
+  // Unlike nextSubmissionStatuses, this must NOT report NEEDS_REVISION as reviewable — that
+  // transition (NEEDS_REVISION -> SUBMITTED) belongs to the applicant's resubmission, not a
+  // reviewer decision. Regression coverage for the admin double-review-action bug.
+  it("only a SUBMITTED submission offers reviewer decisions", () => {
+    expect(nextReviewerDecisions("SUBMITTED")).toEqual(["ACCEPTED", "NEEDS_REVISION", "REPEAT"]);
+    expect(nextReviewerDecisions("DRAFT")).toEqual([]);
+    expect(nextReviewerDecisions("NEEDS_REVISION")).toEqual([]);
+    expect(nextReviewerDecisions("ACCEPTED")).toEqual([]);
+    expect(nextReviewerDecisions("REPEAT")).toEqual([]);
+    expect(nextReviewerDecisions("REVIEWED")).toEqual([]);
   });
 });

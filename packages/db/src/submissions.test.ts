@@ -585,8 +585,8 @@ describe("submission data access", () => {
       rating: null
     });
 
-    expect(prismaMock.txSubmissionUpdate).toHaveBeenCalledWith({
-      where: { id: "sub-1" },
+    expect(prismaMock.txSubmissionUpdateMany).toHaveBeenCalledWith({
+      where: { id: "sub-1", tenantId: "tenant-1", status: "SUBMITTED" },
       data: expect.objectContaining({
         status: "NEEDS_REVISION",
         reviewerFeedback: "Add acceptance criteria evidence.",
@@ -930,6 +930,9 @@ describe("submission data access", () => {
       status: "ACCEPTED",
       mission: { id: "mission-1", title: "X" }
     });
+    // The real status-scoped updateMany would match 0 rows here since status is already ACCEPTED,
+    // not SUBMITTED; the fully-mocked Prisma client doesn't filter by `where`, so simulate that.
+    prismaMock.txSubmissionUpdateMany.mockResolvedValueOnce({ count: 0 });
     await expect(
       reviewSubmission({
         id: "sub-1",
@@ -940,6 +943,30 @@ describe("submission data access", () => {
         rating: null
       })
     ).rejects.toThrow("Invalid submission status transition");
+    expect(prismaMock.txNotificationCreate).not.toHaveBeenCalled();
+  });
+
+  it("guards concurrent review attempts with a status-scoped update (double-click / two tabs)", async () => {
+    prismaMock.txSubmissionFindFirst.mockResolvedValue({
+      id: "sub-1",
+      status: "SUBMITTED",
+      missionId: "mission-1",
+      applicantId: "user-1",
+      mission: { id: "mission-1", title: "Build a Landing Page" }
+    });
+    // Simulates a concurrent reviewer already having won the race and committed first.
+    prismaMock.txSubmissionUpdateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      reviewSubmission({
+        id: "sub-1",
+        tenantId: "tenant-1",
+        status: "ACCEPTED",
+        reviewerFeedback: "Great work.",
+        reviewerUserId: "lead-1",
+        rating: 4.5
+      })
+    ).rejects.toThrow("Invalid submission status transition");
+    expect(prismaMock.txSubmissionReviewCreate).not.toHaveBeenCalled();
     expect(prismaMock.txNotificationCreate).not.toHaveBeenCalled();
   });
 

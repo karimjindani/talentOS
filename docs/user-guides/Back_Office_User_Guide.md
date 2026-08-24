@@ -246,6 +246,10 @@ never review each other's work (Graduate Profile: graduates are not code reviewe
    or a repeat requires written feedback.
 5. The applicant is notified automatically (acceptance or revision request with your feedback), and
    the review is recorded in the audit log.
+6. Once you decide, the review form disappears — a submission cannot be reviewed twice (`v0.20.8`,
+   D-108). After **Request changes**, the page shows "Changes were requested. This section reopens
+   once the applicant resubmits their evidence." until they do; after **Accept submission** or
+   **Repeat week**, the decision is final and the form never reappears for that submission.
 
 #### Review history (`v0.20.0`)
 

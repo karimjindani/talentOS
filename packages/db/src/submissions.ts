@@ -449,12 +449,11 @@ export async function reviewSubmission({
     if (!submission) {
       throw new Error("Submission not found for this tenant.");
     }
-    if (submission.status !== "SUBMITTED") {
-      throw new Error(`Invalid submission status transition from ${submission.status} to ${status}.`);
-    }
-
-    const updated = await tx.submission.update({
-      where: { id: submission.id },
+    // Status-scoped updateMany prevents concurrent review attempts (double-click, two admin tabs)
+    // from both winning: the WHERE is re-evaluated at write time, not read time, so only the first
+    // one to commit can match status: "SUBMITTED".
+    const guard = await tx.submission.updateMany({
+      where: { id: submission.id, tenantId, status: "SUBMITTED" },
       data: {
         status,
         reviewerFeedback,
@@ -463,6 +462,9 @@ export async function reviewSubmission({
         reviewedAt: new Date()
       }
     });
+    if (guard.count !== 1) {
+      throw new Error(`Invalid submission status transition from ${submission.status} to ${status}.`);
+    }
 
     if (submission.missionAssignment) {
       // NEEDS_REVISION returns to IN_PROGRESS (not NOT_STARTED/ACCEPTED) since a draft already
@@ -575,7 +577,7 @@ export async function reviewSubmission({
       }
     }
 
-    return updated;
+    return tx.submission.findFirstOrThrow({ where: { id: submission.id, tenantId } });
   });
 }
 
