@@ -40,6 +40,7 @@ import {
   getTenantSubmission,
   getTenantProgram,
   getPublicProfile,
+  getPublicProfiles,
   isJournalMissionLockedForApplicant,
   JournalEntryDateConflictError,
   listApplicantApplications,
@@ -576,6 +577,18 @@ const scenarios: Scenario[] = [
       }
       if (deadlineAt.getUTCDay() !== 4) {
         throw new Error(`Deadline must fall on a Thursday (UTC); got weekday ${deadlineAt.getUTCDay()}.`);
+      }
+      // The stored instant must be 18:59:59.999 UTC == 23:59:59.999 Pakistan Standard Time
+      // (UTC+5), so the cadence lands before Friday starts in the tenant's own local time, not
+      // just in UTC (a Thursday 23:59:59 UTC deadline would already be Friday morning PKT).
+      if (
+        deadlineAt.getUTCHours() !== 18 ||
+        deadlineAt.getUTCMinutes() !== 59 ||
+        deadlineAt.getUTCSeconds() !== 59
+      ) {
+        throw new Error(
+          `Deadline must be 18:59:59.999 UTC (23:59:59.999 PKT, before Friday locally); got ${deadlineAt.toISOString()}.`
+        );
       }
       // Count Mon–Thu working days from acceptance date to the deadline (inclusive).
       let workingDays = 0;
@@ -3219,7 +3232,7 @@ const scenarios: Scenario[] = [
       if (Math.abs(profile.overallRating - 4.5) > 0.001) {
         throw new Error(`Expected overall rating 4.5, got ${profile.overallRating}.`);
       }
-      const publicProfile = await getPublicProfile(profile.slug);
+      const publicProfile = await getPublicProfile(profile.slug, fixture.tenant.id);
       if (!publicProfile || publicProfile.program?.id !== fixture.program.id) {
         throw new Error("Consented graduate profile was not publicly discoverable in its completed program.");
       }
@@ -3248,7 +3261,7 @@ const scenarios: Scenario[] = [
       if (!persisted || persisted.consentStatus !== "DECLINED") {
         throw new Error("Decline was not actually persisted to the database.");
       }
-      if (await getPublicProfile(persisted.slug)) {
+      if (await getPublicProfile(persisted.slug, fixture.tenant.id)) {
         throw new Error("A declined profile must not be publicly discoverable.");
       }
       return "Declined consent with no prior profile; a DECLINED profile row now persists and stays private.";
@@ -3271,7 +3284,7 @@ const scenarios: Scenario[] = [
       if (!persisted || persisted.consentStatus !== "SKIPPED") {
         throw new Error("Skip was not actually persisted to the database.");
       }
-      if (await getPublicProfile(persisted.slug)) {
+      if (await getPublicProfile(persisted.slug, fixture.tenant.id)) {
         throw new Error("A skipped profile must not be publicly discoverable.");
       }
       return "Skipped consent with no prior profile; a SKIPPED profile row now persists and stays private.";
@@ -3361,7 +3374,7 @@ const scenarios: Scenario[] = [
         bio: "Regression graduate whose consent will be withdrawn.",
         skills: ["typescript"]
       });
-      if (!published.publicProfileEnabled || !(await getPublicProfile(published.slug))) {
+      if (!published.publicProfileEnabled || !(await getPublicProfile(published.slug, fixture.tenant.id))) {
         throw new Error("Test setup invariant broken: profile was not published before declining.");
       }
 
@@ -3370,7 +3383,7 @@ const scenarios: Scenario[] = [
       if (declined.consentVersion <= published.consentVersion) {
         throw new Error("Declining must bump consentVersion so a re-consent is tracked as a new decision.");
       }
-      if (await getPublicProfile(published.slug)) {
+      if (await getPublicProfile(published.slug, fixture.tenant.id)) {
         throw new Error("A profile the applicant just declined must no longer be publicly discoverable.");
       }
       return "Published a profile, then declined; the profile immediately dropped out of public discovery.";
@@ -3411,19 +3424,19 @@ const scenarios: Scenario[] = [
       }
 
       const approvalToken = generateSecureToken();
-      const approved = await approveAccessRequest(request.id, fixture.actor.id, approvalToken);
+      const approved = await approveAccessRequest(request.id, fixture.tenant.id, fixture.actor.id, approvalToken);
       if (approved.request.status !== "APPROVED") throw new Error("Approval did not set status to APPROVED.");
 
       const consumed = await consumeRecruiterAccessToken(approvalToken);
       if (!consumed || "error" in consumed) throw new Error("A freshly approved token must be consumable.");
       if (consumed.request.graduate.slug !== profile.slug) throw new Error("Consumed token resolved to the wrong graduate.");
 
-      const accessible = await getAllAccessibleGraduates(recruiterId);
+      const accessible = await getAllAccessibleGraduates(recruiterId, fixture.tenant.id);
       if (!accessible || !accessible.graduates.some((g) => g.slug === profile.slug)) {
-        throw new Error("An active grant must list every published graduate, including this one.");
+        throw new Error("An active grant must list every published graduate in this tenant, including this one.");
       }
 
-      const fullProfile = await getFullProfileForRecruiter(profile.slug, recruiterId);
+      const fullProfile = await getFullProfileForRecruiter(profile.slug, recruiterId, fixture.tenant.id);
       if (!fullProfile || fullProfile.assignments.length !== 4) {
         throw new Error("A verified recruiter with an active grant must see all four accepted mission assignments.");
       }
@@ -3433,11 +3446,11 @@ const scenarios: Scenario[] = [
       const reconsumed = await consumeRecruiterAccessToken(approvalToken);
       if (!reconsumed || "error" in reconsumed) throw new Error("An approved token must remain reusable within its window.");
 
-      await revokeAccessRequest(request.id, fixture.actor.id);
-      if (await getAllAccessibleGraduates(recruiterId)) {
+      await revokeAccessRequest(request.id, fixture.tenant.id, fixture.actor.id);
+      if (await getAllAccessibleGraduates(recruiterId, fixture.tenant.id)) {
         throw new Error("Revoking the request must remove the recruiter's access to every graduate.");
       }
-      if (await getFullProfileForRecruiter(profile.slug, recruiterId)) {
+      if (await getFullProfileForRecruiter(profile.slug, recruiterId, fixture.tenant.id)) {
         throw new Error("Revoking the request must remove access to the individual profile too.");
       }
       const afterRevoke = await consumeRecruiterAccessToken(approvalToken);
@@ -3493,7 +3506,7 @@ const scenarios: Scenario[] = [
         await markRegressionData({ runId: ctx.runId, entityType: "RecruiterAccount", entityId: rejectedRequest.recruiterId });
       }
       const rejectionReason = "Could not verify the recruiter's organization.";
-      await rejectAccessRequest(rejectedRequest.id, fixture.actor.id, rejectionReason);
+      await rejectAccessRequest(rejectedRequest.id, fixture.tenant.id, fixture.actor.id, rejectionReason);
 
       const rejectedResult = await consumeRecruiterAccessToken(rejectedToken);
       if (!rejectedResult || !("error" in rejectedResult) || rejectedResult.error !== "REJECTED") {
@@ -3503,6 +3516,98 @@ const scenarios: Scenario[] = [
         throw new Error("The admin's rejection reason must reach the recruiter verifying a rejected token.");
       }
       return "Confirmed pending and rejected recruiter tokens both refuse access, and the rejection reason surfaces correctly.";
+    }
+  },
+  {
+    area: "public-portal",
+    name: "The graduate directory and recruiter access grants are tenant-isolated (v0.20.11, D-110)",
+    run: async (ctx) => {
+      const fixtureA = await createGraduateEligibleFixture(ctx.runId, "tenant-isolation-a");
+      const profileA = await createOrUpdateGraduateProfile(fixtureA.user.id, {
+        bio: "Regression graduate in tenant A.",
+        skills: ["typescript"]
+      });
+
+      // A second, independent tenant with its own published graduate — created directly rather
+      // than through the full apply->missions->submissions pipeline, since this scenario is only
+      // exercising read/access isolation, not eligibility.
+      const tenantB = await prisma.tenant.create({
+        data: { name: "Regression Tenant Isolation B", slug: `tenant-isolation-b-${randomUUID().slice(0, 8)}` }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "Tenant", entityId: tenantB.id });
+      const userB = await prisma.user.create({
+        data: {
+          email: `graduate-b+${ctx.runId}@regression.talentos.local`,
+          name: "Regression Graduate B",
+          memberships: { create: { tenantId: tenantB.id, role: "APPLICANT" } }
+        },
+        include: { memberships: true }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "User", entityId: userB.id });
+      for (const membership of userB.memberships) {
+        await markRegressionData({ runId: ctx.runId, entityType: "TenantMembership", entityId: membership.id });
+      }
+      // No Application row is needed here — this scenario constructs the GraduateProfile directly
+      // (bypassing the apply->missions->submissions pipeline) rather than going through any of the
+      // graduates.ts creation helpers, so resolveApplicantTenantId's Application-based backfill is
+      // never invoked for tenant B.
+      const graduateB = await prisma.graduateProfile.create({
+        data: {
+          userId: userB.id,
+          tenantId: tenantB.id,
+          slug: `regression-graduate-b-${randomUUID().slice(0, 8)}`,
+          publicProfileEnabled: true,
+          consentStatus: "ACKNOWLEDGED",
+          consentDate: new Date(),
+          bio: "Regression graduate in tenant B.",
+          graduationDate: new Date(),
+          overallRating: 4.8
+        }
+      });
+      await markRegressionData({ runId: ctx.runId, entityType: "GraduateProfile", entityId: graduateB.id });
+
+      // Directory scoped to tenant A must exclude tenant B's graduate.
+      const directoryA = await getPublicProfiles(fixtureA.tenant.id, {});
+      if (directoryA.data.some((g) => g.slug === graduateB.slug)) {
+        throw new Error("Tenant A's directory listed a graduate belonging to a different tenant.");
+      }
+
+      // A direct slug lookup for tenant B's graduate, scoped to tenant A, must 404 (not just be
+      // filtered out of a list) — closes the direct-URL slug-guessing gap across tenants.
+      if (await getPublicProfile(graduateB.slug, fixtureA.tenant.id)) {
+        throw new Error("A graduate slug from a different tenant was resolvable under tenant A.");
+      }
+
+      // A recruiter approved under tenant A must not reach tenant B's graduate at all — neither
+      // by querying under tenant A (wrong slug for that tenant) nor under tenant B (no grant
+      // exists for that tenant, even though the recruiter is verified overall).
+      const request = await createRecruiterAccessRequest(
+        profileA.id,
+        {
+          recruiterName: "Tenant Isolation Recruiter",
+          recruiterOrganization: "Regression Talent Co",
+          recruiterDesignation: "Recruiter",
+          recruiterEmail: `isolation+${ctx.runId}@regression.talentos.local`
+        },
+        generateSecureToken(),
+        calculateTokenExpiry(7)
+      );
+      if (!request.recruiterId) throw new Error("Recruiter account was not attached to the access request.");
+      await markRegressionData({ runId: ctx.runId, entityType: "RecruiterAccount", entityId: request.recruiterId });
+      const recruiterId = request.recruiterId;
+      await approveAccessRequest(request.id, fixtureA.tenant.id, fixtureA.actor.id, generateSecureToken());
+
+      if (await getFullProfileForRecruiter(graduateB.slug, recruiterId, fixtureA.tenant.id)) {
+        throw new Error("A tenant-A-approved recruiter reached tenant B's graduate via a tenant-A-scoped call.");
+      }
+      if (await getFullProfileForRecruiter(graduateB.slug, recruiterId, tenantB.id)) {
+        throw new Error("A recruiter with no grant for tenant B was still able to view a tenant-B graduate.");
+      }
+      if (await getAllAccessibleGraduates(recruiterId, tenantB.id)) {
+        throw new Error("A recruiter with no grant for tenant B still received an accessible-graduates list for it.");
+      }
+
+      return "Tenant A's directory and a tenant-A-approved recruiter grant both stayed scoped to tenant A; tenant B's graduate was unreachable either way.";
     }
   },
   {

@@ -1,9 +1,21 @@
 # Data Model
 
-Code version: `v0.20.10`
+Code version: `v0.20.11`
 
 Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
 
+> `v0.20.11` (D-110) adds `GraduateProfile.tenantId` and `RecruiterAccessRequest.tenantId` (both
+> required `String` foreign keys to `Tenant`, `onDelete: Cascade`, indexed). Migration:
+> `20260824090000_v0_20_11_graduate_portal_tenant_isolation`. `GraduateProfile.tenantId` is
+> backfilled from the graduate's most recent `Application.tenantId` (not `Program.tenantId`, which
+> is null on 43% of existing rows); `RecruiterAccessRequest.tenantId` is backfilled from — and at
+> creation time always denormalized from — its linked `GraduateProfile.tenantId`. This is the first
+> schema documentation for either table; the rest of the graduate-portal/recruiter schema (see the
+> `v0.20.1`–`v0.20.6` note below) remains an open documentation gap this iteration does not close.
+> `v0.20.10` (D-109) also changed schema — a new `FeatureFlag` model and a dropped unique
+> constraint on `EngineeringJournalEntry` — not yet documented in this file; see `Decision_Log.md`
+> D-109 in the interim.
+>
 > `v0.20.7` (D-107) adds `User.avatarFileId` — a nullable, unique `String` foreign key to
 > `StoredFile` (named relation `UserAvatar`, `onDelete: SetNull`), following the same pattern as
 > `GraduateProfile.profilePhotoFileId`/`GraduateProfilePhoto`. Migration:

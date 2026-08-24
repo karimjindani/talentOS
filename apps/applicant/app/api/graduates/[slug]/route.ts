@@ -4,7 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getPublicProfile } from "@talentos/db";
+import { getTenantContext } from "@talentos/ui";
+import { getPublicProfile, getTenantBySlug } from "@talentos/db";
 
 export async function GET(
   request: NextRequest,
@@ -20,7 +21,11 @@ export async function GET(
       );
     }
 
-    const profile = await getPublicProfile(slug);
+    const { tenantSlug } = await getTenantContext();
+    const tenant = await getTenantBySlug(tenantSlug);
+    if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+
+    const profile = await getPublicProfile(slug, tenant.id);
 
     if (!profile) {
       return NextResponse.json(

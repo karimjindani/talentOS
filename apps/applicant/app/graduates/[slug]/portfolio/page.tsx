@@ -16,10 +16,18 @@ type JournalEntry = {
   learned: string;
 };
 
+type ReviewHistoryEntry = {
+  round: number;
+  decision: "ACCEPTED" | "CHANGES_REQUESTED" | "REPEAT";
+  feedback: string | null;
+  createdAt: string;
+};
+
 type Assignment = {
   id: string;
   missionTitle: string;
   weekNumber: number;
+  competencyTags: string[];
   rating: number;
   completionDate: string | null;
   reviewerFeedback: string | null;
@@ -27,6 +35,9 @@ type Assignment = {
   deploymentUrl: string | null;
   loomUrl: string | null;
   journalEntries: JournalEntry[];
+  revisionCount: number;
+  reviewOutcome: string | null;
+  reviewHistory: ReviewHistoryEntry[];
 };
 
 type Portfolio = {
@@ -304,6 +315,13 @@ export default function GraduatePortfolioPage() {
                             <div>
                               <p className="text-xs font-semibold uppercase tracking-wide text-brand-blue">Week {assignment.weekNumber}</p>
                               <h3 className="mt-1 text-base font-semibold text-slate-900">{assignment.missionTitle}</h3>
+                              {assignment.competencyTags.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {assignment.competencyTags.map((tag) => (
+                                    <span key={tag} className="rounded-full bg-brand-mist px-2.5 py-0.5 text-xs font-semibold text-brand-blue">{tag}</span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             <div className="flex items-center gap-2">
                               <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
@@ -314,6 +332,11 @@ export default function GraduatePortfolioPage() {
                               </span>
                             </div>
                           </div>
+                          <p className="mt-3 text-xs font-medium text-slate-500">
+                            {assignment.revisionCount > 0
+                              ? `Accepted after ${assignment.revisionCount} round${assignment.revisionCount === 1 ? "" : "s"} of feedback`
+                              : "Accepted on the first submission"}
+                          </p>
                           {assignment.reviewerFeedback && (
                             <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm leading-5 text-slate-600">{assignment.reviewerFeedback}</p>
                           )}
@@ -322,6 +345,24 @@ export default function GraduatePortfolioPage() {
                             <EvidenceLink href={assignment.deploymentUrl} label="Live Deployment" icon="external" />
                             <EvidenceLink href={assignment.loomUrl} label="Loom Walkthrough" icon="external" />
                           </div>
+                          {assignment.reviewHistory.length > 1 && (
+                            <details className="mt-4 rounded-lg border border-slate-100 p-3">
+                              <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+                                Review history ({assignment.reviewHistory.length} rounds)
+                              </summary>
+                              <div className="mt-3 divide-y divide-slate-100">
+                                {assignment.reviewHistory.map((review) => (
+                                  <div key={review.round} className="py-3 first:pt-0 last:pb-0">
+                                    <p className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                                      Round {review.round} · {review.decision === "ACCEPTED" ? "Accepted" : review.decision === "CHANGES_REQUESTED" ? "Changes requested" : "Week repeated"}
+                                      <span className="font-normal text-slate-400">{new Date(review.createdAt).toLocaleDateString()}</span>
+                                    </p>
+                                    {review.feedback && <p className="mt-1 text-sm text-slate-700">{review.feedback}</p>}
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          )}
                           {assignment.journalEntries.length > 0 && (
                             <details className="mt-4 rounded-lg border border-slate-100 p-3">
                               <summary className="cursor-pointer text-sm font-semibold text-slate-700">

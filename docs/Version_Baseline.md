@@ -2,28 +2,102 @@
 
 ## Current Allocated Iteration (Review Pending)
 
+Version: `v0.20.11`
+
+Baseline name: `Deadline Timezone Fix, Graduate Portal Tenant Isolation, And Recruiter Portfolio Data`
+
+Base branch and commit: `origin/main` at `1f87fb4` (merges PR #74, the `v0.20.10` baseline)
+
+Feature branch: `fix/v0.20.11-tenant-isolation-and-deadline` (not yet pushed or merged)
+
+Documentation date: `2026-08-24`
+
+Latest released baseline: `v0.20.10` at `1f87fb4` (PR #74, merged 2026-08-24)
+
+Reserved active-branch version: re-checked live via
+`node .claude/skills/version-allocation-and-gates/scripts/allocate-version.js` immediately before
+starting this documentation pass — `v0.20.11` is the next available version, no collision.
+
+Migrations: `20260824090000_v0_20_11_graduate_portal_tenant_isolation` — adds
+`graduate_profiles.tenantId` and `recruiter_access_requests.tenantId` (both required, FK to
+`tenants`). See `Data_Model.md` and `Data_Dictionary.md`.
+
+Repository state: `v0.20.11` code and documentation are local on
+`fix/v0.20.11-tenant-isolation-and-deadline`. Not yet pushed or merged.
+
+**Version note:** this work was originally opened as PR #73 under version `v0.20.9`; the PR was
+closed unmerged. Meanwhile `origin/main` advanced to `v0.20.10` (PR #74, D-109, an unrelated
+feature-flags/journal-testing-mode iteration) before this work resumed. The code was rebased onto
+the new `main` — `git cherry-pick --no-commit` applied cleanly with conflicts only in shared *docs*
+files (all 9 resolved by keeping `origin/main`'s content and re-adding this iteration's doc changes
+fresh against the new baseline); `packages/db/prisma/schema.prisma` merged with no conflict at all,
+since the two iterations touch disjoint models (`FeatureFlag` vs. `GraduateProfile`/
+`RecruiterAccessRequest`). The migration folder and its `_prisma_migrations` DB record were renamed
+from the `v0.20.9` placeholder to `20260824090000_v0_20_11_graduate_portal_tenant_isolation` before
+this documentation pass, and PR #74's own pending migration was applied to the local DB alongside
+it, so disk and DB agree. See `Decision_Log.md` D-110 "Version note".
+
+### What this iteration changes
+
+1. **Deadline timezone fix** (`packages/db/src/mission-assignments.ts`): `computeMissionDeadline`
+   now stores the Thursday cutoff as 18:59:59.999 UTC (== 23:59:59.999 Pakistan Standard Time),
+   which previously landed on Thursday 23:59:59.999 UTC — already Friday morning locally.
+2. **`GraduateProfile.tenantId` / `RecruiterAccessRequest.tenantId`** (schema): the public graduate
+   directory and every recruiter-facing route/DB function now takes and enforces a `tenantId`,
+   closing a gap where every tenant's published graduates were pooled into one shared,
+   unauthenticated directory and a single admin approval granted a recruiter access to every
+   tenant's graduates. See `Decision_Log.md` D-110.
+3. **Recruiter access grants are tenant-scoped** — `recruiterHasActiveAccess` now checks
+   `{ recruiterId, tenantId, status: "APPROVED" }`, reversing the previous platform-wide-grant
+   behavior by explicit decision. Admin-side recruiter-request review
+   (`apps/admin/app/recruiter-requests/**`) is scoped the same way.
+4. **Recruiter portfolio data gaps closed**: `getFullProfileForRecruiter` now selects
+   `Mission.competencyTags` and each assignment's `SubmissionReview` revision history, rendered on
+   `apps/applicant/app/graduates/[slug]/portfolio/page.tsx` as competency-tag chips and an
+   expandable review-history panel.
+5. **1 new regression scenario** (`scripts/regression/run.ts`, `public-portal` area) creating a
+   genuine second tenant to prove both the directory and recruiter grants stay isolated.
+
+## v0.20.11 Documentation Index
+
+| Artifact | Location |
+| --- | --- |
+| Plan | `docs/plans/v0.20.11_Deadline_Timezone_Tenant_Isolation_And_Recruiter_Data.md` |
+| Test results | `docs/testing/v0.20.11_Deadline_Timezone_Tenant_Isolation_And_Recruiter_Data_Test_Results.md` |
+| Decision record | `docs/Decision_Log.md` (`D-110`) |
+| Architecture | `docs/Architecture.md` (new Multi-Tenancy subsection; code version updated) |
+| Scenario catalog | `docs/Regression_Scenarios.md` (v0.20.11 traceability + Scenario Matrix row + Known Gaps) |
+| Testing strategy | `docs/Testing_Strategy.md` (scenario count + testing-boundary note added) |
+| Deployment | No change — no new services, env vars, or deployment steps |
+| Data model / dictionary | `GraduateProfile.tenantId`, `RecruiterAccessRequest.tenantId` documented; migration noted |
+| User guides | No change — no route/navigation/role-visible change; the recruiter portfolio's added fields are additive display only |
+
+## Previous: v0.20.10
+
 Version: `v0.20.10`
 
 Baseline name: `Feature Flags And Journal Testing Mode`
 
 Base branch and commit: `origin/main` at `c8bb34f` (merges PR #72, the `v0.20.8` baseline)
 
-Feature branch: local `main` (not yet pushed or merged)
+Feature branch and code commit: `feature/v0.20.10-feature-flags-journal-testing` at `87efccf`,
+merged to `origin/main` via PR #74 at `1f87fb4`
 
 Documentation date: `2026-08-24`
 
-Latest released baseline: `v0.20.3` at `7e2bd14` (PR #68)
+Latest released baseline (at the time): `v0.20.8` at `c8bb34f` (PR #72)
 
-Reserved active-branch version: `origin/main` declares `v0.20.8`; `v0.20.9` is claimed by D-108
-for a future timezone-fix iteration; `v0.20.10` is the next available version.
+Reserved active-branch version: `origin/main` declared `v0.20.8`; `v0.20.9` had been claimed by an
+earlier iteration (PR #73) that was later closed unmerged; `v0.20.10` was the next available
+version at the time this work was documented.
 
 Migrations: one — `20260824000000_feature_flags_and_journal_testing` creates the `feature_flags`
 table and drops the `engineering_journal_entries_tenantId_applicantId_missionId_entryDate_key`
 unique index.
 
-Repository state: `v0.20.10` code and documentation are local on `main`. Not yet pushed or merged.
+Repository state: released — merged to `origin/main` via PR #74.
 
-### What this iteration changes
+### What this iteration changed
 
 1. **FeatureFlag model** (`schema.prisma`): new `feature_flags` table (key, enabled, description,
    timestamps). Migration also drops the journal unique constraint.

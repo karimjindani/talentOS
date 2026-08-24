@@ -5,7 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createRecruiterAccessRequest, prisma } from "@talentos/db";
+import { getTenantContext } from "@talentos/ui";
+import { createRecruiterAccessRequest, getTenantBySlug, prisma } from "@talentos/db";
 import { generateSecureToken, calculateTokenExpiry } from "@talentos/db";
 import { checkRateLimit, requestIp } from "@/lib/rate-limit";
 
@@ -42,13 +43,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the first public graduate profile to attach the request to.
+    const { tenantSlug } = await getTenantContext();
+    const tenant = await getTenantBySlug(tenantSlug);
+    if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+
+    // Get the first public graduate profile in this tenant to attach the request to.
     // The schema requires a graduateId on each RecruiterAccessRequest, so we
     // create a SINGLE request rather than one per graduate. When the admin
     // approves this request, the recruiter receives a token that grants
-    // access to the full directory.
+    // access to the tenant's full directory (v0.20.9, D-109 — scoped to this
+    // tenant, not every tenant's public graduates).
     const firstPublicGraduate = await prisma.graduateProfile.findFirst({
-      where: { publicProfileEnabled: true },
+      where: { tenantId: tenant.id, publicProfileEnabled: true },
       select: { id: true },
     });
 

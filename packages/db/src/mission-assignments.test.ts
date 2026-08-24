@@ -44,14 +44,16 @@ import {
 
 describe("computeMissionDeadline (Thursday cadence, ≥4 working days)", () => {
   // A known week: 2026-07-13 (Mon) … 2026-07-19 (Sun); Thursdays are 07-16 and 07-23.
+  // Deadline hour is 18:59:59.999 UTC == 23:59:59.999 Pakistan Standard Time (UTC+5) — the tenant's
+  // local end-of-Thursday, so the cadence lands before Friday starts locally, not just in UTC.
   const cases: Array<[string, string, string]> = [
-    ["Monday", "2026-07-13T09:00:00.000Z", "2026-07-16T23:59:59.999Z"], // this Thursday (Mon–Thu = 4)
-    ["Tuesday", "2026-07-14T09:00:00.000Z", "2026-07-23T23:59:59.999Z"], // next Thursday
-    ["Wednesday", "2026-07-15T09:00:00.000Z", "2026-07-23T23:59:59.999Z"],
-    ["Thursday", "2026-07-16T09:00:00.000Z", "2026-07-23T23:59:59.999Z"],
-    ["Friday", "2026-07-17T09:00:00.000Z", "2026-07-23T23:59:59.999Z"], // next Thursday (4 working days)
-    ["Saturday", "2026-07-18T09:00:00.000Z", "2026-07-23T23:59:59.999Z"],
-    ["Sunday", "2026-07-19T09:00:00.000Z", "2026-07-23T23:59:59.999Z"]
+    ["Monday", "2026-07-13T09:00:00.000Z", "2026-07-16T18:59:59.999Z"], // this Thursday (Mon–Thu = 4)
+    ["Tuesday", "2026-07-14T09:00:00.000Z", "2026-07-23T18:59:59.999Z"], // next Thursday
+    ["Wednesday", "2026-07-15T09:00:00.000Z", "2026-07-23T18:59:59.999Z"],
+    ["Thursday", "2026-07-16T09:00:00.000Z", "2026-07-23T18:59:59.999Z"],
+    ["Friday", "2026-07-17T09:00:00.000Z", "2026-07-23T18:59:59.999Z"], // next Thursday (4 working days)
+    ["Saturday", "2026-07-18T09:00:00.000Z", "2026-07-23T18:59:59.999Z"],
+    ["Sunday", "2026-07-19T09:00:00.000Z", "2026-07-23T18:59:59.999Z"]
   ];
 
   it.each(cases)("accepted on %s → deadline %s", (_day, accepted, expected) => {
@@ -261,8 +263,8 @@ describe("acceptMissionAssignment", () => {
       data: {
         status: "ACCEPTED",
         acceptedAt,
-        deadlineAt: new Date("2026-07-23T23:59:59.999Z"),
-        graceEndsAt: new Date("2026-07-24T11:59:59.999Z")
+        deadlineAt: new Date("2026-07-23T18:59:59.999Z"),
+        graceEndsAt: new Date("2026-07-24T06:59:59.999Z")
       }
     });
     vi.useRealTimers();

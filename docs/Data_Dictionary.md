@@ -1,9 +1,15 @@
 # Data Dictionary
 
-Code version: `v0.20.10`
+Code version: `v0.20.11`
 
 Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
 
+> `v0.20.11` (D-110) adds `graduate_profiles.tenantId` and `recruiter_access_requests.tenantId`
+> (both required `String` FK → `tenants.id`, `ON DELETE CASCADE`, indexed) — see `Data_Model.md`
+> for the backfill sourcing. This is the first dictionary entry for either table; the rest of the
+> graduate-portal/recruiter tables (see the `v0.20.1`–`v0.20.6` note below) remain an open
+> documentation gap. `v0.20.10` (D-109) added a `feature_flags` table, also not yet documented here.
+>
 > `v0.20.7` (D-107) adds `User.avatarFileId` (see `User` and `StoredFile` entries below) and a new
 > `StoredFile.category` value, `"profile-photo"`, used for the new apply-time avatar upload —
 > distinct from the pre-existing `"graduate-photo"` category used by

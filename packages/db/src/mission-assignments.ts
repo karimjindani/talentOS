@@ -8,6 +8,14 @@ export const FINAL_PROGRAM_WEEK = 4;
 const REQUIRED_WORKING_DAYS = 4; // Monday–Thursday
 const THURSDAY = 4; // Date.getUTCDay(): Sunday = 0 … Thursday = 4
 
+// Deadlines are meant to land before Friday starts in the tenant's own local time, not UTC. This
+// tenant runs on Pakistan Standard Time (UTC+5, no DST), so the end-of-Thursday cutoff is stored
+// as 18:59:59.999 UTC — the instant that is 23:59:59.999 PKT. Per-tenant timezone support is
+// deferred future work (see D-093); this hardcodes the one timezone this deployment actually
+// needs so the cadence stops silently slipping into Friday morning for its users.
+const TENANT_UTC_OFFSET_HOURS = 5;
+const END_OF_DAY_UTC_HOUR = 23 - TENANT_UTC_OFFSET_HOURS;
+
 function isWorkingDay(day: number): boolean {
   return day >= 1 && day <= THURSDAY; // Mon(1)–Thu(4)
 }
@@ -20,7 +28,8 @@ function isWorkingDay(day: number): boolean {
  *   • Accepted Mon → that same-week Thursday (Mon–Thu = 4 working days).
  *   • Accepted Tue/Wed/Thu → the following Thursday (this week would give < 4).
  *   • Accepted Fri/Sat/Sun → the next Thursday (the upcoming Mon–Thu = 4 working days).
- * Computed in UTC; the deadline is the end of that Thursday (23:59:59.999 UTC).
+ * The deadline is the end of that Thursday in the tenant's local time (23:59:59.999 PKT, stored
+ * as 18:59:59.999 UTC) so it lands before Friday starts locally, not just in UTC.
  */
 export function computeMissionDeadline(acceptedAt: Date): Date {
   const cursor = new Date(Date.UTC(acceptedAt.getUTCFullYear(), acceptedAt.getUTCMonth(), acceptedAt.getUTCDate()));
@@ -29,12 +38,12 @@ export function computeMissionDeadline(acceptedAt: Date): Date {
     const day = cursor.getUTCDay();
     if (isWorkingDay(day)) workingDays += 1;
     if (day === THURSDAY && workingDays >= REQUIRED_WORKING_DAYS) {
-      cursor.setUTCHours(23, 59, 59, 999);
+      cursor.setUTCHours(END_OF_DAY_UTC_HOUR, 59, 59, 999);
       return cursor;
     }
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
-  cursor.setUTCHours(23, 59, 59, 999);
+  cursor.setUTCHours(END_OF_DAY_UTC_HOUR, 59, 59, 999);
   return cursor;
 }
 

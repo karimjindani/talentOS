@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRecruiterGraduateContact, getRecruiterSession } from "@talentos/db";
+import { getTenantContext } from "@talentos/ui";
+import { getRecruiterGraduateContact, getRecruiterSession, getTenantBySlug } from "@talentos/db";
 import { sendCandidateContactEmail } from "@/lib/email-service";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -12,7 +13,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const body = await request.json();
   const message = typeof body.message === "string" ? body.message.trim() : "";
   if (message.length < 10 || message.length > 2000) return NextResponse.json({ error: "Message must be between 10 and 2,000 characters." }, { status: 400 });
-  const contact = await getRecruiterGraduateContact(slug, session.recruiterId);
+  const { tenantSlug } = await getTenantContext();
+  const tenant = await getTenantBySlug(tenantSlug);
+  if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+  const contact = await getRecruiterGraduateContact(slug, session.recruiterId, tenant.id);
   if (!contact) return NextResponse.json({ error: "Portfolio access is required." }, { status: 403 });
   await sendCandidateContactEmail({ to: contact.graduateEmail, graduateName: contact.graduateName, recruiterName: contact.recruiter.name, recruiterEmail: contact.recruiter.email, organization: contact.recruiter.organization || undefined, message });
   return NextResponse.json({ success: true });

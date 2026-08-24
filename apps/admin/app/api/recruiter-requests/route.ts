@@ -20,8 +20,8 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status") as "PENDING" | "APPROVED" | "REJECTED" | "REVOKED" | "EXPIRED" | null;
 
   const [result, stats] = await Promise.all([
-    getPendingAccessRequests({ page, limit, status: status ?? undefined }),
-    getAccessRequestStats()
+    getPendingAccessRequests(access.tenant.id, { page, limit, status: status ?? undefined }),
+    getAccessRequestStats(access.tenant.id)
   ]);
 
   return NextResponse.json({ ...result, stats });

@@ -19,14 +19,14 @@ export default async function RecruiterRequestsPage({
 }: {
   searchParams: Promise<{ status?: string; page?: string }>;
 }) {
-  await requireTenantAccess();
+  const { tenant } = await requireTenantAccess();
   const params = await searchParams;
   const status = params.status as "PENDING" | "APPROVED" | "REJECTED" | "REVOKED" | "EXPIRED" | undefined;
   const page = Number(params.page) || 1;
 
   const [result, stats] = await Promise.all([
-    getPendingAccessRequests({ page, limit: 20, status }),
-    getAccessRequestStats(),
+    getPendingAccessRequests(tenant.id, { page, limit: 20, status }),
+    getAccessRequestStats(tenant.id),
   ]);
 
   const statusFilters = [
