@@ -1,8 +1,8 @@
 # Testing Strategy
 
-Code version: `v0.20.6`
+Code version: `v0.20.7`
 
-Test evidence commit: `43e7537` (+ `v0.20.3`/`v0.20.4`/`v0.20.5`/`v0.20.6` uncommitted at documentation time)
+Test evidence commit: `43e7537` (+ `v0.20.3`/`v0.20.4`/`v0.20.5`/`v0.20.6`/`v0.20.7` uncommitted at documentation time)
 
 ## Goals
 
@@ -23,9 +23,22 @@ The regression suite has three layers:
 The Ops Console can run the full scenario suite or a specific area and shows pass/fail/skip counts plus
 individual scenario rows after each run.
 
-The `v0.20.3` runner defines **59 scenarios across 12 concrete areas plus the `all` orchestrator**
-(up from 53 in `v0.20.1`). The current unit and executed-regression totals are recorded in the
-versioned test-results artifact, not inferred here.
+As of `v0.20.7`, the runner defines **62 scenarios across 12 concrete areas plus the `all`
+orchestrator** (up from 59 in `v0.20.3`). `v0.20.7` (D-107) added three `public-portal` scenarios
+covering `getGraduateProfileDefaults` — the apply-time GitHub/LinkedIn/avatar defaults that now
+carry into a brand-new `GraduateProfile` on decline/skip/acknowledge, the null-defaults edge case,
+and the no-overwrite-on-update case. The current unit and executed-regression totals are recorded
+in the versioned test-results artifact, not inferred here.
+
+`v0.20.7` also introduces a testing-boundary precedent worth naming explicitly: the new apply-time
+profile-photo upload (`apps/applicant/app/apply/page.tsx`) has no `scripts/regression/run.ts` or
+unit coverage of its own — that suite calls `packages/db` functions directly and never exercises
+the Next.js page/server-action layer where the upload's validation lives. This mirrors the
+pre-existing CV upload validation in the same file, which has likewise never had regression-suite
+coverage. Both are verified instead by manual Playwright browser sessions and code review against
+the equivalent, already-tested `graduates/profile/photo/route.ts` validation. See
+`docs/plans/v0.20.7_Applicant_Profile_Photo_And_Graduate_Defaults.md` and `Regression_Scenarios.md`
+Known Gaps.
 
 CI (`.github/workflows/ci.yml`) runs the unit suite in the `ci` job **and the full scenario suite plus
 the journey suite in the `e2e-evidence` job**, which boots the Docker stack on the runner for every

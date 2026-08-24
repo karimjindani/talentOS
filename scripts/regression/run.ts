@@ -19,6 +19,7 @@ import {
   createProgram,
   createProgramTask,
   createRecruiterAccessRequest,
+  createStoredFile,
   createSubmittedApplication,
   createVideoResource,
   declineGraduateProfilePublishing,
@@ -30,6 +31,7 @@ import {
   getApplicantMissionProgress,
   getFullProfileForRecruiter,
   getGraduateEligibility,
+  getGraduateProfileDefaults,
   getApplicantProgramProgress,
   getApplicantSubmission,
   getAssignedProgramMission,
@@ -54,6 +56,7 @@ import {
   markMissionTaskComplete,
   markNotificationRead,
   markRegressionData,
+  markStoredFileReady,
   prisma,
   rejectAccessRequest,
   revokeAccessRequest,
@@ -61,6 +64,7 @@ import {
   saveSubmissionDraft,
   setMissionStatus,
   setProgramStatus,
+  setUserAvatar,
   skipGraduateConsent,
   submitSubmission,
   sweepMissionDeadlines,
@@ -68,6 +72,7 @@ import {
   updateVideoResource
 } from "@talentos/db";
 import { tenantRolesGrant, type RegressionArea, type RegressionSummary } from "@talentos/auth";
+import { buildObjectKey, getBucket, putObject } from "@talentos/storage";
 
 type ScenarioStatus = "passed" | "failed" | "skipped";
 
@@ -3169,6 +3174,81 @@ const scenarios: Scenario[] = [
         throw new Error("A skipped profile must not be publicly discoverable.");
       }
       return "Skipped consent with no prior profile; a SKIPPED profile row now persists and stays private.";
+    }
+  },
+  {
+    area: "public-portal",
+    name: "A brand-new graduate profile inherits GitHub/LinkedIn and avatar from the applicant's accepted application (v0.20.7)",
+    run: async (ctx) => {
+      const fixture = await createGraduateEligibleFixture(ctx.runId, "defaults-present");
+      await prisma.application.updateMany({
+        where: { applicantId: fixture.user.id, programId: fixture.program.id },
+        data: { githubUrl: "https://github.com/regression-defaults", linkedinUrl: "https://www.linkedin.com/in/regression-defaults" }
+      });
+      const avatarKey = buildObjectKey({ tenantId: fixture.tenant.id, category: "profile-photo", filename: `${ctx.runId}-avatar.png` });
+      await putObject({ key: avatarKey, body: Buffer.from([0x89, 0x50, 0x4e, 0x47]), contentType: "image/png" });
+      const avatarFile = await createStoredFile({
+        tenantId: fixture.tenant.id, ownerUserId: fixture.user.id, bucket: getBucket(), storageKey: avatarKey,
+        originalName: "avatar.png", contentType: "image/png", size: 4, category: "profile-photo", actorUserId: fixture.user.id
+      });
+      await markStoredFileReady(avatarFile.id, fixture.tenant.id);
+      await markRegressionData({ runId: ctx.runId, entityType: "StoredFile", entityId: avatarFile.id });
+      await setUserAvatar(fixture.user.id, avatarFile.id);
+
+      const defaults = await getGraduateProfileDefaults(fixture.user.id);
+      if (defaults.githubUrl !== "https://github.com/regression-defaults" || defaults.linkedinUrl !== "https://www.linkedin.com/in/regression-defaults" || defaults.profilePhotoFileId !== avatarFile.id) {
+        throw new Error(`getGraduateProfileDefaults did not return the applicant's github/linkedin/avatar: ${JSON.stringify(defaults)}`);
+      }
+
+      const skipped = await skipGraduateConsent(fixture.user.id);
+      if (skipped.githubUrl !== defaults.githubUrl || skipped.linkedinUrl !== defaults.linkedinUrl || skipped.profilePhotoFileId !== defaults.profilePhotoFileId) {
+        throw new Error("Creating a graduate profile via skipGraduateConsent did not carry the apply-time defaults through.");
+      }
+      return "Applicant's accepted-application GitHub/LinkedIn and avatar all landed on the freshly created graduate profile.";
+    }
+  },
+  {
+    area: "public-portal",
+    name: "A graduate profile created with no accepted application or avatar gets null defaults, not a crash (v0.20.7)",
+    run: async (ctx) => {
+      const fixture = await createGraduateEligibleFixture(ctx.runId, "defaults-absent");
+      // Deliberately no githubUrl/linkedinUrl on the application and no avatar on the user, unlike
+      // the sibling scenario above — this is the "nothing to carry over" edge case.
+      const defaults = await getGraduateProfileDefaults(fixture.user.id);
+      if (defaults.githubUrl !== null || defaults.linkedinUrl !== null || defaults.profilePhotoFileId !== null) {
+        throw new Error(`Expected null defaults with no application links or avatar, got: ${JSON.stringify(defaults)}`);
+      }
+      const declined = await declineGraduateProfilePublishing(fixture.user.id);
+      if (declined.githubUrl !== null || declined.linkedinUrl !== null || declined.profilePhotoFileId !== null) {
+        throw new Error("A profile created with nothing to carry over must not fabricate github/linkedin/avatar values.");
+      }
+      return "No accepted-application links or avatar existed; the new profile's defaults were null, with no crash.";
+    }
+  },
+  {
+    area: "public-portal",
+    name: "Apply-time defaults are only applied on first creation — an existing profile's photo and links are never overwritten (v0.20.7)",
+    run: async (ctx) => {
+      const fixture = await createGraduateEligibleFixture(ctx.runId, "defaults-no-overwrite");
+      const published = await createOrUpdateGraduateProfile(fixture.user.id, {
+        bio: "Regression graduate who already customized their profile.",
+        githubUrl: "https://github.com/graduate-own-choice",
+        linkedinUrl: "https://www.linkedin.com/in/graduate-own-choice",
+        skills: ["typescript"]
+      });
+
+      // Only now does the applicant's application gain different github/linkedin — simulating apply
+      // details that were entered/edited after the graduate had already customized their own profile.
+      await prisma.application.updateMany({
+        where: { applicantId: fixture.user.id, programId: fixture.program.id },
+        data: { githubUrl: "https://github.com/should-not-appear", linkedinUrl: "https://www.linkedin.com/in/should-not-appear" }
+      });
+
+      const declined = await declineGraduateProfilePublishing(fixture.user.id);
+      if (declined.githubUrl !== published.githubUrl || declined.linkedinUrl !== published.linkedinUrl) {
+        throw new Error("Declining consent on an existing profile must never overwrite github/linkedin with apply-time defaults.");
+      }
+      return "Existing profile's own github/linkedin survived a decline call untouched, despite different apply-time values existing.";
     }
   },
   {

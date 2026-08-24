@@ -1667,3 +1667,55 @@ knowledge-base test prompt changed from "xyz random unrelated query zzz" to pure
 ("zzzqqqxxxyyy asdfqwerty") because "query" now matches docs-index sections. The
 `AI_Mentor_Architecture_and_Concepts.md` document was created as a comprehensive reference for
 the mentor's architecture and concepts.
+
+## D-107: Applicant Profile Photo, Apply Page Redesign, And Graduate-Profile Defaults Carry-Through (v0.20.7)
+
+**Context:** Applicants could not add a profile photo until graduation — `GraduateProfile.profilePhotoFileId`
+only exists once a `GraduateProfile` row is created, which happens at consent time, months after
+apply. Separately, a `GraduateProfile` created at consent time (decline, skip, or acknowledge) was
+always a blank placeholder: `bio`, `linkedinUrl`, `githubUrl`, and the photo all started empty even
+though the applicant had already given GitHub/LinkedIn URLs (and, as of this iteration, a photo)
+at apply time — forcing every graduate to re-enter the same information from scratch via
+`GraduateProfileForm` before publishing.
+
+**Decision:**
+
+1. **`User.avatarFileId`** (new, unique, nullable `StoredFile` relation): an applicant-level
+   profile photo, uploaded optionally during `/apply`'s `submitApplication`, validated identically
+   to the existing graduate-photo route (JPEG/PNG/WebP, 2 MB cap, magic-byte signature check via
+   the existing `hasValidImageSignature`). Kept as its own field rather than reusing
+   `GraduateProfile.profilePhotoFileId` directly, since a `GraduateProfile` row may not exist yet
+   for an in-program applicant.
+2. **`getGraduateProfileDefaults(userId)`** (`packages/db/src/graduates.ts`): reads the
+   applicant's most recent `ACCEPTED` application's `githubUrl`/`linkedinUrl` and their
+   `User.avatarFileId`, returning nulls (never fabricated values) when nothing exists to carry
+   over. Wired into all three `GraduateProfile`-creation call sites —
+   `declineGraduateProfilePublishing`, `skipGraduateConsent`, and the `acknowledge` route — but
+   only on the **create** branch of each, never on update, so a graduate's own later edits via
+   `GraduateProfileForm` are never silently overwritten by apply-time data.
+3. **Apply page redesign** (`apps/applicant/app/apply/page.tsx`,
+   `apps/applicant/app/apply/ApplyUploadFields.tsx`): emoji glyphs replaced with `lucide-react`
+   icons; the plain CV file input replaced with a real drag-and-drop dropzone (drag-over state,
+   selected-file confirmation, client-side type/size feedback); the identity chip gained a
+   circular avatar-upload control with live preview. Deliberately stayed within the existing
+   tenant-brand token system (`brand-blue`/`brand-navy`/`brand-mist` are per-tenant CSS variables
+   set via `brandStyleBlock`) rather than introducing a new fixed palette or font, since a
+   bespoke one-off look on this page would break every tenant's white-labeling.
+
+**Consequences:** Migration `20260821190000_v0_20_7_user_avatar` adds `users.avatarFileId`. Three
+new `public-portal` regression scenarios cover the defaults-present, defaults-absent, and
+no-overwrite-on-update cases. The apply-time photo upload and its validation are verified manually
+(Playwright end-to-end + code review against the existing graduate-photo route's identical
+validation order) rather than added to `scripts/regression/run.ts`, consistent with the
+pre-existing CV upload validation in the same file, which has never had regression-suite coverage
+either — see `docs/plans/v0.20.7_Applicant_Profile_Photo_And_Graduate_Defaults.md` Out of Scope.
+`GraduateConsentModal.tsx` still renders `GraduateProfileForm` with no `initialData`, so a
+graduate opening the edit form after this iteration sees blank fields despite their carried-over
+values already being saved and live on their public profile — a pre-existing gap this iteration
+does not close, noted explicitly so it isn't mistaken for newly introduced.
+
+**Version note:** this work was informally tracked as `v0.20.6` mid-session, but
+`origin/main` gained an unrelated `v0.20.6` (`AI Mentor UI, RAG, Context Fix, And RBSE Unblock`,
+D-106, PR #70) while this iteration was in progress. Re-running the version-allocation check
+caught the collision before any doc was committed; this iteration is `v0.20.7`, and its one
+migration folder/DB record were renamed from the `v0.20.6` placeholder to match before deploying.

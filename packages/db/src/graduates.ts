@@ -429,13 +429,40 @@ export function disableProfilePublishing(userId: string) {
   return prisma.graduateProfile.update({ where: { userId }, data: { publicProfileEnabled: false } });
 }
 
+/**
+ * Defaults for a brand-new GraduateProfile, carried over from what the applicant already gave
+ * at /apply — their most recent accepted application's GitHub/LinkedIn URLs, and their avatar
+ * (User.avatarFileId). Only used when creating a profile; an existing one is never overwritten,
+ * since the graduate may have already edited these via GraduateProfileForm.
+ */
+export async function getGraduateProfileDefaults(userId: string): Promise<{
+  githubUrl: string | null;
+  linkedinUrl: string | null;
+  profilePhotoFileId: string | null;
+}> {
+  const [application, user] = await Promise.all([
+    prisma.application.findFirst({
+      where: { applicantId: userId, status: "ACCEPTED" },
+      orderBy: { createdAt: "desc" },
+      select: { githubUrl: true, linkedinUrl: true }
+    }),
+    prisma.user.findUnique({ where: { id: userId }, select: { avatarFileId: true } })
+  ]);
+  return {
+    githubUrl: application?.githubUrl ?? null,
+    linkedinUrl: application?.linkedinUrl ?? null,
+    profilePhotoFileId: user?.avatarFileId ?? null
+  };
+}
+
 export async function declineGraduateProfilePublishing(userId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, graduateProfile: { select: { id: true } } } });
   if (!user) throw new Error("User not found.");
+  const defaults = user.graduateProfile ? null : await getGraduateProfileDefaults(userId);
   return prisma.$transaction(async (tx) => {
     const profile = user.graduateProfile
       ? await tx.graduateProfile.update({ where: { userId }, data: { publicProfileEnabled: false, consentDate: null, consentVersion: { increment: 1 }, consentStatus: "DECLINED" } })
-      : await tx.graduateProfile.create({ data: { userId, slug: await generateUniqueSlug(publicName(user.name, user.email)), publicProfileEnabled: false, consentStatus: "DECLINED", graduationDate: new Date(), overallRating: 0, bio: "TalentOS program graduate" } });
+      : await tx.graduateProfile.create({ data: { userId, slug: await generateUniqueSlug(publicName(user.name, user.email)), publicProfileEnabled: false, consentStatus: "DECLINED", graduationDate: new Date(), overallRating: 0, bio: "TalentOS program graduate", ...defaults } });
     await tx.consentHistory.create({ data: { graduateProfileId: profile.id, status: "DECLINED", action: "Applicant declined public profile sharing" } });
     return profile;
   });
@@ -445,10 +472,11 @@ export async function declineGraduateProfilePublishing(userId: string) {
 export async function skipGraduateConsent(userId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, graduateProfile: { select: { id: true } } } });
   if (!user) throw new Error("User not found.");
+  const defaults = user.graduateProfile ? null : await getGraduateProfileDefaults(userId);
   return prisma.$transaction(async (tx) => {
     const profile = user.graduateProfile
       ? await tx.graduateProfile.update({ where: { userId }, data: { publicProfileEnabled: false, consentDate: null, consentStatus: "SKIPPED" } })
-      : await tx.graduateProfile.create({ data: { userId, slug: await generateUniqueSlug(publicName(user.name, user.email)), publicProfileEnabled: false, consentStatus: "SKIPPED", graduationDate: new Date(), overallRating: 0, bio: "TalentOS program graduate" } });
+      : await tx.graduateProfile.create({ data: { userId, slug: await generateUniqueSlug(publicName(user.name, user.email)), publicProfileEnabled: false, consentStatus: "SKIPPED", graduationDate: new Date(), overallRating: 0, bio: "TalentOS program graduate", ...defaults } });
     await tx.consentHistory.create({ data: { graduateProfileId: profile.id, status: "SKIPPED", action: "Applicant chose to decide later" } });
     return profile;
   });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { prisma } from "@talentos/db";
+import { getGraduateProfileDefaults, prisma } from "@talentos/db";
 
 /**
  * POST /api/graduates/profile/acknowledge
@@ -58,6 +58,7 @@ export async function POST() {
     } else {
       // Create a minimal graduate profile placeholder to store the consent decision.
       const slug = `${user.name?.toLowerCase().replace(/[^a-z0-9]/g, "-") ?? user.email.split("@")[0]}-${user.id.slice(-6)}`;
+      const defaults = await getGraduateProfileDefaults(user.id);
       const created = await prisma.graduateProfile.create({
         data: {
           userId: user.id,
@@ -68,6 +69,7 @@ export async function POST() {
           graduationDate: new Date(), // placeholder, updated on actual graduation
           overallRating: 0,
           bio: "TalentOS program graduate",
+          ...defaults,
         },
       });
       await prisma.consentHistory.create({

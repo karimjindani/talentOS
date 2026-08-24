@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { PenLine, TriangleAlert } from "lucide-react";
 import { PortalHeader } from "@/components/PortalHeader";
 import { auth } from "@/auth";
 import { getTenantContext } from "@talentos/ui";
@@ -11,13 +12,18 @@ import {
   getTenantBySlug,
   listPublishedPrograms,
   markStoredFileReady,
-  provisionApplicantUser
+  provisionApplicantUser,
+  setUserAvatar
 } from "@talentos/db";
 import { buildObjectKey, getBucket, putObject } from "@talentos/storage";
 import { resolveTenantAccess } from "@/lib/tenant-guard";
+import { hasValidImageSignature } from "@/lib/image-validation";
+import { AvatarUploadField, CvDropzone } from "./ApplyUploadFields";
 
 const MOTIVATION_LABEL = "Why do you want to join?";
 const CV_CONTENT_TYPE = "application/pdf";
+const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const PHOTO_MAX_SIZE_BYTES = 2 * 1024 * 1024;
 const CV_MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 const DUPLICATE_APPLICATION_ERROR_CODE = "duplicate-active-application";
 const APPLY_ERROR_MESSAGES: Record<string, string> = {
@@ -86,6 +92,19 @@ async function submitApplication(formData: FormData) {
     throw new Error("Your CV must be 5 MB or smaller.");
   }
 
+  // Profile photo is optional — validate it the same way the graduate-photo route does
+  // (apps/applicant/app/api/graduates/profile/photo/route.ts) when one was provided.
+  const photoField = formData.get("photo");
+  const photo = photoField instanceof File && photoField.size > 0 ? photoField : null;
+  if (photo) {
+    if (!PHOTO_TYPES.has(photo.type)) {
+      throw new Error("Your profile photo must be a JPG, PNG, or WebP image.");
+    }
+    if (photo.size > PHOTO_MAX_SIZE_BYTES) {
+      throw new Error("Your profile photo must be 2 MB or smaller.");
+    }
+  }
+
   const githubUrl = parseProfileUrl(String(formData.get("githubUrl") ?? ""), "github");
   const linkedinUrl = parseProfileUrl(String(formData.get("linkedinUrl") ?? ""), "linkedin");
 
@@ -128,6 +147,28 @@ async function submitApplication(formData: FormData) {
     actorUserId: applicant.id
   });
   await markStoredFileReady(file.id, tenant.id);
+
+  if (photo) {
+    const photoBytes = new Uint8Array(await photo.arrayBuffer());
+    if (!hasValidImageSignature(photo.type, photoBytes)) {
+      throw new Error("The photo's content does not match its file type.");
+    }
+    const photoStorageKey = buildObjectKey({ tenantId: tenant.id, category: "profile-photo", filename: photo.name });
+    await putObject({ key: photoStorageKey, body: Buffer.from(photoBytes), contentType: photo.type });
+    const photoFile = await createStoredFile({
+      tenantId: tenant.id,
+      ownerUserId: applicant.id,
+      bucket: getBucket(),
+      storageKey: photoStorageKey,
+      originalName: photo.name,
+      contentType: photo.type,
+      size: photo.size,
+      category: "profile-photo",
+      actorUserId: applicant.id
+    });
+    await markStoredFileReady(photoFile.id, tenant.id);
+    await setUserAvatar(applicant.id, photoFile.id);
+  }
 
   try {
     await createSubmittedApplication({
@@ -182,8 +223,8 @@ export default async function ApplyPage({
         {/* ── Page header banner ── */}
         <div className="rounded-2xl bg-brand-mist p-6">
           <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-blue text-lg text-white">
-              📝
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-blue text-white">
+              <PenLine className="h-5 w-5" />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-brand-navy">
@@ -200,7 +241,7 @@ export default async function ApplyPage({
         {/* ── Error banner ── */}
         {errorMessage ? (
           <div className="mt-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            <span className="text-base leading-none">⚠️</span>
+            <TriangleAlert className="h-4 w-4 shrink-0 translate-y-0.5" />
             <p>{errorMessage}</p>
           </div>
         ) : null}
@@ -208,14 +249,14 @@ export default async function ApplyPage({
         {/* ── No tenant / no programs ── */}
         {!tenant ? (
           <div className="mt-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            <span className="text-base leading-none">⚠️</span>
+            <TriangleAlert className="h-4 w-4 shrink-0 translate-y-0.5" />
             <p>
               This workspace ({tenantSlug}) is not configured for applications yet.
             </p>
           </div>
         ) : programs.length === 0 ? (
           <div className="mt-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            <span className="text-base leading-none">⚠️</span>
+            <TriangleAlert className="h-4 w-4 shrink-0 translate-y-0.5" />
             <p>There are no published programs accepting applications right now.</p>
           </div>
         ) : (
@@ -224,16 +265,17 @@ export default async function ApplyPage({
             action={submitApplication}
             className="mt-6 space-y-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-md"
           >
-            {/* Applicant info chip */}
-            <div className="flex items-center gap-3 rounded-lg bg-slate-50 px-4 py-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-blue/10 text-sm font-semibold text-brand-blue">
-                {(session?.user?.name ?? session?.user?.email ?? "?").charAt(0).toUpperCase()}
-              </div>
+            {/* Applicant identity — optional profile photo upload lives here */}
+            <div className="flex items-center gap-4 rounded-lg bg-slate-50 px-4 py-3">
+              <AvatarUploadField
+                initials={(session?.user?.name ?? session?.user?.email ?? "?").charAt(0).toUpperCase()}
+              />
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-slate-800">
                   {session?.user?.name ?? "Applicant"}
                 </p>
                 <p className="truncate text-xs text-slate-500">{session?.user?.email}</p>
+                <p className="mt-0.5 text-xs text-slate-400">Add a profile photo (optional)</p>
               </div>
             </div>
 
@@ -288,20 +330,8 @@ export default async function ApplyPage({
               </div>
 
               <div>
-                <label className={labelClass} htmlFor="cv">
-                  CV / Resume
-                </label>
-                <div className="rounded-lg border-2 border-dashed border-slate-300 p-4 transition-colors hover:border-brand-blue">
-                  <input
-                    id="cv"
-                    type="file"
-                    name="cv"
-                    accept="application/pdf"
-                    required
-                    className="w-full text-sm text-slate-600 file:mr-4 file:rounded-md file:border-0 file:bg-brand-blue file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-brand-navy"
-                  />
-                </div>
-                <p className="mt-1.5 text-xs text-slate-500">PDF only, 5 MB max.</p>
+                <label className={labelClass}>CV / Resume</label>
+                <CvDropzone />
               </div>
             </div>
 

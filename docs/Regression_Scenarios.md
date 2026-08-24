@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.20.6`
+Code version: `v0.20.7`
 
 ## Purpose
 
@@ -18,13 +18,16 @@ The suite can be run from the local Ops Console or from npm scripts. As of `v0.1
 shows individual scenario rows grouped by area after a run, so operators can see exactly which
 scenario passed, failed or skipped without searching the raw output.
 
-As of `v0.20.3`, `scripts/regression/run.ts` defines **59 scenario objects** (up from 53 at `v0.20.1`).
-`v0.20.3` added five to a new `public-portal` scenario area (which previously held one scenario left
-over from the graduate-portal merge, PR #62): decline/skip consent persistence with no prior graduate
-profile, decline unpublishing an already-public profile, and the full recruiter
-approve→verify→access→revoke lifecycle including pending/rejected-token refusal. Executed counts and
-environmental failures/skips are recorded in the versioned test-results artifact rather than assumed
-from source. New scenarios use the existing result envelope and Ops dashboard.
+As of `v0.20.7`, `scripts/regression/run.ts` defines **62 scenario objects** (up from 59 at
+`v0.20.3`). `v0.20.3` added five to a new `public-portal` scenario area (which previously held one
+scenario left over from the graduate-portal merge, PR #62): decline/skip consent persistence with
+no prior graduate profile, decline unpublishing an already-public profile, and the full recruiter
+approve→verify→access→revoke lifecycle including pending/rejected-token refusal. `v0.20.7` (D-107)
+added three more to `public-portal`: apply-time GitHub/LinkedIn/avatar defaults carrying into a
+brand-new graduate profile, the null-defaults edge case, and the no-overwrite-on-update case.
+Executed counts and environmental failures/skips are recorded in the versioned test-results
+artifact rather than assumed from source. New scenarios use the existing result envelope and Ops
+dashboard.
 
 ## v0.19.5 Plan Scenario Traceability
 
@@ -135,6 +138,35 @@ rebuilt local stack: `npm run journeys:recruiter` (2/2 passed) and `npm run jour
 | --- | --- | --- |
 | Recruiter completes the full access-request lifecycle through real browser sessions on both portals | `tests/journeys/recruiter-access.spec.ts` (`journeys:recruiter`) | Automated |
 | Pending and rejected recruiter access requests are refused in the browser, with the rejection reason shown on-page | `tests/journeys/recruiter-access.spec.ts` (`journeys:recruiter`) | Automated |
+
+## v0.20.7 Plan Scenario Traceability
+
+Names match `docs/plans/v0.20.7_Applicant_Profile_Photo_And_Graduate_Defaults.md` one-for-one.
+Verified via unit tests (1022 pass), `regression:public-portal` (9/9 pass), and manual Playwright
+browser verification for the two apply-time-upload scenarios.
+
+| Plan scenario | Coverage | Status |
+| --- | --- | --- |
+| Applicant uploads an optional profile photo at apply time | Deferred — manual Playwright browser verification | Verified — real CV + photo uploaded end-to-end, `User.avatarFileId` confirmed linked |
+| An invalid profile photo is rejected server-side | Deferred — code review | Verified — validation order matches `graduates/profile/photo/route.ts` exactly |
+| A brand-new graduate profile inherits GitHub/LinkedIn and avatar from the applicant's accepted application | `regression:public-portal` | Automated |
+| A graduate profile created with no accepted application or avatar gets null defaults, not a crash | `regression:public-portal` | Automated |
+| Apply-time defaults are only applied on first creation — an existing profile's photo and links are never overwritten | `regression:public-portal` | Automated |
+
+### Known Gaps (as of `v0.20.7`)
+
+- **Apply-time photo upload and its validation have no `scripts/regression/run.ts` coverage** —
+  that suite calls `packages/db` functions directly and does not exercise the Next.js
+  page/server-action layer where `submitApplication`'s validation lives. This is consistent with
+  the pre-existing CV upload validation in the same file, which has never had regression-suite
+  coverage either (only ever verified by Playwright journeys / manual testing). Verified manually
+  this iteration instead; automating it would mean either extending a Playwright journey to cover
+  `/apply`'s new photo field, or restructuring the CV/photo validation into testable functions —
+  both deferred as a future enhancement rather than taken on incidentally here.
+- **`GraduateProfileForm` still has no `initialData` wiring** — `GraduateConsentModal.tsx` renders
+  it blank regardless of any existing `GraduateProfile` data, including the new apply-time
+  carry-over defaults from this iteration. Pre-existing gap (not introduced by `v0.20.7`), left
+  open — see `Decision_Log.md` D-107.
 
 ## v0.20.6 Plan Scenario Traceability
 
@@ -267,6 +299,9 @@ are one scenario).
 | Public Portal | Declining consent after a profile is already public immediately removes it from public discovery. | Automated | v0.20.3 (D-103). |
 | Public Portal | An approved recruiter access request is verified, grants access to every published graduate, and revocation removes it everywhere. | Automated | v0.20.3 (D-103): full create→approve→verify→access→revoke lifecycle, including reusability within the approved window. |
 | Public Portal | Pending and rejected recruiter access requests cannot be verified, and the rejection reason reaches the recruiter. | Automated | v0.20.3 (D-103). |
+| Public Portal | A brand-new graduate profile inherits GitHub/LinkedIn and avatar from the applicant's accepted application. | Automated | v0.20.7 (D-107): `getGraduateProfileDefaults` wired into decline/skip/acknowledge. |
+| Public Portal | A graduate profile created with no accepted application or avatar gets null defaults, not a crash. | Automated | v0.20.7 (D-107). |
+| Public Portal | Apply-time defaults are only applied on first creation — an existing profile's photo and links are never overwritten. | Automated | v0.20.7 (D-107): defaults only apply on the create branch, protecting a graduate's own later edits. |
 | Ops | Run full regression from Ops UI and show counts. | Automated/API + manual UI check | Unit/server coverage plus local manual validation. |
 | Ops | Run one selected area from Ops UI. | Automated/API + manual UI check | Ops API accepts `area`; UI includes selector. |
 | Ops | Regression results show individual scenario pass/fail/skipped rows. | Automated parser + manual UI check | v0.18.3: Ops stores `REGRESSION_RESULT_JSON.results` and renders scenario rows grouped by area. |

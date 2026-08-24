@@ -7,6 +7,11 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+/** Link (or clear, via null) the StoredFile backing a user's profile photo. */
+export function setUserAvatar(userId: string, avatarFileId: string | null) {
+  return prisma.user.update({ where: { id: userId }, data: { avatarFileId } });
+}
+
 export type ProvisionApplicantInput = {
   email: string;
   name?: string | null;
