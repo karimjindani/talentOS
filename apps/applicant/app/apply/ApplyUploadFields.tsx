@@ -162,6 +162,7 @@ export function CvDropzone() {
       {error ? <p className="mt-1.5 text-xs text-rose-600">{error}</p> : null}
       <input
         ref={inputRef}
+        id="cv"
         type="file"
         name="cv"
         accept="application/pdf"
