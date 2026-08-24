@@ -1,19 +1,22 @@
 # TalentOS Architecture
 
-Code version: `v0.20.10`
+Code version: `v0.20.11`
 
-Architecture evidence commit: `5560ccf` (+ `v0.20.3`/`v0.20.4`/`v0.20.5`/`v0.20.6` uncommitted at documentation time)
+Architecture evidence commit: `5560ccf` (+ `v0.20.3`/`v0.20.4`/`v0.20.5`/`v0.20.6`/`v0.20.11` uncommitted at documentation time)
 
-Current documentation update: `v0.20.6`
+Current documentation update: `v0.20.11`
 
-> Note: the public graduate-portal/recruiter-access feature (PR #62) is not yet reflected in the
-> Portal Layout or Multi-Tenancy sections below — it merged without SSDLC documentation. `v0.20.3`
-> (D-103) adds the Journey E2E Evidence Pipeline section beneath Scenario Regression Architecture and
-> a `public-portal` regression area entry; `v0.20.4` (D-104) extends that pipeline with a second,
+> Note: the public graduate-portal/recruiter-access feature (PR #62) is still not fully reflected
+> in the Portal Layout section below — it merged without SSDLC documentation. `v0.20.3` (D-103)
+> adds the Journey E2E Evidence Pipeline section beneath Scenario Regression Architecture and a
+> `public-portal` regression area entry; `v0.20.4` (D-104) extends that pipeline with a second,
 > recruiter-facing journey; `v0.20.5` (D-105) extends `applicant-arc` into the full apprenticeship
-> arc through publishing and reorganizes the pipeline's PDF evidence by business process. None of
-> these backfill the feature's own architecture description; see `Regression_Scenarios.md` Known
-> Gaps.
+> arc through publishing and reorganizes the pipeline's PDF evidence by business process; `v0.20.11`
+> (D-110) closes the Multi-Tenancy gap specifically — see the new subsection below — by adding
+> `GraduateProfile.tenantId`/`RecruiterAccessRequest.tenantId` and tenant-scoping every public and
+> recruiter-facing read/write path. The feature's general Portal Layout description is still
+> missing; see `Regression_Scenarios.md` Known Gaps. (`v0.20.10`, D-109, is unrelated: a
+> feature-flags/journal-testing-mode iteration that also touched this file's version header only.)
 
 ## Overview
 
@@ -388,6 +391,32 @@ login uses a canonical-host + shared-cookie model rather than per-subdomain call
 - The tenant guard (`resolveTenantAccess`, D-051) is unchanged: it still binds the shared session to the
   `Host`-resolved tenant via DB membership. An org admin who lands on their subdomain with the shared
   cookie now passes the membership check instead of being denied.
+
+### Graduate portal and recruiter access tenant boundary (`v0.20.11`, D-110)
+
+Until this iteration, the public graduate directory (`/graduates`, `apps/applicant/app/api/graduates/**`)
+and recruiter access grants (`RecruiterAccessRequest`) had no tenant boundary at all — every
+tenant's published, consented graduates were pooled into one shared, unauthenticated directory, and
+a single admin approval granted a recruiter visibility into every tenant's graduates platform-wide.
+
+- `GraduateProfile.tenantId` and `RecruiterAccessRequest.tenantId` (both required, indexed FKs to
+  `Tenant`) close this: every public read (`getPublicProfiles`, `getPublicProfile`) and every
+  recruiter-facing read/write (`getFullProfileForRecruiter`, `getRecruiterGraduateContact`,
+  `getGraduatePhoto`, `toggleSavedCandidate`, `getRecruiterDashboard`, `getAllAccessibleGraduates`)
+  in `packages/db/src/graduates.ts` now takes and enforces a `tenantId`.
+- Tenant is resolved the same way the rest of the public/unauthenticated surface does elsewhere in
+  this app — `getTenantContext()` (host/subdomain-based) + `getTenantBySlug()` inside each route
+  handler, since these routes sit outside `resolveTenantAccess()`'s session-bound gate (recruiters
+  authenticate via a separate cookie-based `RecruiterSession`, not Keycloak/`auth()`) and outside
+  `apps/applicant/middleware.ts`'s protected prefixes.
+- Recruiter access grants are tenant-scoped too, not just the directory: `recruiterHasActiveAccess`
+  now checks `{ recruiterId, tenantId, status: "APPROVED" }`, so a grant approved by one tenant's
+  admin never resolves for another tenant's data, even for the same verified recruiter identity
+  (`RecruiterAccount` stays cross-tenant by email — only the *grant* is per-tenant).
+- Admin-side recruiter-request review (`apps/admin/app/recruiter-requests/**`,
+  `apps/admin/app/api/recruiter-requests/**`) is scoped the same way via `resolveTenantAccess()`'s
+  resolved `tenant.id` — a tenant admin can no longer list, approve, reject, or revoke another
+  tenant's recruiter access requests.
 
 ### Local OIDC hostname rule (`v0.12.2`, D-061)
 

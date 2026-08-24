@@ -4,7 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createRecruiterAccessRequest, prisma } from "@talentos/db";
+import { getTenantContext } from "@talentos/ui";
+import { createRecruiterAccessRequest, getTenantBySlug, prisma } from "@talentos/db";
 import { generateSecureToken, calculateTokenExpiry } from "@talentos/db";
 import { checkRateLimit, requestIp } from "@/lib/rate-limit";
 
@@ -45,9 +46,14 @@ export async function POST(
       );
     }
 
-    // Get graduate profile
-    const graduate = await prisma.graduateProfile.findUnique({
-      where: { slug },
+    const { tenantSlug } = await getTenantContext();
+    const tenant = await getTenantBySlug(tenantSlug);
+    if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+
+    // Get graduate profile, scoped to the current tenant so a slug belonging to another
+    // tenant can't be used to request access to it.
+    const graduate = await prisma.graduateProfile.findFirst({
+      where: { slug, tenantId: tenant.id },
       include: {
         user: {
           select: {

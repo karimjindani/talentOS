@@ -27,6 +27,22 @@ type CompletionSubmission = {
   mission: { id: string; title: string; programId: string; program: { name: string } };
 };
 
+/**
+ * A brand-new GraduateProfile's tenant, derived from the applicant's own most recent Application —
+ * not Program.tenantId (programId is null on the decline/skip paths for a large share of profiles)
+ * and not TenantMembership (applicants don't hold one). Matches the precedent already used in
+ * apps/applicant/app/api/graduates/profile/photo/route.ts.
+ */
+export async function resolveApplicantTenantId(userId: string): Promise<string> {
+  const application = await prisma.application.findFirst({
+    where: { applicantId: userId },
+    orderBy: { createdAt: "desc" },
+    select: { tenantId: true }
+  });
+  if (!application) throw new Error("No application found to resolve a tenant for this graduate profile.");
+  return application.tenantId;
+}
+
 function publicName(name: string | null, email: string) {
   return name?.trim() || email.split("@")[0] || "TalentOS Graduate";
 }
@@ -77,6 +93,7 @@ export async function createOrUpdateGraduateProfile(userId: string, data: Gradua
     if (!photo) throw new Error("Profile photo upload is invalid or is not owned by this graduate.");
   }
   const slug = user.graduateProfile?.slug ?? await generateUniqueSlug(publicName(user.name, user.email));
+  const tenantId = user.graduateProfile ? null : await resolveApplicantTenantId(userId);
   const profileData = {
     programId: completion.programId,
     publicProfileEnabled: true,
@@ -93,7 +110,11 @@ export async function createOrUpdateGraduateProfile(userId: string, data: Gradua
     graduationDate: completion.graduationDate, overallRating: completion.overallRating
   };
   return prisma.$transaction(async (tx) => {
-    const profile = await tx.graduateProfile.upsert({ where: { userId }, create: { userId, slug, ...profileData }, update: profileData });
+    const profile = await tx.graduateProfile.upsert({
+      where: { userId },
+      create: { userId, slug, tenantId: tenantId as string, ...profileData },
+      update: profileData
+    });
     if (data.artifacts) {
       await tx.graduateArtifact.deleteMany({ where: { graduateId: profile.id } });
       if (data.artifacts.length) await tx.graduateArtifact.createMany({ data: data.artifacts.map((artifact) => ({ graduateId: profile.id, ...artifact })) });
@@ -135,17 +156,18 @@ function serializePublicProfile(profile: any) {
 
 const publicProfileInclude = { user: { select: { name: true, email: true } }, program: { select: { id: true, name: true } } } as const;
 
-export async function getPublicProfile(slug: string) {
-  const profile = await prisma.graduateProfile.findFirst({ where: { slug, publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" }, include: publicProfileInclude });
+export async function getPublicProfile(slug: string, tenantId: string) {
+  const profile = await prisma.graduateProfile.findFirst({ where: { slug, tenantId, publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" }, include: publicProfileInclude });
   return profile ? serializePublicProfile(profile) : null;
 }
 
-export async function getPublicProfiles(options: {
+export async function getPublicProfiles(tenantId: string, options: {
   page?: number; limit?: number; sort?: "rating" | "date" | "name"; search?: string; country?: string;
   monthFrom?: Date; monthTo?: Date; programId?: string;
 } = {}) {
   const { page = 1, limit = 20, sort = "rating", search, country, monthFrom, monthTo, programId } = options;
   const where = {
+    tenantId,
     publicProfileEnabled: true,
     consentStatus: "ACKNOWLEDGED" as const,
     ...(search ? { OR: [{ bio: { contains: search, mode: "insensitive" as const } }, { skills: { hasSome: [search.toLowerCase()] } }, { user: { name: { contains: search, mode: "insensitive" as const } } }] } : {}),
@@ -157,7 +179,7 @@ export async function getPublicProfiles(options: {
   const [profiles, total, programs] = await Promise.all([
     prisma.graduateProfile.findMany({ where, include: publicProfileInclude, orderBy, skip: (page - 1) * limit, take: limit }),
     prisma.graduateProfile.count({ where }),
-    prisma.program.findMany({ where: { graduateProfiles: { some: { publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" } } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+    prisma.program.findMany({ where: { tenantId, graduateProfiles: { some: { publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" } } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
   ]);
   return { data: profiles.map(serializePublicProfile), pagination: { page, limit, total, pages: Math.ceil(total / limit) }, filters: { programs } };
 }
@@ -166,6 +188,10 @@ export async function createRecruiterAccessRequest(graduateId: string, recruiter
   recruiterName: string; recruiterOrganization: string; recruiterDesignation: string; recruiterEmail: string;
   recruiterPhone?: string; hiringRequirement?: string;
 }, rawToken: string, expiresAt: Date) {
+  // tenantId is denormalized from the graduate itself, not trusted from the caller, so the grant
+  // this request eventually produces is always scoped to the tenant the graduate actually belongs to.
+  const graduate = await prisma.graduateProfile.findUnique({ where: { id: graduateId }, select: { tenantId: true } });
+  if (!graduate) throw new Error("Graduate profile not found.");
   const recruiter = await prisma.recruiterAccount.upsert({
     where: { email: recruiterData.recruiterEmail },
     create: { email: recruiterData.recruiterEmail, name: recruiterData.recruiterName, organization: recruiterData.recruiterOrganization, designation: recruiterData.recruiterDesignation, phone: recruiterData.recruiterPhone },
@@ -173,16 +199,16 @@ export async function createRecruiterAccessRequest(graduateId: string, recruiter
   });
   // Create as PENDING — admin must approve before token is usable and email is sent
   return prisma.recruiterAccessRequest.create({
-    data: { graduateId, recruiterId: recruiter.id, ...recruiterData, token: hashToken(rawToken), expiresAt, status: "PENDING" }
+    data: { graduateId, tenantId: graduate.tenantId, recruiterId: recruiter.id, ...recruiterData, token: hashToken(rawToken), expiresAt, status: "PENDING" }
   });
 }
 
 // --- Admin review functions ---
 
-export async function getPendingAccessRequests(options: { page?: number; limit?: number; status?: "PENDING" | "APPROVED" | "REJECTED" | "REVOKED" | "EXPIRED" } = {}) {
+export async function getPendingAccessRequests(tenantId: string, options: { page?: number; limit?: number; status?: "PENDING" | "APPROVED" | "REJECTED" | "REVOKED" | "EXPIRED" } = {}) {
   const page = Math.max(1, options.page ?? 1);
   const limit = Math.min(100, Math.max(1, options.limit ?? 20));
-  const where = options.status ? { status: options.status } : {};
+  const where = { tenantId, ...(options.status ? { status: options.status } : {}) };
   const [requests, total] = await Promise.all([
     prisma.recruiterAccessRequest.findMany({
       where,
@@ -195,17 +221,17 @@ export async function getPendingAccessRequests(options: { page?: number; limit?:
   return { requests, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
 }
 
-export async function getAccessRequestDetail(id: string) {
-  return prisma.recruiterAccessRequest.findUnique({
-    where: { id },
+export async function getAccessRequestDetail(id: string, tenantId: string) {
+  return prisma.recruiterAccessRequest.findFirst({
+    where: { id, tenantId },
     include: { graduate: { include: { user: { select: { name: true, email: true } }, program: { select: { name: true } } } }, recruiter: true }
   });
 }
 
-export async function approveAccessRequest(id: string, reviewerId: string, rawToken: string) {
+export async function approveAccessRequest(id: string, tenantId: string, reviewerId: string, rawToken: string) {
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
   return prisma.$transaction(async (tx) => {
-    const request = await tx.recruiterAccessRequest.findUnique({ where: { id }, include: { recruiter: true } });
+    const request = await tx.recruiterAccessRequest.findFirst({ where: { id, tenantId }, include: { recruiter: true } });
     if (!request) throw new Error("Access request not found.");
     if (request.status !== "PENDING") throw new Error(`Request is already ${request.status}.`);
     const updated = await tx.recruiterAccessRequest.update({
@@ -217,16 +243,17 @@ export async function approveAccessRequest(id: string, reviewerId: string, rawTo
   });
 }
 
-export async function rejectAccessRequest(id: string, reviewerId: string, rejectionReason?: string) {
-  return prisma.recruiterAccessRequest.update({
-    where: { id },
+export async function rejectAccessRequest(id: string, tenantId: string, reviewerId: string, rejectionReason?: string) {
+  const updated = await prisma.recruiterAccessRequest.updateMany({
+    where: { id, tenantId },
     data: { status: "REJECTED", reviewedById: reviewerId, reviewedAt: new Date(), rejectionReason }
   });
+  if (updated.count === 0) throw new Error("Access request not found.");
 }
 
-export async function revokeAccessRequest(id: string, reviewerId: string) {
+export async function revokeAccessRequest(id: string, tenantId: string, reviewerId: string) {
   return prisma.$transaction(async (tx) => {
-    const request = await tx.recruiterAccessRequest.findUnique({ where: { id } });
+    const request = await tx.recruiterAccessRequest.findFirst({ where: { id, tenantId } });
     if (!request) throw new Error("Access request not found.");
     if (request.status !== "APPROVED") throw new Error("Only approved requests can be revoked.");
     const updated = await tx.recruiterAccessRequest.update({
@@ -241,13 +268,13 @@ export async function revokeAccessRequest(id: string, reviewerId: string) {
   });
 }
 
-export async function getAccessRequestStats() {
+export async function getAccessRequestStats(tenantId: string) {
   const [pending, approved, rejected, revoked, expired] = await Promise.all([
-    prisma.recruiterAccessRequest.count({ where: { status: "PENDING" } }),
-    prisma.recruiterAccessRequest.count({ where: { status: "APPROVED" } }),
-    prisma.recruiterAccessRequest.count({ where: { status: "REJECTED" } }),
-    prisma.recruiterAccessRequest.count({ where: { status: "REVOKED" } }),
-    prisma.recruiterAccessRequest.count({ where: { status: "EXPIRED" } })
+    prisma.recruiterAccessRequest.count({ where: { tenantId, status: "PENDING" } }),
+    prisma.recruiterAccessRequest.count({ where: { tenantId, status: "APPROVED" } }),
+    prisma.recruiterAccessRequest.count({ where: { tenantId, status: "REJECTED" } }),
+    prisma.recruiterAccessRequest.count({ where: { tenantId, status: "REVOKED" } }),
+    prisma.recruiterAccessRequest.count({ where: { tenantId, status: "EXPIRED" } })
   ]);
   return { pending, approved, rejected, revoked, expired, total: pending + approved + rejected + revoked + expired };
 }
@@ -286,27 +313,28 @@ export async function getRecruiterSession(rawToken: string | undefined) {
 }
 
 /**
- * Check whether a recruiter has any active (APPROVED, non-expired) access request.
- * A single approved request grants access to ALL public, consented graduate profiles —
- * not just the one the request was originally attached to.
+ * Check whether a recruiter has any active (APPROVED, non-expired) access request *for this
+ * tenant*. Each approved request grants access to every public, consented graduate profile
+ * within the tenant it was created against — not across tenants (v0.20.9, D-109).
  */
-async function recruiterHasActiveAccess(recruiterId: string) {
+async function recruiterHasActiveAccess(recruiterId: string, tenantId: string) {
   const grant = await prisma.recruiterAccessRequest.findFirst({
-    where: { recruiterId, status: "APPROVED", expiresAt: { gt: new Date() } },
+    where: { recruiterId, tenantId, status: "APPROVED", expiresAt: { gt: new Date() } },
     select: { id: true, expiresAt: true },
   });
   return grant;
 }
 
 /**
- * Return all public, consented graduate profiles for a verified recruiter's sidebar.
- * The recruiter sees every published graduate, not just the one tied to their access request.
+ * Return all public, consented graduate profiles in this tenant for a verified recruiter's
+ * sidebar. The recruiter sees every published graduate in the tenant their grant belongs to, not
+ * just the one tied to their access request, and never another tenant's graduates.
  */
-export async function getAllAccessibleGraduates(recruiterId: string) {
-  const grant = await recruiterHasActiveAccess(recruiterId);
+export async function getAllAccessibleGraduates(recruiterId: string, tenantId: string) {
+  const grant = await recruiterHasActiveAccess(recruiterId, tenantId);
   if (!grant) return null;
   const profiles = await prisma.graduateProfile.findMany({
-    where: { publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" },
+    where: { tenantId, publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" },
     include: publicProfileInclude,
     orderBy: { overallRating: "desc" },
   });
@@ -316,16 +344,21 @@ export async function getAllAccessibleGraduates(recruiterId: string) {
   };
 }
 
-export async function getFullProfileForRecruiter(slug: string, recruiterId: string) {
-  // A single approved access request grants access to ALL public+consented graduates.
-  const grant = await recruiterHasActiveAccess(recruiterId);
+export async function getFullProfileForRecruiter(slug: string, recruiterId: string, tenantId: string) {
+  // An approved access request grants access to every public+consented graduate in this tenant.
+  const grant = await recruiterHasActiveAccess(recruiterId, tenantId);
   if (!grant) return null;
-  const profile = await prisma.graduateProfile.findUnique({
-    where: { slug }, include: {
+  const profile = await prisma.graduateProfile.findFirst({
+    where: { slug, tenantId }, include: {
       program: { select: { id: true, name: true } }, artifacts: { orderBy: { createdAt: "asc" } },
       user: { include: { submissions: { where: { status: "ACCEPTED", rating: { not: null } }, orderBy: { reviewedAt: "asc" }, include: {
-        mission: { select: { id: true, title: true, weekNumber: true, programId: true } },
-        missionAssignment: { include: { journalEntries: { orderBy: { entryDate: "asc" } } } }
+        mission: { select: { id: true, title: true, weekNumber: true, programId: true, competencyTags: true } },
+        missionAssignment: {
+          include: {
+            journalEntries: { orderBy: { entryDate: "asc" } },
+            reviews: { orderBy: { round: "asc" }, select: { round: true, decision: true, feedback: true, createdAt: true } }
+          }
+        }
       } } } }
     }
   });
@@ -342,17 +375,20 @@ export async function getFullProfileForRecruiter(slug: string, recruiterId: stri
       ownership: profile.aiOwnership, teamCollaboration: profile.aiTeamCollaboration, summary: profile.aiSummary, evaluatedAt: profile.aiEvaluatedAt } : null,
     saved: Boolean(await prisma.savedCandidate.findUnique({ where: { recruiterId_graduateId: { recruiterId, graduateId: profile.id } } })),
     assignments: profile.user.submissions.map((submission) => ({ id: submission.id, missionId: submission.mission.id, missionTitle: submission.mission.title,
-      weekNumber: submission.mission.weekNumber, rating: submission.rating, completionDate: submission.reviewedAt ?? submission.submittedAt,
+      weekNumber: submission.mission.weekNumber, competencyTags: submission.mission.competencyTags, rating: submission.rating,
+      completionDate: submission.reviewedAt ?? submission.submittedAt,
       reviewerFeedback: submission.reviewerFeedback, repositoryUrl: submission.repositoryUrl, deploymentUrl: submission.deploymentUrl, loomUrl: submission.loomUrl,
-      journalMarkdown: submission.journalMarkdown, journalEntries: submission.missionAssignment?.journalEntries ?? [] }))
+      journalMarkdown: submission.journalMarkdown, journalEntries: submission.missionAssignment?.journalEntries ?? [],
+      revisionCount: submission.missionAssignment?.revisionCount ?? 0, reviewOutcome: submission.missionAssignment?.reviewOutcome ?? null,
+      reviewHistory: submission.missionAssignment?.reviews ?? [] }))
   };
 }
 
-export async function getRecruiterGraduateContact(slug: string, recruiterId: string) {
-  const grant = await recruiterHasActiveAccess(recruiterId);
+export async function getRecruiterGraduateContact(slug: string, recruiterId: string, tenantId: string) {
+  const grant = await recruiterHasActiveAccess(recruiterId, tenantId);
   if (!grant) return null;
   const graduate = await prisma.graduateProfile.findFirst({
-    where: { slug, publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" },
+    where: { slug, tenantId, publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" },
     include: { user: { select: { name: true, email: true } } }
   });
   if (!graduate) return null;
@@ -366,15 +402,15 @@ export async function getRecruiterGraduateContact(slug: string, recruiterId: str
   };
 }
 
-export async function getGraduatePhoto(slug: string) {
+export async function getGraduatePhoto(slug: string, tenantId: string) {
   return prisma.graduateProfile.findFirst({
-    where: { slug, publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED", profilePhotoFileId: { not: null } },
+    where: { slug, tenantId, publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED", profilePhotoFileId: { not: null } },
     select: { profilePhotoFile: { select: { storageKey: true } } }
   });
 }
 
-export async function toggleSavedCandidate(recruiterId: string, slug: string) {
-  const graduate = await prisma.graduateProfile.findFirst({ where: { slug, publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" }, select: { id: true } });
+export async function toggleSavedCandidate(recruiterId: string, slug: string, tenantId: string) {
+  const graduate = await prisma.graduateProfile.findFirst({ where: { slug, tenantId, publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" }, select: { id: true } });
   if (!graduate) return null;
   const existing = await prisma.savedCandidate.findUnique({ where: { recruiterId_graduateId: { recruiterId, graduateId: graduate.id } } });
   if (existing) { await prisma.savedCandidate.delete({ where: { id: existing.id } }); return { saved: false }; }
@@ -382,13 +418,13 @@ export async function toggleSavedCandidate(recruiterId: string, slug: string) {
   return { saved: true };
 }
 
-export async function getRecruiterDashboard(recruiterId: string) {
+export async function getRecruiterDashboard(recruiterId: string, tenantId: string) {
   const recruiter = await prisma.recruiterAccount.findUnique({
     where: { id: recruiterId },
     select: {
       id: true, email: true, name: true, organization: true, designation: true, phone: true, verifiedAt: true,
-      savedCandidates: { orderBy: { createdAt: "desc" }, include: { graduate: { include: publicProfileInclude } } },
-      accessRequests: { where: { status: "APPROVED", expiresAt: { gt: new Date() } }, select: { graduateId: true, expiresAt: true } }
+      savedCandidates: { where: { graduate: { tenantId } }, orderBy: { createdAt: "desc" }, include: { graduate: { include: publicProfileInclude } } },
+      accessRequests: { where: { tenantId, status: "APPROVED", expiresAt: { gt: new Date() } }, select: { graduateId: true, expiresAt: true } }
     }
   });
   if (!recruiter) return null;
@@ -459,10 +495,11 @@ export async function declineGraduateProfilePublishing(userId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, graduateProfile: { select: { id: true } } } });
   if (!user) throw new Error("User not found.");
   const defaults = user.graduateProfile ? null : await getGraduateProfileDefaults(userId);
+  const tenantId = user.graduateProfile ? null : await resolveApplicantTenantId(userId);
   return prisma.$transaction(async (tx) => {
     const profile = user.graduateProfile
       ? await tx.graduateProfile.update({ where: { userId }, data: { publicProfileEnabled: false, consentDate: null, consentVersion: { increment: 1 }, consentStatus: "DECLINED" } })
-      : await tx.graduateProfile.create({ data: { userId, slug: await generateUniqueSlug(publicName(user.name, user.email)), publicProfileEnabled: false, consentStatus: "DECLINED", graduationDate: new Date(), overallRating: 0, bio: "TalentOS program graduate", ...defaults } });
+      : await tx.graduateProfile.create({ data: { userId, tenantId: tenantId as string, slug: await generateUniqueSlug(publicName(user.name, user.email)), publicProfileEnabled: false, consentStatus: "DECLINED", graduationDate: new Date(), overallRating: 0, bio: "TalentOS program graduate", ...defaults } });
     await tx.consentHistory.create({ data: { graduateProfileId: profile.id, status: "DECLINED", action: "Applicant declined public profile sharing" } });
     return profile;
   });
@@ -473,10 +510,11 @@ export async function skipGraduateConsent(userId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, graduateProfile: { select: { id: true } } } });
   if (!user) throw new Error("User not found.");
   const defaults = user.graduateProfile ? null : await getGraduateProfileDefaults(userId);
+  const tenantId = user.graduateProfile ? null : await resolveApplicantTenantId(userId);
   return prisma.$transaction(async (tx) => {
     const profile = user.graduateProfile
       ? await tx.graduateProfile.update({ where: { userId }, data: { publicProfileEnabled: false, consentDate: null, consentStatus: "SKIPPED" } })
-      : await tx.graduateProfile.create({ data: { userId, slug: await generateUniqueSlug(publicName(user.name, user.email)), publicProfileEnabled: false, consentStatus: "SKIPPED", graduationDate: new Date(), overallRating: 0, bio: "TalentOS program graduate", ...defaults } });
+      : await tx.graduateProfile.create({ data: { userId, tenantId: tenantId as string, slug: await generateUniqueSlug(publicName(user.name, user.email)), publicProfileEnabled: false, consentStatus: "SKIPPED", graduationDate: new Date(), overallRating: 0, bio: "TalentOS program graduate", ...defaults } });
     await tx.consentHistory.create({ data: { graduateProfileId: profile.id, status: "SKIPPED", action: "Applicant chose to decide later" } });
     return profile;
   });

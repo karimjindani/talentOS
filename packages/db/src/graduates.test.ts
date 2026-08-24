@@ -19,6 +19,7 @@ const prismaMock = vi.hoisted(() => ({
   recruiterAccessRequestCount: vi.fn(),
   recruiterAccessRequestFindUnique: vi.fn(),
   recruiterAccessRequestUpdate: vi.fn(),
+  recruiterAccessRequestUpdateMany: vi.fn(),
   recruiterSessionFindUnique: vi.fn(),
   recruiterSessionUpdate: vi.fn(),
   recruiterSessionDeleteMany: vi.fn(),
@@ -34,6 +35,7 @@ const prismaMock = vi.hoisted(() => ({
   txGraduateArtifactCreateMany: vi.fn(),
   txConsentHistoryCreate: vi.fn(),
   txRecruiterAccessRequestFindUnique: vi.fn(),
+  txRecruiterAccessRequestFindFirst: vi.fn(),
   txRecruiterAccessRequestUpdate: vi.fn(),
   txRecruiterSessionDeleteMany: vi.fn(),
   txRecruiterSessionCreate: vi.fn(),
@@ -64,7 +66,8 @@ vi.mock("./client", () => ({
       findFirst: prismaMock.recruiterAccessRequestFindFirst,
       count: prismaMock.recruiterAccessRequestCount,
       findUnique: prismaMock.recruiterAccessRequestFindUnique,
-      update: prismaMock.recruiterAccessRequestUpdate
+      update: prismaMock.recruiterAccessRequestUpdate,
+      updateMany: prismaMock.recruiterAccessRequestUpdateMany
     },
     recruiterSession: {
       findUnique: prismaMock.recruiterSessionFindUnique,
@@ -109,6 +112,10 @@ import { hashToken } from "./token-generator";
 beforeEach(() => {
   for (const mock of Object.values(prismaMock)) mock.mockReset();
   vi.mocked(generateUniqueSlug).mockClear();
+  // Default so resolveApplicantTenantId's application lookup doesn't spuriously throw in tests
+  // that don't care about tenant resolution; tests that do (create-branch profile tests, and
+  // the getGraduateProfileDefaults-specific tests) override this explicitly.
+  prismaMock.applicationFindFirst.mockResolvedValue({ tenantId: "tenant-1", githubUrl: null, linkedinUrl: null });
   prismaMock.transaction.mockImplementation(async (callback: (tx: unknown) => unknown) =>
     callback({
       graduateProfile: {
@@ -123,6 +130,7 @@ beforeEach(() => {
       consentHistory: { create: prismaMock.txConsentHistoryCreate },
       recruiterAccessRequest: {
         findUnique: prismaMock.txRecruiterAccessRequestFindUnique,
+        findFirst: prismaMock.txRecruiterAccessRequestFindFirst,
         update: prismaMock.txRecruiterAccessRequestUpdate
       },
       recruiterSession: {
@@ -199,7 +207,7 @@ describe("createOrUpdateGraduateProfile", () => {
     await createOrUpdateGraduateProfile("user-1", { bio: "Hi" });
     expect(generateUniqueSlug).toHaveBeenCalledWith("Amina Rahman");
     expect(prismaMock.txGraduateProfileUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({ create: expect.objectContaining({ slug: "amina-rahman-slug", userId: "user-1" }) })
+      expect.objectContaining({ create: expect.objectContaining({ slug: "amina-rahman-slug", userId: "user-1", tenantId: "tenant-1" }) })
     );
 
     vi.mocked(generateUniqueSlug).mockClear();
@@ -340,7 +348,7 @@ describe("declineGraduateProfilePublishing / skipGraduateConsent (D-consent-pers
   // {success:true} without persisting anything, so the choice was lost on reload.
   it("decline creates a placeholder profile and consent-history row when none exists yet", async () => {
     prismaMock.userFindUnique.mockResolvedValue({ name: "New Grad", email: "newgrad@example.com", graduateProfile: null, avatarFileId: "file-avatar-1" });
-    prismaMock.applicationFindFirst.mockResolvedValue({ githubUrl: "https://github.com/newgrad", linkedinUrl: null });
+    prismaMock.applicationFindFirst.mockResolvedValue({ tenantId: "tenant-1", githubUrl: "https://github.com/newgrad", linkedinUrl: null });
     prismaMock.txGraduateProfileCreate.mockResolvedValue({ id: "profile-new", consentStatus: "DECLINED" });
 
     const result = await declineGraduateProfilePublishing("user-1");
@@ -348,6 +356,7 @@ describe("declineGraduateProfilePublishing / skipGraduateConsent (D-consent-pers
     expect(prismaMock.txGraduateProfileCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         userId: "user-1",
+        tenantId: "tenant-1",
         slug: "new-grad-slug",
         publicProfileEnabled: false,
         consentStatus: "DECLINED",
@@ -383,7 +392,10 @@ describe("declineGraduateProfilePublishing / skipGraduateConsent (D-consent-pers
 
   it("skip creates a placeholder profile and consent-history row when none exists yet", async () => {
     prismaMock.userFindUnique.mockResolvedValue({ name: "New Grad", email: "newgrad@example.com", graduateProfile: null, avatarFileId: null });
-    prismaMock.applicationFindFirst.mockResolvedValue(null);
+    // First call is getGraduateProfileDefaults' accepted-application lookup (none exists, so
+    // defaults are null); second is resolveApplicantTenantId's any-application lookup (the
+    // applicant still has *an* application to derive a tenant from, just not an accepted one).
+    prismaMock.applicationFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ tenantId: "tenant-1" });
     prismaMock.txGraduateProfileCreate.mockResolvedValue({ id: "profile-new", consentStatus: "SKIPPED" });
 
     await skipGraduateConsent("user-1");
@@ -391,6 +403,7 @@ describe("declineGraduateProfilePublishing / skipGraduateConsent (D-consent-pers
     expect(prismaMock.txGraduateProfileCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         userId: "user-1",
+        tenantId: "tenant-1",
         publicProfileEnabled: false,
         consentStatus: "SKIPPED",
         githubUrl: null,
@@ -423,11 +436,11 @@ describe("declineGraduateProfilePublishing / skipGraduateConsent (D-consent-pers
 });
 
 describe("getPublicProfile / getPublicProfiles", () => {
-  it("only returns a profile that is public AND acknowledged", async () => {
+  it("only returns a profile that is public AND acknowledged, scoped to the current tenant", async () => {
     prismaMock.graduateProfileFindFirst.mockResolvedValue(null);
-    await expect(getPublicProfile("some-slug")).resolves.toBeNull();
+    await expect(getPublicProfile("some-slug", "tenant-1")).resolves.toBeNull();
     expect(prismaMock.graduateProfileFindFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { slug: "some-slug", publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" } })
+      expect.objectContaining({ where: { slug: "some-slug", tenantId: "tenant-1", publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" } })
     );
   });
 
@@ -440,7 +453,7 @@ describe("getPublicProfile / getPublicProfiles", () => {
       user: { name: "Amina Rahman", email: "amina@example.com" }
     });
 
-    const profile = await getPublicProfile("amina-rahman");
+    const profile = await getPublicProfile("amina-rahman", "tenant-1");
     expect(profile?.photo).toBe("/api/graduates/amina-rahman/photo");
     expect(profile?.name).toBe("Amina Rahman");
   });
@@ -453,7 +466,7 @@ describe("getPublicProfile / getPublicProfiles", () => {
       program: null, user: { name: null, email: "amina@example.com" }
     });
 
-    const profile = await getPublicProfile("amina-rahman");
+    const profile = await getPublicProfile("amina-rahman", "tenant-1");
     expect(profile?.photo).toBe("https://cdn.example.com/a.jpg");
     // Falls back to the email's local part when the user has no display name.
     expect(profile?.name).toBe("amina");
@@ -464,7 +477,7 @@ describe("getPublicProfile / getPublicProfiles", () => {
     prismaMock.graduateProfileCount.mockResolvedValue(0);
     prismaMock.programFindMany.mockResolvedValue([]);
 
-    await getPublicProfiles({
+    await getPublicProfiles("tenant-1", {
       search: "React",
       country: "Pakistan",
       programId: "program-1",
@@ -477,6 +490,7 @@ describe("getPublicProfile / getPublicProfiles", () => {
     expect(prismaMock.graduateProfileFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
+          tenantId: "tenant-1",
           publicProfileEnabled: true,
           consentStatus: "ACKNOWLEDGED",
           country: { contains: "Pakistan", mode: "insensitive" },
@@ -494,7 +508,7 @@ describe("getPublicProfile / getPublicProfiles", () => {
     prismaMock.graduateProfileCount.mockResolvedValue(0);
     prismaMock.programFindMany.mockResolvedValue([]);
 
-    await getPublicProfiles({});
+    await getPublicProfiles("tenant-1", {});
 
     expect(prismaMock.graduateProfileFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ orderBy: { overallRating: "desc" } })
@@ -503,7 +517,8 @@ describe("getPublicProfile / getPublicProfiles", () => {
 });
 
 describe("recruiter access request lifecycle", () => {
-  it("createRecruiterAccessRequest upserts the recruiter account and stores only the hashed token as PENDING", async () => {
+  it("createRecruiterAccessRequest upserts the recruiter account and stores only the hashed token as PENDING, tenant-scoped from the graduate", async () => {
+    prismaMock.graduateProfileFindUnique.mockResolvedValue({ tenantId: "tenant-1" });
     prismaMock.recruiterAccountUpsert.mockResolvedValue({ id: "recruiter-1" });
     prismaMock.recruiterAccessRequestCreate.mockResolvedValue({ id: "request-1", status: "PENDING" });
 
@@ -517,6 +532,7 @@ describe("recruiter access request lifecycle", () => {
     expect(prismaMock.recruiterAccessRequestCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         graduateId: "graduate-1",
+        tenantId: "tenant-1",
         recruiterId: "recruiter-1",
         token: hashToken("raw-token-value"),
         status: "PENDING"
@@ -527,12 +543,28 @@ describe("recruiter access request lifecycle", () => {
     expect(createArgs.token).not.toBe("raw-token-value");
   });
 
+  it("createRecruiterAccessRequest throws when the graduate does not exist", async () => {
+    prismaMock.graduateProfileFindUnique.mockResolvedValue(null);
+    await expect(
+      createRecruiterAccessRequest(
+        "missing-graduate",
+        { recruiterName: "Jordan", recruiterOrganization: "Acme", recruiterDesignation: "Recruiter", recruiterEmail: "jordan@acme.com" },
+        "raw-token-value",
+        new Date("2026-08-26")
+      )
+    ).rejects.toThrow("Graduate profile not found");
+    expect(prismaMock.recruiterAccountUpsert).not.toHaveBeenCalled();
+  });
+
   it("approveAccessRequest only approves a PENDING request, sets a 7-day expiry and stores the hashed new token", async () => {
-    prismaMock.txRecruiterAccessRequestFindUnique.mockResolvedValue({ id: "request-1", status: "PENDING", recruiter: { id: "recruiter-1" } });
+    prismaMock.txRecruiterAccessRequestFindFirst.mockResolvedValue({ id: "request-1", status: "PENDING", recruiter: { id: "recruiter-1" } });
     prismaMock.txRecruiterAccessRequestUpdate.mockResolvedValue({ id: "request-1", status: "APPROVED" });
 
-    const result = await approveAccessRequest("request-1", "admin-1", "fresh-raw-token");
+    const result = await approveAccessRequest("request-1", "tenant-1", "admin-1", "fresh-raw-token");
 
+    expect(prismaMock.txRecruiterAccessRequestFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "request-1", tenantId: "tenant-1" } })
+    );
     const updateArgs = prismaMock.txRecruiterAccessRequestUpdate.mock.calls[0][0];
     expect(updateArgs.data.status).toBe("APPROVED");
     expect(updateArgs.data.token).toBe(hashToken("fresh-raw-token"));
@@ -543,30 +575,38 @@ describe("recruiter access request lifecycle", () => {
   });
 
   it("approveAccessRequest refuses to re-approve a request that is not PENDING", async () => {
-    prismaMock.txRecruiterAccessRequestFindUnique.mockResolvedValue({ id: "request-1", status: "APPROVED", recruiter: { id: "recruiter-1" } });
-    await expect(approveAccessRequest("request-1", "admin-1", "raw-token")).rejects.toThrow("already APPROVED");
+    prismaMock.txRecruiterAccessRequestFindFirst.mockResolvedValue({ id: "request-1", status: "APPROVED", recruiter: { id: "recruiter-1" } });
+    await expect(approveAccessRequest("request-1", "tenant-1", "admin-1", "raw-token")).rejects.toThrow("already APPROVED");
   });
 
-  it("approveAccessRequest throws for a missing request", async () => {
-    prismaMock.txRecruiterAccessRequestFindUnique.mockResolvedValue(null);
-    await expect(approveAccessRequest("missing", "admin-1", "raw-token")).rejects.toThrow("not found");
+  it("approveAccessRequest throws for a missing request (including one that belongs to another tenant)", async () => {
+    prismaMock.txRecruiterAccessRequestFindFirst.mockResolvedValue(null);
+    await expect(approveAccessRequest("missing", "tenant-1", "admin-1", "raw-token")).rejects.toThrow("not found");
   });
 
-  it("rejectAccessRequest records the reviewer and rejection reason", async () => {
-    prismaMock.recruiterAccessRequestUpdate.mockResolvedValue({ id: "request-1", status: "REJECTED" });
-    await rejectAccessRequest("request-1", "admin-1", "Not a verified recruiter");
-    expect(prismaMock.recruiterAccessRequestUpdate).toHaveBeenCalledWith({
-      where: { id: "request-1" },
+  it("rejectAccessRequest records the reviewer and rejection reason, scoped to the tenant", async () => {
+    prismaMock.recruiterAccessRequestUpdateMany.mockResolvedValue({ count: 1 });
+    await rejectAccessRequest("request-1", "tenant-1", "admin-1", "Not a verified recruiter");
+    expect(prismaMock.recruiterAccessRequestUpdateMany).toHaveBeenCalledWith({
+      where: { id: "request-1", tenantId: "tenant-1" },
       data: expect.objectContaining({ status: "REJECTED", reviewedById: "admin-1", rejectionReason: "Not a verified recruiter" })
     });
   });
 
+  it("rejectAccessRequest throws for a request that belongs to another tenant", async () => {
+    prismaMock.recruiterAccessRequestUpdateMany.mockResolvedValue({ count: 0 });
+    await expect(rejectAccessRequest("request-1", "tenant-2", "admin-1", "reason")).rejects.toThrow("not found");
+  });
+
   it("revokeAccessRequest only revokes an APPROVED request and invalidates the recruiter's sessions", async () => {
-    prismaMock.txRecruiterAccessRequestFindUnique.mockResolvedValue({ id: "request-1", status: "APPROVED", recruiterId: "recruiter-1" });
+    prismaMock.txRecruiterAccessRequestFindFirst.mockResolvedValue({ id: "request-1", status: "APPROVED", recruiterId: "recruiter-1" });
     prismaMock.txRecruiterAccessRequestUpdate.mockResolvedValue({ id: "request-1", status: "REVOKED" });
 
-    await revokeAccessRequest("request-1", "admin-1");
+    await revokeAccessRequest("request-1", "tenant-1", "admin-1");
 
+    expect(prismaMock.txRecruiterAccessRequestFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "request-1", tenantId: "tenant-1" } })
+    );
     expect(prismaMock.txRecruiterAccessRequestUpdate).toHaveBeenCalledWith({
       where: { id: "request-1" },
       data: expect.objectContaining({ status: "REVOKED", revokedById: "admin-1" })
@@ -575,14 +615,14 @@ describe("recruiter access request lifecycle", () => {
   });
 
   it("revokeAccessRequest refuses to revoke a request that was never approved", async () => {
-    prismaMock.txRecruiterAccessRequestFindUnique.mockResolvedValue({ id: "request-1", status: "PENDING" });
-    await expect(revokeAccessRequest("request-1", "admin-1")).rejects.toThrow("Only approved requests");
+    prismaMock.txRecruiterAccessRequestFindFirst.mockResolvedValue({ id: "request-1", status: "PENDING" });
+    await expect(revokeAccessRequest("request-1", "tenant-1", "admin-1")).rejects.toThrow("Only approved requests");
     expect(prismaMock.txRecruiterAccessRequestUpdate).not.toHaveBeenCalled();
   });
 
-  it("revokeAccessRequest throws for a missing request", async () => {
-    prismaMock.txRecruiterAccessRequestFindUnique.mockResolvedValue(null);
-    await expect(revokeAccessRequest("missing", "admin-1")).rejects.toThrow("not found");
+  it("revokeAccessRequest throws for a missing request (including one that belongs to another tenant)", async () => {
+    prismaMock.txRecruiterAccessRequestFindFirst.mockResolvedValue(null);
+    await expect(revokeAccessRequest("missing", "tenant-1", "admin-1")).rejects.toThrow("not found");
   });
 });
 
@@ -674,21 +714,24 @@ describe("consumeRecruiterAccessToken", () => {
 describe("getAllAccessibleGraduates / getFullProfileForRecruiter (grant-gated recruiter reads)", () => {
   it("getAllAccessibleGraduates returns null when the recruiter has no active APPROVED grant", async () => {
     prismaMock.recruiterAccessRequestFindFirst.mockResolvedValue(null);
-    await expect(getAllAccessibleGraduates("recruiter-1")).resolves.toBeNull();
+    await expect(getAllAccessibleGraduates("recruiter-1", "tenant-1")).resolves.toBeNull();
     expect(prismaMock.graduateProfileFindMany).not.toHaveBeenCalled();
   });
 
-  it("getAllAccessibleGraduates returns every public+consented graduate, not just the one tied to the request", async () => {
+  it("getAllAccessibleGraduates returns every public+consented graduate in this tenant, not just the one tied to the request", async () => {
     prismaMock.recruiterAccessRequestFindFirst.mockResolvedValue({ id: "request-1", expiresAt: new Date("2026-08-26") });
     prismaMock.graduateProfileFindMany.mockResolvedValue([
       { id: "g1", slug: "amina", profilePhotoFileId: null, profilePhotoUrl: null, overallRating: 4.6, bio: "Bio", country: null, graduationDate: new Date(), linkedinUrl: null, githubUrl: null, skills: [], program: null, user: { name: "Amina", email: "a@x.com" } },
       { id: "g2", slug: "daniel", profilePhotoFileId: null, profilePhotoUrl: null, overallRating: 4.5, bio: "Bio", country: null, graduationDate: new Date(), linkedinUrl: null, githubUrl: null, skills: [], program: null, user: { name: "Daniel", email: "d@x.com" } }
     ]);
 
-    const result = await getAllAccessibleGraduates("recruiter-1");
+    const result = await getAllAccessibleGraduates("recruiter-1", "tenant-1");
 
+    expect(prismaMock.recruiterAccessRequestFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ recruiterId: "recruiter-1", tenantId: "tenant-1" }) })
+    );
     expect(prismaMock.graduateProfileFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" } })
+      expect.objectContaining({ where: { tenantId: "tenant-1", publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" } })
     );
     expect(result?.graduates).toHaveLength(2);
     expect(result?.accessExpiresAt).toEqual(new Date("2026-08-26"));
@@ -696,22 +739,31 @@ describe("getAllAccessibleGraduates / getFullProfileForRecruiter (grant-gated re
 
   it("getFullProfileForRecruiter returns null when the recruiter has no active grant, without leaking any profile data", async () => {
     prismaMock.recruiterAccessRequestFindFirst.mockResolvedValue(null);
-    await expect(getFullProfileForRecruiter("amina", "recruiter-1")).resolves.toBeNull();
-    expect(prismaMock.graduateProfileFindUnique).not.toHaveBeenCalled();
+    await expect(getFullProfileForRecruiter("amina", "recruiter-1", "tenant-1")).resolves.toBeNull();
+    expect(prismaMock.graduateProfileFindFirst).not.toHaveBeenCalled();
   });
 
   it("getFullProfileForRecruiter returns null for a profile that has since gone private, even with a valid grant", async () => {
     prismaMock.recruiterAccessRequestFindFirst.mockResolvedValue({ id: "request-1", expiresAt: new Date("2026-08-26") });
-    prismaMock.graduateProfileFindUnique.mockResolvedValue({
+    prismaMock.graduateProfileFindFirst.mockResolvedValue({
       id: "g1", publicProfileEnabled: false, consentStatus: "ACKNOWLEDGED",
       user: { submissions: [] }
     });
-    await expect(getFullProfileForRecruiter("amina", "recruiter-1")).resolves.toBeNull();
+    await expect(getFullProfileForRecruiter("amina", "recruiter-1", "tenant-1")).resolves.toBeNull();
+  });
+
+  it("getFullProfileForRecruiter returns null for a slug that belongs to a different tenant", async () => {
+    prismaMock.recruiterAccessRequestFindFirst.mockResolvedValue({ id: "request-1", expiresAt: new Date("2026-08-26") });
+    prismaMock.graduateProfileFindFirst.mockResolvedValue(null);
+    await expect(getFullProfileForRecruiter("amina", "recruiter-1", "tenant-1")).resolves.toBeNull();
+    expect(prismaMock.graduateProfileFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { slug: "amina", tenantId: "tenant-1" } })
+    );
   });
 
   it("getFullProfileForRecruiter hides the applicant's email unless they opted into emailPublic", async () => {
     prismaMock.recruiterAccessRequestFindFirst.mockResolvedValue({ id: "request-1", expiresAt: new Date("2026-08-26") });
-    prismaMock.graduateProfileFindUnique.mockResolvedValue({
+    prismaMock.graduateProfileFindFirst.mockResolvedValue({
       id: "g1", slug: "amina", publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED", emailPublic: false,
       profilePhotoFileId: null, profilePhotoUrl: null, bio: "Bio", country: null, skills: [], interests: [],
       linkedinUrl: null, githubUrl: null, program: null, overallRating: 4.6, graduationDate: new Date(),
@@ -720,13 +772,13 @@ describe("getAllAccessibleGraduates / getFullProfileForRecruiter (grant-gated re
     });
     prismaMock.savedCandidateFindUnique.mockResolvedValue(null);
 
-    const profile = await getFullProfileForRecruiter("amina", "recruiter-1");
+    const profile = await getFullProfileForRecruiter("amina", "recruiter-1", "tenant-1");
     expect(profile?.overview.email).toBeNull();
   });
 
   it("getFullProfileForRecruiter surfaces the applicant's email when emailPublic is true", async () => {
     prismaMock.recruiterAccessRequestFindFirst.mockResolvedValue({ id: "request-1", expiresAt: new Date("2026-08-26") });
-    prismaMock.graduateProfileFindUnique.mockResolvedValue({
+    prismaMock.graduateProfileFindFirst.mockResolvedValue({
       id: "g1", slug: "amina", publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED", emailPublic: true,
       profilePhotoFileId: null, profilePhotoUrl: null, bio: "Bio", country: null, skills: [], interests: [],
       linkedinUrl: null, githubUrl: null, program: null, overallRating: 4.6, graduationDate: new Date(),
@@ -735,22 +787,58 @@ describe("getAllAccessibleGraduates / getFullProfileForRecruiter (grant-gated re
     });
     prismaMock.savedCandidateFindUnique.mockResolvedValue(null);
 
-    const profile = await getFullProfileForRecruiter("amina", "recruiter-1");
+    const profile = await getFullProfileForRecruiter("amina", "recruiter-1", "tenant-1");
     expect(profile?.overview.email).toBe("amina@example.com");
+  });
+
+  it("getFullProfileForRecruiter surfaces competency tags and revision history for each assignment", async () => {
+    prismaMock.recruiterAccessRequestFindFirst.mockResolvedValue({ id: "request-1", expiresAt: new Date("2026-08-26") });
+    prismaMock.graduateProfileFindFirst.mockResolvedValue({
+      id: "g1", slug: "amina", publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED", emailPublic: false,
+      profilePhotoFileId: null, profilePhotoUrl: null, bio: "Bio", country: null, skills: [], interests: [],
+      linkedinUrl: null, githubUrl: null, program: null, overallRating: 4.6, graduationDate: new Date(),
+      artifacts: [], aiEvaluatedAt: null,
+      user: {
+        name: "Amina", email: "amina@example.com",
+        submissions: [{
+          id: "sub-1", rating: 4.5, reviewedAt: new Date(), submittedAt: new Date(),
+          reviewerFeedback: "Great work.", repositoryUrl: null, deploymentUrl: null, loomUrl: null, journalMarkdown: null,
+          mission: { id: "mission-1", title: "Build a Landing Page", weekNumber: 1, programId: "program-1", competencyTags: ["HTML", "CSS"] },
+          missionAssignment: {
+            revisionCount: 2, reviewOutcome: "ACCEPTED_AFTER_CHANGES",
+            journalEntries: [],
+            reviews: [
+              { round: 1, decision: "CHANGES_REQUESTED", feedback: "Fix spacing.", createdAt: new Date() },
+              { round: 2, decision: "ACCEPTED", feedback: "Looks good.", createdAt: new Date() }
+            ]
+          }
+        }]
+      }
+    });
+    prismaMock.savedCandidateFindUnique.mockResolvedValue(null);
+
+    const profile = await getFullProfileForRecruiter("amina", "recruiter-1", "tenant-1");
+    expect(profile?.assignments[0].competencyTags).toEqual(["HTML", "CSS"]);
+    expect(profile?.assignments[0].revisionCount).toBe(2);
+    expect(profile?.assignments[0].reviewOutcome).toBe("ACCEPTED_AFTER_CHANGES");
+    expect(profile?.assignments[0].reviewHistory).toHaveLength(2);
   });
 });
 
 describe("toggleSavedCandidate", () => {
-  it("returns null when the graduate slug does not resolve to a public, consented profile", async () => {
+  it("returns null when the graduate slug does not resolve to a public, consented profile in this tenant", async () => {
     prismaMock.graduateProfileFindFirst.mockResolvedValue(null);
-    await expect(toggleSavedCandidate("recruiter-1", "unknown-slug")).resolves.toBeNull();
+    await expect(toggleSavedCandidate("recruiter-1", "unknown-slug", "tenant-1")).resolves.toBeNull();
     expect(prismaMock.savedCandidateFindUnique).not.toHaveBeenCalled();
   });
 
   it("saves the candidate when not already saved", async () => {
     prismaMock.graduateProfileFindFirst.mockResolvedValue({ id: "graduate-1" });
     prismaMock.savedCandidateFindUnique.mockResolvedValue(null);
-    const result = await toggleSavedCandidate("recruiter-1", "amina-rahman");
+    const result = await toggleSavedCandidate("recruiter-1", "amina-rahman", "tenant-1");
+    expect(prismaMock.graduateProfileFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { slug: "amina-rahman", tenantId: "tenant-1", publicProfileEnabled: true, consentStatus: "ACKNOWLEDGED" } })
+    );
     expect(prismaMock.savedCandidateCreate).toHaveBeenCalledWith({ data: { recruiterId: "recruiter-1", graduateId: "graduate-1" } });
     expect(result).toEqual({ saved: true });
   });
@@ -758,7 +846,7 @@ describe("toggleSavedCandidate", () => {
   it("un-saves the candidate when already saved", async () => {
     prismaMock.graduateProfileFindFirst.mockResolvedValue({ id: "graduate-1" });
     prismaMock.savedCandidateFindUnique.mockResolvedValue({ id: "saved-1" });
-    const result = await toggleSavedCandidate("recruiter-1", "amina-rahman");
+    const result = await toggleSavedCandidate("recruiter-1", "amina-rahman", "tenant-1");
     expect(prismaMock.savedCandidateDelete).toHaveBeenCalledWith({ where: { id: "saved-1" } });
     expect(result).toEqual({ saved: false });
   });

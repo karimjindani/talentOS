@@ -1781,3 +1781,62 @@ and shipped as its own iteration, `v0.20.9`, rather than bundled into this one.
 **Alternatives considered:** An environment variable (`JOURNAL_TESTING_MODE=true`) was rejected because it requires a container restart to toggle and cannot be controlled from the Ops console live. An Ops-console in-memory flag with a cross-container API call was rejected because it adds a network dependency (applicant → ops) on every journal write. Reusing the `Tenant` table's branding columns was rejected because it conflates testing flags with tenant configuration.
 
 **Consequences:** The `engineering_journal_entries` unique constraint is gone — the application-layer `assertEntryDateAvailable` is now the sole enforcement of one-per-mission-per-date in normal mode. Three test files (`journal.test.ts`, `submission-readiness.test.ts`, `submissions.test.ts`) were updated to add a `featureFlagFindUnique` mock defaulting to `{ enabled: false }` so existing tests pass unchanged. The `feature_flags` table is created by migration `20260824000000_feature_flags_and_journal_testing`.
+
+## D-110: Deadline Timezone Fix, Graduate Portal Tenant Isolation, And Recruiter Portfolio Data (v0.20.11)
+
+**Context:** Three issues, fixed together on one branch per explicit direction:
+
+1. `computeMissionDeadline` stored the Thursday cutoff as 23:59:59.999 **UTC**, which is already
+   Friday morning in Pakistan Standard Time (UTC+5) — the deployment's actual local time.
+2. The public graduate portal had no tenant boundary at all. `GraduateProfile` had no `tenantId`
+   column; `getPublicProfiles`/`getPublicProfile` and every recruiter-facing route (portfolio,
+   contact, photo, report, save, request-access, verify) queried with zero tenant filtering.
+   `RecruiterAccessRequest`/`RecruiterAccount` had no `tenantId` either —
+   `recruiterHasActiveAccess()`'s own doc comment said a single approval "grants access to ALL
+   public, consented graduate profiles," asserted as *intended* behavior in the existing
+   regression suite. The most acute case: the no-slug `request-access/route.ts` picked *any*
+   tenant's first public graduate (`findFirst({ where: { publicProfileEnabled: true } })`) to
+   attach a request to.
+3. The recruiter-facing full portfolio (`getFullProfileForRecruiter`) was otherwise genuinely
+   wired to real data (accepted submissions, ratings, reviewer feedback, evidence links, journal
+   entries, artifacts) but dropped `Mission.competencyTags` (shown to applicants, never selected
+   for recruiters) and all `SubmissionReview` revision-round history, so a first-try acceptance and
+   one that took several rounds of `CHANGES_REQUESTED` looked identical to a recruiter.
+
+**Decision:**
+
+1. **Deadline cutoff** shifted to 18:59:59.999 UTC (== 23:59:59.999 PKT) via a
+   `TENANT_UTC_OFFSET_HOURS` constant — a targeted fix for the one timezone this deployment
+   actually needs, not a general per-tenant timezone feature (still deferred, per D-093).
+2. **`GraduateProfile.tenantId`** and **`RecruiterAccessRequest.tenantId`** (new, required, FK to
+   `Tenant`) — migration `20260824090000_v0_20_11_graduate_portal_tenant_isolation`. Backfilled
+   from each graduate's most recent `Application.tenantId`, not `Program.tenantId` (43% of
+   existing rows have `programId = NULL`) and not `TenantMembership` (works today but not
+   schema-guaranteed against a future multi-membership user). `RecruiterAccessRequest.tenantId` is
+   denormalized from the target graduate at creation time
+   (`createRecruiterAccessRequest`), never trusted from caller input.
+3. **Every public/recruiter function in `packages/db/src/graduates.ts`** now takes and enforces a
+   `tenantId`, including the admin review functions (`getPendingAccessRequests`,
+   `approveAccessRequest`, `rejectAccessRequest`, `revokeAccessRequest`, etc.) — a tenant admin can
+   no longer act on another tenant's recruiter access requests either. `recruiterHasActiveAccess`
+   now grants access per tenant, reversing the previous platform-wide-grant behavior by explicit
+   decision (recommended and chosen over leaving recruiter access global while only isolating the
+   directory, which would have been an incomplete fix).
+4. **`getFullProfileForRecruiter`** now selects `Mission.competencyTags` and each assignment's
+   `SubmissionReview` history plus `revisionCount`/`reviewOutcome`; rendered on the recruiter
+   portfolio page as competency-tag chips and an expandable review-history panel.
+
+**Consequences:** One new regression scenario ("The graduate directory and recruiter access grants
+are tenant-isolated") creates a genuine second tenant and proves both the directory and recruiter
+grants stay scoped; every existing `public-portal`/`missions` regression scenario and
+`graduates.test.ts` unit test updated for the new signatures. `toggleSavedCandidate` never calling
+`recruiterHasActiveAccess` at all (pre-existing, unrelated to tenant isolation) is carried forward
+as a Known Gap, not fixed here. See
+`docs/plans/v0.20.11_Deadline_Timezone_Tenant_Isolation_And_Recruiter_Data.md`.
+
+**Version note:** this work was originally opened as PR #73 under version `v0.20.9`, but the PR
+was closed unmerged; meanwhile `origin/main` advanced to `v0.20.10` (PR #74, D-109, an unrelated
+feature-flags iteration that also happened to claim decision number D-109). The code was rebased
+onto the new `main` (cherry-picked cleanly — no overlapping files except `schema.prisma`, which
+merged without conflict since the two iterations touch disjoint models) and re-documented under
+the next actually-available version/decision numbers, `v0.20.11`/D-110.
