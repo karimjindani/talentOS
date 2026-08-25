@@ -25,7 +25,7 @@ export type PublishedGraduate = {
 
 const GRADUATE_NAME = "Journey Graduate";
 const DIFFICULTIES = ["BEGINNER", "INTERMEDIATE", "ADVANCED", "EXPERT"] as const;
-const RATINGS = [4, 4.5, 5, 4.5];
+const RATINGS = [4, 5, 4, 5];
 
 /**
  * Seeds one applicant with four accepted, rated missions in a dedicated program, then publishes

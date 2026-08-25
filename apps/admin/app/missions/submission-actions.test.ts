@@ -112,6 +112,17 @@ describe("reviewSubmissionAction", () => {
     await expect(reviewSubmissionAction(formData)).rejects.toThrow("Invalid review decision");
   });
 
+  it("rejects a decimal rating when accepting (must be a whole number 1-5)", async () => {
+    const formData = new FormData();
+    formData.set("submissionId", "sub-1");
+    formData.set("decision", "ACCEPTED");
+    formData.set("rating", "4.5");
+    formData.set("reviewerFeedback", "");
+
+    await expect(reviewSubmissionAction(formData)).rejects.toThrow("whole-number rating from 1 to 5");
+    expect(mocks.reviewSubmission).not.toHaveBeenCalled();
+  });
+
   it("throws when the submission does not exist in this tenant", async () => {
     mocks.getTenantSubmission.mockResolvedValue(null);
 

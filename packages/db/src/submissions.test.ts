@@ -640,7 +640,7 @@ describe("submission data access", () => {
         status: "ACCEPTED",
         reviewerFeedback: "Great work.",
         reviewerUserId: "lead-1",
-        rating: 4.5
+        rating: 4
       });
 
       expect(prismaMock.txSubmissionReviewCreate).toHaveBeenCalledWith({
@@ -758,7 +758,7 @@ describe("submission data access", () => {
       status: "ACCEPTED",
       reviewerFeedback: "Great work.",
       reviewerUserId: "lead-1",
-      rating: 4.5
+      rating: 4
     });
 
     expect(prismaMock.txNotificationCreate).toHaveBeenCalledWith({
@@ -887,7 +887,7 @@ describe("submission data access", () => {
       status: "ACCEPTED",
       reviewerFeedback: "Nice work.",
       reviewerUserId: "lead-1",
-      rating: 4.5
+      rating: 4
     });
 
     expect(prismaMock.txMissionAssignmentCreate).toHaveBeenCalledWith({
@@ -957,7 +957,7 @@ describe("submission data access", () => {
 
     await reviewSubmission({
       id: "sub-1", tenantId: "tenant-1", status: "ACCEPTED",
-      reviewerFeedback: "Program complete!", reviewerUserId: "lead-1", rating: 4.5
+      reviewerFeedback: "Program complete!", reviewerUserId: "lead-1", rating: 4
     });
 
     expect(prismaMock.txGraduateProfileUpdateMany).toHaveBeenCalledWith({
@@ -1010,7 +1010,7 @@ describe("submission data access", () => {
         status: "ACCEPTED",
         reviewerFeedback: "Great work.",
         reviewerUserId: "lead-1",
-        rating: 4.5
+        rating: 4
       })
     ).rejects.toThrow("Invalid submission status transition");
     expect(prismaMock.txSubmissionReviewCreate).not.toHaveBeenCalled();
@@ -1026,9 +1026,23 @@ describe("submission data access", () => {
         status: "ACCEPTED",
         reviewerFeedback: "",
         reviewerUserId: "lead-1",
-        rating: 4.5
+        rating: 4
       })
     ).rejects.toThrow("Submission not found for this tenant.");
+  });
+
+  it("rejects a decimal rating when accepting (rating must be a whole number 1-5)", async () => {
+    await expect(
+      reviewSubmission({
+        id: "sub-1",
+        tenantId: "tenant-1",
+        status: "ACCEPTED",
+        reviewerFeedback: "Great work.",
+        reviewerUserId: "lead-1",
+        rating: 4.5
+      })
+    ).rejects.toThrow("whole-number rating from 1 to 5");
+    expect(prismaMock.txSubmissionUpdateMany).not.toHaveBeenCalled();
   });
 });
 

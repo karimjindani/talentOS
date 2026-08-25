@@ -341,22 +341,90 @@ export default async function SubmissionReviewPage({ params }: SubmissionReviewP
             </p>
             <form action={reviewSubmissionAction} className="mt-4 grid gap-4">
               <input type="hidden" name="submissionId" value={submission.id} />
-              <label className="grid max-w-xs gap-1.5 text-sm font-medium text-slate-700">
-                Rating when accepted (1-5)
-                <input
+              <div className="grid max-w-xl gap-1.5">
+                <label htmlFor="rating" className="text-sm font-medium text-slate-700">
+                  Overall submission rating
+                </label>
+                <p className="text-xs text-slate-500">
+                  Rate the overall quality of the applicant&apos;s submission based on requirements,
+                  technical implementation, testing, evidence, and demonstrated competencies.
+                </p>
+                <select
+                  id="rating"
                   name="rating"
-                  type="number"
-                  min="1"
-                  max="5"
-                  step="0.1"
                   defaultValue={submission.rating ?? ""}
-                  placeholder="4.5"
-                  className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
-                />
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+                >
+                  <option value="">Select rating</option>
+                  <option value="1">1 — Needs significant improvement</option>
+                  <option value="2">2 — Below expectations</option>
+                  <option value="3">3 — Meets expectations</option>
+                  <option value="4">4 — Strong</option>
+                  <option value="5">5 — Excellent</option>
+                </select>
                 <span className="text-xs font-normal text-slate-500">
-                  Required only when you accept the submission.
+                  Required when accepting the submission.
                 </span>
-              </label>
+                <details className="group text-xs">
+                  <summary className="cursor-pointer font-medium text-brand-blue hover:text-brand-navy">
+                    View rating guide
+                  </summary>
+                  <div className="mt-2 grid gap-2.5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-700">
+                    <p className="font-medium text-slate-800">
+                      Rate the overall quality of the applicant&apos;s submission:
+                    </p>
+                    <ul className="grid gap-1.5">
+                      <li>
+                        <span className="font-semibold">Requirements</span> — Are the mission
+                        requirements properly completed?
+                      </li>
+                      <li>
+                        <span className="font-semibold">Technical implementation</span> — Is the
+                        solution correct, maintainable, and appropriate?
+                      </li>
+                      <li>
+                        <span className="font-semibold">Testing</span> — Are required tests/evidence
+                        provided and meaningful?
+                      </li>
+                      <li>
+                        <span className="font-semibold">Evidence</span> — Do GitHub / deployed app /
+                        Loom / journal actually support the submission?
+                      </li>
+                      <li>
+                        <span className="font-semibold">Competencies</span> — Does the submission
+                        demonstrate the expected competencies?
+                      </li>
+                    </ul>
+                    <div className="mt-1 grid gap-1.5 border-t border-slate-200 pt-2.5">
+                      <p>
+                        <span className="font-semibold">5 — Excellent.</span> Requirements are
+                        completely fulfilled. Strong technical implementation, good testing, clear
+                        evidence, and little or no meaningful improvement is needed.
+                      </p>
+                      <p>
+                        <span className="font-semibold">4 — Strong.</span> Requirements are fulfilled
+                        with a good implementation. Minor issues or improvements may exist, but the
+                        submission is clearly acceptable.
+                      </p>
+                      <p>
+                        <span className="font-semibold">3 — Meets Expectations.</span> Core
+                        requirements are fulfilled and the solution works, but there are noticeable
+                        areas that should be improved.
+                      </p>
+                      <p>
+                        <span className="font-semibold">2 — Below Expectations.</span> Important
+                        requirements or quality expectations are not adequately met. Significant
+                        changes are needed.
+                      </p>
+                      <p>
+                        <span className="font-semibold">1 — Needs Significant Improvement.</span>{" "}
+                        The submission is incomplete, fundamentally incorrect, or lacks sufficient
+                        evidence to demonstrate the required competencies.
+                      </p>
+                    </div>
+                  </div>
+                </details>
+              </div>
               <label className="grid gap-1.5 text-sm font-medium text-slate-700">
                 Feedback for the applicant
                 <span className="text-xs font-normal text-slate-500">

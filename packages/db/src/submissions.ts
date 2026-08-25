@@ -445,8 +445,8 @@ export async function reviewSubmission({
   reviewerUserId,
   rating
 }: ReviewSubmissionInput) {
-  if (status === "ACCEPTED" && (rating === null || !Number.isFinite(rating) || rating < 1 || rating > 5)) {
-    throw new Error("Accepted submissions require a rating from 1 to 5.");
+  if (status === "ACCEPTED" && (rating === null || !Number.isInteger(rating) || rating < 1 || rating > 5)) {
+    throw new Error("Accepted submissions require a whole-number rating from 1 to 5.");
   }
   if (status !== "ACCEPTED" && rating !== null) {
     throw new Error("Only accepted submissions can receive a rating.");
