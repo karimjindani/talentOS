@@ -2,6 +2,59 @@
 
 ## Current Allocated Iteration (Review Pending)
 
+Version: `v0.20.12`
+
+Baseline name: `Recruiter Verification URL, Submission Rating Clarity, And Graduate Portfolio Fixes`
+
+Base branch and commit: `origin/main` at `f221d4f` (merges PR #75, the `v0.20.11` baseline)
+
+Feature branch: `fix/recruiter-request-verification-url-and-detail-page` (pushed, PR open)
+
+Documentation date: `2026-08-25`
+
+Latest released baseline: `v0.20.3` at `7e2bd14` (PR #68)
+
+Reserved active-branch version: re-checked live via
+`node .claude/skills/version-allocation-and-gates/scripts/allocate-version.js`. `origin/main`
+declares `v0.20.11`; this feature branch still declares `v0.20.11` (not yet bumped); `v0.20.12` is
+the next available version.
+
+Migrations: none. No schema change this iteration — `Submission.rating` stays `Float` with
+integer enforcement at the application layer. `Data_Model.md` and `Data_Dictionary.md` get a
+no-schema-change note rather than being skipped.
+
+Repository state: `v0.20.12` code and documentation are on
+`fix/recruiter-request-verification-url-and-detail-page` (4 commits), pushed to origin.
+
+### What this iteration changes
+
+1. **Tenant-aware recruiter verification URL** (`apps/admin/app/api/recruiter-requests/[id]/route.ts`):
+   `buildTenantAppUrl` uses `APP_BASE_DOMAIN` + `APPLICANT_PORT` + tenant slug so email links resolve
+   to the correct tenant instead of the default `demo` tenant.
+2. **Real graduate rating on publish** (`graduates.ts`, `submissions.ts`, `acknowledge/route.ts`):
+   auto-publish and acknowledge recompute `overallRating`/`graduationDate`/`programId` from the
+   completion snapshot instead of publishing a placeholder 0.
+3. **Integer-only submission rating** (admin review UI + action + DB layer): 1–5 select with a
+   rubric; decimals rejected via `Number.isInteger`.
+4. **Recruiter request detail cleanup**: Consent History and Graduate Information removed.
+5. **Loom embed in portfolio**: inline `iframe` embed + "Open full video" link in Mission Evidence.
+
+## v0.20.12 Documentation Index
+
+| Artifact | Location |
+| --- | --- |
+| Plan | `docs/plans/v0.20.12_Recruiter_Verification_URL_Submission_Rating_And_Graduate_Portfolio_Fixes.md` |
+| Test results | `docs/testing/v0.20.12_Recruiter_Verification_URL_Submission_Rating_And_Graduate_Portfolio_Fixes_Test_Results.md` |
+| Decision record | `docs/Decision_Log.md` (`D-111`) |
+| Architecture | `docs/Architecture.md` (code version updated) |
+| Scenario catalog | `docs/Regression_Scenarios.md` (v0.20.12 traceability) |
+| Testing strategy | `docs/Testing_Strategy.md` (code version updated) |
+| Deployment | `docs/Deployment.md` (code version updated) |
+| Data model / dictionary | No-change note; no schema touched |
+| User guides | `docs/user-guides/Back_Office_User_Guide.md` + `docs/user-guides/Applicant_Portal_User_Guide.md` updated |
+
+## Previous: v0.20.11
+
 Version: `v0.20.11`
 
 Baseline name: `Deadline Timezone Fix, Graduate Portal Tenant Isolation, And Recruiter Portfolio Data`

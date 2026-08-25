@@ -1840,3 +1840,49 @@ feature-flags iteration that also happened to claim decision number D-109). The 
 onto the new `main` (cherry-picked cleanly — no overlapping files except `schema.prisma`, which
 merged without conflict since the two iterations touch disjoint models) and re-documented under
 the next actually-available version/decision numbers, `v0.20.11`/D-110.
+
+## D-111: Recruiter Verification URL, Submission Rating Clarity, And Graduate Portfolio Fixes (v0.20.12)
+
+**Context:** Five issues surfaced in the running product. (1) Recruiter access verification emails
+linked to the default `demo` tenant — the URL used `NEXT_PUBLIC_APPLICANT_URL`, which is inlined at
+build time and excluded from the Docker build via `.dockerignore`, so it fell back to the wrong
+host and a request created on `paysyslabs` could never verify on `demo`. (2) Auto-published
+graduate profiles carried a placeholder `overallRating: 0` because the placeholder-creation paths
+stored 0 and the auto-publish path never recomputed it. (3) The admin submission review accepted
+decimal ratings like `4.5` with an unclear "Rating when accepted (1–5)" label. (4) The recruiter
+request detail page duplicated consent/grad info the reviewer didn't need. (5) The graduate
+portfolio only linked out to the Loom walkthrough instead of embedding it.
+
+**Decision:**
+
+1. **Tenant-aware verification URL** (`apps/admin/app/api/recruiter-requests/[id]/route.ts`): a
+   `buildTenantAppUrl(tenantSlug)` helper builds the applicant URL from `APP_BASE_DOMAIN` +
+   `APPLICANT_PORT` (runtime env vars) + the tenant slug, instead of `NEXT_PUBLIC_APPLICANT_URL`
+   (build-time-inlined, `.dockerignore`-excluded). Applied to approve and resend.
+2. **Real graduate rating on publish** (`graduates.ts`, `submissions.ts`,
+   `acknowledge/route.ts`): `getCompletionSnapshot` is exported and accepts a transaction client;
+   the auto-publish path in `reviewSubmission` recomputes `overallRating`/`graduationDate`/
+   `programId` before enabling the profile; the acknowledge route carries them when training is
+   complete.
+3. **Integer-only submission rating** (`page.tsx`, `submission-actions.ts`, `submissions.ts`): the
+   number input is replaced by a 1–5 select with a "View rating guide" rubric; both the server
+   action and DB `reviewSubmission` enforce `Number.isInteger` (rejects 4.5/3.5/2.7). `Submission.rating`
+   stays `Float` — no migration.
+4. **Recruiter request detail cleanup** (`page.tsx`): removed Consent History + Graduate Information.
+5. **Loom embed** (`portfolio/page.tsx`): `toLoomEmbedUrl` converts share URLs to embed URLs and
+   renders an inline `iframe` with an "Open full video" link; non-Loom URLs fall back to the chip.
+
+**Rationale:** Each fix is minimal and stays in the existing pattern. Rejecting decimals at both the
+action and DB layer (not just the UI) satisfies the "server-side validation" requirement without a
+schema migration. Recomputing the snapshot at publish time (rather than at placeholder creation)
+keeps the stored rating correct even when the profile was created long before the 4th mission.
+
+**Alternatives considered:** Changing `Submission.rating` to an `Int` column would require a
+migration and risk breaking stored decimal averages from earlier iterations — rejected; integer
+enforcement at the application layer is sufficient. A client-side-only rating constraint was
+rejected because the requirement is explicit that validation must exist on the server.
+
+**Consequences:** E2E journey and regression ratings were changed from decimals (4.2/4.5) to
+integers, and the journey's review-field interaction changed from `page.fill('input[name="rating"]')`
+to `page.selectOption('select[name="rating"]', …)`. Two new unit tests (auto-publish real rating,
+decimal rejection) and one new journey assertion (Loom embed visible) were added. No schema change.
