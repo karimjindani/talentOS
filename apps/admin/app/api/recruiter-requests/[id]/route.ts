@@ -16,6 +16,22 @@ import { generateSecureToken, generateVerificationUrl, hashToken } from "@talent
 import { resolveTenantAccess } from "@/lib/tenant-guard";
 import { sendVerificationEmail } from "@/lib/email-service";
 
+/**
+ * Build the applicant-portal URL for a specific tenant, injecting the tenant slug as the
+ * subdomain (e.g. `http://paysyslabs.lvh.me:3100`) so verification links resolve to the
+ * correct tenant — not the default `demo` tenant that the bare `NEXT_PUBLIC_APPLICANT_URL`
+ * (e.g. `http://lvh.me:3100`) would resolve to.
+ *
+ * Uses APP_BASE_DOMAIN and APPLICANT_PORT (non-NEXT_PUBLIC runtime env vars) because
+ * NEXT_PUBLIC_* vars are inlined at build time and .env is in .dockerignore, so they're
+ * undefined inside the Docker build.
+ */
+function buildTenantAppUrl(tenantSlug: string): string {
+  const baseDomain = process.env.APP_BASE_DOMAIN || "lvh.me";
+  const port = process.env.APPLICANT_PORT || "3100";
+  return `http://${tenantSlug}.${baseDomain}:${port}`;
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -56,7 +72,7 @@ export async function PATCH(
       const result = await approveAccessRequest(id, access.tenant.id, reviewerId, rawToken);
 
       // Send the verification email to the recruiter
-      const baseUrl = process.env.NEXT_PUBLIC_APPLICANT_URL || process.env.AUTH_URL || "http://localhost:3100";
+      const baseUrl = buildTenantAppUrl(access.tenant.slug);
       const verificationUrl = generateVerificationUrl(baseUrl, rawToken);
 
       try {
@@ -116,7 +132,7 @@ export async function PATCH(
         data: { token: hashToken(rawToken) }
       });
 
-      const baseUrl = process.env.NEXT_PUBLIC_APPLICANT_URL || process.env.AUTH_URL || "http://localhost:3100";
+      const baseUrl = buildTenantAppUrl(access.tenant.slug);
       const verificationUrl = generateVerificationUrl(baseUrl, rawToken);
 
       try {
