@@ -15,6 +15,7 @@ import {
   SubmissionReadinessError
 } from "./submission-readiness";
 import { isFeatureFlagEnabled, JOURNAL_TESTING_MODE_FLAG } from "./feature-flags";
+import { getCompletionSnapshot } from "./graduates";
 import {
   checkPublicEvidenceUrl,
   normalizeDeploymentUrls,
@@ -583,9 +584,29 @@ export async function reviewSubmission({
       }
       const hasEnough = [...programCounts.values()].some((count) => count >= 4);
       if (hasEnough) {
+        // Recompute the real snapshot (overallRating = average of accepted week ratings,
+        // graduationDate, programId) so a placeholder profile created with overallRating: 0 is
+        // never published with a wrong rating. Falls back to a plain publish if the snapshot
+        // throws (e.g. fewer than 4 distinct accepted missions in one program).
+        let snapshot: { programId: string; graduationDate: Date; overallRating: number } | null = null;
+        try {
+          const completion = await getCompletionSnapshot(submission.applicantId, tx);
+          snapshot = {
+            programId: completion.programId,
+            graduationDate: completion.graduationDate,
+            overallRating: completion.overallRating
+          };
+        } catch {
+          snapshot = null;
+        }
         await tx.graduateProfile.updateMany({
           where: { userId: submission.applicantId, consentStatus: "ACKNOWLEDGED", publicProfileEnabled: false },
-          data: { publicProfileEnabled: true }
+          data: {
+            publicProfileEnabled: true,
+            ...(snapshot
+              ? { programId: snapshot.programId, graduationDate: snapshot.graduationDate, overallRating: snapshot.overallRating }
+              : {})
+          }
         });
       }
     }

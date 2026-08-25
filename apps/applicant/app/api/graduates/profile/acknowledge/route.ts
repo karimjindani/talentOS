@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getGraduateProfileDefaults, resolveApplicantTenantId, prisma } from "@talentos/db";
+import { getGraduateProfileDefaults, getCompletionSnapshot, resolveApplicantTenantId, prisma } from "@talentos/db";
 
 /**
  * POST /api/graduates/profile/acknowledge
@@ -34,6 +34,23 @@ export async function POST() {
     }
     const trainingComplete = [...programCounts.values()].some((count) => count >= 4);
 
+    // When training is complete, carry the real snapshot (overallRating = average of accepted
+    // week ratings, graduationDate, programId) into the profile so it never publishes with a
+    // placeholder 0 rating. Falls back to null if the strict eligibility check fails.
+    let completion: { programId: string; graduationDate: Date; overallRating: number } | null = null;
+    if (trainingComplete) {
+      try {
+        const snapshot = await getCompletionSnapshot(user.id);
+        completion = {
+          programId: snapshot.programId,
+          graduationDate: snapshot.graduationDate,
+          overallRating: snapshot.overallRating
+        };
+      } catch {
+        completion = null;
+      }
+    }
+
     // If a graduate profile already exists, update consent status.
     // If not, create a minimal placeholder that will be completed later
     // once the applicant finishes their training.
@@ -44,6 +61,9 @@ export async function POST() {
           consentStatus: "ACKNOWLEDGED",
           consentDate: new Date(),
           publicProfileEnabled: trainingComplete, // auto-publish if training is done
+          ...(completion
+            ? { programId: completion.programId, graduationDate: completion.graduationDate, overallRating: completion.overallRating }
+            : {}),
         },
       });
       await prisma.consentHistory.create({
@@ -68,9 +88,10 @@ export async function POST() {
           consentStatus: "ACKNOWLEDGED",
           consentDate: new Date(),
           publicProfileEnabled: trainingComplete,
-          graduationDate: new Date(), // placeholder, updated on actual graduation
-          overallRating: 0,
+          graduationDate: completion?.graduationDate ?? new Date(), // placeholder until training done
+          overallRating: completion?.overallRating ?? 0,
           bio: "TalentOS program graduate",
+          ...(completion ? { programId: completion.programId } : {}),
           ...defaults,
         },
       });
