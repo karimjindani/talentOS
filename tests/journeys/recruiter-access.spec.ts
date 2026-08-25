@@ -142,6 +142,8 @@ test("recruiter completes the full access-request lifecycle through real browser
 
     await page.goto(`/graduates/${graduate.slug}/portfolio`);
     await expect(page.getByRole("heading", { name: graduate.name, level: 1 })).toBeVisible();
+    // The Loom walkthrough is embedded inline in the Training Journey — Mission Evidence section.
+    await expect(page.locator('iframe[src^="https://www.loom.com/embed/"]').first()).toBeVisible();
   });
 
   await journey.step("Recruiter saves the candidate", {
