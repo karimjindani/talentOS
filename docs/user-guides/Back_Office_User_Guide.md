@@ -244,9 +244,14 @@ never review each other's work (Graduate Profile: graduates are not code reviewe
    competency tags — **Request changes**, which returns the same attempt for revision, or **Repeat
    week**, which closes the current attempt and creates a fresh assignment attempt. Requesting changes
    or a repeat requires written feedback.
-5. The applicant is notified automatically (acceptance or revision request with your feedback), and
+5. When **Accepting**, an **Overall submission rating** (1–5) is required. Pick a rating from the
+   dropdown — only whole numbers 1 through 5 are allowed. Use **View rating guide** for the meaning
+   of each rating and what to evaluate: requirements, technical implementation, testing, evidence,
+   and demonstrated competencies. Decimals (for example 4.5) are rejected. The rating is optional for
+   **Request changes** and **Repeat week**. (`v0.20.12`, D-111)
+6. The applicant is notified automatically (acceptance or revision request with your feedback), and
    the review is recorded in the audit log.
-6. Once you decide, the review form disappears — a submission cannot be reviewed twice (`v0.20.8`,
+7. Once you decide, the review form disappears — a submission cannot be reviewed twice (`v0.20.8`,
    D-108). After **Request changes**, the page shows "Changes were requested. This section reopens
    once the applicant resubmits their evidence." until they do; after **Accept submission** or
    **Repeat week**, the decision is final and the form never reappears for that submission.

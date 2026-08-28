@@ -1,6 +1,6 @@
 # Regression Scenarios
 
-Code version: `v0.20.11`
+Code version: `v0.20.12`
 
 ## Purpose
 
@@ -143,6 +143,27 @@ rebuilt local stack: `npm run journeys:recruiter` (2/2 passed) and `npm run jour
 | --- | --- | --- |
 | Recruiter completes the full access-request lifecycle through real browser sessions on both portals | `tests/journeys/recruiter-access.spec.ts` (`journeys:recruiter`) | Automated |
 | Pending and rejected recruiter access requests are refused in the browser, with the rejection reason shown on-page | `tests/journeys/recruiter-access.spec.ts` (`journeys:recruiter`) | Automated |
+
+## v0.20.12 Plan Scenario Traceability
+
+Names match `docs/plans/v0.20.12_Recruiter_Verification_URL_Submission_Rating_And_Graduate_Portfolio_Fixes.md`
+one-for-one. Verified via unit tests (1031 pass) and the `recruiter-access` E2E journey.
+
+| Plan scenario | Coverage | Status |
+| --- | --- | --- |
+| S1: Recruiter verification email link resolves to the correct tenant subdomain | Manual verification | Deferred — running email + two-tenant stack |
+| S2: Recruiter request detail page no longer shows Consent History / Graduate Information | Manual verification | Deferred — UI structure |
+| S3: Auto-published graduate profile shows the real average rating, not 0 | `packages/db/src/submissions.test.ts` | Automated — asserts `overallRating: 4` on auto-publish |
+| S4: Submission rating is integer-only — decimals rejected | `submission-actions.test.ts`, `submissions.test.ts` | Automated — `rating: 4.5` rejected at action + DB layers |
+| S5: Rating required on ACCEPTED, optional for other decisions | `submissions.test.ts` + action tests | Automated — rating-null behavior covered |
+| S6: Rating rubric is visible in the admin review UI | Manual verification | Deferred — UI content |
+| S7: Loom walkthrough is embedded inline in the portfolio Mission Evidence | `tests/journeys/recruiter-access.spec.ts` | Automated — asserts `iframe[src^="https://www.loom.com/embed/"]` visible |
+| S8: Non-Loom or invalid URL falls back to the external link chip | Manual verification | Deferred — UI conditional |
+
+### Known Gaps (as of `v0.20.12`)
+
+- **S1, S2, S6, S8 deferred to manual**: these require a running multi-tenant stack with real email
+  delivery (S1) or are purely presentational UI checks (S2, S6, S8) that unit tests cannot assert.
 
 ## v0.20.11 Plan Scenario Traceability
 

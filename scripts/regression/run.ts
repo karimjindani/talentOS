@@ -985,7 +985,7 @@ const scenarios: Scenario[] = [
         status: "ACCEPTED",
         reviewerFeedback: "Meets the evaluation criteria.",
         reviewerUserId: acceptedFixture.actor.id,
-        rating: 4.5
+        rating: 4
       });
       try {
         await reviewSubmission({
@@ -3174,7 +3174,7 @@ const scenarios: Scenario[] = [
         await markRegressionData({ runId: ctx.runId, entityType: "MissionAssignment", entityId: assignment.id });
       }
 
-      const ratings = [4, 4.5, 5, 4.5];
+      const ratings = [4, 5, 4, 5];
       for (const [index, mission] of missions.entries()) {
         // Accept the mission assignment (NOT_STARTED → ACCEPTED) before drafting evidence.
         const assignment = assignments.find((a) => a.missionId === mission.id);
@@ -3775,7 +3775,7 @@ async function createGraduateEligibleFixture(runId: string, label: string): Prom
     await markRegressionData({ runId, entityType: "MissionAssignment", entityId: assignment.id });
   }
 
-  const ratings = [4, 4.5, 5, 4.5];
+  const ratings = [4, 5, 4, 5];
   for (const [index, mission] of missions.entries()) {
     const assignment = assignments.find((a) => a.missionId === mission.id);
     if (!assignment) throw new Error(`No assignment found for week ${mission.weekNumber}.`);

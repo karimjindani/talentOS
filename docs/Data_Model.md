@@ -1,6 +1,6 @@
 # Data Model
 
-Code version: `v0.20.11`
+Code version: `v0.20.12`
 
 Schema evidence commit: `2b3afce` (+ `v0.19.6` uncommitted)
 

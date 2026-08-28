@@ -309,7 +309,9 @@ export default function GraduatePortfolioPage() {
                     profile.assignments
                       .slice()
                       .sort((a, b) => a.weekNumber - b.weekNumber)
-                      .map((assignment) => (
+                      .map((assignment) => {
+                        const loomEmbedUrl = toLoomEmbedUrl(assignment.loomUrl);
+                        return (
                         <article key={assignment.id} className="rounded-xl border border-slate-200 p-5">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
@@ -343,8 +345,30 @@ export default function GraduatePortfolioPage() {
                           <div className="mt-3 flex flex-wrap gap-3">
                             <EvidenceLink href={assignment.repositoryUrl} label="GitHub Repository" icon="github" />
                             <EvidenceLink href={assignment.deploymentUrl} label="Live Deployment" icon="external" />
-                            <EvidenceLink href={assignment.loomUrl} label="Loom Walkthrough" icon="external" />
+                            {!loomEmbedUrl ? (
+                              <EvidenceLink href={assignment.loomUrl} label="Loom Walkthrough" icon="external" />
+                            ) : null}
                           </div>
+                          {loomEmbedUrl ? (
+                            <div className="mt-4">
+                              <iframe
+                                src={loomEmbedUrl}
+                                title={`${assignment.missionTitle} Loom walkthrough`}
+                                allowFullScreen
+                                loading="lazy"
+                                className="aspect-video w-full overflow-hidden rounded-xl border border-slate-200 bg-black"
+                              />
+                              <a
+                                href={assignment.loomUrl ?? loomEmbedUrl}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-blue hover:underline"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                Open full video
+                              </a>
+                            </div>
+                          ) : null}
                           {assignment.reviewHistory.length > 1 && (
                             <details className="mt-4 rounded-lg border border-slate-100 p-3">
                               <summary className="cursor-pointer text-sm font-semibold text-slate-700">
@@ -382,7 +406,8 @@ export default function GraduatePortfolioPage() {
                             </details>
                           )}
                         </article>
-                      ))
+                        );
+                      })
                   )}
                 </div>
               </section>
@@ -465,6 +490,24 @@ function EvalScore({ label, value }: { label: string; value: number }) {
       <p className="mt-1 text-lg font-bold text-brand-blue">{value.toFixed(1)}</p>
     </div>
   );
+}
+
+/**
+ * Convert a Loom share URL (https://www.loom.com/share/{id}) into its embed URL
+ * (https://www.loom.com/embed/{id}) so the walkthrough plays inline. Returns null
+ * for non-Loom URLs, which fall back to a plain external link.
+ */
+function toLoomEmbedUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, "");
+    if (host !== "loom.com") return null;
+    const match = parsed.pathname.match(/^\/(?:share|embed)\/([a-zA-Z0-9-]+)/);
+    return match ? `https://www.loom.com/embed/${match[1]}` : null;
+  } catch {
+    return null;
+  }
 }
 
 function EvidenceLink({ href, label, icon }: { href: string | null; label: string; icon: "github" | "external" }) {

@@ -44,8 +44,8 @@ export async function reviewSubmissionAction(formData: FormData) {
 
   const rawRating = String(formData.get("rating") ?? "").trim();
   const rating = decision === "ACCEPTED" && rawRating ? Number(rawRating) : null;
-  if (decision === "ACCEPTED" && (rating === null || !Number.isFinite(rating) || rating < 1 || rating > 5)) {
-    throw new Error("A rating from 1 to 5 is required when accepting a submission.");
+  if (decision === "ACCEPTED" && (rating === null || !Number.isInteger(rating) || rating < 1 || rating > 5)) {
+    throw new Error("A whole-number rating from 1 to 5 is required when accepting a submission.");
   }
 
   const existing = await getTenantSubmission(id, tenant.id);

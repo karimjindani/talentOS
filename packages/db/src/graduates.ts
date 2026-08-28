@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "./client";
 import { generateUniqueSlug } from "./slug-generator";
 import { generateSecureToken, hashToken } from "./token-generator";
@@ -51,8 +52,11 @@ function completionDateOf(submission: CompletionSubmission) {
   return submission.reviewedAt ?? submission.submittedAt ?? submission.updatedAt;
 }
 
-async function getCompletionSnapshot(userId: string) {
-  const submissions = await prisma.submission.findMany({
+export async function getCompletionSnapshot(
+  userId: string,
+  client: Prisma.TransactionClient | typeof prisma = prisma
+) {
+  const submissions = await client.submission.findMany({
     where: { applicantId: userId, status: "ACCEPTED", rating: { not: null } },
     select: {
       id: true, rating: true, reviewedAt: true, submittedAt: true, updatedAt: true,

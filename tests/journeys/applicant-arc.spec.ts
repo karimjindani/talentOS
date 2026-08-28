@@ -7,8 +7,8 @@ import { markRegressionData, submitSubmission } from "@talentos/db";
 import { prisma } from "./fixtures/tenant";
 
 const FINAL_PROGRAM_WEEK = 4;
-/** Reviewer ratings by week (1-indexed via `ratings[weekNumber - 1]`), 1-5 scale. */
-const RATINGS = [4, 4.2, 4.5, 5];
+/** Reviewer ratings by week (1-indexed via `ratings[weekNumber - 1]`), integer 1-5 scale. */
+const RATINGS = [4, 5, 4, 5];
 
 /**
  * A minimal but valid single-page PDF for the CV upload. Lifted verbatim from
@@ -362,7 +362,7 @@ test("applicant arc", async ({ journey }) => {
         // the application-review page's "Accepted" button the earlier acceptance step clicks) and
         // requires a 1-5 rating on accept — `reviewSubmission` throws without one
         // (missions/[id]/submissions/[submissionId]/page.tsx).
-        await page.fill('input[name="rating"]', String(RATINGS[weekNumber - 1]));
+        await page.selectOption('select[name="rating"]', String(RATINGS[weekNumber - 1]));
         await settledClick(page, page.getByRole("button", { name: /accept submission/i }));
 
         const submission = await prisma.submission.findFirstOrThrow({

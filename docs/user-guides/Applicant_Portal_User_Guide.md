@@ -392,6 +392,12 @@ You can review or change your decision anytime from **Manage Consent** in the si
 to work but silently failed to save; the modal reappeared on your next visit as if nothing had
 happened. Both choices now persist correctly the first time.
 
+Once published, your public portfolio shows each accepted mission's evidence under **Training
+Journey — Mission Evidence**: the GitHub repository and live deployment links, and the **Loom
+walkthrough embedded and playable inline** (with an "Open full video" link). Your **Overall Rating**
+is the average of the reviewer ratings you received across your accepted missions — a placeholder 0
+is never shown (`v0.20.12`, D-111).
+
 ## Troubleshooting
 
 | Issue | Likely Cause | Action |

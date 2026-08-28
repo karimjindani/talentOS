@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireTenantAccess } from "@/lib/tenant-guard";
-import { getAccessRequestDetail, getConsentHistory } from "@talentos/db";
+import { getAccessRequestDetail } from "@talentos/db";
 import { RecruiterRequestActions } from "./RecruiterRequestActions";
 
 function formatDateTime(value: Date | null) {
@@ -27,10 +27,6 @@ export default async function RecruiterRequestDetailPage({
 
   if (!request) notFound();
 
-  const consentHistory = request.graduate
-    ? await getConsentHistory(request.graduate.id)
-    : [];
-
   return (
     <>
       <div className="mb-6">
@@ -46,7 +42,7 @@ export default async function RecruiterRequestDetailPage({
         </span>
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="mt-6">
         {/* Recruiter Info */}
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">Recruiter Information</h2>
@@ -81,59 +77,6 @@ export default async function RecruiterRequestDetailPage({
             <div className="mt-4 border-t border-slate-100 pt-4">
               <p className="text-sm font-medium text-slate-600">Hiring Requirement</p>
               <p className="mt-1 text-sm text-slate-800">{request.hiringRequirement}</p>
-            </div>
-          ) : null}
-        </div>
-
-        {/* Graduate Info */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Graduate Information</h2>
-          {request.graduate ? (
-            <dl className="mt-4 space-y-3 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-slate-600">Name</dt>
-                <dd className="font-medium text-slate-900">{request.graduate.user.name || request.graduate.user.email}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-600">Program</dt>
-                <dd className="font-medium text-slate-900">{request.graduate.program?.name || "—"}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-600">Rating</dt>
-                <dd className="font-medium text-slate-900">{request.graduate.overallRating.toFixed(1)}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-600">Graduation Date</dt>
-                <dd className="font-medium text-slate-900">{formatDateTime(request.graduate.graduationDate)}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-600">Public Profile</dt>
-                <dd className="font-medium text-slate-900">
-                  {request.graduate.publicProfileEnabled ? "Enabled" : "Disabled"}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-600">Consent Status</dt>
-                <dd className="font-medium text-slate-900">{request.graduate.consentStatus || "—"}</dd>
-              </div>
-            </dl>
-          ) : (
-            <p className="mt-4 text-sm text-slate-500">Graduate profile no longer exists.</p>
-          )}
-
-          {/* Consent History */}
-          {consentHistory.length > 0 ? (
-            <div className="mt-4 border-t border-slate-100 pt-4">
-              <p className="text-sm font-medium text-slate-600">Consent History</p>
-              <div className="mt-2 space-y-2">
-                {consentHistory.map((entry) => (
-                  <div key={entry.id} className="flex items-start gap-2 text-xs text-slate-600">
-                    <span className="font-mono text-slate-400">{new Date(entry.createdAt).toLocaleDateString()}</span>
-                    <span className="font-semibold text-slate-700">{entry.status}</span>
-                    <span>{entry.action}</span>
-                  </div>
-                ))}
-              </div>
             </div>
           ) : null}
         </div>

@@ -640,7 +640,7 @@ describe("submission data access", () => {
         status: "ACCEPTED",
         reviewerFeedback: "Great work.",
         reviewerUserId: "lead-1",
-        rating: 4.5
+        rating: 4
       });
 
       expect(prismaMock.txSubmissionReviewCreate).toHaveBeenCalledWith({
@@ -758,7 +758,7 @@ describe("submission data access", () => {
       status: "ACCEPTED",
       reviewerFeedback: "Great work.",
       reviewerUserId: "lead-1",
-      rating: 4.5
+      rating: 4
     });
 
     expect(prismaMock.txNotificationCreate).toHaveBeenCalledWith({
@@ -887,7 +887,7 @@ describe("submission data access", () => {
       status: "ACCEPTED",
       reviewerFeedback: "Nice work.",
       reviewerUserId: "lead-1",
-      rating: 4.5
+      rating: 4
     });
 
     expect(prismaMock.txMissionAssignmentCreate).toHaveBeenCalledWith({
@@ -925,6 +925,50 @@ describe("submission data access", () => {
 
     expect(prismaMock.txApplicationFindFirst).not.toHaveBeenCalled();
     expect(prismaMock.txMissionAssignmentCreate).not.toHaveBeenCalled();
+  });
+
+  it("auto-publishes a graduate profile with the real average rating (not a placeholder 0)", async () => {
+    const assignment = {
+      id: "assignment-1", tenantId: "tenant-1", programId: "program-1",
+      applicantId: "user-1", missionId: "mission-1", weekNumber: 4, attemptNumber: 1
+    };
+    prismaMock.txSubmissionFindFirst.mockResolvedValue({
+      id: "sub-1", status: "SUBMITTED", missionId: "mission-1", applicantId: "user-1",
+      mission: { id: "mission-1", title: "Build a Landing Page" },
+      missionAssignment: assignment
+    });
+    const reviewedAt = new Date("2026-08-01T10:00:00Z");
+    const rich = [
+      { id: "s1", rating: 4, reviewedAt, submittedAt: reviewedAt, updatedAt: reviewedAt, mission: { id: "m1", title: "M1", programId: "program-1", program: { name: "Program 1" } } },
+      { id: "s2", rating: 5, reviewedAt, submittedAt: reviewedAt, updatedAt: reviewedAt, mission: { id: "m2", title: "M2", programId: "program-1", program: { name: "Program 1" } } },
+      { id: "s3", rating: 3, reviewedAt, submittedAt: reviewedAt, updatedAt: reviewedAt, mission: { id: "m3", title: "M3", programId: "program-1", program: { name: "Program 1" } } },
+      { id: "s4", rating: 4, reviewedAt, submittedAt: reviewedAt, updatedAt: reviewedAt, mission: { id: "m4", title: "M4", programId: "program-1", program: { name: "Program 1" } } }
+    ];
+    prismaMock.txSubmissionFindMany.mockImplementation((args) => {
+      // getCompletionSnapshot selects mission.program; the auto-publish count only selects programId.
+      if (args?.select?.mission?.select?.program) return Promise.resolve(rich);
+      return Promise.resolve([
+        { mission: { programId: "program-1" } },
+        { mission: { programId: "program-1" } },
+        { mission: { programId: "program-1" } },
+        { mission: { programId: "program-1" } }
+      ]);
+    });
+
+    await reviewSubmission({
+      id: "sub-1", tenantId: "tenant-1", status: "ACCEPTED",
+      reviewerFeedback: "Program complete!", reviewerUserId: "lead-1", rating: 4
+    });
+
+    expect(prismaMock.txGraduateProfileUpdateMany).toHaveBeenCalledWith({
+      where: { userId: "user-1", consentStatus: "ACKNOWLEDGED", publicProfileEnabled: false },
+      data: {
+        publicProfileEnabled: true,
+        programId: "program-1",
+        graduationDate: reviewedAt,
+        overallRating: 4 // average of the four accepted week ratings (4, 5, 3, 4)
+      }
+    });
   });
 
   it("refuses to review a submission that is not SUBMITTED (double-review guard)", async () => {
@@ -966,7 +1010,7 @@ describe("submission data access", () => {
         status: "ACCEPTED",
         reviewerFeedback: "Great work.",
         reviewerUserId: "lead-1",
-        rating: 4.5
+        rating: 4
       })
     ).rejects.toThrow("Invalid submission status transition");
     expect(prismaMock.txSubmissionReviewCreate).not.toHaveBeenCalled();
@@ -982,9 +1026,23 @@ describe("submission data access", () => {
         status: "ACCEPTED",
         reviewerFeedback: "",
         reviewerUserId: "lead-1",
-        rating: 4.5
+        rating: 4
       })
     ).rejects.toThrow("Submission not found for this tenant.");
+  });
+
+  it("rejects a decimal rating when accepting (rating must be a whole number 1-5)", async () => {
+    await expect(
+      reviewSubmission({
+        id: "sub-1",
+        tenantId: "tenant-1",
+        status: "ACCEPTED",
+        reviewerFeedback: "Great work.",
+        reviewerUserId: "lead-1",
+        rating: 4.5
+      })
+    ).rejects.toThrow("whole-number rating from 1 to 5");
+    expect(prismaMock.txSubmissionUpdateMany).not.toHaveBeenCalled();
   });
 });
 
