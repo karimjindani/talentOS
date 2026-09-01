@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { LearningResourceType } from "@prisma/client";
 import {
@@ -74,11 +74,16 @@ import {
 } from "@talentos/db";
 import { tenantRolesGrant, type RegressionArea, type RegressionSummary } from "@talentos/auth";
 import { buildObjectKey, getBucket, putObject } from "@talentos/storage";
+import { SCOPE, assertScenarioCatalog, type Scope } from "../lib/evidence-taxonomy";
 
 type ScenarioStatus = "passed" | "failed" | "skipped";
 
 type ScenarioResult = {
+  /** Stable TC ID, `TOS-<AREA>-<NN>` — the join key between this suite and the evidence reports. */
+  id: string;
   area: RegressionArea;
+  /** Which business process(es) this scenario is evidence for. See `scripts/lib/evidence-taxonomy.ts`. */
+  scopes: readonly Scope[];
   name: string;
   status: ScenarioStatus;
   durationMs: number;
@@ -87,7 +92,18 @@ type ScenarioResult = {
 };
 
 type Scenario = {
+  /**
+   * Stable TC ID (`v0.20.13`, D-112). Assigned once from the scenario's `area` and never
+   * renumbered — a deleted scenario retires its number and a new one takes `max + 1`. Renaming a
+   * scenario does not touch its ID: the ID is the join key, the name is prose.
+   */
+  id: string;
   area: Exclude<RegressionArea, "all">;
+  /**
+   * The business process(es) this scenario's result is evidence for, so the per-process reports can
+   * put it in the right document. Most scenarios name exactly one; a few genuinely guard two.
+   */
+  scopes: readonly Scope[];
   name: string;
   run: (ctx: ScenarioContext) => Promise<string | void>;
 };
@@ -130,43 +146,59 @@ const REGRESSION_EVIDENCE_CHECKER = {
 
 const scenarios: Scenario[] = [
   {
+    id: "TOS-UNI-01",
+    scopes: [SCOPE.PLT],
     area: "unit",
     name: "Vitest unit regression suite passes",
     run: async () => runUnitSuite()
   },
   {
+    id: "TOS-AUT-01",
+    scopes: [SCOPE.PLT],
     area: "auth",
     name: "Keycloak realm discovery is reachable",
     run: async () => expectHttp(`${LOCAL.keycloakIssuer}/.well-known/openid-configuration`, [200])
   },
   {
+    id: "TOS-AUT-02",
+    scopes: [SCOPE.ASA],
     area: "auth",
     name: "Org Admin can complete admin portal login",
     run: async () => loginFlow(`${LOCAL.tenantAdminUrl}/`, "orgadmin@demo.talentos.local", "ChangeMe123!", "demo.lvh.me:3200")
   },
   {
+    id: "TOS-AUT-03",
+    scopes: [SCOPE.ASA],
     area: "auth",
     name: "Applicant can complete applicant portal login",
     run: async () =>
       loginFlow(`${LOCAL.tenantApplicantUrl}/application`, "applicant@demo.talentos.local", "ChangeMe123!", "demo.lvh.me:3100")
   },
   {
+    id: "TOS-AUT-04",
+    scopes: [SCOPE.ASA],
     area: "auth",
     name: "Accepted applicant can reach dashboard",
     run: async () =>
       loginFlow(`${LOCAL.tenantApplicantUrl}/dashboard`, "accepted@demo.talentos.local", "ChangeMe123!", "demo.lvh.me:3100")
   },
   {
+    id: "TOS-OPS-01",
+    scopes: [SCOPE.PLT],
     area: "ops",
     name: "Org Admin can complete Ops Console login",
     run: async () => loginFlow(`${LOCAL.opsUrl}/login`, "orgadmin@demo.talentos.local", "ChangeMe123!", "127.0.0.1:3300")
   },
   {
+    id: "TOS-OPS-02",
+    scopes: [SCOPE.PLT],
     area: "ops",
     name: "Ops session endpoint returns status envelope",
     run: async () => expectHttp(`${LOCAL.opsUrl}/api/ops/me`, [200])
   },
   {
+    id: "TOS-APP-01",
+    scopes: [SCOPE.ASA],
     area: "applicant",
     name: "Applicant application lifecycle creates submitted application and blocks duplicate",
     run: async (ctx) => {
@@ -202,6 +234,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-APP-02",
+    scopes: [SCOPE.MAJ],
     area: "applicant",
     name: "Applicant completes an assigned-week task and future journal dates are rejected",
     run: async (ctx) => {
@@ -259,6 +293,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-APP-03",
+    scopes: [SCOPE.SMA],
     area: "applicant",
     name: "Submitted assignment journals are read-only and remain preserved",
     run: async (ctx) => {
@@ -299,6 +335,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-ADM-01",
+    scopes: [SCOPE.ASA],
     area: "admin",
     name: "Admin review lifecycle changes application status and writes audit",
     run: async (ctx) => {
@@ -325,6 +363,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-ADM-02",
+    scopes: [SCOPE.MAJ],
     area: "admin",
     name: "Admin content path exposes ordered Markdown and YouTube resources for a weekly task",
     run: async (ctx) => {
@@ -392,6 +432,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-ADM-03",
+    scopes: [SCOPE.SMA],
     area: "admin",
     name: "Reviewer loads assignment-linked journals and completes submission review",
     run: async (ctx) => {
@@ -458,6 +500,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-ADM-04",
+    scopes: [SCOPE.SMA],
     area: "admin",
     name: "Reviewer opens read-only previous-attempt context while reviewing a later attempt",
     run: async (ctx) => {
@@ -523,6 +567,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-PRG-01",
+    scopes: [SCOPE.MAJ],
     area: "programs",
     name: "Program lifecycle publishes and archives applicant-visible programs",
     run: async (ctx) => {
@@ -536,6 +582,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-MIS-01",
+    scopes: [SCOPE.MAJ],
     area: "missions",
     name: "Mission lifecycle publishes and archives applicant-visible missions",
     run: async (ctx) => {
@@ -566,6 +614,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-MIS-02",
+    scopes: [SCOPE.MAJ],
     area: "missions",
     name: "Accepting a mission sets a Thursday deadline with at least four working days (v0.20.0)",
     run: async (ctx) => {
@@ -609,6 +659,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-MIS-03",
+    scopes: [SCOPE.MAJ],
     area: "missions",
     name: "Prerequisite weekly tasks are stored and surfaced to applicants (v0.20.0)",
     run: async (ctx) => {
@@ -640,6 +692,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-MIS-04",
+    scopes: [SCOPE.MAJ],
     area: "missions",
     name: "Only Org Admin and Super Admin can manage missions",
     run: async () => {
@@ -650,6 +704,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-MIS-05",
+    scopes: [SCOPE.SMA],
     area: "missions",
     name: "Submission readiness requires weekly tasks, four current-attempt journals, and all evidence URLs",
     run: async (ctx) => {
@@ -812,6 +868,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-MIS-06",
+    scopes: [SCOPE.SMA],
     area: "missions",
     name: "Submission loop: draft, submit, request changes, resubmit, accept — with notifications and audit",
     run: async (ctx) => {
@@ -904,6 +962,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-MIS-07",
+    scopes: [SCOPE.SMA],
     area: "missions",
     name: "Admin cannot re-review a submission after already requesting changes or a repeat week",
     run: async (ctx) => {
@@ -1005,6 +1065,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-MIS-08",
+    scopes: [SCOPE.SMA],
     area: "missions",
     name: "Assignment-linked journals lock selectively and load safely for admin review",
     run: async (ctx) => {
@@ -1243,6 +1305,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-MIS-09",
+    scopes: [SCOPE.SMA],
     area: "missions",
     name: "Repeat-week attempts preserve journal history without duplicate or infinite loops",
     run: async (ctx) => {
@@ -1550,6 +1614,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-MIS-10",
+    scopes: [SCOPE.SMA],
     area: "missions",
     name: "Repeated-week history stays separate across mission variants and attempt boundaries",
     run: async (ctx) => {
@@ -1635,6 +1701,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-MIS-11",
+    scopes: [SCOPE.SMA],
     area: "missions",
     name: "Only Org Admin and Tech Lead can review submissions",
     run: async () => {
@@ -1645,6 +1713,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-MIS-12",
+    scopes: [SCOPE.MAJ],
     area: "missions",
     name: "Applicant mission visibility, detail access and submission drafting are limited to assigned missions",
     run: async (ctx) => {
@@ -1695,6 +1765,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-MIS-13",
+    scopes: [SCOPE.MAJ],
     area: "missions",
     name: "An applicant already accepted before any mission assignment exists sees no missions (documented backfill gap)",
     run: async (ctx) => {
@@ -1743,6 +1815,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-JNL-01",
+    scopes: [SCOPE.MAJ],
     area: "journal",
     name: "Applicant creates and edits a journal entry against their assigned mission; entries are listed and audited",
     run: async (ctx) => {
@@ -1800,6 +1874,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-JNL-02",
+    scopes: [SCOPE.MAJ],
     area: "journal",
     name: "Applicant cannot create a journal entry against a published mission that is not assigned to them",
     run: async (ctx) => {
@@ -1845,6 +1921,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-JNL-03",
+    scopes: [SCOPE.MAJ],
     area: "journal",
     name: "One journal entry per applicant per mission per calendar date is enforced",
     run: async (ctx) => {
@@ -1943,6 +2021,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-JNL-04",
+    scopes: [SCOPE.MAJ],
     area: "journal",
     name: "Journal entries lock once the mission's assignment is submitted",
     run: async (ctx) => {
@@ -2007,6 +2087,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-TEN-01",
+    scopes: [SCOPE.SMA],
     area: "tenant",
     name: "Tenant-scoped submission read rejects another tenant",
     run: async (ctx) => {
@@ -2028,6 +2110,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-TEN-02",
+    scopes: [SCOPE.SMA],
     area: "tenant",
     name: "Submission readiness ignores task completions from another tenant, applicant, or week",
     run: async (ctx) => {
@@ -2133,6 +2217,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-TEN-03",
+    scopes: [SCOPE.SMA],
     area: "tenant",
     name: "Engineering Journal review lookup remains tenant-scoped",
     run: async (ctx) => {
@@ -2186,6 +2272,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-TEN-04",
+    scopes: [SCOPE.SMA],
     area: "tenant",
     name: "Previous-attempt history stays tenant, applicant, program, and week scoped",
     run: async (ctx) => {
@@ -2431,6 +2519,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-TEN-05",
+    scopes: [SCOPE.MAJ],
     area: "tenant",
     name: "Tenant-scoped program read rejects another tenant",
     run: async (ctx) => {
@@ -2442,6 +2532,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-TEN-06",
+    scopes: [SCOPE.PLT],
     area: "tenant",
     name: "Realm role alone does not grant tenant capability without membership",
     run: async (ctx) => {
@@ -2455,6 +2547,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-DSH-01",
+    scopes: [SCOPE.MAJ],
     area: "dashboard",
     name: "Accepted applicant dashboard pages load",
     run: async () => {
@@ -2465,6 +2559,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-DSH-02",
+    scopes: [SCOPE.MAJ],
     area: "dashboard",
     name: "Dashboard task and notification persistence helpers update records",
     run: async (ctx) => {
@@ -2489,6 +2585,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-DSH-03",
+    scopes: [SCOPE.SMA],
     area: "dashboard",
     name: "Accepted mission submission moves mission-driven dashboard progress",
     run: async (ctx) => {
@@ -2538,6 +2636,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-PRG-02",
+    scopes: [SCOPE.MAJ],
     area: "programs",
     name: "Org Admin manages program content; roles without manageProgramContent are denied",
     run: async (ctx) => {
@@ -2650,6 +2750,8 @@ const scenarios: Scenario[] = [
   },
   // ─── v0.20.1: Admin reviewer path coverage ───────────────────────────────
   {
+    id: "TOS-ADM-05",
+    scopes: [SCOPE.SMA],
     area: "admin",
     name: "Reviewer can request revisions and applicant can resubmit (v0.20.1)",
     run: async (ctx) => {
@@ -2721,6 +2823,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-ADM-06",
+    scopes: [SCOPE.SMA],
     area: "admin",
     name: "Reviewer can reject with REPEAT and a new attempt is created (v0.20.1)",
     run: async (ctx) => {
@@ -2803,6 +2907,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-ADM-07",
+    scopes: [SCOPE.SMA],
     area: "admin",
     name: "Review writes immutable SubmissionReview history record (v0.20.1)",
     run: async (ctx) => {
@@ -2872,6 +2978,8 @@ const scenarios: Scenario[] = [
   },
   // ─── v0.20.1: Cross-tenant browser route scenarios ──────────────────────
   {
+    id: "TOS-TEN-07",
+    scopes: [SCOPE.SMA],
     area: "tenant",
     name: "Cross-tenant submission access is denied via getTenantSubmission (v0.20.1)",
     run: async (ctx) => {
@@ -2904,6 +3012,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-TEN-08",
+    scopes: [SCOPE.SMA],
     area: "tenant",
     name: "Cross-tenant journal review lookup is denied (v0.20.1)",
     run: async (ctx) => {
@@ -2930,6 +3040,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-TEN-09",
+    scopes: [SCOPE.MAJ],
     area: "tenant",
     name: "Cross-tenant mission visibility is rejected (v0.20.1)",
     run: async (ctx) => {
@@ -2952,6 +3064,8 @@ const scenarios: Scenario[] = [
   },
   // ─── v0.20.1: Mission deadline/lifecycle e2e scenarios ───────────────────
   {
+    id: "TOS-MIS-14",
+    scopes: [SCOPE.MAJ],
     area: "missions",
     name: "Deadline sweep marks overdue assignments and disqualifies after grace (v0.20.1)",
     run: async (ctx) => {
@@ -3000,6 +3114,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-MIS-15",
+    scopes: [SCOPE.MAJ],
     area: "missions",
     name: "Deadline sweep is idempotent — running twice produces no new changes (v0.20.1)",
     run: async (ctx) => {
@@ -3013,6 +3129,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-MIS-16",
+    scopes: [SCOPE.SMA],
     area: "missions",
     name: "FAILED assignment rejects new submissions (v0.20.1)",
     run: async (ctx) => {
@@ -3055,6 +3173,8 @@ const scenarios: Scenario[] = [
   },
   // ─── v0.20.1: Cross-portal session isolation ────────────────────────────
   {
+    id: "TOS-AUT-05",
+    scopes: [SCOPE.PLT],
     area: "auth",
     name: "Applicant and admin portals use separate Keycloak clients (v0.20.1)",
     run: async () => {
@@ -3078,6 +3198,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-AUT-06",
+    scopes: [SCOPE.PLT],
     area: "auth",
     name: "Applicant session cookie does not grant admin portal access (v0.20.1)",
     run: async () => {
@@ -3104,6 +3226,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-PUB-01",
+    scopes: [SCOPE.FMP],
     area: "public-portal",
     name: "Four weekly missions are completed before an applicant consents to publish a graduate profile",
     run: async (ctx) => {
@@ -3240,6 +3364,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-PUB-02",
+    scopes: [SCOPE.FMP],
     area: "public-portal",
     name: "Declining consent before a graduate profile ever existed still persists the decision (D-consent-persist)",
     run: async (ctx) => {
@@ -3268,6 +3394,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-PUB-03",
+    scopes: [SCOPE.FMP],
     area: "public-portal",
     name: "Skipping consent before a graduate profile ever existed still persists the decision (D-consent-persist)",
     run: async (ctx) => {
@@ -3291,6 +3419,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-PUB-04",
+    scopes: [SCOPE.FMP],
     area: "public-portal",
     name: "A brand-new graduate profile inherits GitHub/LinkedIn and avatar from the applicant's accepted application (v0.20.7)",
     run: async (ctx) => {
@@ -3322,6 +3452,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-PUB-05",
+    scopes: [SCOPE.FMP],
     area: "public-portal",
     name: "A graduate profile created with no accepted application or avatar gets null defaults, not a crash (v0.20.7)",
     run: async (ctx) => {
@@ -3340,6 +3472,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-PUB-06",
+    scopes: [SCOPE.FMP],
     area: "public-portal",
     name: "Apply-time defaults are only applied on first creation — an existing profile's photo and links are never overwritten (v0.20.7)",
     run: async (ctx) => {
@@ -3366,6 +3500,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-PUB-07",
+    scopes: [SCOPE.FMP],
     area: "public-portal",
     name: "Declining consent after a profile is already public immediately removes it from public discovery",
     run: async (ctx) => {
@@ -3390,6 +3526,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-PUB-08",
+    scopes: [SCOPE.RJ],
     area: "public-portal",
     name: "An approved recruiter access request is verified, grants access to every published graduate, and revocation removes it",
     run: async (ctx) => {
@@ -3461,6 +3599,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-PUB-09",
+    scopes: [SCOPE.RJ],
     area: "public-portal",
     name: "Pending and rejected recruiter access requests cannot be verified, and the rejection reason reaches the recruiter",
     run: async (ctx) => {
@@ -3519,6 +3659,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-PUB-10",
+    scopes: [SCOPE.FMP, SCOPE.RJ],
     area: "public-portal",
     name: "The graduate directory and recruiter access grants are tenant-isolated (v0.20.11, D-110)",
     run: async (ctx) => {
@@ -3611,6 +3753,8 @@ const scenarios: Scenario[] = [
     }
   },
   {
+    id: "TOS-STO-01",
+    scopes: [SCOPE.ASA],
     area: "storage",
     name: "Storage browser upload/download scenario",
     run: async () => skip("Full CV upload/download scenario is documented as missing and will be automated in the next storage-focused slice.")
@@ -3624,6 +3768,12 @@ function skip(message: string): never {
 }
 
 async function main() {
+  // Before anything else, and before area filtering, so the whole catalog is checked even by a
+  // single-area run. This file is outside tsconfig's `include`, so `id`/`scopes` get no
+  // compile-time enforcement — this is the check that actually catches a duplicate or mis-prefixed
+  // TC ID, and it runs on the CI gate step rather than 30 minutes later in a report.
+  assertScenarioCatalog(scenarios);
+
   const area = parseArea(process.argv[2] ?? "all");
   const runId = `regression-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}-${randomUUID().slice(0, 8)}`;
   const started = Date.now();
@@ -3636,16 +3786,26 @@ async function main() {
 
   for (const scenario of selected) {
     const scenarioStarted = Date.now();
-    process.stdout.write(`- ${scenario.area}: ${scenario.name} ... `);
+    process.stdout.write(`- ${scenario.id} ${scenario.area}: ${scenario.name} ... `);
     try {
       const detail = await scenario.run({ runId });
-      const result = { area: scenario.area, name: scenario.name, status: "passed" as const, durationMs: Date.now() - scenarioStarted, detail };
+      const result = {
+        id: scenario.id,
+        area: scenario.area,
+        scopes: scenario.scopes,
+        name: scenario.name,
+        status: "passed" as const,
+        durationMs: Date.now() - scenarioStarted,
+        detail
+      };
       results.push(result);
       console.log("passed");
     } catch (error) {
       const status = error instanceof ScenarioSkipped ? "skipped" : "failed";
       const result = {
+        id: scenario.id,
         area: scenario.area,
+        scopes: scenario.scopes,
         name: scenario.name,
         status,
         durationMs: Date.now() - scenarioStarted,
@@ -3661,10 +3821,44 @@ async function main() {
   const resultsDir = resolve(".ops", "regression-results");
   await mkdir(resultsDir, { recursive: true }).catch(() => undefined);
   await writeFile(resolve(resultsDir, `regression-${runId}.json`), `${JSON.stringify(payload, null, 2)}\n`, "utf8").catch(() => undefined);
+  await pruneOldResults(resultsDir);
   console.log(`REGRESSION_RESULT_JSON:${JSON.stringify(payload)}`);
   console.log(`Summary: ${summary.passed}/${summary.total} passed, ${summary.failed} failed, ${summary.skipped} skipped.`);
 
   if (summary.failed > 0) process.exit(1);
+}
+
+/**
+ * Keeps the newest `RESULTS_TO_KEEP` result files and deletes the rest (`v0.20.13`, D-112).
+ *
+ * The reports only ever read the newest file, but every local run left one behind forever — 71 of
+ * them had accumulated since July, and CI was uploading the whole glob. Best-effort throughout:
+ * failing to tidy up must never fail a regression run.
+ */
+const RESULTS_TO_KEEP = 10;
+
+async function pruneOldResults(resultsDir: string): Promise<void> {
+  try {
+    const names = (await readdir(resultsDir)).filter((name) => name.endsWith(".json"));
+    const dated = await Promise.all(
+      names.map(async (name) => {
+        const path = resolve(resultsDir, name);
+        try {
+          return { path, mtimeMs: (await stat(path)).mtimeMs };
+        } catch {
+          return null;
+        }
+      })
+    );
+    const stale = dated
+      .filter((entry): entry is { path: string; mtimeMs: number } => entry !== null)
+      .sort((a, b) => b.mtimeMs - a.mtimeMs)
+      .slice(RESULTS_TO_KEEP);
+    for (const entry of stale) await unlink(entry.path).catch(() => undefined);
+    if (stale.length > 0) console.log(`Pruned ${stale.length} old result file(s), keeping the newest ${RESULTS_TO_KEEP}.`);
+  } catch {
+    // The directory may not exist yet on a first run; nothing to prune.
+  }
 }
 
 function parseArea(value: string): RegressionArea {

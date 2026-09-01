@@ -46,7 +46,14 @@ export type RegressionSummary = {
 };
 
 export type RegressionScenarioResult = {
+  /**
+   * Stable TC ID, `TOS-<AREA>-<NN>` (`v0.20.13`, D-112). Optional so an older payload still
+   * validates — `apps/ops/src/jobs.ts` reads runs recorded before IDs existed.
+   */
+  id?: string;
   area: Exclude<RegressionArea, "all">;
+  /** Business process(es) this scenario is evidence for; see `scripts/lib/evidence-taxonomy.ts`. */
+  scopes?: readonly string[];
   name: string;
   status: "passed" | "failed" | "skipped";
   durationMs: number;

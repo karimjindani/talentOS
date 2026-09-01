@@ -10,21 +10,16 @@ export type Actor = "applicant" | "reviewer" | "admin" | "superadmin" | "recruit
 
 /**
  * The 5 named business processes evidence is grouped and reported by (v0.20.5) — one PDF per
- * process, not one per spec file. Order here is report order.
+ * process, not one per spec file. Order there is report order.
  *
- * `scripts/ci/journey-pdf-report.ts` cannot import this: it runs outside `tests/journeys/` against
- * the JSON contract only, mirroring how it already duplicates `JourneyRecord`/`JourneyStepRecord`
- * rather than importing them. Keep that copy of this list in sync with this one by hand.
+ * Re-exported, not declared, since `v0.20.13` (D-112): the list now lives in
+ * `scripts/lib/evidence-taxonomy.ts` so the journey suite, the regression runner and the report
+ * renderer all share one copy. It used to be duplicated here and in `journey-pdf-report.ts` with
+ * a "keep in sync by hand" comment, and `groupByProcess` drops steps whose tag matches nothing —
+ * so drift lost evidence silently instead of failing.
  */
-export const PROCESSES = [
-  "Applicant Signup & Approval",
-  "Mission Acceptance & Journal",
-  "Submission & Mission Acceptance",
-  "Final Mission & Public Profile",
-  "Recruiter Journey"
-] as const;
-
-export type Process = (typeof PROCESSES)[number];
+export { PROCESSES, type Process } from "../../../scripts/lib/evidence-taxonomy";
+import type { Process } from "../../../scripts/lib/evidence-taxonomy";
 
 export type StepMeta = {
   actor: Actor;
