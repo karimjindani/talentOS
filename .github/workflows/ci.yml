@@ -96,19 +96,19 @@ jobs:
         if: always()
         run: npm run journeys
 
+      # One summary covering the scenario run, the journeys, and the per-process roll-up that ties
+      # them together (v0.20.13). Replaces the two separate summary steps, which counted scenarios
+      # and journey steps in unrelated blocks with no way to tell whether a given business process
+      # was healthy. Same non-throwing contract.
       - name: Write run summary
         if: always()
-        run: npx tsx scripts/ci/regression-summary.ts
+        run: npm run evidence:summary
 
-      - name: Write journey evidence
-        if: always()
-        run: npm run journeys:report
-
-      # Renders the same evidence into one PDF per named business process (v0.20.5) rather than a
-      # single combined report, via Playwright's already-installed Chromium. Falls back to one
-      # HTML file per process instead of failing the step if no browser is available, so this can
-      # never turn a passing run red.
-      - name: Write journey PDF report
+      # Renders both evidence layers into one complete PDF per named business process (v0.20.5,
+      # merged with the scenario results in v0.20.13), via Playwright's already-installed Chromium.
+      # Falls back to one HTML file per process instead of failing the step if no browser is
+      # available, so this can never turn a passing run red.
+      - name: Write per-process evidence reports
         if: always()
         run: npm run journeys:report:pdf
 
@@ -124,11 +124,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-evidence-${{ github.run_number }}
+          # The reports lead, since they are what a reviewer actually opens. journey-report/ also
+          # carries regression-run.json — the single scenario result the reports were built from,
+          # so the artifact no longer globs every run the results directory has ever held.
           path: |
-            .ops/regression-results/*.json
+            .ops/journey-report/**
             .ops/journey-results/*.json
-            .ops/journey-evidence/**
-            .ops/journey-report/*
+            !.ops/journey-results/playwright.json
+            .ops/journey-evidence/**/*.png
             .ops/docker-logs/*.log
             docs/user-guides/screenshots/*.png
           if-no-files-found: warn
